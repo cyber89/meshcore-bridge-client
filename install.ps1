@@ -27,7 +27,7 @@ function Invoke-NativeCommand {
 
 function Test-RuntimeDependencies {
     param([string]$PythonPath, [string]$ScriptDir)
-    & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" | Out-Host
+    & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" --profile web | Out-Host
     return ($LASTEXITCODE -eq 0)
 }
 
@@ -67,7 +67,7 @@ if (Test-Path $VenvPython) {
 if ($InstallDeps -or -not (Test-RuntimeDependencies -PythonPath $PythonPath -ScriptDir $ScriptDir)) {
     Write-Host "[2/4] Instalando / verificando dependencias en requirements.txt..." -ForegroundColor Blue
     Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements.txt" -q } "Fallo al instalar requirements.txt."
-    Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" } "Dependencias incompletas o incompatibles tras instalar."
+    Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" --profile web } "Dependencias incompletas o incompatibles tras instalar."
     Write-Host "[OK] Dependencias instaladas correctamente." -ForegroundColor Green
 } else {
     Write-Host "[2/4] Dependencias ya disponibles." -ForegroundColor Green

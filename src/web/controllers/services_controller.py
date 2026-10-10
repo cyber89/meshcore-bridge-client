@@ -6,9 +6,13 @@ CRUD de presets de conexión y pruebas efímeras de conectividad.
 
 from __future__ import annotations
 
+import asyncio
+import copy
 import logging
 import re
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any
 
@@ -18,16 +22,73 @@ from src.services_config import (
     SYSTEM_PRESETS,
     ExternalMqttConfig,
     MqttPreset,
+    ServicesConfig,
     save_services_config_async,
     to_redacted_dict,
 )
-from src.web.controllers.base import BaseController, problem_details
+from src.web.controllers.base import ApiContext, BaseController, problem_details
 
 logger = logging.getLogger("meshcore.controllers.services")
 
 
 class ServicesController(BaseController):
     """Controlador REST para gestión de servicios de red y presets MQTT."""
+
+    def __init__(self, ctx: ApiContext) -> None:
+        super().__init__(ctx)
+        self._mutation_lock = asyncio.Lock()
+        self._configuration_write_task: asyncio.Task[None] | None = None
+
+    @asynccontextmanager
+    async def _configuration_guard(self) -> AsyncIterator[None]:
+        manager = getattr(self.ctx.bridge, "services_manager", None)
+        guard = getattr(manager, "configuration_guard", None)
+        if callable(guard):
+            async with guard():
+                yield
+        else:
+            # Lightweight consumers retain the same cancellation-safe writer
+            # ordering without constructing any network service manager.
+            async with self._mutation_lock:
+                try:
+                    await self._await_configuration_write()
+                except Exception:
+                    # The owned result callback reports the previous failure.
+                    # This request can retry persistence with a new snapshot.
+                    pass
+                yield
+
+    async def _await_configuration_write(self) -> None:
+        task = self._configuration_write_task
+        if task is None:
+            return
+        try:
+            await asyncio.shield(task)
+        finally:
+            if task.done() and self._configuration_write_task is task:
+                self._configuration_write_task = None
+
+    @staticmethod
+    def _observe_configuration_write(task: asyncio.Task[None]) -> None:
+        if not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                logger.error("Preset persistence failed: %s", type(error).__name__)
+
+    async def _persist_configuration(self, cfg: ServicesConfig) -> None:
+        """Called only under the guard protecting this configuration snapshot."""
+        manager = getattr(self.ctx.bridge, "services_manager", None)
+        persist = getattr(manager, "persist_configuration", None)
+        if callable(persist):
+            await persist()
+            return
+        await self._await_configuration_write()
+        snapshot = copy.deepcopy(cfg)
+        self._configuration_write_task = asyncio.create_task(
+            save_services_config_async(snapshot), name="PresetConfigurationPersistence"
+        )
+        self._configuration_write_task.add_done_callback(self._observe_configuration_write)
+        await self._await_configuration_write()
 
     async def get_services_config(self) -> tuple[int, dict[str, Any]]:
         """Devuelve la configuración consolidada de servicios de red con credenciales enmascaradas."""
@@ -46,6 +107,16 @@ class ServicesController(BaseController):
 
     async def set_services_config(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Actualiza y recarga en caliente la configuración de servicios de red."""
+        # reload_services owns the manager lock itself. Never hold that same
+        # lock here while invoking it; this lock also supports legacy consumers.
+        async with self._mutation_lock:
+            try:
+                await self._await_configuration_write()
+            except Exception:
+                pass  # Previous owned write failure was reported by its callback.
+            return await self._set_services_config(body)
+
+    async def _set_services_config(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         if not isinstance(body, dict):
             return problem_details(
                 400, "Bad Request", "El cuerpo de la solicitud debe ser un objeto JSON válido.", "invalid_json"
@@ -139,13 +210,17 @@ class ServicesController(BaseController):
                 "data": data,
             }
         except Exception as e:
-            logger.error(f"Error actualizando servicios de red: {e}", exc_info=True)
+            logger.error("Services configuration reload failed: %s", type(e).__name__)
             return problem_details(
-                500, "Internal Server Error", f"Error al recargar servicios: {e}", "reload_failed"
+                500, "Internal Server Error", "Error al recargar servicios de red.", "reload_failed"
             )
 
     async def save_preset(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Guarda un nuevo perfil personalizado de conexión MQTT o actualiza uno existente."""
+        async with self._configuration_guard():
+            return await self._save_preset(body)
+
+    async def _save_preset(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         if not isinstance(body, dict):
             return problem_details(
                 400, "Bad Request", "El cuerpo de la solicitud debe ser un objeto JSON válido.", "invalid_json"
@@ -236,7 +311,7 @@ class ServicesController(BaseController):
         new_presets.append(preset)
         cfg.custom_presets = new_presets
 
-        await save_services_config_async(cfg)
+        await self._persist_configuration(cfg)
 
         preset_dict = asdict(preset)
         preset_dict["has_password"] = bool(preset.password)
@@ -255,6 +330,10 @@ class ServicesController(BaseController):
 
     async def delete_preset(self, preset_id: str) -> tuple[int, dict[str, Any]]:
         """Elimina un preset personalizado existente."""
+        async with self._configuration_guard():
+            return await self._delete_preset(preset_id)
+
+    async def _delete_preset(self, preset_id: str) -> tuple[int, dict[str, Any]]:
         clean_id = (preset_id or "").strip()
         system_ids = {p.id for p in SYSTEM_PRESETS}
         if clean_id in system_ids:
@@ -273,7 +352,7 @@ class ServicesController(BaseController):
             )
 
         cfg.custom_presets = [p for p in cfg.custom_presets if p.id != clean_id]
-        await save_services_config_async(cfg)
+        await self._persist_configuration(cfg)
 
         self.ctx.log_system_event(
             "INFO", f"Preset personalizado '{target.name}' eliminado.", source="services_mgr"

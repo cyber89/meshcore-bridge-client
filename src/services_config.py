@@ -385,6 +385,7 @@ def to_redacted_dict(cfg: ServicesConfig) -> dict[str, Any]:
 
     # Incluir lista combinada de presets: presets del sistema + presets del usuario
     all_presets = [asdict(p) for p in SYSTEM_PRESETS]
+    redacted_custom_presets: list[dict[str, Any]] = []
     for p in d.get("custom_presets", []):
         p_copy = dict(p)
         p_copy["has_password"] = bool(p_copy.get("password"))
@@ -392,8 +393,12 @@ def to_redacted_dict(cfg: ServicesConfig) -> dict[str, Any]:
         p_copy["has_token"] = bool(p_copy.get("token"))
         p_copy["token"] = MASKED_PASSWORD if p_copy.get("token") else ""
         p_copy["is_system"] = False
+        redacted_custom_presets.append(p_copy)
         all_presets.append(p_copy)
 
+    # Both public views must use the redacted projection. asdict() made a deep
+    # copy, so replacing this list never changes persisted/runtime credentials.
+    d["custom_presets"] = redacted_custom_presets
     d["all_presets"] = all_presets
     return d
 

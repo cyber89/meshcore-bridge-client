@@ -2,7 +2,7 @@
 
 Esta guía describe el procedimiento para desplegar el puente **MeshCore Bridge** en **Armbian (Orange Pi 2W)**, **Raspberry Pi**, **Debian** o **Ubuntu** con arranque automático mediante **systemd**, broker **Mosquitto** y conexión a **n8n**.
 
-Guía vigente revisada el 2026-10-05, con contratos de instaladores comprobados en temporales y comandos simulados. No acredita una instalación real completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
+Guía vigente revisada por lectura de código el 2026-10-09. Los contratos de instaladores comprobados en temporales y comandos simulados el 2026-10-05 son evidencia anterior; esta auditoría no ejecutó instaladores, servicios ni suites. No acredita una instalación real completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
 
 ---
 
@@ -39,22 +39,35 @@ sudo bash install.sh --update
 3. Utiliza la cuenta invocante `SUDO_USER` sin UID 0; si se invoca directamente como root, crea/usa la cuenta de sistema `meshcore`. Obtiene su grupo primario y añade los grupos serie existentes (`dialout`/`uucp`).
 4. **Detecta automáticamente el puerto de tu placa LoRa** conectada por USB.
 5. Despliega los archivos en `/opt/meshcore-bridge` y crea el archivo de configuración `.env`.
-6. Crea `venv/` e instala `requirements.txt`: `paho-mqtt`, `meshcore`, `python-dotenv`, `pyserial`, `fastapi`, `uvicorn`, `pydantic` y `websockets`. El decodificador CayenneLPP es nativo; no requiere `pycayennelpp` ni el parser raw actual importa `pyserial-asyncio`.
+6. Crea `venv/` e instala `requirements.txt`: cuatro dependencias core y seis de ASGI, detalladas abajo. El bridge incluye un decodificador CayenneLPP propio; `pycayennelpp` y `pyserial-asyncio-fast` pueden instalarse como dependencias transitivas del SDK `meshcore`, aunque el parser raw no las importe directamente.
 7. Registra, habilita y arranca el servicio **`meshcore-bridge.service`** en systemd.
 
 ### 📦 Dependencias y Perfiles de Verificación
 
-El archivo `requirements.txt` incluye el stack completo de producción (MQTT, MeshCore SDK, Serial, FastAPI 0.143, Uvicorn 0.54, Pydantic 2.14 y websockets). Para verificar la integridad de las dependencias:
+El archivo [`requirements.txt`](../requirements.txt) y las dependencias principales de [`pyproject.toml`](../pyproject.toml) incluyen el stack completo de producción:
 
-- **Perfil `web` (Por Defecto)**: Verifica el stack completo de producción (`requirements.txt`) para operación con la interfaz web y API REST/WebSocket:
+| Grupo | Distribuciones y política de versión |
+| --- | --- |
+| Core | `paho-mqtt>=2.1.0`, `meshcore>=2.3.8`, `pyserial>=3.5`, `python-dotenv>=1.0.1` |
+| ASGI | `fastapi==0.143.0`, `uvicorn==0.54.0`, `pydantic==2.14.0`, `websockets==16.1.1`, `starlette==1.7.0`, `h11==0.16.0` |
+
+Los seis pins ASGI corresponden a las interfaces evaluadas de middleware, enrutamiento y protocolo. El comprobador rechaza versiones diferentes, incluidas pre-releases, post-releases y builds locales. Las demás transitivas siguen las restricciones de sus paquetes padres; estos manifests no son un lock completo con hashes. `requirements-web.txt` conserva un punto de entrada compatible mediante `-r requirements.txt`, y el extra `web` conserva los mismos seis pins para comandos existentes.
+
+La verificación con el mismo intérprete del launcher comprueba imports y versiones; no ejecuta endpoints ni acredita el comportamiento de la estación:
+
+- **Perfil `web`**: Verifica cuatro dependencias core y seis ASGI. Es el default sin variable `MESHCORE_PROFILE`; ambos instaladores lo seleccionan explícitamente con `--profile web`:
   ```bash
   python scripts/check_runtime_dependencies.py                  # Por defecto (perfil web)
   python scripts/check_runtime_dependencies.py --profile web    # Explícito
   ```
-- **Perfil `core` (Modo Headless sin Web)**: Verifica únicamente las 4 dependencias mínimas si la estación opera con `WEB_ENABLED=false`:
+- **Perfil `core`**: Verifica únicamente las cuatro dependencias mínimas y no importa ASGI durante esa comprobación:
   ```bash
   python scripts/check_runtime_dependencies.py --profile core   # Perfil core headless
   ```
+
+`MESHCORE_PROFILE` selecciona el perfil del comprobador cuando no se pasa `--profile`. Un perfil desconocido falla; no reduce silenciosamente la verificación a core. El argumento explícito tiene prioridad sobre la variable. Este perfil no cambia la configuración de ejecución ni el manifest que instala pip. `WEB_ENABLED=false` desactiva la construcción y arranque web mediante imports diferidos en `bridge_core.py`; no elimina paquetes ya instalados. Los instaladores actuales instalan el manifest completo incluso para una estación headless; no existe un instalador ni manifest mantenido que instale sólo core.
+
+Cuando `WEB_ENABLED=true`, el core crea [`AsgiWebServer`](../src/web/asgi_server.py), con FastAPI y Uvicorn embebido. No hay selector del servidor nativo ni fallback si faltan dependencias. La adopción está implementada en código; las pruebas funcionales de REST, WS, documentación offline, apagado e instalación por plataforma siguen pendientes para esta revisión. No se han medido RAM, arranque ni rendimiento en los gateways citados.
 
 ---
 
@@ -100,7 +113,7 @@ sudo apt install -y python3 python3-pip python3-venv mosquitto mosquitto-clients
 
 ### 4. Configuración del Broker Mosquitto
 
-Cree una configuración para un broker limitado al host. Este ejemplo manual usa loopback; difiere del bind abierto que escriben las ramas de instalación/actualización del instalador actual. Para un n8n remoto, configure explícitamente una interfaz accesible, credenciales y permisos del broker.
+Cree una configuración para un broker limitado al host. Este ejemplo manual usa loopback; difiere del bind abierto que escribe la instalación inicial del instalador actual. La actualización `--update` conserva Mosquitto. Para un n8n remoto, configure explícitamente una interfaz accesible, credenciales y permisos del broker.
 
 ```bash
 sudo tee /etc/mosquitto/conf.d/meshcore_local.conf << 'EOF'
@@ -176,6 +189,15 @@ Una vez iniciado el servicio, accede desde cualquier navegador en la misma red l
   2. Escribe tu clave secreta en el campo correspondiente y pulsa **Guardar**.
   3. Tu navegador quedará automáticamente autorizado para emitir mensajes y enviar comandos administrativos.
 
+El servidor FastAPI publica `/docs` y `/redoc` como visor local, con assets del
+repositorio, y `/openapi.json` como catálogo OpenAPI 3.1. Si `BRIDGE_API_KEY` está
+configurada, el esquema exige `X-Api-Key`: la clave en query no autentica esta
+frontera documental. El formulario del visor solicita el esquema con esa cabecera;
+no ejecuta operaciones de radio. El catálogo describe los contratos del dispatcher
+y controladores vigentes; sus DTOs descriptivos no sustituyen la validación de
+negocio de las peticiones. La comprobación funcional de este visor y las APIs
+sigue pendiente de autorización de suites para la revisión actual.
+
 ---
 
 ## 📱 Conexión con Companion Apps Móviles (Android / iOS / CLI)
@@ -198,7 +220,7 @@ Si en cualquier momento cambias de placa (por ejemplo, cambias un Heltec por un 
    ```bash
    sudo bash install.sh --update
    ```
-3. El instalador intenta detectar el puerto y reiniciar el servicio. Revise `.env`, permisos e identidad del nodo tras cambiar de placa; una ruta persistente USB suele facilitar esa revisión.
+3. La actualización conserva `.env` y no cambia `SERIAL_PORT` ni autodetecta la nueva placa. Revise o edite esa variable, los permisos y la identidad del nodo antes de reiniciar; una ruta persistente USB suele facilitar esa revisión.
 
 ---
 
@@ -225,7 +247,7 @@ curl -s http://127.0.0.1:8080/api/status | jq .
 ```
 
 ### Instalación en Windows (PowerShell)
-`install.ps1` crea/reutiliza `.venv` con el intérprete `python`/`py` disponible y ejecuta pip mediante el Python de ese entorno. Verifica imports y versiones mínimas de las cuatro dependencias de producción; una carpeta `paho` por sí sola no acredita el entorno. Un fallo de instalación/verificación termina con código distinto de cero:
+`install.ps1` crea/reutiliza `.venv` con el intérprete `python`/`py` disponible y ejecuta pip mediante el Python de ese entorno. Pasa `--profile web` en la comprobación inicial y después de instalar: valida cuatro mínimos core y seis pins ASGI exactos, con independencia de `MESHCORE_PROFILE`. Una carpeta `paho` por sí sola no acredita el entorno. Un fallo de instalación/verificación termina con código distinto de cero:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1

@@ -548,7 +548,7 @@ export class MapModule {
           ${isStart ? "🏠" : (isTarget ? "🎯" : "📻")}
         </div>
         <div class="trace-node-name font-mono">${escapeHtml(hop.name || (hop.pubkey ? hop.pubkey.slice(0, 8) : `Hop ${idx}`))}</div>
-        <div class="trace-node-snr">${hop.snr != null ? `${hop.snr} dB` : ""}</div>
+        <div class="trace-node-snr">${hop.snr != null ? `${escapeHtml(String(hop.snr))} dB` : ""}</div>
       `;
       this.dom.traceVisualGraph.appendChild(nodeEl);
 
@@ -573,8 +573,8 @@ export class MapModule {
         <td><code>${escapeHtml(h.pubkey ? h.pubkey.slice(0, 8) : "--")}</code></td>
         <td>${escapeHtml(h.name || I18n.t('common.node'))}</td>
         <td><span class="badge-pill">${escapeHtml(h.role || "NODE")}</span></td>
-        <td>${h.snr != null ? `${h.snr} dB` : "--"}</td>
-        <td>${h.rtt_ms != null ? `${h.rtt_ms} ms` : "--"}</td>
+        <td>${h.snr != null ? `${escapeHtml(String(h.snr))} dB` : "--"}</td>
+        <td>${h.rtt_ms != null ? `${escapeHtml(String(h.rtt_ms))} ms` : "--"}</td>
       `;
       this.dom.traceBreakdownTableBody.appendChild(tr);
     });
@@ -723,7 +723,7 @@ export class MapModule {
         </div>
         <div class="map-node-item-sub font-mono">
           <span>📍 ${lat.toFixed(4)}, ${lon.toFixed(4)}</span>
-          ${node.last_snr != null ? `<span>📶 ${node.last_snr} dB</span>` : ""}
+          ${node.last_snr != null ? `<span>📶 ${escapeHtml(String(node.last_snr))} dB</span>` : ""}
         </div>
       `;
 
@@ -767,8 +767,8 @@ export class MapModule {
           <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill">${escapeHtml(I18n.role(node.role || (isLocal ? "LOCAL" : "CLIENT")))}</span></div>
           <div><span>${I18n.t('map.key_label')}</span> <code>${escapeHtml(pk.slice(0, 8))}...</code></div>
           <div><span>${I18n.t('map.pos_label')}</span> <code>${lat.toFixed(5)}, ${lon.toFixed(5)}</code></div>
-          ${node.last_rssi != null ? `<div><span>${I18n.t('map.rssi_label')}</span> <strong>${node.last_rssi} dBm</strong></div>` : ""}
-          ${node.last_snr != null ? `<div><span>${I18n.t('map.snr_label')}</span> <strong>${node.last_snr} dB</strong></div>` : ""}
+          ${node.last_rssi != null ? `<div><span>${I18n.t('map.rssi_label')}</span> <strong>${escapeHtml(String(node.last_rssi))} dBm</strong></div>` : ""}
+          ${node.last_snr != null ? `<div><span>${I18n.t('map.snr_label')}</span> <strong>${escapeHtml(String(node.last_snr))} dB</strong></div>` : ""}
           ${isLocal ? `<div style="color: var(--accent-success); font-weight: 600; margin-top: 4px;">📍 ${I18n.t('map.local_connected')}</div>` : ""}
         </div>
       </div>

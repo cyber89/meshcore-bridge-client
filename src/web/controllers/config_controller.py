@@ -266,9 +266,9 @@ class ConfigController(BaseController):
                     return problem_details(503, "Service Unavailable", "El transceptor no se reconectó", "serial_reconnect_failed")
                 self.ctx.log_system_event("INFO", "Reconexión de puerto serial completada", source="serial")
                 return 200, {"status": "ok", "message": "Puerto serial reconectado exitosamente"}
-            except Exception as e:
-                self.ctx.log_system_event("ERROR", f"Fallo al reconectar puerto serial: {e}", source="serial")
-                return 500, {"status": "error", "message": f"Error reconectando: {e}"}
+            except Exception:
+                self.ctx.log_system_event("ERROR", "Fallo al reconectar puerto serial", source="serial")
+                return 500, {"status": "error", "message": "No se pudo reconectar el puerto serial"}
 
         # Fallback a comando admin
         res = await self.ctx.bridge.handle_admin({"action": "reconnect_serial"})
@@ -378,8 +378,8 @@ class ConfigController(BaseController):
             return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
         try:
             mode = await admin.get_path_hash_mode()
-        except ConnectionError as error:
-            return problem_details(503, "Service Unavailable", str(error), "read_unconfirmed")
+        except ConnectionError:
+            return problem_details(503, "Service Unavailable", "El transceptor no confirmó la lectura", "read_unconfirmed")
         return 200, {"status": "ok", "path_hash_mode": mode, "data": {"path_hash_mode": mode}}
 
     async def set_path_hash_mode(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

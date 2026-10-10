@@ -1,10 +1,12 @@
 # Conocimiento y verificación del proyecto
 
-Revisión documental del 2026-09-30. Este documento reúne el mapa de información,
+Mapa de implementación conciliado el 2026-10-09; procedencia e inventario conservan
+su revisión histórica del 2026-09-30. Este documento reúne el mapa de información,
 la procedencia de las referencias y las divergencias comprobadas. No constituye
 una certificación de interoperabilidad, seguridad, rendimiento o funcionamiento
 del checkout completo. La revisión incluye cambios locales anteriores que siguen
-sin publicarse; el inventario identifica el HEAD usado como base.
+sin publicarse en aquella revisión; el inventario identifica su propio HEAD como base
+y sus hashes no representan automáticamente el checkout actual.
 
 ## Autoridad y navegación
 
@@ -34,7 +36,10 @@ Las decisiones numeradas son: [contactos](adr/0001-strict-repeater-contact-exclu
 [JSON](adr/0005-json-atomic-persistence-over-sqlite.md),
 [proxy TCP](adr/0006-tcp-companion-server-proxy.md),
 [beacon/telemetría](adr/0007-decoupling-local-beacon-telemetry.md)
-y [reloj RTC](adr/0008-automatic-rtc-clock-synchronization.md).
+y [reloj RTC](adr/0008-automatic-rtc-clock-synchronization.md). Las decisiones
+posteriores incluyen [capas Companion](adr/0009-official-companion-protocol-layers.md),
+[duty cycle configurable](adr/0010-duty-cycle-configurable-budget.md) y
+[migración ASGI](adr/0011-staged-asgi-migration.md).
 
 ## Mapa de implementación
 
@@ -49,22 +54,25 @@ y [reloj RTC](adr/0008-automatic-rtc-clock-synchronization.md).
 | Administración | `src/admin_handler.py`, `admin/`, `repeater_manager.py` | Operaciones SDK y comandos remotos bajo demanda; cualquier cambio RF requiere checklist y límites acordados. |
 | MQTT | `src/mqtt_client.py`, `mqtt_dispatcher.py`, `health_reporter.py` | Paho y adaptador asyncio; sin cola MQTT durable en disco. Salud MQTT no publica RAM/CPU del OS. |
 | TCP Companion | `src/tcp_companion_server.py` | Proxy Companion con controles de conexión; no equivale a una segunda radio física. |
-| REST/WebSocket | `src/web/asgi_server.py`, `api_router.py`, `controllers/` | Servidor ASGI de producción basado en FastAPI / Uvicorn con OpenAPI 3.1 (`/docs/api`, `/openapi.json`). |
+| REST/WebSocket | `src/web/asgi_server.py`, `asgi_routes.py`, `asgi_ws_hub.py`, `api_router.py`, `controllers/` | ASGI es el backend seleccionado por el core; REST conserva dispatcher/controladores, WS usa el hub. Servidor HTTP nativo retirado, sin fallback. |
+| Contrato/documentación API | `src/web/asgi_docs.py`, `asgi_openapi.py`, `request_models.py`, `docs_ui/` | Visor propio de consulta `/docs` y alias `/redoc`; esquema `/openapi.json`. DTO abiertos para documentación, sin validación de solicitudes en ejecución; sin paquetes Swagger UI/ReDoc. |
 | SPA | `src/web/static/`, `src/web/static/index.html` | HTML, Vanilla CSS/JS, WebSocket y almacenamiento IndexedDB del navegador. |
 | Persistencia/cartografía | registros/canales/airtime JSON, `src/web/map_tile_service.py` | JSON atómico, buffers RAM y lectura SQLite MBTiles; no backend SQLite de chat/nodos. |
 | QA | `tests/`, `pyproject.toml`, `scripts/run_quality_checks.py` | Suites sólo por petición explícita; temporal, virtual y loopback. No ejecutar scripts históricos por su nombre. |
 
 Runtime declarado: Python >=3.10; versión del proyecto 3.0.0; dependencias directas
 Paho MQTT >=2.1.0, MeshCore SDK >=2.3.8, pyserial >=3.5 y python-dotenv >=1.0.1.
-Las listas de `requirements.txt` y `pyproject.toml` coinciden en esta revisión.
-Esas restricciones no fijan exactamente todas las versiones instaladas.
+La pila web añade FastAPI 0.143.0, Uvicorn 0.54.0, Pydantic 2.14.0, websockets
+16.1.1, Starlette 1.7.0 y h11 0.16.0 fijados en los manifiestos de producción.
+El checker distingue `web` y `core` (headless). Esto describe dependencias declaradas,
+no acredita paquetes instalados, funcionamiento o recursos medidos.
 
 ## Referencias y procedencia
 
 Las páginas primarias de [firmware](https://github.com/meshcore-dev/MeshCore),
 [SDK](https://github.com/meshcore-dev/meshcore_py) y
 [CLI](https://github.com/meshcore-dev/meshcore-cli) fueron consultadas en la web
-durante esta tarea. Su disponibilidad no demuestra que las copias locales sean
+durante la revisión de septiembre. Su disponibilidad no demuestra que las copias locales sean
 el último upstream. No se hizo fetch/pull ni se modificó `reference/`.
 
 | Referencia | Revisión Git local | Autoridad |
@@ -97,7 +105,20 @@ Este inventario corrige la clasificación sin modificar las referencias de sólo
 lectura. Encontrar un archivo LICENSE tampoco certifica compatibilidad de licencia
 para copiar código; las licencias completas no se auditaron.
 
-## Divergencias comprobadas y correcciones
+## Divergencias históricas y conciliación actual
+
+La tabla siguiente conserva hallazgos de septiembre; sus estados "pendiente" son
+históricos. Por lectura del 2026-10-09, `_handle_admin_request` ya conserva mappings
+y convierte texto/escalar a `action`; el inspector define `_inspect_file` y su regex
+de defines evita absorber saltos. Linux update usa `staged_update.py`, el modo dev
+propaga fallos y Windows selecciona/verifica su entorno. La ejecución histórica de
+reproducciones no valida estas correcciones en el checkout actual.
+
+La auditoría actual corrigió credenciales sin enmascarar en `custom_presets`, valores
+de excepciones en logs/eventos de controladores y seis sinks HTML de métricas del mapa.
+`all_presets` y `custom_presets` comparten la proyección pública sanitizada sin cambiar
+credenciales operativas. Origin conserva la admisión amplia de LAN privada; no es
+una política estricta de mismo origen. Las suites siguen suspendidas por el usuario.
 
 Se corrigieron las afirmaciones documentales localizadas sobre LQI, salud, trace,
 heatmap, configuración, resultado TX, errores Companion, rango SF, cifrado,
@@ -147,7 +168,7 @@ el ledger; las tareas paralelas de esta revisión fueron de sólo lectura.
 
 ## Evidencia y reproducción
 
-Intérprete disponible: `.venv/Scripts/python.exe`, Python 3.12.14; `python` y
+Entorno histórico de septiembre: `.venv/Scripts/python.exe`, Python 3.12.14; `python` y
 `tgrep` no estaban en PATH, se utilizó `rg`. No se modificó el intérprete.
 
 ```powershell

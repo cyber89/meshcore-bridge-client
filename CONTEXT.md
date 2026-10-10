@@ -68,6 +68,8 @@ El sistema sigue la filosofía de **Deep Modules** (John Ousterhout, *A Philosop
 - **`AsyncBridgeMQTTClient`**: Conector asíncrono MQTT con soporte LWT (*Last Will and Testament*) y reconexión automática.
 - **`AsgiWebServer`**: Servidor web asíncrono de producción basado en FastAPI y Uvicorn (ASGI) con REST, WebSockets, servicio de teselas cartográficas, documentación interactiva OpenAPI 3.1 y difusión de eventos.
 
+El core selecciona `AsgiWebServer` cuando `WEB_ENABLED` está activo; el servidor HTTP nativo fue retirado. Los contratos REST mantienen los controladores y sus validaciones: los DTO web describen campos para OpenAPI y no sustituyen los tipos de dominio ni aplican validación Pydantic en ejecución. `/docs` y `/redoc` muestran el mismo visor local propio de consulta, con esquema en `/openapi.json`. La selección del backend no certifica paridad o rendimiento; en la auditoría del 2026-10-09 las suites continúan suspendidas por instrucción del usuario.
+
 ---
 
 ## 6. Principios de Vocabulario de Código (Deep Modules Vocabulary)

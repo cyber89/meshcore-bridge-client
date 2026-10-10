@@ -33,7 +33,7 @@ def test_partial_environment_does_not_pass_with_paho_alone(missing: str) -> None
         return object()
 
     versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.DEPENDENCIES}
-    failures = dependencies.check_dependencies(importer, versions.__getitem__)
+    failures = dependencies.check_dependencies(importer, versions.__getitem__, profile='core')
     assert len(failures) == 1
     assert 'ModuleNotFoundError' in failures[0]
 
@@ -42,13 +42,92 @@ def test_partial_environment_does_not_pass_with_paho_alone(missing: str) -> None
 def test_dependency_minimum_version_is_verified(old: str) -> None:
     versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.DEPENDENCIES}
     versions[old] = '0.1.0'
-    failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__)
+    failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='core')
     assert len(failures) == 1 and old in failures[0]
 
 
-def test_complete_environment_passes() -> None:
-    versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.DEPENDENCIES}
-    assert dependencies.check_dependencies(lambda module: object(), versions.__getitem__) == []
+@pytest.mark.parametrize('profile', ['core', 'web'])
+def test_complete_environment_passes(profile: str) -> None:
+    versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES[profile]}
+    assert dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile=profile) == []
+
+
+@pytest.mark.parametrize('missing', [entry[1] for entry in dependencies.WEB_DEPENDENCIES])
+def test_web_profile_requires_each_asgi_dependency(missing: str) -> None:
+    def importer(module: str) -> object:
+        if module == missing:
+            raise ModuleNotFoundError(module)
+        return object()
+
+    versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES['web']}
+    failures = dependencies.check_dependencies(importer, versions.__getitem__, profile='web')
+    assert len(failures) == 1 and 'ModuleNotFoundError' in failures[0]
+
+
+@pytest.mark.parametrize('distribution', [entry[0] for entry in dependencies.WEB_DEPENDENCIES])
+@pytest.mark.parametrize('variant', ['older', 'newer', 'a1', 'rc1', '.dev1', '.post1', '+local'])
+def test_web_profile_rejects_unevaluated_asgi_versions(distribution: str, variant: str) -> None:
+    versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES['web']}
+    expected = versions[distribution]
+    if variant == 'older':
+        versions[distribution] = '0.0.1'
+    elif variant == 'newer':
+        major, minor, patch = map(int, expected.split('.'))
+        versions[distribution] = f'{major}.{minor}.{patch + 1}'
+    else:
+        versions[distribution] = expected + variant
+    failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='web')
+    assert len(failures) == 1 and distribution in failures[0]
+    assert f'requiere == {expected}' in failures[0]
+
+
+def test_core_profile_accepts_newer_stable_dependency_versions() -> None:
+    versions = {entry[0]: '999.0.0' for entry in dependencies.DEPENDENCIES}
+    assert dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='core') == []
+
+
+@pytest.mark.parametrize('profile', ['', 'unknown', 'web-extra'])
+def test_invalid_profile_fails_before_importing_packages(profile: str) -> None:
+    imported: list[str] = []
+    failures = dependencies.check_dependencies(lambda module: imported.append(module), profile=profile)
+    assert len(failures) == 1 and 'Perfil' in failures[0]
+    assert imported == []
+
+
+def test_default_web_profile_cannot_be_downgraded_by_unknown_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('MESHCORE_PROFILE', 'misspelled-web')
+    imported: list[str] = []
+    assert dependencies.check_dependencies(lambda module: imported.append(module))
+    assert imported == []
+
+
+def test_explicit_web_profile_overrides_core_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('MESHCORE_PROFILE', 'core')
+    versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES['web']}
+    imported: list[str] = []
+    assert dependencies.check_dependencies(lambda module: imported.append(module), versions.__getitem__, profile='web') == []
+    assert 'fastapi' in imported and 'starlette' in imported and 'h11' in imported
+
+
+def test_dependency_import_failure_does_not_disclose_exception_values() -> None:
+    def importer(module: str) -> object:
+        raise RuntimeError('synthetic-api-key=do-not-log')
+
+    failures = dependencies.check_dependencies(importer, profile='core')
+    assert len(failures) == len(dependencies.DEPENDENCIES)
+    assert all('RuntimeError' in failure and 'do-not-log' not in failure for failure in failures)
+
+
+def test_cli_invalid_environment_profile_returns_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('MESHCORE_PROFILE', 'unknown')
+    assert dependencies.main([]) == 1
+
+
+def test_installers_always_verify_the_production_web_profile() -> None:
+    for filename in ('install.sh', 'install.ps1'):
+        probes = [line for line in source(filename).splitlines() if 'check_runtime_dependencies.py' in line]
+        assert probes
+        assert all('--profile web' in line for line in probes)
 
 
 def create_release(path: Path, value: str) -> None:

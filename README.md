@@ -1,8 +1,8 @@
 # MeshCore Universal Bridge & Web Station v3.0 Pro
 
-Puente asíncrono bidireccional de alto rendimiento para conectar transceptores LoRa **MeshCore Companion (USB / TCP)** con **FastAPI ASGI**, **MQTT**, automatizaciones **n8n / Home Assistant** y una **SPA Web moderna en HTML5, Vanilla CSS y JavaScript**.
+Puente asíncrono bidireccional para conectar transceptores LoRa **MeshCore Companion (USB / TCP)** con **FastAPI ASGI**, **MQTT**, automatizaciones **n8n / Home Assistant** y una **SPA Web en HTML5, Vanilla CSS y JavaScript**.
 
-Diseñado para máxima resiliencia en estaciones base desatendidas (Raspberry Pi, Orange Pi, servidores Linux y Windows), con arquitectura asíncrona no bloqueante, servidor de producción Uvicorn ASGI con conmutación automática de seguridad (*Zero-Crash Fallback*) y servidor proxy TCP Companion para aplicaciones móviles oficiales.
+El servidor web seleccionado por el core es FastAPI/Uvicorn ASGI; el servidor HTTP nativo fue retirado y no existe conmutación automática hacia él. El servicio incorpora un proxy TCP Companion para aplicaciones móviles oficiales. La auditoría del 2026-10-09 revisa código y documentación sin ejecutar suites: la selección del backend no acredita paridad operativa, rendimiento ni compatibilidad de cada plataforma.
 
 ---
 
@@ -21,20 +21,22 @@ Compatible con el ecosistema de hardware oficial soportado por el firmware MeshC
 
 ## 🚀 Características Principales
 
-### 🌐 Servidor Web de Alto Rendimiento (`http://<IP>:8080`)
+### 🌐 Servidor Web (`http://<IP>:8080`)
 - **Pila ASGI de Producción (Uvicorn 0.54 + FastAPI 0.143 + Pydantic 2.14)**:
-  - Servidor moderno de alto rendimiento para máxima concurrencia, bajo consumo de memoria y validación estricta de esquemas DTO.
+  - Rutas REST registradas en FastAPI que reciben `Request` y delegan en los controladores existentes. Los DTO Pydantic describen campos para OpenAPI; conservan `Any` y campos extra, y no validan ni filtran las solicitudes en ejecución.
   - Documentación interactiva de la API OpenAPI 3.1 autónoma y offline:
-    - **Swagger UI**: `http://<IP>:8080/docs/api`
-    - **ReDoc**: `http://<IP>:8080/docs/redoc`
+    - **Visor propio**: `http://<IP>:8080/docs`
+    - **Alias del mismo visor**: `http://<IP>:8080/redoc`
     - **Esquema OpenAPI JSON**: `http://<IP>:8080/openapi.json`
 - **WebSocket Hub Resiliente (RFC 6455)**:
   - Actualización en vivo de chat, telemetría, sniffer y estado de la red.
   - Reconexión con *exponential backoff* y latidos *heartbeat* periódicos (Ping/Pong cada 15s).
-  - Soporte automático para subredes LAN privadas y políticas estrictas *Same-Origin*.
+  - Política Origin compatible con el servidor anterior: permite orígenes configurados, coincidencia con Host, loopback y subredes LAN privadas. No constituye una política estricta de mismo origen.
+
+El visor es HTML/CSS/JS local, de consulta; no incorpora los paquetes Swagger UI o ReDoc ni ejecuta operaciones del catálogo. Con `BRIDGE_API_KEY`, el esquema requiere `X-Api-Key` y la pantalla permite introducirla en memoria del visor.
 
 ### 📱 Servidor TCP Companion para App Móvil Oficial (`puerto 5000`)
-- Permite conectar simultáneamente la **aplicación oficial MeshCore para Android/iOS** o herramientas CLI al transceptor compartido, multiplexando el canal físico sin colisiones ni desconexiones.
+- Permite conectar la **aplicación oficial MeshCore para Android/iOS** o herramientas CLI al transceptor compartido y coordina los comandos mediante el arbitraje Companion.
 - Lista blanca opcional de IPs permitidas y token de autenticación.
 
 ### 🔄 Integración MQTT Dual (Comunitaria y Domótica)
@@ -48,10 +50,10 @@ Compatible con el ecosistema de hardware oficial soportado por el firmware MeshC
 - **Consola de Repetidores**: Lectura y ajuste remoto de parámetros RF (frecuencia, potencia TX, Spreading Factor, ancho de banda), telemetría de batería y voltaje solar, tabla de vecinos y terminal interactiva.
 
 ### 🛡️ Protecciones de la Malla y Calidad de Señal
-- **Rate Limiter Priorizado y Airtime Tracker**: Estimación determinista de ocupación del canal LoRa (`TxRateLimiter`) y cumplimiento estricto de cuotas de ciclo de trabajo (*Duty Cycle*).
+- **Rate Limiter Priorizado y Airtime Tracker**: Espaciado de TX y estimación de airtime; en estado crítico puede descartar prioridad `LOW`. No bloquea toda transmisión ni certifica cumplimiento regulatorio.
 - **Deduplicador en Memoria**: Eliminación de ecos y tormentas de retransmisión con ventana deslizante TTL.
 - **Decodificador Nativo CayenneLPP**: Extracción de temperatura, humedad, presión barométrica, GPS y aceleración sin dependencias externas pesadas.
-- **Mapas Offline MBTiles**: Servidor cartográfico embebido de alto rendimiento para operaciones tácticas sin acceso a Internet.
+- **Mapas Offline MBTiles**: Servicio de archivos XYZ y cartografía MBTiles local para uso sin acceso a Internet.
 
 ---
 
@@ -59,7 +61,7 @@ Compatible con el ecosistema de hardware oficial soportado por el firmware MeshC
 
 ```
 meshcore-bridge/
-├── config.py                         # Configuración fuertemente tipada y variables de entorno
+├── config.py                         # Variables de entorno y validación seleccionada de configuración
 ├── meshcore_bridge.py                # Punto de entrada ejecutable principal
 ├── requirements.txt                  # Dependencias de producción (MQTT, SDK, FastAPI, Uvicorn)
 ├── pyproject.toml                    # Metadatos del proyecto y configuración estricta de QA
@@ -87,12 +89,12 @@ meshcore-bridge/
 │   ├── tcp_companion_server.py       # Servidor TCP Companion para apps Android/iOS/CLI
 │   ├── admin/                        # Ejecutores de comandos administrativos (Command Pattern)
 │   ├── routers/                      # Estrategias de enrutamiento por tipo de paquete (Strategy Pattern)
-│   └── web/                          # Subsistema Web (FastAPI ASGI + Servidor Nativo)
+│   └── web/                          # Subsistema Web (FastAPI ASGI)
 │       ├── api_router.py             # Enrutador unificado de la API REST
 │       ├── asgi_server.py            # Servidor FastAPI / Uvicorn ASGI de producción
 │       ├── asgi_routes.py            # Adaptadores de rutas REST modulares
 │       ├── asgi_ws_hub.py            # Hub de WebSockets resiliente
-│       ├── asgi_docs.py              # Documentación OpenAPI 3.1 offline (Swagger / ReDoc)
+│       ├── asgi_docs.py              # Esquema OpenAPI y visor propio offline
 │       ├── map_tile_service.py       # Servicio local de teselas de mapas offline MBTiles
 │       ├── controllers/              # Controladores REST modulares
 │       ├── docs_ui/                  # Frontend estático offline de la documentación OpenAPI
@@ -100,7 +102,6 @@ meshcore-bridge/
 ├── docs/                             # Documentación técnica y especificaciones
 │   ├── README.md                     # Índice maestro de documentación
 │   ├── ARCHITECTURE.md               # Arquitectura del sistema y diseño en 5 capas
-│   ├── CONTEXT.md                    # Lenguaje ubicuo e invariantes de dominio (SSoT)
 │   ├── PROTOCOL_SPEC.md              # Especificación técnica del protocolo y tramas
 │   ├── DEPLOYMENT_GUIDE.md           # Guía completa de instalación y producción
 │   ├── N8N_WORKFLOW_GUIDE.md         # Guía de integración con n8n y esquemas MQTT
@@ -108,6 +109,7 @@ meshcore-bridge/
 │   ├── adr/                          # Registros de Decisiones de Arquitectura (ADR 0001 - 0011)
 │   ├── fastapi/                      # Informes de migración por fases FastAPI ASGI
 │   └── diagrams/                     # Diagramas interactivos de arquitectura (Archify)
+├── CONTEXT.md                        # Lenguaje ubicuo e invariantes de dominio (SSoT)
 └── tests/                            # Suites de pruebas automatizadas (pytest)
 ```
 
@@ -162,7 +164,6 @@ Copia la plantilla `.env.example` a `.env` y ajusta los parámetros necesarios:
 | `SERIAL_PORT` | `AUTO` | Puerto serie USB (`/dev/ttyACM0`, `COM3`, o `AUTO`) o túnel TCP (`tcp://host:port`). |
 | `BAUD_RATE` | `115200` | Velocidad en baudios para la conexión serial. |
 | `WEB_ENABLED` | `true` | Habilita la interfaz web y la API REST. |
-| `WEB_SERVER_BACKEND` | `asgi` | Motor web: `asgi` (FastAPI/Uvicorn con fallback) o `native` (socket puro). |
 | `WEB_PORT` | `8080` | Puerto HTTP para la SPA, API REST y WebSockets. |
 | `BRIDGE_API_KEY` | *(opcional)* | Clave de seguridad para autenticar peticiones REST mutantes y visor de docs. |
 | `TCP_SERVER_ENABLED` | `true` | Habilita el servidor TCP Companion para apps móviles MeshCore. |
@@ -180,15 +181,15 @@ Copia la plantilla `.env.example` a `.env` y ajusta los parámetros necesarios:
 | Recurso | URL / Método | Descripción |
 | :--- | :--- | :--- |
 | **Interfaz Web SPA** | `GET http://<IP>:8080/` | Panel de control completo (Chat, Nodos, Repetidores, Mapas, Métricas). |
-| **Swagger UI** | `GET http://<IP>:8080/docs/api` | Explorador interactivo OpenAPI 3.1 autónomo y offline. |
-| **ReDoc** | `GET http://<IP>:8080/docs/redoc` | Documentación estructurada de referencia de la API. |
+| **Visor OpenAPI** | `GET http://<IP>:8080/docs` | Visor propio offline para consultar el contrato. |
+| **Alias del visor** | `GET http://<IP>:8080/redoc` | La misma interfaz; no es el paquete ReDoc. |
 | **OpenAPI JSON** | `GET http://<IP>:8080/openapi.json` | Especificación canónica OpenAPI 3.1.0 para generadores de clientes. |
 | **WebSocket Hub** | `ws://<IP>:8080/ws` | Flujo bidireccional en tiempo real de eventos, chat y telemetría. |
 | **TCP Companion** | `tcp://<IP>:5000` | Interfaz TCP directa para la aplicación oficial de MeshCore. |
 | **Salud del Sistema** | `GET /api/health` | Estado del bridge, transceptor, estadísticas y uptime. |
 | **Nodos y Contactos** | `GET /api/contacts` | Listado normalizado de contactos (excluye repetidores). |
-| **Transmitir Mensaje** | `POST /api/send/message` | Envío de mensajes de canal o directos (DM). |
-| **Administrar Repetidor** | `POST /api/repeater/remote/command` | Envío de comandos CommonCLI a repetidores remotos. |
+| **Transmitir Mensaje** | `POST /api/tx` | Envío de mensajes de canal o directos (DM). |
+| **Administrar Repetidor** | `POST /api/admin/repeater` | Despacho de comandos administrativos remotos. |
 
 ---
 

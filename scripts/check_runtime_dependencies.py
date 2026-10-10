@@ -1,4 +1,4 @@
-"""Verify production imports and minimum distribution versions using this interpreter."""
+"""Verify core minimum versions and the evaluated ASGI pins with this interpreter."""
 
 from __future__ import annotations
 
@@ -22,7 +22,16 @@ WEB_DEPENDENCIES = (
     ("uvicorn", "uvicorn", (0, 54, 0)),
     ("pydantic", "pydantic", (2, 14, 0)),
     ("websockets", "websockets", (16, 1, 1)),
+    ("starlette", "starlette", (1, 7, 0)),
+    ("h11", "h11", (0, 16, 0)),
 )
+
+# ASGI hooks use these versions' protocol and middleware interfaces. A newer
+# importable distribution is not evidence that those interfaces are compatible.
+WEB_PINNED_VERSIONS = {
+    distribution: ".".join(map(str, release))
+    for distribution, _module, release in WEB_DEPENDENCIES
+}
 
 PROFILES: dict[str, tuple[tuple[str, str, tuple[int, ...]], ...]] = {
     "core": DEPENDENCIES,
@@ -41,12 +50,22 @@ def check_dependencies(
     if sys.version_info < (3, 10):  # noqa: UP036 - installer may select an unsupported host Python
         failures.append("Python requiere >=3.10")
     if dependencies is None:
-        selected_profile = (profile or os.getenv("MESHCORE_PROFILE") or "web").strip().lower()
-        dependencies = PROFILES.get(selected_profile, DEPENDENCIES)
+        selected_profile = (
+            profile if profile is not None else os.getenv("MESHCORE_PROFILE", "web")
+        ).strip().lower()
+        dependencies = PROFILES.get(selected_profile)
+        if dependencies is None:
+            failures.append("Perfil de dependencias inválido; use core o web")
+            return failures
     for distribution, module, minimum in dependencies:
         try:
             importer(module)
             version = version_reader(distribution)
+            pinned = WEB_PINNED_VERSIONS.get(distribution)
+            if pinned is not None:
+                if version != pinned:
+                    failures.append(f"{distribution}: {version}, requiere == {pinned}")
+                continue
             match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?", version)
             if match is None:
                 failures.append(f"{distribution}: versión no verificable")
@@ -56,7 +75,7 @@ def check_dependencies(
             if release < minimum or prerelease_at_minimum:
                 failures.append(f"{distribution}: {version}, requiere >= {'.'.join(map(str, minimum))}")
         except Exception as exc:
-            failures.append(f"{distribution}: {type(exc).__name__}: {exc}")
+            failures.append(f"{distribution}: {type(exc).__name__}")
     return failures
 
 

@@ -1,117 +1,114 @@
-# FastAPI: Adopción, perfiles de instalación, retiro y release (Fase 6)
+# FastAPI: adopción en código, instalación y release (fase 6)
 
-Fecha: 2026-10-09. Base documental: fase 5 publicada en `a32cb14` y checkout
-con cambios anteriores conservados. Estado: **estrategia de adopción por perfiles,
-instaladores raíz, staged update transaccional y gobernanza de release preparados**.
-La selección del core permanece en `MeshCoreWebServer`; la activación del candidato
-ASGI en producción queda condicionada a la superación de las compuertas operativas.
+Fecha: 2026-10-09. Informe rectificado durante la auditoría por capas del checkout
+posterior a `fcaf89b`. La [fase 5](PHASE_5_REPORT.md), publicada en `a32cb14`,
+preparó documentación y contratos. El cambio posterior `933ccce` seleccionó
+`AsgiWebServer` desde el core y retiró `src/web/http_server.py`.
+**La adopción está implementada en el código; su aceptación operativa sigue pendiente.**
+La instrucción del usuario de continuar sin suites sigue vigente. Esta revisión
+no instaló dependencias, inició servicios ni utilizó radio.
 
-## Coordinación y propiedad
+## Rectificación del informe anterior
 
-El líder coordina especialistas de empaquetado, instalación, ciclo de vida del
-núcleo y gobernanza documental, e integra la verificación de dependencias por perfiles,
-los instaladores de producción y los procedimientos de actualización y rollback. Se
-aplican las skills de instalación, arquitectura de software, concurrencia y gobernanza.
-La instrucción del usuario de continuar sin suites mantiene suspendida la QA ejecutable.
+Se retiran las cifras de RSS de 35–45 MB y 75–90 MB, la garantía de instalación
+inmediata sin compilación ni riesgo de agotar RAM y la afirmación de migración
+«100%» validada: no tenían medición de plataforma, carga, proceso y método.
+La descarga de wheels en seis destinos acredita resolución binaria dentro del
+alcance de [DEPENDENCY_DECISIONS.md](DEPENDENCY_DECISIONS.md); no mide RAM,
+arranque ni compatibilidad de una SBC en ejecución.
 
-| Componente | Propiedad y responsabilidad |
+También se corrigen el default core, la opción de servidor nativo y el carácter
+opcional del stack ASGI. El [registro de fase 6](PHASE_6_RELEASE_REGISTRY.json)
+es un snapshot anterior a estos cambios. Sus valores de RSS y garantías se
+consideran retirados, y sus estados históricos no describen el servidor actual.
+Los recuentos de líneas/bytes del informe anterior no tenían una comparación de
+conjuntos equivalentes ni un recibo verificable; no se reutilizan como métricas
+actuales ni como evidencia de mejora de arquitectura o rendimiento.
+
+## Contratos actuales por capa
+
+| Componente | Contrato observado en código |
 | --- | --- |
-| [check_runtime_dependencies.py](../../scripts/check_runtime_dependencies.py) | Especialista de release: soporte de perfiles `core` y `web`, validación CLI y variable de entorno |
-| [staged_update.py](../../scripts/staged_update.py) | Especialista de instalación: actualización transaccional, inclusión de `requirements-web.txt` y rollback atómico |
-| [install.sh](../../install.sh) | Especialista de despliegue: flujo de instalación limpia y actualización en Armbian/Debian |
-| [install.ps1](../../install.ps1) | Especialista de despliegue: soporte PowerShell para Windows |
-| [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md) | Especialista de documentación: guía oficial de despliegue por perfiles y servicios systemd |
-| [adr/0011-staged-asgi-migration.md](../adr/0011-staged-asgi-migration.md) | Especialista de arquitectura: formalización y registro de evolución de ADR 0011 |
-| [PHASE_6_RELEASE_REGISTRY.json](PHASE_6_RELEASE_REGISTRY.json) | Registro formal de contratos de release, componentes, perfiles y puertas pendientes |
+| [bridge_core.py](../../src/bridge_core.py) | Si `WEB_ENABLED` es verdadero crea `AsgiWebServer`; si es falso evita sus imports y construcción. Mantiene propiedad de radio y del ciclo de vida del bridge. |
+| [asgi_server.py](../../src/web/asgi_server.py) | Integra FastAPI/Uvicorn en el loop existente con un worker, sin reload ni captura propia de señales; registra REST, WS, SPA, tiles y documentación. |
+| [check_runtime_dependencies.py](../../scripts/check_runtime_dependencies.py) | Comprueba imports, cuatro mínimos core y seis pins web exactos; perfil desconocido falla cerrado. |
+| [install.sh](../../install.sh) y [install.ps1](../../install.ps1) | Instalan `requirements.txt` y pasan `--profile web` explícitamente en sus probes de producción. |
+| [staged_update.py](../../scripts/staged_update.py) | Prepara una copia independiente, sustituye componentes con journal y conserva copias para rollback. Cada rename es atómico; el cambio completo de componentes no lo es. |
+| [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md) | Describe instalación y configuración vigentes, con límites de verificación y datos operativos conservados. |
 
-## Perfiles de instalación y compatibilidad en SBCs
+El servidor HTTP nativo está retirado. Los controladores y `WebAPIRouter` siguen
+siendo lógica utilizada por los adaptadores ASGI; conservarlos evita duplicar
+estado de contactos, canales, ACK y efectos de radio. No hay selector de servidor
+anterior ni fallback silencioso ante dependencias web ausentes.
 
-Para conciliar la ergonomía de FastAPI con las restricciones estrictas de memoria
-de los gateways LoRa de bajos recursos (Orange Pi 2W, Raspberry Pi Zero 2W con 512 MB de RAM),
-se establece un **modelo de dependencias desacoplado por perfiles**:
+## Dependencias, perfiles y headless
 
-1. **Perfil `core` (Predeterminado de producción):**
-   - **Manifiesto:** [`requirements.txt`](../../requirements.txt) (solo 4 dependencias: `paho-mqtt>=2.1.0`, `meshcore>=2.3.8`, `pyserial>=3.5`, `python-dotenv>=1.0.1`).
-   - **Propósito:** Operación headless o con el servidor web nativo `MeshCoreWebServer`.
-   - **Huella de memoria:** ~35 - 45 MB RSS en arranque.
-   - **Garantía SBC:** Cero compilación de Rust (`pydantic-core`), instalación inmediata y segura sin riesgo de agotamiento de RAM durante `pip install`.
+El manifest habitual [requirements.txt](../../requirements.txt) y las dependencias
+principales de [pyproject.toml](../../pyproject.toml) contienen cuatro mínimos core
+(`paho-mqtt`, `meshcore`, `pyserial`, `python-dotenv`) y seis pins ASGI:
 
-2. **Perfil `web` (Opcional / Candidato ASGI):**
-   - **Manifiesto:** [`requirements-web.txt`](../../requirements-web.txt) y extra `project.optional-dependencies.web` en [`pyproject.toml`](../../pyproject.toml).
-   - **Dependencias adicionales:** `fastapi==0.143.0`, `uvicorn==0.54.0`, `pydantic==2.14.0`, `websockets==16.1.1`.
-   - **Propósito:** Servidor ASGI con soporte OpenAPI 3.1.0 y visor local de documentación offline.
-   - **Huella de memoria:** ~75 - 90 MB RSS.
+| Distribución | Pin exacto evaluado |
+| --- | --- |
+| FastAPI | `0.143.0` |
+| Uvicorn | `0.54.0` |
+| Pydantic | `2.14.0` |
+| websockets | `16.1.1` |
+| Starlette | `1.7.0` |
+| h11 | `0.16.0` |
 
-3. **Verificación Unificada por Perfiles:**
-   El validador [`scripts/check_runtime_dependencies.py`](../../scripts/check_runtime_dependencies.py)
-   permite comprobar de forma determinista cualquier perfil:
-   ```bash
-   # Comprobación de perfil core (por defecto):
-   python scripts/check_runtime_dependencies.py --profile core
+Starlette y h11 se declaran directamente porque sus interfaces se usan en los
+hooks y perímetro ASGI. El comprobador rechaza versiones distintas, incluidas
+pre/dev/post-releases y builds locales. Los manifests no fijan todas las
+transitivas con hashes. `requirements-web.txt` es un punto de entrada compatible
+con `-r requirements.txt`; el extra `web` se conserva como alias de instalación.
 
-   # Comprobación de perfil web (stack ASGI):
-   python scripts/check_runtime_dependencies.py --profile web
-   ```
-   También responde a la variable de entorno `MESHCORE_PROFILE=web`. Si no se especifica,
-   evalúa `core`, preservando la compatibilidad retroactiva total con instaladores y suites.
+```bash
+# Default sin MESHCORE_PROFILE; explicitarlo evita depender del entorno:
+python scripts/check_runtime_dependencies.py --profile web
+# Sólo comprueba dependencias core; no cambia el servidor ni instala paquetes:
+python scripts/check_runtime_dependencies.py --profile core
+```
 
-## Transaccionalidad de actualización y rollback seguro
+`MESHCORE_PROFILE` sólo selecciona el checker sin argumento explícito. No cambia
+`WEB_ENABLED`, los manifests ni el launcher. El perfil core puede comprobar un
+entorno headless, pero los instaladores actuales siguen instalando el manifest
+completo y verificando web. No existe un manifest ni instalación mantenida sólo
+core. `WEB_ENABLED=false` evita la carga y arranque ASGI, sin desinstalar paquetes.
 
-El mecanismo de actualización atómica en [`scripts/staged_update.py`](../../scripts/staged_update.py)
-garantiza la resiliencia operativa de la estación base:
+## Actualización, datos y rollback
 
-1. **Staging Aislado:**
-   Se copia el árbol completo de la versión entrante en un directorio temporal `.meshcore-stage-*`
-   en el mismo sistema de archivos antes de detener el servicio o tocar la instalación en vivo.
-   Los componentes actualizables incluyen `requirements-web.txt` para preservar la coherencia
-   del perfil seleccionado.
+`install.sh --update` prepara release y venv independientes antes de detener el
+servicio. Comprueba dependencias y sintaxis; posteriormente sustituye componentes,
+regenera las rutas del entorno trasladado y repite el probe con el intérprete
+final. `.env`, `DATA_DIR`, mapas y logs quedan fuera de los componentes sustituidos.
+No modifica Mosquitto durante update.
 
-2. **Preservación Inmutable de Datos Operativos:**
-   Los archivos de configuración (`.env`), bases de datos JSON (`data/nodes.json`,
-   `data/channels.json`, `data/repeater_cooldowns.json`), mapas cartográficos (`data/maps/`)
-   y logs (`logs/`) se conservan intactos en su ubicación original.
+Ante errores manejados o señales, el instalador intenta restaurar componentes y
+unidad y volver a arrancar el servicio previo si estaba activo. La recuperación
+puede fallar; entonces conserva el staging e informa su ubicación. Este diseño
+no acredita recuperación automática ante pérdida de energía, éxito de un
+despliegue real ni un rollback atómico de todo el árbol. Cuando origen y destino
+coinciden, prepara una copia independiente antes de reemplazar; recupera el
+estado encontrado al invocar el instalador, no el anterior a un `git pull` externo.
 
-3. **Rollback Transaccional:**
-   Si la compilación de Python, la verificación de dependencias o el rearranque del
-   servicio fallan, el manejador de señales (`trap`) ejecuta la restauración inmediata
-   de los ejecutables y archivos del servicio anterior sin pérdida de configuración.
+## Apagado y compuertas operativas
 
-## Análisis de balance de código y retiro del servidor legacy
+El core aporta el presupuesto web configurado, con default existente de 1.5 s.
+El transporte coordina cancelación y cierre con una fecha límite compartida.
+Es una intención verificable en código, no una medición del tiempo total de
+`systemctl stop` ni una garantía sobre workers, drivers o tareas resistentes a
+cancelación. La unidad systemd mantiene su propio `TimeoutStopSec=20`.
 
-La contabilidad estática del código entre ambas pilas refleja la reducción neta y
-modularización conseguida:
+Continúan pendientes la ejecución REST/WS y documentación offline, carga y
+contrapresión, arranque/apagado y ausencia de recursos huérfanos, instalación y
+rollback aislados, preservación de datos, Python 3.10 en ejecución y validación en
+cada destino. Los protocolos deben contrastarse con sus fixtures mantenidos
+cuando se autoricen suites. La lectura de AST, metadatos y diffs no sustituye esas
+compuertas ni acredita seguridad completa, interoperabilidad o rendimiento.
 
-| Métrica de Código | Pila Legacy (`http_server.py` + controladores) | Pila Candidata ASGI (`asgi_*.py` + DTOs) | Diferencia / Balance |
-|---|:---:|:---:|---|
-| **Archivos Python** | 14 archivos | 16 archivos | +2 archivos (mayor cohesión modular) |
-| **Líneas de Código** | 4,875 líneas | 4,554 líneas | **-321 líneas netas** |
-| **Tamaño en Disco** | 233,173 bytes | 192,879 bytes | **-40,294 bytes (-17.3%)** |
-| **Catálogo OpenAPI** | 0 líneas (manual) | 927 líneas estructuradas | Incluye catálogo exhaustivo de 141 operaciones |
-
-Al retirar el servidor legacy cuando se apruebe la adopción en producción, se eliminarán
-2,044 líneas de parsing artesanal de bajo nivel (HTTP/1.1 y RFC 6455 manual), delegando
-en Uvicorn y Starlette la robustez de transporte perimetral.
-
-## Gobernanza de procesos y ciclo de vida de radio
-
-1. **Proceso Único Determinista:**
-   El punto de entrada del sistema sigue siendo [`meshcore_bridge.py`](../../meshcore_bridge.py).
-   Uvicorn se ejecuta embebido directamente dentro del bucle de eventos `asyncio` existente
-   mediante `uvicorn.Server.serve()`, sin lanzar procesos secundarios ni CLI con `--reload`.
-2. **Propiedad Exclusiva del Hardware:**
-   [`BridgeCore`](../../src/bridge_core.py) mantiene la propiedad unívoca del adaptador serie,
-   el watchdog de hardware y el broker MQTT. La capa web únicamente recibe el contexto
-   y canaliza peticiones a través de las colas de prioridad y el rate limiter de airtime.
-3. **Presupuesto de Apagado Acotado:**
-   El tiempo total de parada del servidor web se acota a 1.5 segundos compartidos,
-   asegurando que `systemctl stop meshcore-bridge` complete su ciclo ordenadamente.
-
-## Puertas de release y conclusión de la migración
-
-Quedan formalizadas 9 compuertas de release en [**`PHASE_6_RELEASE_REGISTRY.json`**](PHASE_6_RELEASE_REGISTRY.json):
-verificación de perfiles en las plataformas diana, actualización transaccional limpia,
-preservación de datos de radio, apagado en 1.5s y compatibilidad Python 3.10.
-
-Con la finalización de esta fase, el diseño, preparación estática, desacoplamiento y
-gobernanza de la migración a FastAPI quedan **100% articulados y registrados** en el
-repositorio, listos para su adopción formal cuando la dirección técnica lo autorice.
+La revisión actual comprobó sintaxis Python 3.10 mediante AST, concordancia de
+los seis pins entre checker/manifests y METADATA de wheels locales, sintaxis
+PowerShell sin ejecutar el instalador y `git diff --check`. El intento de `bash -n`
+no pudo iniciar MSYS por una restricción del entorno (`0xC0000022`); no se acredita
+la sintaxis Bash en esta ejecución. Las regresiones declaradas para el checker
+siguen sin ejecutar.

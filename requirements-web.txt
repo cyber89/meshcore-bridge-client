@@ -1,9 +1,3 @@
-# Optional ASGI preparation profile: core + project.optional-dependencies.web.
-# Web pins are derived from pyproject.toml; keep both declarations synchronized.
-# Installing this profile does not select or start the ASGI server.
-# Candidate direct pins; this file is not a transitive lock with hashes.
+# Compatibility entry point for the production dependencies, including ASGI.
+# Installing dependencies does not start the bridge or any service.
 -r requirements.txt
-fastapi==0.143.0
-uvicorn==0.54.0
-pydantic==2.14.0
-websockets==16.1.1

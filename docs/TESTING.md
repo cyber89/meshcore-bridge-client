@@ -2,8 +2,11 @@
 
 Esta guía describe la suite mantenida y cómo obtener evidencia reproducible. Las
 pruebas se ejecutan bajo petición explícita del usuario, según [AGENTS.md](../AGENTS.md).
-La solicitud del 2026-09-29 autoriza la revisión, ejecución y ampliación de pruebas
-de esta tarea. No autoriza transmisiones por radio física ni consultas a producción.
+La autorización del 2026-09-29 corresponde a la revisión histórica descrita más abajo;
+no autoriza tareas posteriores. Para la migración y auditoría del 2026-10-09 rige la
+instrucción del usuario: **continuar sin ejecutar suites**. Tampoco se ejecutan mypy,
+Ruff ni navegador durante esta auditoría. Los comandos de esta guía requieren una
+petición vigente aplicable; nunca autorizan radio física ni consultas a producción.
 
 ## Entorno de QA
 

@@ -2,11 +2,13 @@
 
 > **Audiencia**: Ingenieros de software, desarrolladores de sistemas embebidos, arquitectos de integración y técnicos de soporte que requieran comprender en profundidad el diseño modular, contratos de interfaz, clases, métodos y flujos de datos de **MeshCore Bridge**.
 
+Conciliado con el código el 2026-10-09 mediante lectura estática. Las capas organizan responsabilidades; no acreditan aislamiento absoluto, medidas de recursos o paridad operativa. Las suites permanecen suspendidas por instrucción del usuario.
+
 ---
 
 ## 1. Fundamentos y Filosofía de Diseño
 
-**MeshCore Bridge** es una pasarela asíncrona de alto rendimiento desarrollada en **Python 3.10+ (`asyncio`)** que interconecta bidireccionalmente redes de malla LoRa (basadas en el protocolo y firmware oficial de MeshCore) con plataformas IP modernas (WebSockets, REST API y mensajería MQTT para automatización con n8n/Node-RED).
+**MeshCore Bridge** es una pasarela asíncrona desarrollada en **Python 3.10+ (`asyncio`)** que interconecta bidireccionalmente redes de malla LoRa (basadas en el protocolo y firmware oficial de MeshCore) con plataformas IP (WebSockets, REST API y mensajería MQTT para automatización con n8n/Node-RED).
 
 El sistema sigue tres principios arquitectónicos fundamentales:
 
@@ -91,31 +93,32 @@ Constituye la frontera perimetral del sistema frente a redes IP, operadores huma
 Servidor web asíncrono de producción basado en FastAPI y Uvicorn (ASGI).
 - **`async start() -> None`**: Inicializa el socket Uvicorn en `WEB_HOST:WEB_PORT`, arranca el ciclo de vida ASGI y el hub WebSocket.
 - **`async stop() -> None`**: Cierra el servidor Uvicorn de forma limpia y drena tareas y conexiones dentro del presupuesto de apagado.
-- **`broadcast_event(payload: dict[str, Any]) -> None`**: Difunde eventos en tiempo real (mensajes de radio, cambios de estado, métricas) a todas las conexiones WebSocket concurrentes activas (con un límite perimetral de 32 sesiones concurrentes) a través de `WebSocketHub`.
+- **`async broadcast_event(event_data: dict[str, Any]) -> None`**: Registra y difunde eventos en tiempo real a las conexiones listas mediante `WebSocketHub`; el perímetro reserva hasta 32 sesiones concurrentes.
+
+El core crea este servidor cuando `WEB_ENABLED` está activo. El servidor HTTP nativo está retirado y no existe fallback hacia él. Las rutas REST reciben `Request`; los DTO Pydantic con `Any` y campos extra documentan entradas, sin validarlas en ejecución. El esquema se consulta en `/openapi.json` y el visor propio offline en `/docs` o `/redoc`; no se incluyen los paquetes Swagger UI/ReDoc ni se ejecutan acciones desde el visor. La política Origin admite allowlist, Host, loopback y LAN privada.
 
 #### `WebAPIRouter` (`src/web/api_router.py`)
 Enrutador de peticiones REST hacia los controladores modulares.
-- **`async dispatch(ctx: HttpRequestContext) -> HttpResponse`**: Evalúa ruta, método HTTP, parámetros de query y autenticación `X-Api-Key`, resolviendo la respuesta con códigos HTTP semánticos (200, 201, 204, 400, 401, 403, 404, 422, 429).
-- **`resolve_path(path: str) -> tuple[str, dict[str, str]]`**: Normaliza rutas, mapea aliases legacy y extrae parámetros de ruta dinámicos (e.g. `/api/contacts/{id}`).
+- **`async handle_request(method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]`**: Normaliza el path, resuelve `ROUTE_ALIASES`, combina query con body y delega por familia. Body conserva precedencia sobre query. La autenticación HTTP se aplica antes en `BridgeSecurityMiddleware`.
+- **`record_incoming_event(...) -> None`**: Actualiza historiales en RAM para mensajes, telemetría y eventos. Las rutas dinámicas se declaran en `asgi_route_catalog.py`; el dispatcher conserva sus comprobaciones de negocio.
 
 #### Controladores REST (`src/web/controllers/`)
 Cada controlador hereda de `BaseController` y atiende un subdominio específico:
 - **`TxController` (`tx_controller.py`)**:
-  - `async send_message(ctx: HttpRequestContext) -> HttpResponse`: Valida destinatario, longitud de texto y canal, resolviendo identidades con `TargetResolver` e inyectando la transmisión a la Capa 2 (`bridge.send_text_message()`).
+  - `async send_tx(req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]`: Valida texto y destino para `/api/tx`, delega resolución/envío al bridge y conserva estados de admisión, envío y ACK separados.
 - **`NodesController` (`nodes_controller.py`)**:
-  - `async get_nodes(...)`: Retorna el catálogo unificado de nodos (clientes, repetidores, sensores).
+  - `async list_nodes(...)`: Retorna el catálogo unificado de nodos (clientes, repetidores, sensores).
   - `async get_lqi(...)`: Retorna la matriz de calidad de enlace LQI de los nodos observados.
   - `async get_analytics(...)`: Estadísticas globales de la red (nodos activos, ratio de saltos, promedios de batería).
-  - `async get_heatmap(...)`: Coordenadas GPS y potencia recibida (RSSI/SNR) para el mapa de cobertura.
+  - `async get_rf_heatmap(...)`: Coordenadas GPS y potencia recibida (RSSI/SNR) para el mapa de cobertura.
 - **`ContactsController` (`contacts_controller.py`)**:
-  - `async get_contacts(...)`: Retorna exclusivamente clientes (`CLIENT`). Aplica la invariante estricta de exclusión de repetidores (`REPEATER`).
-  - `async accept_contact(...)`: Mueve un nodo de "Descubiertos" a la agenda permanente de chat.
+  - `async handle_contacts_route(path, method, req_body)`: Despacha lista, descubrimiento, aceptación, creación, sincronización y transferencia. La lista usa `NodeRegistry.list_client_contacts()` y excluye repetidores y nodo local.
 - **`RepeaterController` (`repeater_controller.py`)**:
-  - `async execute_admin(...)`, `async ping_zero(...)`, `async traceroute(...)`: Despacha comandos de gestión remota de repetidores hacia `AdminCommandHandler` en Capa 2.
+  - `async execute_admin_command(...)`, `async execute_repeater_command(...)`, `async ping_zero(...)`, `async traceroute(...)`: Despacha comandos de gestión remota hacia `AdminCommandHandler` en Capa 2.
 - **`ChannelsController` (`channels_controller.py`)**:
-  - `async get_channels(...)`, `async update_channel(...)`: CRUD y sincronización de nombres y claves criptográficas PSK con el transceptor local.
+  - `async handle_channels_route(path, method, req_body)`: CRUD, sincronización y transferencia de canales; las vistas habituales enmascaran PSK y la exportación autenticada conserva el secreto.
 - **`SystemController` (`system_controller.py`)**:
-  - `async get_status(...)`, `async get_health(...)`, `async get_diagnostics(...)`, `async get_preflight(...)`.
+  - `async get_status()`, `async get_health()`, `async run_preflight()`: Diagnóstico y salud; `/api/diagnostics` utiliza `get_health()`.
 
 #### `AsyncBridgeMQTTClient` (`src/mqtt_client.py`)
 Cliente MQTT asíncrono con arquitectura thread-safe sobre `paho-mqtt`.
@@ -409,16 +412,17 @@ sequenceDiagram
 ### 10.1 Cómo agregar un nuevo endpoint REST (Capas 1 y 2)
 1. **Capa 1**: En [`src/web/controllers/`](../src/web/controllers/), define el método en el controlador correspondiente heredando de `BaseController` (o crea un nuevo controlador):
    ```python
-   async def get_custom_metric(self, ctx: HttpRequestContext) -> HttpResponse:
-       data = self.bridge.get_custom_metric()
-       return self.json_response({"metric": data}, status=200)
+   async def get_custom_metric(self) -> tuple[int, dict[str, Any]]:
+       data = self.ctx.bridge.get_custom_metric()
+       return 200, {"status": "ok", "data": {"metric": data}}
    ```
-2. **Capa 1**: En [`src/web/api_router.py`](../src/web/api_router.py), añade la condición de enrutamiento al método `dispatch()`:
+2. **Capa 1**: En [`src/web/api_router.py`](../src/web/api_router.py), añade la condición al dispatcher de la familia apropiada (por ejemplo `_dispatch_system()`):
    ```python
    if clean_path == "/api/system/custom-metric" and method == "GET":
-       return await self.system_controller.get_custom_metric(ctx)
+       return await self.system_ctrl.get_custom_metric()
    ```
-3. **Capa 2**: Expón el método correspondiente en `MeshCoreBridge` ([`src/bridge_core.py`](../src/bridge_core.py)), coordinando los datos desde Capa 3 o Capa 5.
+3. **Contrato web**: Registra método, ruta, modelo documental y lote en [`asgi_route_catalog.py`](../src/web/asgi_route_catalog.py), y campos/status/efectos en [`asgi_openapi_catalog.py`](../src/web/asgi_openapi_catalog.py). Revisa autorización en [`access_policy.py`](../src/web/access_policy.py), el consumidor SPA y la documentación. No aplicar validación DTO nueva por accidente.
+4. **Capa 2**: Expón el método correspondiente en `MeshCoreBridge` ([`src/bridge_core.py`](../src/bridge_core.py)), coordinando los datos desde Capa 3 o Capa 5. Ejecuta regresiones únicamente cuando el usuario las autorice.
 
 ### 10.2 Cómo agregar un nuevo decodificador de sensor o tipo de paquete (Capas 3 y 4)
 1. **Capa 4**: En [`src/protocol_types.py`](../src/protocol_types.py), declara el opcode o enum correspondiente si deriva del protocolo oficial:

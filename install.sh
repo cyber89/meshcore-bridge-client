@@ -163,7 +163,7 @@ if [[ "$ACTION" == "--update" ]]; then
     python3 -m venv "$STAGE_DIR/release/venv"
     STAGED_PYTHON="$STAGE_DIR/release/venv/bin/python"
     "$STAGED_PYTHON" -m pip install -r "$STAGE_DIR/release/requirements.txt"
-    "$STAGED_PYTHON" "$STAGE_DIR/release/scripts/check_runtime_dependencies.py"
+    "$STAGED_PYTHON" "$STAGE_DIR/release/scripts/check_runtime_dependencies.py" --profile web
     "$STAGED_PYTHON" -m compileall -q "$STAGE_DIR/release/src" "$STAGE_DIR/release/config.py"
     configure_service_identity
     render_service "$STAGE_DIR/release/meshcore-bridge.service" "$STAGE_DIR/systemd.next"
@@ -178,7 +178,7 @@ if [[ "$ACTION" == "--update" ]]; then
     STAGE_APPLIED=1
     python3 "$UPDATE_HELPER" apply "$STAGE_DIR"
     python3 "$UPDATE_HELPER" relocate "$STAGE_DIR"
-    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py"
+    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
     mkdir -p "$INSTALL_DIR/logs" "$INSTALL_DIR/data"
     chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
     cp -f "$STAGE_DIR/systemd.next" "$SYSTEMD_DIR/$SERVICE_NAME"
@@ -299,7 +299,7 @@ fi
 echo -e "${BLUE}[6/7] Creando entorno virtual Python e instalando librerías...${NC}"
 python3 -m venv "$INSTALL_DIR/venv"
 "$INSTALL_DIR/venv/bin/python" -m pip install -r "$INSTALL_DIR/requirements.txt"
-"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py"
+"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
 
 # Asegurar permisos del usuario sobre todo el directorio y venv
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"

@@ -12,7 +12,8 @@ from __future__ import annotations
 import asyncio
 import copy
 import logging
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
 from src.external_mqtt_client import ExternalBridgeMQTTClient
@@ -51,6 +52,8 @@ class ServicesManager:
         self.services_config: ServicesConfig = config_override or load_services_config()
         self.is_running = False
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._lifecycle_lock = asyncio.Lock()
+        self._configuration_write_task: asyncio.Task[None] | None = None
 
         # 1. Instanciar Cliente MQTT Local
         self.local_mqtt = self._create_local_mqtt_client(self.services_config.local_mqtt)
@@ -108,8 +111,61 @@ class ServicesManager:
             port=cfg.port or 5000,
         )
 
+    @asynccontextmanager
+    async def configuration_guard(self) -> AsyncIterator[None]:
+        """Own mutations after any previous, cancellation-shielded disk write.
+
+        Callers holding this guard must not call start(), stop() or
+        reload_services(), which acquire it themselves.
+        """
+        async with self._lifecycle_lock:
+            try:
+                await self._await_configuration_write()
+            except Exception:
+                # The writer's result callback already reports disk failures.
+                # A failed old write must not prevent closing network services;
+                # persist_configuration still raises errors to its own caller.
+                pass
+            yield
+
+    async def _await_configuration_write(self) -> None:
+        task = self._configuration_write_task
+        if task is None:
+            return
+        try:
+            await asyncio.shield(task)
+        finally:
+            # A cancelled waiter never cancels the writer or loses its owner.
+            if task.done() and self._configuration_write_task is task:
+                self._configuration_write_task = None
+
+    @staticmethod
+    def _observe_configuration_write(task: asyncio.Task[None]) -> None:
+        if not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                logger.error("Services configuration persistence failed: %s", type(error).__name__)
+
+    async def persist_configuration(self) -> None:
+        """Persist a private snapshot while the caller holds configuration_guard.
+
+        Cancellation returns promptly to the caller. The next mutation waits
+        for this owned writer, so an older file cannot replace a newer one.
+        """
+        await self._await_configuration_write()
+        snapshot = copy.deepcopy(self.services_config)
+        self._configuration_write_task = asyncio.create_task(
+            save_services_config_async(snapshot), name="ServicesConfigurationPersistence"
+        )
+        self._configuration_write_task.add_done_callback(self._observe_configuration_write)
+        await self._await_configuration_write()
+
     async def start(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         """Inicia todos los servicios de red habilitados en configuración."""
+        async with self.configuration_guard():
+            await self._start_services(loop)
+
+    async def _start_services(self, loop: asyncio.AbstractEventLoop | None) -> None:
         self._loop = loop or asyncio.get_running_loop()
         self.is_running = True
 
@@ -141,10 +197,14 @@ class ServicesManager:
             try:
                 await self.tcp_server.start()
             except Exception as e:
-                logger.error(f"Error iniciando servidor TCP Companion: {e}")
+                logger.error("TCP Companion startup failed: %s", type(e).__name__)
 
     async def stop(self) -> None:
         """Detiene ordenadamente todos los servicios de red."""
+        async with self.configuration_guard():
+            await self._stop_services()
+
+    async def _stop_services(self) -> None:
         self.is_running = False
 
         # 1. Detener TCP Companion Server
@@ -152,21 +212,21 @@ class ServicesManager:
             try:
                 await self.tcp_server.stop()
             except Exception as e:
-                logger.debug(f"Error deteniendo servidor TCP Companion: {e}")
+                logger.debug("TCP Companion shutdown failed: %s", type(e).__name__)
 
         # 2. Detener MQTT Local en hilo para no bloquear el loop
         if self.local_mqtt is not None:
             try:
                 await asyncio.to_thread(self.local_mqtt.stop)
             except Exception as e:
-                logger.debug(f"Error deteniendo cliente MQTT local: {e}")
+                logger.debug("Local MQTT shutdown failed: %s", type(e).__name__)
 
         # 3. Detener MQTT Externo en hilo
         if self.external_mqtt is not None:
             try:
                 await asyncio.to_thread(self.external_mqtt.stop)
             except Exception as e:
-                logger.debug(f"Error deteniendo cliente MQTT externo: {e}")
+                logger.debug("External MQTT shutdown failed: %s", type(e).__name__)
 
         logger.info("Todos los servicios de red han sido detenidos ordenadamente.")
 
@@ -175,9 +235,14 @@ class ServicesManager:
         Aplica una nueva configuración mediante diffing selectivo sin reiniciar el proceso principal.
         Solo reinicia los sockets que efectivamente hayan cambiado sus parámetros.
         """
+        async with self.configuration_guard():
+            return await self._reload_services(new_config_or_updates)
+
+    async def _reload_services(self, new_config_or_updates: ServicesConfig | dict[str, Any]) -> dict[str, Any]:
+        """Compute and apply the diff while holding configuration ownership."""
         old_cfg = copy.deepcopy(self.services_config)
         if isinstance(new_config_or_updates, ServicesConfig):
-            new_cfg = new_config_or_updates
+            new_cfg = copy.deepcopy(new_config_or_updates)
         else:
             new_cfg = update_services_config(old_cfg, new_config_or_updates)
 
@@ -241,14 +306,14 @@ class ServicesManager:
                     try:
                         await self.tcp_server.start()
                     except Exception as e:
-                        logger.error(f"Error al reactivar Servidor TCP Companion: {e}")
+                        logger.error("TCP Companion reload failed: %s", type(e).__name__)
             if hasattr(self.bridge, "tcp_server"):
                 self.bridge.tcp_server = self.tcp_server
             reloaded.append("tcp_server")
 
         # ==================== 4. Persistencia Atómica en Disco ====================
         self.services_config = new_cfg
-        await save_services_config_async(self.services_config)
+        await self.persist_configuration()
 
         logger.info(f"Recarga de servicios completada. Componentes actualizados: {reloaded or ['ninguno']}")
         return {
@@ -271,12 +336,12 @@ class ServicesManager:
             router._ctx.mqtt = self.local_mqtt
 
         admin = getattr(self.bridge, "admin_handler", None)
-        if admin is not None and hasattr(admin, "ctx"):
-            admin.ctx.mqtt = self.local_mqtt
+        if admin is not None and hasattr(admin, "_ctx"):
+            admin._ctx.mqtt = self.local_mqtt
 
         health = getattr(self.bridge, "health_reporter", None)
-        if health is not None and hasattr(health, "ctx"):
-            health.ctx.mqtt = self.local_mqtt
+        if health is not None and hasattr(health, "_ctx"):
+            health._ctx.mqtt = self.local_mqtt
 
     def _propagate_external_mqtt_reference(self) -> None:
         """Actualiza la referencia de external_mqtt en BridgeCore y submódulos dependientes."""

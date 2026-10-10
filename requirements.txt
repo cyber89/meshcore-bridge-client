@@ -10,6 +10,9 @@ fastapi==0.143.0
 uvicorn==0.54.0
 pydantic==2.14.0
 websockets==16.1.1
+# Interfaces de middleware y protocolo usadas directamente por el adaptador ASGI.
+starlette==1.7.0
+h11==0.16.0
 
 # Opcional: diagnóstico de recursos del sistema (RAM/CPU) en CLI admin
 # psutil>=5.9.0

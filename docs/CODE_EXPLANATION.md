@@ -1,6 +1,6 @@
 # Explicación técnica del código de MeshCore Bridge
 
-Guía del checkout actual, revisada el 2026-09-29 mediante lectura del código. No acredita medidas de rendimiento ni resultados de QA. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
+Guía del checkout actual, conciliada el 2026-10-09 mediante lectura del código. No acredita medidas de rendimiento ni resultados de QA. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
 
 ## 1. Entrada, configuración y composición
 
@@ -70,6 +70,12 @@ No hay backend SQLite para nodos, mensajes o colas MQTT. `MapTileService` sí us
 ## 7. Web, MQTT y mantenimiento
 
 `AsgiWebServer` es el servidor de producción basado en FastAPI / Uvicorn (ASGI) (`src/web/asgi_server.py`). `WebAPIRouter` normaliza alias y delega en controladores por dominio. La SPA organiza WebSocket, eventos y almacenamiento en `core/` y chat, nodos, repetidores, mapa, ajustes, analítica y sniffer en `modules/`.
+
+El core selecciona ASGI y el servidor HTTP nativo está retirado; no hay selector de backend ni fallback automático. `asgi_routes.py` registra rutas con entrada `Request`, conserva el mapping JSON y llama una vez al dispatcher. Los controladores reciben datos de negocio y devuelven `tuple[int, dict[str, Any]]`; los DTO Pydantic son metadatos OpenAPI abiertos, sin validación de solicitudes en ejecución.
+
+`asgi_docs.py` publica un visor propio offline en `/docs` y su alias `/redoc`, además de `/openapi.json`. No incorpora Swagger UI/ReDoc ni ejecuta acciones del catálogo. El esquema usa autenticación por `X-Api-Key` cuando hay clave configurada; el visor conserva esa clave sólo en memoria. La política Origin REST/WS de compatibilidad admite también loopback y LAN privada.
+
+Las proyecciones REST de configuración de servicios enmascaran password/token en ambas listas de presets. Los logs y errores de los controladores revisados evitan valores de excepciones; el mapa escapa SNR/RSSI/RTT antes de insertar HTML. Son correcciones acotadas, no una certificación global de seguridad.
 
 `BRIDGE_API_KEY` protege operaciones sensibles y handshake WebSocket cuando está configurada. Companion TCP tiene controles independientes (`COMPANION_ALLOWED_IPS`, `COMPANION_TOKEN`, límite de clientes). La política HTTP no autentica las conexiones MQTT; éstas dependen del broker.
 

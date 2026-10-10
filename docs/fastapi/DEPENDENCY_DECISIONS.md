@@ -1,5 +1,11 @@
 # Fase 0: dependencias, instalación y compatibilidad
 
+Este documento conserva las decisiones y seis resoluciones de fase 0 como
+evidencia histórica. El estado de adopción e instalación vigente se describe en
+la evolución de auditoría al final y en [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md).
+Las referencias a perfiles opcionales y tareas pendientes de las primeras fases
+deben leerse en la fecha de esas fases, no como selector actual de servidor.
+
 Fecha: 2026-10-08. Responsable: agente de release, integrado por el líder de la
 migración. Skill aplicada: `installer-release-maintenance`. Esta decisión prepara
 la implementación. La fase 1 declara un extra web opcional y su manifest derivado;
@@ -247,3 +253,61 @@ invocar endpoints ni deserializar peticiones. El visor local prescinde de Swagge
 o ReDoc externos y de cualquier paquete npm o CDN; utiliza Vanilla JS/CSS servido
 directamente por el adaptador desde `src/web/docs_ui/`. Los pins de dependencias
 permanecen inalterados y continúan opcionales sin instalarse en el entorno base.
+
+## Evolución de adopción y auditoría por capas — 2026-10-09
+
+El cambio `933ccce` seleccionó `AsgiWebServer` en el core y retiró el servidor
+HTTP nativo. Esta evolución sustituye la propuesta de perfiles opcionales como
+descripción de packaging actual, pero conserva las seis resoluciones originales,
+sus hashes, restricciones y limitaciones como evidencia fechada. Adoptar el
+servidor en código no acredita un despliegue real ni el paso de sus suites.
+
+La auditoría posterior a `fcaf89b` mantiene cuatro pins iniciales y declara
+directamente dos distribuciones cuyas interfaces utiliza el adaptador:
+
+| Distribución ASGI | Pin en manifests y checker | Evidencia y razón |
+| --- | --- | --- |
+| FastAPI | `0.143.0` | Wheel de fase 0; registro de rutas y stack de middleware revisados. |
+| Uvicorn | `0.54.0` | Wheel de fase 0; hooks de lifespan, readiness, H11 y WebSocket. |
+| Pydantic | `2.14.0` | Wheel de fase 0; modelos descriptivos y generación de JSON Schema. |
+| websockets | `16.1.1` | Wheel de fase 0; protocolo SansIO revisado por fuente. |
+| Starlette | `1.7.0` | Transitiva de fase 0 declarada ahora directamente por sus interfaces de middleware, rutas y respuestas. |
+| h11 | `0.16.0` | Transitiva de fase 0 declarada ahora directamente por el framing HTTP y hooks del protocolo. |
+
+Los seis pins aparecen en [`requirements.txt`](../../requirements.txt), las
+dependencias principales y el extra compatible `web` de
+[`pyproject.toml`](../../pyproject.toml), y `WEB_DEPENDENCIES` de
+[`check_runtime_dependencies.py`](../../scripts/check_runtime_dependencies.py).
+Se contrastaron por lectura con METADATA de los wheels locales Windows/CPython
+3.10 de fase 0. No se instalaron ni importaron esos paquetes en esta auditoría.
+Las interfaces privadas requieren nueva revisión antes de renovar versiones.
+
+`requirements-web.txt` conserva el comando anterior con `-r requirements.txt`,
+sin repetir pins. El manifest habitual instala cuatro dependencias core más
+seis ASGI; las transitivas siguen sus restricciones y no constituyen un lock
+completo con hashes. Los rangos core no se han convertido en pins.
+
+El checker tiene default `web` sin `MESHCORE_PROFILE`, exige igualdad exacta de
+las seis versiones ASGI y rechaza pre/dev/post-releases, versiones más nuevas y
+builds locales. Core conserva sus mínimos y no importa ASGI durante su probe.
+Un perfil inválido devuelve fallo antes de importar paquetes. El argumento
+explícito tiene prioridad sobre el entorno; los instaladores lo fijan a
+`--profile web` tanto en sus probes de producción como después de instalar.
+Los errores de importación muestran el nombre de distribución y tipo de excepción,
+sin reflejar su texto crudo. El checker sigue devolviendo 0 al aprobar y 1 ante
+fallos; el parser CLI mantiene 2 para argumentos inválidos.
+
+`WEB_ENABLED=false` controla carga y arranque mediante imports diferidos del core;
+`--profile core` sólo selecciona una comprobación. Ninguno elimina paquetes de un
+entorno ni convierte los instaladores actuales en instaladores headless mínimos.
+No existe un manifest mantenido de instalación sólo core, selector del servidor
+nativo ni fallback de transporte ante dependencias ASGI ausentes.
+
+Se actualizaron fixtures para perfiles explícitos y se declararon regresiones
+aisladas sobre paquetes web ausentes, pins distintos, perfiles inválidos y
+sanitización de errores, sin ejecutarlas. AST Python 3.10 y lectura de manifests
+son evidencia estática; ejecución en Python 3.10, compatibilidad por destino,
+instalación, apagado, REST/WS, rendimiento y hardware siguen pendientes. Se
+retiran explícitamente las cifras RSS y garantías SBC sin medición que figuraban
+en el informe anterior de fase 6; la respuesta «no importa» no autorizó inventar
+presupuestos ni acreditar soporte universal.

@@ -26,12 +26,11 @@ class RepeaterController(BaseController):
 
     async def execute_admin_command(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Ejecuta un comando de administración directa."""
-        action = req_body.get("action")
         res = await self.ctx.bridge.handle_admin(req_body)
         failure = self._remote_failure(res)
         if failure:
             return failure
-        self.ctx.log_system_event("INFO", f"Comando admin ejecutado: {action}", source="admin")
+        self.ctx.log_system_event("INFO", "Comando administrativo ejecutado", source="admin")
         out_msg = ""
         if isinstance(res, dict):
             out_msg = str(res.get("result") or res.get("message") or "")
@@ -56,7 +55,7 @@ class RepeaterController(BaseController):
         if failure:
             return failure
 
-        self.ctx.log_system_event("INFO", f"Comando RF a repetidor {target_node}: {action}", source="repeater_admin")
+        self.ctx.log_system_event("INFO", "Comando RF a repetidor ejecutado", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
     async def login(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -77,11 +76,11 @@ class RepeaterController(BaseController):
         if failure:
             return failure
         if res.get("status") == "error" or not res.get("authenticated", False):
-            msg = res.get("message", "Contraseña incorrecta o sin respuesta del repetidor")
-            self.ctx.log_system_event("WARN", f"Fallo de autenticación con repetidor {target}: {msg}", source="repeater_admin")
+            msg = "Autenticación no confirmada por el repetidor"
+            self.ctx.log_system_event("WARN", "Fallo de autenticación con repetidor", source="repeater_admin")
             return problem_details(401, "Unauthorized", msg, "auth_failed", {"data": res})
 
-        self.ctx.log_system_event("INFO", f"Autenticación exitosa con repetidor {target}", source="repeater_admin")
+        self.ctx.log_system_event("INFO", "Autenticación exitosa con repetidor", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
     async def logout(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -96,7 +95,7 @@ class RepeaterController(BaseController):
         if failure:
             return failure
 
-        self.ctx.log_system_event("INFO", f"Sesión cerrada en repetidor {target}", source="repeater_admin")
+        self.ctx.log_system_event("INFO", "Sesión cerrada en repetidor", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
     async def set_remote_config(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -118,7 +117,7 @@ class RepeaterController(BaseController):
         if failure:
             return failure
 
-        self.ctx.log_system_event("INFO", f"Configuración remota despachada a repetidor {target}", source="repeater_admin")
+        self.ctx.log_system_event("INFO", "Configuración remota despachada a repetidor", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
     async def execute_remote_action(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -140,7 +139,7 @@ class RepeaterController(BaseController):
         if failure:
             return failure
 
-        self.ctx.log_system_event("INFO", f"Acción remota '{action_name}' despachada a repetidor {target}", source="repeater_admin")
+        self.ctx.log_system_event("INFO", "Acción remota despachada a repetidor", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
     async def ping_zero(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -158,7 +157,7 @@ class RepeaterController(BaseController):
         if failure:
             return failure
 
-        self.ctx.log_system_event("INFO", f"🎯 Ping Zero (0 saltos) enviado a {target} - RTT: {res.get('rtt_ms')} ms", source="repeater_admin")
+        self.ctx.log_system_event("INFO", "🎯 Ping Zero (0 saltos) enviado", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
     async def traceroute(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -176,7 +175,7 @@ class RepeaterController(BaseController):
         if failure:
             return failure
 
-        self.ctx.log_system_event("INFO", f"🗺️ Traceroute completado hacia {target} ({res.get('hop_count', 0)} saltos)", source="admin")
+        self.ctx.log_system_event("INFO", "🗺️ Traceroute completado", source="admin")
         return 200, {"status": "ok", "data": res}
 
     async def get_neighbours(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -195,7 +194,7 @@ class RepeaterController(BaseController):
         failure = self._remote_failure(res)
         if failure:
             return failure
-        self.ctx.log_system_event("INFO", f"Vecinos consultados para repetidor {target}", source="repeater_admin")
+        self.ctx.log_system_event("INFO", "Vecinos consultados para repetidor", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
     async def get_owner(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

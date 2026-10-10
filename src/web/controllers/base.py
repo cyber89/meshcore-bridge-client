@@ -69,7 +69,11 @@ class BaseController:
             if status in {"ERROR", "FAILED", "PARTIAL", "NOT_SUPPORTED", "LOCAL_ONLY", "LOCAL_DELETED"} or result.get("error"):
                 raw_code = result.get("code", 503 if status.startswith(("NOT_SUPPORTED", "LOCAL_")) else (400 if status in {"ERROR", "FAILED", "PARTIAL"} else 400))
                 code = raw_code if isinstance(raw_code, int) and not isinstance(raw_code, bool) and 400 <= raw_code <= 599 else 400
-                msg = str(result.get("message") or result.get("detail") or result.get("error") or "El transceptor rechazó la operación")
+                msg = (
+                    "El transceptor confirmó la operación parcialmente"
+                    if status == "PARTIAL"
+                    else "El transceptor rechazó la operación"
+                )
                 extra: dict[str, Any] = {}
                 for k in ("applied", "config", "action", "dispatched_commands", "target_node"):
                     if k in result:
@@ -101,8 +105,10 @@ class BaseController:
             return self.command_failure(await operation(*args))
         except (ValueError, TypeError):
             return problem_details(422, "Unprocessable Entity", "Parámetros rechazados por el transceptor", "invalid_serial_parameters")
-        except Exception:
-            logging.warning("Operación serial %s falló", method, exc_info=True)
+        except Exception as error:
+            logging.warning(
+                "Operación serial %s falló con %s", method, type(error).__name__
+            )
             return problem_details(503, "Service Unavailable", "Fallo de comunicación con el transceptor", "serial_operation_failed")
 
 

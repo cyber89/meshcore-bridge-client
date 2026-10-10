@@ -11,7 +11,9 @@ basado en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`). La
 [DTO/errores de fase 2](fastapi/PHASE_2_REPORT.md), [rutas REST de fase 3](fastapi/PHASE_3_REPORT.md),
 [WS/SPA/mapas de fase 4](fastapi/PHASE_4_REPORT.md), [OpenAPI/docs de fase 5](fastapi/PHASE_5_REPORT.md)
 y [release de fase 6](fastapi/PHASE_6_REPORT.md)) consolidan los adaptadores REST, WebSocket Hub,
-servicio de teselas MBTiles y documentación OpenAPI 3.1.0 interactiva (`/docs/api`, `/openapi.json`).
+servicio de teselas MBTiles y visor propio OpenAPI 3.1.0 (`/docs`, alias `/redoc`, `/openapi.json`). El core selecciona ASGI; el servidor HTTP nativo está retirado y no existe fallback hacia él. Las suites siguen suspendidas por instrucción del usuario; esta selección no acredita aceptación operativa.
+
+Las rutas REST reciben `Request` y delegan en `WebAPIRouter.handle_request()`; los controladores devuelven `tuple[int, dict[str, Any]]`. Los DTO Pydantic describen campos abiertos para documentación, sin `model_validate` ni filtrado de entradas en ejecución. El visor utiliza recursos propios locales y no incluye los paquetes Swagger UI o ReDoc.
 
 El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 
@@ -21,6 +23,8 @@ El sistema cuenta con mapas interactivos de alta fidelidad compilados determiní
 - 🗺️ [**Arquitectura General del Sistema (`meshcore_architecture.html`)**](diagrams/meshcore_architecture.html): Mapeo completo de subsistemas, capas de aislamiento, drivers serie, núcleo asyncio, persistencia y clientes IP.
 - ⚡ [**Pipeline Raw Propio a IP (`meshcore_packet_pipeline.html`)**](diagrams/meshcore_packet_pipeline.html): Camino del parser raw propio, validación CRC de ese formato, deduplicación y consumo IP. El camino SDK entrega eventos Companion sin pasar por ese parser.
 - ⏱️ [**Secuencia Operativa Bidireccional (`meshcore_rx_tx_sequence.html`)**](diagrams/meshcore_rx_tx_sequence.html): Diagrama de secuencia temporal que ilustra la recepción reactiva de tramas y la ejecución de comandos administrativos Hop 0 con rate limiter.
+
+Los HTML/SVG y sus recibos conservan la fecha de generación de cada artefacto. No se regeneraron durante esta auditoría; para la selección web vigente consultar el código ASGI y el Mermaid siguiente.
 
 > **Regeneración de diagramas**:
 > Para compilar o validar los diagramas tras cualquier modificación arquitectónica, ejecute:
@@ -37,7 +41,7 @@ flowchart TB
     subgraph L1 ["Capa 1: Presentación y Exposición (Ingress / Egress)"]
         direction LR
         UI["Web SPA (Vanilla HTML5/CSS3/JS)"]
-        HTTP["HTTP 1.1 / WS Server (asyncio nativo)"]
+        HTTP["FastAPI / Uvicorn ASGI (REST, WS, SPA, docs)"]
         Controllers["Controladores REST (controllers/*)"]
         MQTT_Ext["Cliente MQTT (AsyncBridgeMQTTClient)"]
     end
@@ -85,11 +89,11 @@ flowchart TB
 
 | Capa | Nombre Canónico | Responsabilidad Principal | Módulos y Rutas del Código |
 |---|---|---|---|
-| **Capa 1** | **Presentación y Exposición** | Frontera exterior con redes IP y usuarios humanos. Servidor HTTP/WS, controladores REST, cliente SPA y broker MQTT. Sin lógica RF directa. | [`src/web/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/) (SPA, `asgi_server.py`, `api_router.py`, `controllers/*`), [`src/mqtt_client.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_client.py), [`src/mqtt_dispatcher.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_dispatcher.py) |
-| **Capa 2** | **Aplicación y Orquestación** | Orquestación de casos de uso de alto nivel, coordinación de ciclo de vida, apagado ordenado y despacho de comandos administrativos. | [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) (`MeshCoreBridge`), [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py), [`src/admin/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/) (`local_config`, `repeater`, `traceroute`, `cli`), [`src/preflight.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/preflight.py), [`src/health_reporter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/health_reporter.py) |
-| **Capa 3** | **Dominio de Malla y Enrutamiento** | Lógica de red LoRa: enrutamiento de eventos entrantes, priorización TX, estimación de airtime, deduplicación de ecos, LQI y gestión de nodos. | [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py), [`src/routers/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/), [`src/rate_limiter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rate_limiter.py) (`TxRateLimiter`, `AirtimeTracker`), [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) (`NodeRegistry`), [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py), [`src/lqi_engine.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/lqi_engine.py), [`src/deduplicator.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/deduplicator.py), [`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py) |
-| **Capa 4** | **Dominio Puro y Protocolo Canónico** | Definiciones fundamentales del protocolo y tipos estrictos alineados con el firmware C/C++ oficial. Invariantes inmutables de dominio de [`CONTEXT.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md). Libre de dependencias externas. | [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py) (`FirmwareAdvertType`, roles, opcodes, eventos `@dataclass(frozen=True)`), invariantes canónicas de [`CONTEXT.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md) |
-| **Capa 5** | **Infraestructura y Transporte** | Abstracción de hardware (*Seams*), drivers de comunicación serie (UART/USB), sockets TCP, parser binario raw y persistencia atómica en disco. | [`src/serial/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial/) (`BaseSerialAdapter`, `MeshcoreSDKAdapter`, `RawSerialFramingAdapter`, `watchdog.py`), [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py), [`src/tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/tcp_companion_server.py), [`src/virtual_mesh_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/virtual_mesh_adapter.py), repositorios JSON en disco |
+| **Capa 1** | **Presentación y Exposición** | Frontera exterior con redes IP y usuarios humanos. Servidor HTTP/WS, controladores REST, cliente SPA y broker MQTT. Sin lógica RF directa. | [`src/web/`](../src/web/) (SPA, `asgi_server.py`, `api_router.py`, `controllers/*`), [`src/mqtt_client.py`](../src/mqtt_client.py), [`src/mqtt_dispatcher.py`](../src/mqtt_dispatcher.py) |
+| **Capa 2** | **Aplicación y Orquestación** | Orquestación de casos de uso de alto nivel, coordinación de ciclo de vida, apagado ordenado y despacho de comandos administrativos. | [`src/bridge_core.py`](../src/bridge_core.py) (`MeshCoreBridge`), [`src/admin_handler.py`](../src/admin_handler.py), [`src/admin/`](../src/admin/) (`local_config`, `repeater`, `traceroute`, `cli`), [`src/preflight.py`](../src/preflight.py), [`src/health_reporter.py`](../src/health_reporter.py) |
+| **Capa 3** | **Dominio de Malla y Enrutamiento** | Lógica de red LoRa: enrutamiento de eventos entrantes, priorización TX, estimación de airtime, deduplicación de ecos, LQI y gestión de nodos. | [`src/rx_router.py`](../src/rx_router.py), [`src/routers/`](../src/routers/), [`src/rate_limiter.py`](../src/rate_limiter.py) (`TxRateLimiter`, `AirtimeTracker`), [`src/contact_manager.py`](../src/contact_manager.py) (`NodeRegistry`), [`src/repeater_manager.py`](../src/repeater_manager.py), [`src/lqi_engine.py`](../src/lqi_engine.py), [`src/deduplicator.py`](../src/deduplicator.py), [`src/sensor_decoder.py`](../src/sensor_decoder.py) |
+| **Capa 4** | **Dominio Puro y Protocolo Canónico** | Definiciones fundamentales del protocolo y tipos estrictos alineados con el firmware C/C++ oficial. Invariantes inmutables de dominio de [`CONTEXT.md`](../CONTEXT.md). Libre de dependencias externas. | [`src/protocol_types.py`](../src/protocol_types.py) (`FirmwareAdvertType`, roles, opcodes, eventos `@dataclass(frozen=True)`), invariantes canónicas de [`CONTEXT.md`](../CONTEXT.md) |
+| **Capa 5** | **Infraestructura y Transporte** | Abstracción de hardware (*Seams*), drivers de comunicación serie (UART/USB), sockets TCP, parser binario raw y persistencia atómica en disco. | [`src/serial/`](../src/serial/) (`BaseSerialAdapter`, `MeshcoreSDKAdapter`, `RawSerialFramingAdapter`, `watchdog.py`), [`src/serial_driver.py`](../src/serial_driver.py), [`src/tcp_companion_server.py`](../src/tcp_companion_server.py), [`src/virtual_mesh_adapter.py`](../src/virtual_mesh_adapter.py), repositorios JSON en disco |
 
 ### 2.2 Invariantes de Dependencia entre Capas
 
@@ -382,7 +386,7 @@ sequenceDiagram
 - **`src/routers/`**: Utiliza el **Strategy Pattern** para enrutar los diferentes tipos de paquetes RF (`AdvertHandler`, `ChannelHandler`, `DirectHandler`, `RepeaterHandler`, `SystemHandler`, `TelemetryHandler`). Al desacoplar la lógica, simplifica la expansión del formato de los mensajes.
 - **`src/admin/`**: Implementa un esquema de comandos basado en **Command Pattern** y **Strategy Pattern** para separar la lógica de parseo, de la ejecución en RF: (`LocalConfigExecutor`, `RepeaterAdminExecutor`, `TracerouteExecutor`).
 
-  El executor remoto convierte `NodeContactInfo` obtenido por nombre/alias a su representación dict antes de aplicar guards de identidad/rol. Los comandos unitarios se construyen y validan antes de autenticación, consumo de cooldown y envío: un resultado no compilable devuelve error administrativo con `code: 422`. La preparación local de contactos SDK del dispatcher permanece previa. Los resultados de lote usan `redact_sensitive_mapping` con salida dict; el redactor general conserva soporte de estructuras arbitrarias. PIN y potencia TX nulos se rechazan en prevalidación del lote local. Comportamiento validado en suites de pruebas unitarias.
+  El executor remoto convierte `NodeContactInfo` obtenido por nombre/alias a su representación dict antes de aplicar guards de identidad/rol. Los comandos unitarios se construyen y validan antes de autenticación, consumo de cooldown y envío: un resultado no compilable devuelve error administrativo con `code: 422`. La preparación local de contactos SDK del dispatcher permanece previa. Los resultados de lote usan `redact_sensitive_mapping` con salida dict; el redactor general conserva soporte de estructuras arbitrarias. PIN y potencia TX nulos se rechazan en prevalidación del lote local. Los informes anteriores conservan su evidencia; no se ejecutaron suites para aceptar el checkout de esta auditoría.
 
 - **`src/web/controllers/`**: Sigue el patrón **MVC / Modular Controllers**. Organiza unívocamente las rutas REST por dominios funcionales (Contactos, Nodos, Sistema, Transmisiones).
 
@@ -430,9 +434,9 @@ sequenceDiagram
 | POST | `/api/node/advert` | `ConfigController` | Desencadena una transmisión obligatoria a todos los nodos con los detalles de presencia y métricas. |
 | POST | `/api/node/reboot` | `ConfigController` | Ordena apagado y encendido de MCU del módem RF adjunto al puente local. |
 | GET | `/api/map/status` | `MapTileService` | Valida si el módulo local dispone de cartografía sin conexión funcional en el dispositivo base. |
-| GET | `/api/map/tiles/...` | `MapTileService` | Despacho binario nativo (blob) para teselas OSM/Slippy pre-cachadas. |
+| GET | `/api/map/tiles/...` | `asgi_assets.py` / `MapTileService` | Respuesta binaria ASGI para teselas XYZ o MBTiles locales. |
 | GET | `/api/telemetry` | `LogsController` | Recupera el buffer histórico (RAM) de variables métricas medioambientales procesadas. |
-| GET | `/api/logs/download` | `LogsController` | Inicia una descarga física de los archivos de registro brutos del framework. |
+| GET | `/api/logs/download` | `LogsController` | Devuelve la cola de texto del log dentro de un envelope JSON; no es una descarga raw. |
 
 ## 9. Mapa de Eventos WebSocket
 
@@ -441,7 +445,7 @@ sequenceDiagram
 | `ping` / `pong` | Bidireccional | `{ type, timestamp }` | Servidor WebSocket Hub (`AsgiWebServer`) y Cliente Javascript para KeepAlive. |
 | `metrics_update` | Server→Client | `node_count`, `rx_count`, `tx_count`, `error_rate`, `queue_depth`, `serial_connected` | Periodicidad `WS_METRICS_INTERVAL_SEC` (default de config: 5 s). |
 | `system_log` | Server→Client | `level`, `message`, `source`, `timestamp` | Re-despachado por el registro en vivo desde `WebAPIRouter` y subsistema `DiagnosticManager`. |
-| `rf_packet` | Server→Client | Headers crudos L2 interceptados, metadata LQI. | Enrutado nativo a través del hub originado en `RxEventRouter` post-parseo. |
+| `rf_packet` | Server→Client | Metadatos de captura normalizados. | Difusión por `WebSocketHub` de eventos del pipeline RX/captura. |
 | `ws_connected` | Server→Client | `message`, `timestamp` | Evento de handshake inicial en apertura confirmando vinculación con SPA local de UI. |
 | Otros (ej: mensajes de chat) | Server→Client | Payload RF completo decodificado L3. | Capturados genéricamente y retransmitidos al `EventBus` (`EVENTS.RX_PACKET`) en la SPA UI. |
 
@@ -457,7 +461,7 @@ sequenceDiagram
 | `{prefix}/rx/telemetry`, `{prefix}/rx/nodes`, `{prefix}/rx/log` | Sí | No | Telemetría, anuncios/nodos y registros RF. |
 | `{prefix}/tx` | No | Sí | Inyección externa. Escucha strings para que el Puente enrute hacia un paquete LoRa a los nodos en la banda. |
 | `{prefix}/tx/status` | Sí | No | Resultado del envío o error; la confirmación de entrega DM/ACK se procesa como evento separado. |
-| `{prefix}/admin/cmd` | No | Sí | Administración JSON con `action` en el dict entregado al handler. El fallback textual/escalar pierde la acción en el checkout actual; divergencia pendiente, véase PROJECT_KNOWLEDGE.md. |
+| `{prefix}/admin/cmd` | No | Sí | Objetos JSON se copian y conservan sus campos; texto/escalar se convierte a `action`, y `command` se usa si falta `action`. |
 | `{prefix}/admin/status` | Sí | No | Proporciona una salida JSON formateada y serializada confirmando los comandos remotos al broker MQTT. |
 | `{prefix}/admin/repeater/{node_id}/cmd` | No | Sí | Comandos remotos específicos para repetidores suscritos vía wildcard (`{prefix}/admin/repeater/+/cmd`). |
 | `{prefix}/admin/repeater/{node_id}/status` | Sí | No | Reportes específicos dirigidos que confirman latencias y estados de repetidores tras comandos remotos por RF. |
@@ -468,7 +472,9 @@ sequenceDiagram
 ## 11. Seguridad y Resiliencia Perimetral
 
 - **Autenticación API (`BRIDGE_API_KEY`)**: Cuando está configurada, se exige la cabecera `X-Api-Key` o parámetro `?api_key=` en todas las mutaciones (`POST`, `PUT`, `DELETE`, `PATCH`), endpoints de administración, inyección RF (`/api/tx`), descargas de logs (`/api/logs/download`, `/api/logs/raw`), listado/exportación de capturas (`/api/packets`, `/api/packets/export`, también HEAD) y handshakes de WebSocket. REST/WS usan el mismo parser URL/UTF-8; una cabecera no vacía tiene prioridad, y las claves duplicadas en query se rechazan. Comparación constante por bytes UTF-8. Modo permisivo por defecto para desarrollo local si la variable no está definida.
-- **Límite de Conexiones WebSocket**: Máximo 32 conexiones simultáneas concurrentes para prevenir agotamiento de descriptores de sockets y memoria en SBCs.
+- **Límite de Conexiones WebSocket**: Reserva perimetral de hasta 32 sesiones. Este límite no acredita un techo global de memoria del proceso o de las colas del backend.
+- **Origin y documentación**: La política de compatibilidad admite allowlist, Host, loopback y LAN privada; no es una restricción estricta de mismo origen. El esquema documental exige `X-Api-Key` cuando hay clave configurada, sin aceptar credenciales en query; las pantallas y assets locales no incluyen el catálogo.
+- **Proyección pública**: La configuración de servicios enmascara password/token en `custom_presets` y `all_presets`. Los errores revisados evitan reflejar valores de excepciones; esto no acredita que cualquier texto de un SDK o respuesta exitosa sea seguro. Las exportaciones autenticadas de canales conservan el secreto requerido por su función.
 - **Protección de Teselas Cartográficas**: Validación estricta de coordenadas y zoom ($0 \le z \le 22$, $0 \le x < 2^z$, $0 \le y < 2^z$) para evitar desbordamientos de enteros o caídas por desplazamiento negativo de bits.
 - **Autoridad de Roles**: La clasificación canónica deriva de `FirmwareAdvertType` (0/1 CLIENT, 2 REPEATER, 3 ROOM, 4 SENSOR), no del nombre. Las restricciones de `CONTEXT.md` excluyen repetidores y nodo local de Contactos/chat. Las heurísticas de normalización que aún existan deben revisarse frente a esa autoridad; la documentación no certifica cada ruta.
 
