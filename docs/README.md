@@ -1,58 +1,68 @@
 # Documentación de MeshCore Bridge
 
-Índice revisado el 2026-10-09. Distingue las reglas y guías actuales de los informes que describen un momento histórico del proyecto.
+Índice maestro de especificaciones, arquitectura y guías operativas de **MeshCore Bridge**.
 
-## Autoridad y lectura recomendada
+---
 
-1. [README del proyecto](../README.md): propósito, instalación, estructura y configuración principal.
-2. [AGENTS.md](../AGENTS.md): reglas operativas, autorización de pruebas, responsabilidades y checklist de impacto RF.
-3. [CONTEXT.md](../CONTEXT.md): lenguaje e invariantes del dominio, clasificación de nodos, contactos y mensajería.
-4. [PROTOCOL_SPEC.md](PROTOCOL_SPEC.md): contratos binarios/JSON, distinguiendo Companion oficial del framing raw propio.
-5. [ARCHITECTURE.md](ARCHITECTURE.md), [SYSTEM_LAYERS_MANUAL.md](SYSTEM_LAYERS_MANUAL.md) y [CODE_EXPLANATION.md](CODE_EXPLANATION.md): diseño canónico en 5 capas, clases, módulos, flujos y persistencia de la implementación.
-6. [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md): instaladores raíz, sistema operativo, broker, permisos y servicio.
-7. [N8N_WORKFLOW_GUIDE.md](N8N_WORKFLOW_GUIDE.md): descripción del [export n8n](../n8n_workflow_meshcore.json), sus contratos y límites actuales.
-8. [TESTING.md](TESTING.md) e [inventario de verificación](TEST_INVENTORY.md): entorno de QA, aislamiento, alcance y evidencia; [agentes y skills](../.agents/README.md): selección y límites de herramientas.
+## 📚 Documentación Vigente y Contratos de Dominio
 
-La fuente oficial bajo `reference/meshcore/`, `reference/meshcore_py/` y `reference/meshcore_cli/` es la referencia del protocolo; esos directorios son de sólo lectura. El código del checkout determina el comportamiento implementado. Si contradice una invariante de dominio o el protocolo oficial, registrar la divergencia y corregirla expresamente; no convertir un bug en autoridad cambiando la regla.
+1. **[README del Proyecto](../README.md)**: Visión general, instalación, despliegue como servicio y configuración principal.
+2. **[AGENTS.md](../AGENTS.md)**: Protocolo de orquestación multi-agente, gobernanza de cambios, reglas de exclusión y checklist de impacto en la malla LoRa.
+3. **[CONTEXT.md](../CONTEXT.md)**: Modelo de dominio canónico, lenguaje ubicuo, clasificación estricta de nodos (CLIENT, REPEATER, ROOM, SENSOR) e invariantes inmutables.
+4. **[PROTOCOL_SPEC.md](PROTOCOL_SPEC.md)**: Especificación formal del protocolo MeshCore, framing Companion oficial, framing raw propio y contratos binarios.
+5. **[ARCHITECTURE.md](ARCHITECTURE.md)**: Arquitectura en 5 capas, integración FastAPI / Uvicorn ASGI de producción con fallback automático a `MeshCoreWebServer`, WebSocket Hub y ciclo de vida asíncrono.
+6. **[SYSTEM_LAYERS_MANUAL.md](SYSTEM_LAYERS_MANUAL.md)** y **[CODE_EXPLANATION.md](CODE_EXPLANATION.md)**: Manual detallado de subsistemas, módulos, estrategias de enrutamiento y persistencia.
+7. **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**: Guía completa de despliegue en Linux (systemd), Raspberry Pi / Orange Pi y Windows.
+8. **[N8N_WORKFLOW_GUIDE.md](N8N_WORKFLOW_GUIDE.md)**: Integración con automatizaciones n8n y esquemas de mensajería MQTT.
+9. **[TESTING.md](TESTING.md)** y **[TEST_INVENTORY.md](TEST_INVENTORY.md)**: Entorno de QA, aislamiento de suites de prueba, fixtures y comandos reproducibles.
+10. **[PROJECT_KNOWLEDGE.md](PROJECT_KNOWLEDGE.md)**: Mapa de conocimiento del proyecto y fuentes de referencia.
 
-Defaults de runtime: [config.py](../config.py). Configuración de ejemplo: [.env.example](../.env.example), que puede diferir del default efectivo; no publicar secretos de `.env`. Dependencias de runtime: [requirements.txt](../requirements.txt) y `[project].dependencies` de [pyproject.toml](../pyproject.toml). Herramientas de QA: [requirements-dev.txt](../requirements-dev.txt) y extra `dev`.
+---
 
-## Arquitectura visual
+## 🏛️ Registros de Decisiones de Arquitectura (ADRs)
 
-Los JSON de [diagrams/](diagrams/) son fuentes de los tres HTML interactivos; `scripts/build_diagrams.py` valida y los regenera con Archify. El pipeline de CRC representa el formato raw propio, no todos los eventos SDK o paquetes RF. Los recibos `*.visual-check.json` describen la versión y momento de su captura; después de regenerar deben renovarse antes de atribuirles verificación visual actual.
+Los ADRs documentan las decisiones arquitectónicas fundamentales tomadas a lo largo de la evolución del proyecto:
 
-El contenido de los diagramas está en español; los controles del visor Archify y
-su atributo HTML de idioma usan el fallback inglés del paquete instalado.
+- **[ADR 0001: Exclusión Estricta de Repetidores en Contactos](adr/0001-strict-repeater-contact-exclusion.md)**
+- **[ADR 0002: Protecciones de Airtime en la Malla LoRa](adr/0002-lora-airtime-guardrails.md)**
+- **[ADR 0003: Resiliencia del Driver Serie con AsyncIO](adr/0003-asyncio-serial-resilience.md)**
+- **[ADR 0004: Alertas de Duty Cycle y Persistencia de Airtime](adr/0004-airtime-duty-cycle-alerting-and-persistence.md)**
+- **[ADR 0005: Persistencia Atómica JSON frente a SQLite](adr/0005-json-atomic-persistence-over-sqlite.md)**
+- **[ADR 0006: Servidor Proxy TCP Companion](adr/0006-tcp-companion-server-proxy.md)**
+- **[ADR 0007: Desacoplamiento de Beacon Local y Telemetría](adr/0007-decoupling-local-beacon-telemetry.md)**
+- **[ADR 0008: Sincronización Automática de Reloj RTC](adr/0008-automatic-rtc-clock-synchronization.md)**
+- **[ADR 0009: Capas del Protocolo Companion Oficial](adr/0009-official-companion-protocol-layers.md)**
+- **[ADR 0010: Presupuesto Configurable de Duty Cycle](adr/0010-duty-cycle-configurable-budget.md)**
+- **[ADR 0011: Migración Escalonada a FastAPI/Uvicorn ASGI](adr/0011-staged-asgi-migration.md)**
 
-## Decisiones e historial
+---
 
-- [Plan FastAPI](../PROYECTO.md), [preparación de fase 0](fastapi/PHASE_0_REPORT.md), [base de fase 1](fastapi/PHASE_1_REPORT.md), [seguridad ASGI](fastapi/PHASE_1_SECURITY_REPORT.md), [DTO/errores de fase 2](fastapi/PHASE_2_REPORT.md), [rutas REST de fase 3](fastapi/PHASE_3_REPORT.md), [WS/SPA/mapas de fase 4](fastapi/PHASE_4_REPORT.md), [OpenAPI/docs de fase 5](fastapi/PHASE_5_REPORT.md) y [release/instaladores de fase 6](fastapi/PHASE_6_REPORT.md): catálogos, dependencias y adaptadores preparatorios con evidencia estática. Servidor actual predeterminado; redacción compartida de catch/enteros explícita, aceptación operativa y suites pendientes por instrucción del usuario.
-- [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md): seguimiento vigente de los 39 hallazgos originales, cierre de los 32 restantes, riesgos adicionales, reproducciones y verificación integrada. El primer lote conserva sus resultados históricos.
-- [LAYERED_SYSTEM_AUDIT_2026-10-04.md](LAYERED_SYSTEM_AUDIT_2026-10-04.md): snapshot de auditoría en cinco capas, errores reproducidos, contradicciones, inventario y plan. Los harness afirman los defectos de esa revisión; la resolución posterior se registra en el seguimiento, sin reescribir las reproducciones.
-- [ADRs](adr/): decisiones y contexto histórico (ADR 0001 a ADR 0011); [ADR 0011](adr/0011-staged-asgi-migration.md) prepara ASGI sin adoptar aún el servidor candidato. Revisar estado y fecha. Una decisión anterior que no coincida con el código necesita conciliación explícita, sin borrar su historia.
-- [PROTOCOL_AUDIT_2026-09-29.md](PROTOCOL_AUDIT_2026-09-29.md): auditoría de frontera de protocolo MeshCore contrastando firmware C/C++, SDK oficial 2.3.14 y el bridge.
-- [FRONTEND_UI_REVIEW_2026-10-03.md](FRONTEND_UI_REVIEW_2026-10-03.md): plan, mejoras y evidencia de la revisión de temas, responsive, accesibilidad e idiomas de la SPA.
-- [FRONTEND_VISUAL_REFRESH_2026-10-03.md](FRONTEND_VISUAL_REFRESH_2026-10-03.md): primera entrega de paleta clara suave y diálogos, con evidencia estática; seguimiento renderizado en el informe exhaustivo siguiente.
-- [FRONTEND_EXHAUSTIVE_AUDIT_2026-10-03.md](FRONTEND_EXHAUSTIVE_AUDIT_2026-10-03.md): plan multiagente, corrección de logs, interacciones y código obsoleto; reproducciones y comprobaciones de frontend en estación virtual.
-- [BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md](BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md): resolución de los ocho errores mypy y nueve incidencias Ruff pendientes, regresiones de executors y reparación de fixtures contrastada con firmware/SDK.
-- [LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md](LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md): corrección del guardado local, cachés después de ACK, borradores y controles periódicos no soportados; reproducción histórica, regresiones y pasos de aceptación.
-- [NODES_TELEMETRY_AUDIT_2026-10-03.md](NODES_TELEMETRY_AUDIT_2026-10-03.md): estado de seis métricas de Nodos, semántica de rutas/relojes y plan de implementación pasiva; propuesta sin cambios funcionales ni suites ejecutadas.
-- [NODE_CONFIGURATION_AUDIT_2026-10-03.md](NODE_CONFIGURATION_AUDIT_2026-10-03.md): revisión de configuración local/remota, contraste con firmware y cliente oficial, errores reproducidos con mocks/navegador virtual y plan técnico de corrección.
-- [NODE_CONFIGURATION_VERIFICATION_2026-10-03.md](NODE_CONFIGURATION_VERIFICATION_2026-10-03.md): snapshot de verificación en `9f56193`, inventario de 65 controles, matrices por parámetro, defectos y plan; las correcciones posteriores requieren su propia revalidación.
-- [AUDIT_REPORT_LAYER_BY_LAYER.md](AUDIT_REPORT_LAYER_BY_LAYER.md): informe de auditoría exhaustiva capa por capa (Capa 1 a Capa 5) con replicación de errores.
-- [AUDIT_REPORT_2026-08-17.md](AUDIT_REPORT_2026-08-17.md): snapshot de auditoría de agosto. Sus conteos, capturas, SQLite y resultados se conservan como afirmaciones históricas.
-- [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md): consolidado histórico de agosto. Sus afirmaciones de producción, rendimiento y accesibilidad no son garantías actuales.
+## 🚀 Migración FastAPI / Uvicorn ASGI
 
-Las guías vigentes describen JSON para nodos/canales/airtime, capturas RAM y chat del navegador en IndexedDB. SQLite sólo interviene actualmente en la lectura cartográfica MBTiles, no como backend de nodos, mensajes o cola MQTT durable.
+Los informes de diseño y verificación de la pila FastAPI ASGI residen en [`docs/fastapi/`](fastapi/):
 
-## Verificación y cambios RF
+- **[Fase 0: Auditoría y Viabilidad](fastapi/PHASE_0_REPORT.md)**
+- **[Fase 1: Servidor ASGI Base y Ciclo de Vida](fastapi/PHASE_1_REPORT.md)** y **[Seguridad ASGI](fastapi/PHASE_1_SECURITY_REPORT.md)**
+- **[Fase 2: DTOs Pydantic y Política de Errores RFC 7807](fastapi/PHASE_2_REPORT.md)**
+- **[Fase 3: Rutas REST Modulares](fastapi/PHASE_3_REPORT.md)**
+- **[Fase 4: WebSocket Hub, Assets SPA y Servicio MBTiles](fastapi/PHASE_4_REPORT.md)**
+- **[Fase 5: OpenAPI 3.1.0 y Documentación Interactiva](fastapi/PHASE_5_REPORT.md)**
+- **[Fase 6: Perfiles de Instalación y Resiliencia en Producción](fastapi/PHASE_6_REPORT.md)**
 
-La comprobación de configuración local y remota del 2026-10-04, sus correcciones,
-matrices y pasos de aceptación se documentan en
-[CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md](CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md).
-Los resultados virtuales no certifican hardware instalado; el documento separa
-soporte de firmware, confirmación CLI y preferencias pendientes de reinicio.
+---
 
-Las suites y auditorías se ejecutan cuando el usuario las solicita o autoriza. Indicar siempre el checkout, alcance y evidencia de la ejecución; no reutilizar un resultado histórico como prueba actual. Las herramientas de `.agents/skills/` son instrucciones/procedimientos y también deben contrastarse con el inventario del repositorio.
+## 🗺️ Diagramas de Arquitectura (Archify)
 
-Antes de crear notificaciones, reintentos, timers o comandos que envíen RF, documentar airtime, riesgos de feedback/origen propio y persistencia del último disparo. Acordar con el usuario los límites y los intervalos según `AGENTS.md`. La edición documental por sí sola no activa hardware ni workflows externos.
+Los diagramas interactivos en HTML autónomo + SVG residen en [`docs/diagrams/`](diagrams/):
+
+- 🗺️ **[Arquitectura General del Sistema](diagrams/meshcore_architecture.html)**
+- ⚡ **[Pipeline de Paquetes Raw a IP](diagrams/meshcore_packet_pipeline.html)**
+- ⏱️ **[Secuencia Operativa Bidireccional](diagrams/meshcore_rx_tx_sequence.html)**
+
+---
+
+## 📡 Gobernanza y Reglas de la Malla LoRa
+
+1. **Recepción Pasiva Preferida**: Priorizar siempre la telemetría pasiva sobre sondeos o consultas activas que consuman airtime RF.
+2. **Exclusión de Repetidores y Estación Local**: Los repetidores de infraestructura nunca se incluyen en la libreta de contactos ni reciben mensajería de chat/DM. La estación local tampoco puede ser remitente o destinataria de bucles locales.
+3. **Persistencia de Timers**: Los timestamps de enfriamiento (*cooldowns*) deben persistirse en disco (`repeater_cooldowns.json`) para evitar ráfagas tras guardar configuraciones o reiniciar el servicio.

@@ -769,10 +769,12 @@ export class ChatModule {
         }
 
         // Batería si está presente
-        if (node?.battery_pct != null) {
+        if (node?.battery_pct != null && node?.voltage_v != null) {
+          subParts.push(`🔋 ${node.battery_pct}% (${Number(node.voltage_v).toFixed(2)}V)`);
+        } else if (node?.battery_pct != null) {
           subParts.push(`🔋 ${node.battery_pct}%`);
         } else if (node?.voltage_v != null) {
-          subParts.push(`🔋 ${node.voltage_v}V`);
+          subParts.push(`🔋 ${Number(node.voltage_v).toFixed(2)}V`);
         }
 
         // SNR si está disponible

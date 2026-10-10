@@ -707,7 +707,10 @@ class RxEventRouter:
         meta: RxMeta,
         payload_dict: dict[str, Any],
     ) -> None:
-        bat_pct = self._extract_battery_percentage(payload_dict)
+        telem_fields = extract_telemetry_fields(payload_dict)
+        bat_pct = telem_fields.get("battery_pct")
+        volt_val = telem_fields.get("voltage_v")
+        solar_val = telem_fields.get("solar_v")
         existing = self._ctx.node_registry.get_contact(meta.sender)
         has_role = any(key in payload_dict for key in ("role", "adv_type")) or isinstance(payload_dict.get("type"), int)
         effective_role = (existing.role if existing and not has_role and not meta.is_local_sender
@@ -728,12 +731,14 @@ class RxEventRouter:
 
         if is_valid_node_key(contact_info.public_key):
             pos_valid = bool(lat_val is not None and lon_val is not None and (lat_val != 0 or lon_val != 0))
-            if lat_val is not None or lon_val is not None or bat_pct is not None:
+            if lat_val is not None or lon_val is not None or bat_pct is not None or volt_val is not None:
                 self._ctx.node_registry.add_or_update(
                     meta.sender,
                     NodeContactUpdate(
                         last_seen=time.time() if not meta.is_local_sender else None,
                         battery_pct=bat_pct,
+                        voltage_v=volt_val,
+                        solar_v=solar_val,
                         latitude=lat_val,
                         longitude=lon_val,
                         adv_lat=lat_val,

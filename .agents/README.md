@@ -11,9 +11,10 @@ La política operativa está en [AGENTS.md](../AGENTS.md); el dominio en
 | Dominio/documentación | domain-adr-keeper | ADRs, implementación y enlaces; un chequeo estructural no prueba semántica |
 | Protocolo | meshcore-source-inspector, lora-frame-validator | Pila oficial de sólo lectura; separar Companion, LoRa wire y fallback propio |
 | Python/concurrencia | python-patterns-typing, async-concurrency-engineering, asyncio-profiler-leak-detector | Python 3.10 mínimo; profiler sintético, no garantía 24/7 |
-| Arquitectura/refactor | clean-code-solid, refactoring-clean-architecture, gof-design-patterns-expert, software-architecture-patterns | Heurísticas y patrones; preservar contratos, evitar cambios por cuotas de líneas |
+| Arquitectura/refactor | clean-code-solid, refactoring-clean-architecture, gof-design-patterns-expert, software-architecture-patterns, improve-codebase-architecture | Heurísticas, deep modules y patrones; preservar contratos, evitar cambios por cuotas de líneas |
 | API/web | api-design-testing, contract-openapi-sync, html-css-modern-js, web-ui-design-system, web-browser-inspection | HTTP nativo/Vanilla SPA; paridad léxica no valida payloads/WS |
-| QA/simulación | bridge-test-runner, lora-packet-simulator, distributed-mesh-simulation | Suites autorizadas, radio virtual, datos temporales, loopback |
+| QA/simulación/diagnóstico | bridge-test-runner, lora-packet-simulator, distributed-mesh-simulation, diagnosing-bugs, systematic-debugging, test-driven-development, verification-before-completion | Suites autorizadas, causa raíz sin parches de síntomas, arnés red-green, evidencia antes de afirmar |
+| Revisión de código | code-review | Revisión en dos ejes (estándares del repo vs. spec) y code smells de Fowler |
 | Seguridad | security-code-auditor | Bandit y revisión específica; no garantía de ausencia de vulnerabilidades |
 | Búsqueda | tgrep-code-search | Reutilizar binario disponible; rg es fallback |
 
@@ -22,9 +23,18 @@ suite ni considerar sus ejemplos una descripción del sistema.
 
 ## Paquetes de terceros
 
-`skills/archify` y `skills/ui-ux-pro-max` incluyen sus propios assets, herramientas y
-licencias. Se conservan como paquetes externos; esta revisión no actualiza su código
-ni aplica sus ejemplos de frameworks al frontend Vanilla del bridge.
+- `skills/archify` y `skills/ui-ux-pro-max` incluyen sus propios assets, herramientas y
+  licencias. Se conservan como paquetes externos; no aplica sus ejemplos de frameworks al
+  frontend Vanilla del bridge.
+- `skills/code-review`, `skills/diagnosing-bugs` y `skills/improve-codebase-architecture`
+  provienen de `mattpocock/skills` (Licencia MIT). Proporcionan revisión en dos ejes
+  (estándares del repo vs. spec con catálogo Fowler), bucle de diagnóstico de bugs difíciles
+  y análisis visual de oportunidades de deepening arquitectónico (HTML report).
+- `skills/systematic-debugging`, `skills/verification-before-completion` y `skills/test-driven-development`
+  provienen de `obra/superpowers` (Licencia MIT). Proporcionan disciplina estricta de causa
+  raíz antes de proponer fixes (incluyendo trazabilidad inversa, defensa en profundidad y
+  espera por condición), compuerta de verificación con evidencia previa a declarar éxito,
+  y ciclo TDD estricto para planes de remediación.
 
 ## Verificación y herramientas
 

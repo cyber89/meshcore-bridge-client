@@ -133,9 +133,15 @@ export class NodesModule {
             existing.last_seen = Math.floor(Date.now() / 1000);
             if (payload.rssi != null) existing.last_rssi = payload.rssi;
             if (payload.snr != null) existing.last_snr = payload.snr;
+            const contact = payload.contact || {};
             if (payload.battery_pct != null) existing.battery_pct = payload.battery_pct;
+            else if (contact.battery_pct != null) existing.battery_pct = contact.battery_pct;
+
             if (payload.voltage_v != null) existing.voltage_v = payload.voltage_v;
+            else if (contact.voltage_v != null) existing.voltage_v = contact.voltage_v;
+
             if (payload.hops != null) existing.hops = payload.hops;
+            else if (contact.hops != null) existing.hops = contact.hops;
             if (payload.sender_name && !existing.name) existing.name = payload.sender_name;
 
             this.knownNodes.set(canonicalPk, existing);
@@ -441,6 +447,42 @@ export class NodesModule {
 
 
 
+  formatBatteryInfo(node, isLocal) {
+    if (isLocal) return null;
+    const rawPct = node.battery_pct != null ? Number(node.battery_pct) : null;
+    const rawVolt = node.voltage_v != null ? Number(node.voltage_v) : (node.voltage != null ? Number(node.voltage) : (node.battery_mv != null ? Number(node.battery_mv) / 1000 : null));
+    const pct = (rawPct != null && !isNaN(rawPct)) ? rawPct : null;
+    const volt = (rawVolt != null && !isNaN(rawVolt)) ? (rawVolt > 100 ? rawVolt / 1000 : rawVolt) : null;
+
+    if (pct == null && volt == null) return null;
+
+    let chipText = "";
+    let tooltip = "";
+    let levelClass = "";
+
+    if (pct != null && volt != null) {
+      const vStr = `${volt.toFixed(2)}V`;
+      chipText = `${pct}% (${vStr})`;
+      tooltip = I18n.t('nodes.battery_title', { val: `${pct}% (${vStr})` });
+    } else if (pct != null) {
+      chipText = `${pct}%`;
+      tooltip = I18n.t('nodes.battery_title', { val: `${pct}%` });
+    } else {
+      const vStr = `${volt.toFixed(2)}V`;
+      chipText = `${vStr}`;
+      tooltip = I18n.t('nodes.battery_title', { val: `${vStr}` });
+    }
+
+    const effectivePct = pct != null ? pct : (volt != null ? (volt >= 4.0 ? 80 : (volt >= 3.7 ? 40 : 15)) : 100);
+    if (effectivePct <= 20) {
+      levelClass = "bat-low";
+    } else if (effectivePct <= 50) {
+      levelClass = "bat-warning";
+    }
+
+    return { chipText, tooltip, levelClass, pct, volt };
+  }
+
   /**
    * Generador unificado de tarjetas para contactos y nodos de la red.
    * Elimina duplicación de marcado y eventos entre las vistas de libreta y malla.
@@ -470,7 +512,7 @@ export class NodesModule {
     const roleUpper = isLocal ? "LOCAL" : (isRepeater ? "REPEATER" : (isSensor ? "SENSOR" : (isRoom ? "ROOM" : "CLIENT")));
     const roleClass = isLocal ? "role-local" : (isRepeater ? "role-repeater" : (isSensor ? "role-sensor" : (isRoom ? "role-room" : "role-client")));
 
-    const batText = isLocal ? null : (node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null));
+    const batInfo = this.formatBatteryInfo(node, isLocal);
     const snrVal = isLocal ? null : (node.last_snr != null ? `${node.last_snr} dB` : "--");
     const rssiVal = isLocal ? null : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
     const lqiVal = isLocal ? null : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : (node.last_rssi != null ? "50%" : "--"));
@@ -494,7 +536,7 @@ export class NodesModule {
           <div class="contact-info">
             <div class="contact-title-row">
               <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
-              ${batText ? `<span class="contact-battery-chip" title="${escapeHtml(I18n.t('nodes.battery_title').replace('{val}', batText))}">🔋 ${escapeHtml(batText)}</span>` : ""}
+              ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}">🔋 ${escapeHtml(batInfo.chipText)}</span>` : ""}
               <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="${I18n.t('nodes.favorite')}">
                 <span data-lucide="star" data-size="14"></span>
               </button>
@@ -658,7 +700,7 @@ export class NodesModule {
             <div class="node-card-top-row">
               <span class="node-card-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
               <div class="node-card-badges-group">
-                ${batText ? `<span class="contact-battery-chip" title="${escapeHtml(I18n.t('nodes.battery_title').replace('{val}', batText))}">🔋 ${escapeHtml(batText)}</span>` : ""}
+                ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}">🔋 ${escapeHtml(batInfo.chipText)}</span>` : ""}
                 <span class="node-role-badge ${roleClass}">${escapeHtml(I18n.role(roleUpper))}</span>
               </div>
             </div>
@@ -1157,19 +1199,20 @@ export class NodesModule {
       }
 
       // Chip de Batería (los nodos locales se alimentan por USB 5V, no llevan batería LoRa)
-      const batText = (!isLocal && node.battery_pct != null) ? `${node.battery_pct}%` : (!isLocal && node.voltage_v != null ? `${node.voltage_v}V` : null);
-      if (batText) {
+      const batInfo = this.formatBatteryInfo(node, isLocal);
+      if (batInfo) {
         let batEl = card.querySelector(".contact-battery-chip");
         if (batEl) {
-          batEl.textContent = `🔋 ${batText}`;
-          batEl.title = I18n.t('nodes.battery_title', { val: batText });
+          batEl.className = `contact-battery-chip ${batInfo.levelClass}`.trim();
+          batEl.textContent = `🔋 ${batInfo.chipText}`;
+          batEl.title = batInfo.tooltip;
         } else {
           const titleRow = card.querySelector(".contact-title-row, .node-card-badges-group");
           if (titleRow) {
             const chip = document.createElement("span");
-            chip.className = "contact-battery-chip";
-            chip.title = I18n.t('nodes.battery_title', { val: batText });
-            chip.textContent = `🔋 ${batText}`;
+            chip.className = `contact-battery-chip ${batInfo.levelClass}`.trim();
+            chip.title = batInfo.tooltip;
+            chip.textContent = `🔋 ${batInfo.chipText}`;
             titleRow.insertBefore(chip, titleRow.firstChild);
           }
         }

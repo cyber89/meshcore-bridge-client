@@ -1422,10 +1422,9 @@ class NodeRegistry:
 
             eff_volt = extracted.get("voltage_v") if extracted.get("voltage_v") is not None else (existing.voltage_v if existing else None)
             calc_bat = extracted.get("battery_pct")
-            if eff_volt is not None and 2.5 <= eff_volt <= 4.5:
+            if calc_bat is None and eff_volt is not None and 2.5 <= eff_volt <= 4.5:
                 norm_pct, _ = normalize_battery(eff_volt)
-                if calc_bat is None or (existing and existing.battery_pct is not None and abs(existing.battery_pct - int(round(norm_pct))) > 10):
-                    calc_bat = int(round(norm_pct))
+                calc_bat = int(round(norm_pct))
 
             self.add_or_update(
                 target_key,
@@ -1809,10 +1808,9 @@ class NodeRegistry:
         if raw_bat is not None:
             raw_bat = _safe_int(raw_bat, 0)
         v_v = _safe_float(nd.get("voltage_v"), 0.0) if nd.get("voltage_v") is not None else None
-        if v_v is not None and 2.5 <= v_v <= 4.5:
+        if raw_bat is None and v_v is not None and 2.5 <= v_v <= 4.5:
             pct_norm, _ = normalize_battery(v_v)
-            if raw_bat is None or abs(raw_bat - int(round(pct_norm))) > 10:
-                raw_bat = int(round(pct_norm))
+            raw_bat = int(round(pct_norm))
 
         stored_lqi = nd.get("measured_lqi_score")
         if stored_lqi is None:

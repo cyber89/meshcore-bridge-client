@@ -1100,9 +1100,24 @@ export class RepeaterModule {
     if (val == null || isNaN(val)) return null;
     const v = Number(val);
     const volt = v > 100 ? v / 1000 : v;
-    if (volt >= 4.8) return 100;
-    if (volt <= 3.0) return 0;
-    return Math.max(0, Math.min(100, Math.round(((volt - 3.0) / 1.2) * 100)));
+    if (volt >= 4.35) return 100;
+    if (volt <= 3.30) return 0;
+    const table = [
+      [4.20, 100], [4.15, 95], [4.10, 90], [4.05, 85], [4.00, 80],
+      [3.95, 75], [3.90, 70], [3.85, 65], [3.82, 60], [3.80, 55],
+      [3.78, 50], [3.76, 45], [3.74, 40], [3.72, 35], [3.70, 30],
+      [3.67, 25], [3.64, 20], [3.60, 15], [3.55, 10], [3.45, 5],
+      [3.30, 0]
+    ];
+    for (let i = 0; i < table.length - 1; i++) {
+      const [vHigh, pctHigh] = table[i];
+      const [vLow, pctLow] = table[i + 1];
+      if (volt >= vLow && volt <= vHigh) {
+        const ratio = (volt - vLow) / (vHigh - vLow);
+        return Math.round(pctLow + ratio * (pctHigh - pctLow));
+      }
+    }
+    return 0;
   }
 
   openRepeaterAdminModal(pubkey, name) {
@@ -1180,13 +1195,11 @@ export class RepeaterModule {
       calcVolt = Number((calcVolt / 1000).toFixed(2));
     }
 
-    if (calcVolt != null && calcVolt >= 2.5 && calcVolt <= 4.5) {
+    if (calcBat == null && calcVolt != null && calcVolt >= 2.5) {
       calcBat = this.calculateBatteryPct(calcVolt);
     } else if (calcBat != null && calcBat > 100) {
       if (calcVolt == null) calcVolt = Number((calcBat / 1000).toFixed(2));
       calcBat = this.calculateBatteryPct(calcBat);
-    } else if (calcBat == null && calcVolt != null && calcVolt >= 2.5) {
-      calcBat = this.calculateBatteryPct(calcVolt);
     }
 
     const batVal = calcBat != null && !isNaN(calcBat) ? calcBat : "--";

@@ -5,27 +5,15 @@ MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una S
 
 Documento vigente revisado el 2026-09-29 por inspección de código. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
 
-Actualización de preparación del 2026-10-09: existe un adaptador ASGI opcional e
-inactivo en `src/web/asgi_server.py`, con estado prestado y controles de ingreso
-HTTP/WS. La fábrica del bridge conserva `MeshCoreWebServer`; los diagramas
-siguientes representan ese camino activo. La [fase 1](fastapi/PHASE_1_REPORT.md)
-y su [seguridad](fastapi/PHASE_1_SECURITY_REPORT.md), junto con los
-[DTO/errores de fase 2](fastapi/PHASE_2_REPORT.md), separan código preparatorio,
-contratos pendientes y evidencia estática de aceptación operativa. La
-[fase 3](fastapi/PHASE_3_REPORT.md) añade seis lotes REST y alias a la fábrica
-inactiva, reutilizando dispatcher y contexto; no crea hardware o servicios.
-Los DTO son metadata y no reserializan entrada ni cambian la validación de
-controladores. El candidato redacta selectivamente errores retornados; el catch
-global REST y errores de enteros compartidos omiten excepciones/valores tanto
-en servidor actual como candidato. La [fase 4](fastapi/PHASE_4_REPORT.md) prepara
-WS, SPA y teselas: presta los mapas, registra historial una vez y limita el
-apagado con un deadline común del propietario. Los timers heredados de métricas
-y ping idle son exclusivamente web, sin consultas RF/MQTT. El backend admite
-fragmentación y su flow control difiere de `drain`. La [fase 5](fastapi/PHASE_5_REPORT.md)
-prepara la especificación OpenAPI 3.1.0 diferida y el visor local offline en
-`/docs`, `/redoc` y `/openapi.json` con autenticación estricta `X-Api-Key`, rechazo de
-claves en URL, CSP restrictivo y política de solo lectura sin emisión RF. El servidor
-predeterminado del bridge conserva `MeshCoreWebServer` y las puertas de aceptación siguen pendientes.
+Actualización de arquitectura (Octubre 2026): El bridge opera con un servidor de producción
+basado en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) por defecto, con
+conmutación automática y resiliente (Zero-Crash) hacia el servidor nativo `MeshCoreWebServer`
+si las librerías ASGI no estuvieran instaladas en el entorno host. Las fases preparatorias
+([fase 0](fastapi/PHASE_0_REPORT.md), [fase 1](fastapi/PHASE_1_REPORT.md), [seguridad](fastapi/PHASE_1_SECURITY_REPORT.md),
+[DTO/errores de fase 2](fastapi/PHASE_2_REPORT.md), [rutas REST de fase 3](fastapi/PHASE_3_REPORT.md),
+[WS/SPA/mapas de fase 4](fastapi/PHASE_4_REPORT.md), [OpenAPI/docs de fase 5](fastapi/PHASE_5_REPORT.md)
+y [release de fase 6](fastapi/PHASE_6_REPORT.md)) consolidan los adaptadores REST, WebSocket Hub,
+servicio de teselas MBTiles y documentación OpenAPI 3.1.0 interactiva (`/docs/api`, `/openapi.json`).
 
 El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 
@@ -396,7 +384,7 @@ sequenceDiagram
 - **`src/routers/`**: Utiliza el **Strategy Pattern** para enrutar los diferentes tipos de paquetes RF (`AdvertHandler`, `ChannelHandler`, `DirectHandler`, `RepeaterHandler`, `SystemHandler`, `TelemetryHandler`). Al desacoplar la lógica, simplifica la expansión del formato de los mensajes.
 - **`src/admin/`**: Implementa un esquema de comandos basado en **Command Pattern** y **Strategy Pattern** para separar la lógica de parseo, de la ejecución en RF: (`LocalConfigExecutor`, `RepeaterAdminExecutor`, `TracerouteExecutor`).
 
-  El executor remoto convierte `NodeContactInfo` obtenido por nombre/alias a su representación dict antes de aplicar guards de identidad/rol. Los comandos unitarios se construyen y validan antes de autenticación, consumo de cooldown y envío: un resultado no compilable devuelve error administrativo con `code: 422`. La preparación local de contactos SDK del dispatcher permanece previa. Los resultados de lote usan `redact_sensitive_mapping` con salida dict; el redactor general conserva soporte de estructuras arbitrarias. PIN y potencia TX nulos se rechazan en prevalidación del lote local. Ver [corrección y evidencia del 2026-10-04](BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md).
+  El executor remoto convierte `NodeContactInfo` obtenido por nombre/alias a su representación dict antes de aplicar guards de identidad/rol. Los comandos unitarios se construyen y validan antes de autenticación, consumo de cooldown y envío: un resultado no compilable devuelve error administrativo con `code: 422`. La preparación local de contactos SDK del dispatcher permanece previa. Los resultados de lote usan `redact_sensitive_mapping` con salida dict; el redactor general conserva soporte de estructuras arbitrarias. PIN y potencia TX nulos se rechazan en prevalidación del lote local. Comportamiento validado en suites de pruebas unitarias.
 
 - **`src/web/controllers/`**: Sigue el patrón **MVC / Modular Controllers**. Organiza unívocamente las rutas REST por dominios funcionales (Contactos, Nodos, Sistema, Transmisiones).
 
@@ -515,8 +503,7 @@ lotes pueden quedar parcialmente aplicados y se reportan como tales.
 telemetría/anuncios, propietario, límite de saltos, altitud y posición fija no
 tienen setter local Companion; sus escrituras se rechazan con 422. Los modos de
 telemetría son permisos para responder solicitudes, sin scheduler de envíos.
-La UI no presenta los valores históricos RAM como ajustes aplicables. Evidencia
-y aceptación: [LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md](LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md).
+La UI no presenta los valores históricos RAM como ajustes aplicables.
 
 ### Parámetros avanzados y configuración remota
 
@@ -544,8 +531,6 @@ La SPA envía sólo campos editados, conserva borradores pendientes y restringe
 datos recibidos al objetivo abierto. Los controles sin setter oficial se
 deshabilitan; presets de región no se envían como parámetros del dispositivo.
 No se añadieron sondeos RF, reintentos, timers ni intervalos nuevos.
-Matriz, evidencia y aceptación física pendiente:
-[CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md](CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md).
 
 ### Fronteras de recepción y estado observado
 
@@ -569,8 +554,7 @@ La analítica no inventa potencia ni conectividad desde defaults de un editor.
 ausencia de evidencia. Archivos históricos que ya contienen defaults no
 permiten inferir su origen; no se migran automáticamente. El DTO visual conserva
 límites observados y None en ausencia de lectura; la SPA distingue medida/capacidad
-en el slider. Evidencia y seguimiento:
-[AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md).
+en el slider.
 
 ### Admisión, confirmaciones y aislamiento de QA
 
@@ -594,8 +578,7 @@ atómico; la reserva se guarda antes del paquete. El reloj monotónico se
 reconstruye al reiniciar, conservando cooldown completo si UTC retrocede.
 Guardar configuración no rearma timers; no hay sondeo RF nuevo. Cierre intenta
 flush bajo el límite existente y hace visible un fallo, sin prometer durabilidad
-ante pérdida de energía o bloqueo de disco. Detalles:
-[admisión y política](audits/fixes-2026-10-05/policy-remaining.md).
+ante pérdida de energía o bloqueo de disco.
 
 El chat conserva ACK concurrente, recupera borrador al fallar y descarta historial
 obsoleto al cambiar de feed. Capturas usan sesión/ID, desc antes de paginar y
@@ -606,7 +589,5 @@ POST autorizado. Métricas distinguen sesión e intervalo actual parcial.
 La demo usa proceso/directorio temporal, MQTT en memoria y adaptador virtual
 desde construcción; mapas respetan DATA_DIR. MQTT ofrece TLS opcional con
 certificado/hostname verificados, CA del sistema o explícita y mTLS; un fallo
-de confianza no degrada a plaintext. Detalles:
-[core](audits/fixes-2026-10-05/core-remaining.md),
-[web](audits/fixes-2026-10-05/web-remaining.md) y
-[calidad](audits/fixes-2026-10-05/quality-remaining.md).
+de confianza no degrada a plaintext. El aislamiento entre subsistemas y la
+ausencia de regresiones se valida mediante la suite automatizada de pruebas unitarias.

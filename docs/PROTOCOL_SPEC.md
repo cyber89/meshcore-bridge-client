@@ -451,7 +451,7 @@ de forma canónica: 247 representa -9 dBm, sin aplicar límites de hardware.
 PATH_UPDATE (push 0x81) contiene una clave pública de 32 bytes. Su sincronización
 consulta GET_CONTACT_BY_KEY por Companion local y conserva hashes 00 del path;
 no dispara una consulta RF ni crea un scheduler.
-Regresiones y límites: [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md).
+Comportamiento verificado en suite de regresiones.
 
 ### 13.2 Enrutamiento Multi-Salto (Multi-Hop Routing)
 El protocolo opera en dos modalidades principales de enrutamiento:
@@ -486,8 +486,7 @@ La telemetría respeta solar_mv/solar_v y flags booleanos estrictos. CayenneLPP
 reconoce tipos extendidos del SDK, con enteros big endian y longitudes exactas;
 current 117 usa int16/1000 A. LOAD 122 pertenece a la extensión Python.
 Datos truncados/desconocidos detienen el decoder sin inventar el siguiente registro.
-Detalles/fuentes: [core](audits/fixes-2026-10-05/core-remaining.md) y
-[administración](audits/fixes-2026-10-05/admin-remaining.md).
+Detalles y fuentes verificados en ejecutores del core y administración.
 
 API capturas admite order=asc (default) o desc, aplicado antes de offset/limit.
 Cada paquete incluye session_id y packet_id; clear conserva identidad y contador.

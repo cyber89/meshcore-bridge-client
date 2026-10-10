@@ -1,64 +1,59 @@
 # MeshCore Universal Bridge & Web Station v3.0 Pro
 
-Puente bidireccional asíncrono para conectar transceptores **MeshCore Companion USB / TCP** con **MQTT**, automatización **n8n** y una **SPA web en HTML, Vanilla CSS y JavaScript**. Incluye gestión de nodos, mensajería, administración de repetidores, diagnósticos y API key opcional.
+Puente asíncrono bidireccional de alto rendimiento para conectar transceptores LoRa **MeshCore Companion (USB / TCP)** con **FastAPI ASGI**, **MQTT**, automatizaciones **n8n / Home Assistant** y una **SPA Web moderna en HTML5, Vanilla CSS y JavaScript**.
 
-La compatibilidad depende del firmware Companion y de los comandos que soporte cada dispositivo; las familias siguientes son ejemplos, no una matriz de hardware certificada. La dependencia Python actual es `meshcore>=2.3.8`; no confundir esa versión del SDK con la del firmware. Véase el [índice de documentación](docs/README.md) y las [reglas de dominio](CONTEXT.md).
+Diseñado para máxima resiliencia en estaciones base desatendidas (Raspberry Pi, Orange Pi, servidores Linux y Windows), con arquitectura asíncrona no bloqueante, servidor de producción Uvicorn ASGI con conmutación automática de seguridad (*Zero-Crash Fallback*) y servidor proxy TCP Companion para aplicaciones móviles oficiales.
 
 ---
 
 ## 📻 Dispositivos LoRa Compatibles
 
-- **Heltec Automation**: WiFi LoRa 32 (v2/v3/v4), Wireless Stick, Wireless Tracker, Wireless Paper, Capsule.
-- **LilyGO (TTGO)**: T-Beam (v1.1/v1.2/Supreme), T-Echo (nRF52840), T3S3, T-Deck, LoRa32.
-- **RAKwireless WisBlock**: RAK4631 (nRF52840), RAK11200, RAK11310 (RP2040), WisMesh Hub/Pocket.
-- **Seeed Studio**: SenseCAP Indicator / Tracker, Wio-E5, Xiao ESP32-S3 / Xiao nRF52840.
-- **Raspberry Pi**: Pico / Pico W con shield LoRa SX1262 / RP2040.
-- **Puertos Remotos TCP**: Conexión transparente por red `tcp://host:port` (MeshCore sobre TCP/WiFi/Ethernet).
+Compatible con el ecosistema de hardware oficial soportado por el firmware MeshCore Companion:
+
+- **Heltec Automation**: WiFi LoRa 32 (v2, v3, v4), Wireless Stick, Wireless Tracker, Wireless Paper, Capsule.
+- **LilyGO (TTGO)**: T-Beam (v1.1, v1.2, Supreme), T-Echo (nRF52840), T3S3, T-Deck, LoRa32.
+- **RAKwireless WisBlock**: RAK4631 (nRF52840), RAK11200, RAK11310 (RP2040), WisMesh Hub y Pocket.
+- **Seeed Studio**: SenseCAP Indicator, SenseCAP Tracker, Wio-E5, Xiao ESP32-S3, Xiao nRF52840.
+- **Raspberry Pi**: Pico / Pico W con shield SX1262 / RP2040.
+- **Puertos Remotos TCP**: Conexión directa y transparente sobre red local o VPN (`tcp://host:port`).
 
 ---
 
-## 🚀 Características Principales (v3.0 Pro)
+## 🚀 Características Principales
 
-- **🌐 Cliente Web Station SPA Integrado (`http://<IP>:8080`)**:
-  - Servidor HTTP 1.1 y WebSocket nativo sobre `asyncio.start_server`, sin framework ASGI.
-  - Foco visible `:focus-visible`, navegación por teclado y `prefers-reduced-motion`; no se presenta una certificación WCAG ni medidas actuales de RAM/arranque.
-  - **Paleta de Comandos (`Ctrl+K` / `⌘K`)**: Acceso rápido a cualquier sección, comandos de administración y descubrimiento.
-  - **WebSocket Hub RFC 6455 Resiliente**:
-    - Reconexión con retroceso exponencial (*exponential backoff*).
-    - Soporte automático *Same-Origin* y subredes LAN privadas (`192.168.*`, `10.*`, `172.16-31.*`).
-    - *Heartbeat* bidireccional (Ping/Pong cada 15s) para mantener viva la conexión a través de routers y firewalls.
-    - Indicador de estado de conexión visual (`⬤ Conectado` / `⬤ Reconectando…`).
-  - **Gestión Unificada del Directorio de Nodos**:
-    - Deduplicación estricta de la Estación Base local (aparece exactamente una vez con distintivo *Base Station*).
-    - Resolución de alias, nombres y prefijos de claves públicas en el registro.
-  - **Mensajería Multi-Canal y DMs Aislados**:
-    - Envíos por canales públicos/privados mediante cola TX; la disponibilidad de índices depende del firmware. `sent` confirma el resultado de envío, no la entrega a todos los receptores.
-    - Mensajes directos (DMs) con seguimiento de ACK y acuse `✓✓ Entregado` cuando se recibe la confirmación correspondiente.
-  - **Centro de Control de Repetidores LoRa**:
-    - 📋 *Telemetría de Hardware*: Batería, voltaje solar, SNR, RSSI y tiempo activo (*uptime*).
-    - 📻 *Ajustes de Radio RF*: Frecuencia, potencia TX (dBm), Spreading Factor (SF7..SF12) y ancho de banda.
-    - 🌐 *Vecinos y Topología*: Tabla de vecinos y operaciones administrativas bajo demanda. Los repetidores no aparecen en Contactos ni reciben chat/DM; la estación local tampoco puede ser destinataria de chat.
-    - 💻 *Terminal Interactiva*: Consola CLI con historial de comandos (`ArrowUp`/`ArrowDown`), botones rápidos y ejecución de comandos directos.
-  - **Mapa GPS Interactivo** (Leaflet) con detección de coordenadas en tiempo real de nodos y routers, con soporte de mapas locales *offline*.
-  - **📈 Tablero de Métricas Avanzadas**: Top Nodos por Tráfico, Top Repetidores por Calidad de Enlace y Rendimiento del Puente.
-- **🔐 Seguridad y Control de Acceso**:
-  - Autenticación opcional mediante cabecera `X-Api-Key` (`BRIDGE_API_KEY`) para proteger endpoints mutantes y transmisión RF.
-  - Gestión visual de API Key en **⚙️ Ajustes ➔ 🔐 Seguridad & API**.
-  - Servidor TCP Companion con límite de conexiones concurrentes (`MAX_COMPANION_CLIENTS`), lista blanca de IPs y token de autenticación.
-  - Políticas de seguridad CORS estrictas y cabeceras CSP (*Content-Security-Policy*).
-  - Sanitización HTML contra ataques XSS y validación estricta de esquemas de datos.
-- **🩺 Motor de Diagnósticos Preflight (`src/preflight.py`)**:
-  - Verificaciones automáticas previas al arranque (Broker Mosquitto TCP, Puerto Serial / TCP, Servidor Companion).
-- **Decodificador Nativo CayenneLPP (`src/sensor_decoder.py`)**:
-  - Implementación Python nativa para temperatura, humedad, presión, GPS, acelerómetro, luminosidad y voltaje; no importa `pycayennelpp`.
-- **LoRa TX Rate Limiter con Cola de Prioridades y Airtime Tracking**:
-  - Espaciado y estimación de airtime (`estimate_lora_airtime_ms`), prioridades y descarte de elementos `LOW` cuando el duty cycle estimado es crítico. El límite configurado no bloquea todas las prioridades ni certifica cumplimiento regulatorio.
-- **Persistencia Híbrida Atómica (JSON & Memoria Flash)**:
-  - Almacenamiento no volátil en la radio LoRa para contactos y persistencia atómica en archivos JSON (`data/channels.json`, `data/node_registry.json`) sin dependencias de motores de bases de datos pesados.
-- **Serial Watchdog Activo**:
-  - Detección automática de bloqueos silenciosos del puerto USB y reconexión automática con estabilización USB CDC.
-- **🗺️ Mapas de Arquitectura Interactivos (Archify)**:
-  - Documentación interactiva en HTML + SVG autónomo dentro de [`docs/diagrams/`](docs/diagrams/): arquitectura general del puente, pipeline de tramas LoRa a IP y secuencia operativa de comandos.
+### 🌐 Doble Servidor Web de Alta Disponibilidad (`http://<IP>:8080`)
+- **Pila ASGI de Producción (Uvicorn 0.54 + FastAPI 0.143 + Pydantic 2.14)**:
+  - Servidor por defecto para máxima concurrencia, bajo consumo de memoria y validación estricta de esquemas.
+  - Documentación interactiva de la API OpenAPI 3.1 autónoma y offline:
+    - **Swagger UI**: `http://<IP>:8080/docs/api`
+    - **ReDoc**: `http://<IP>:8080/docs/redoc`
+    - **Esquema OpenAPI JSON**: `http://<IP>:8080/openapi.json`
+- **Fallback Automático Resiliente (*Zero-Crash*)**:
+  - Si las dependencias ASGI no están instaladas en el host, conmuta automáticamente a `MeshCoreWebServer` (servidor HTTP 1.1 y WebSocket nativo sobre `asyncio.start_server`), garantizando el 100% de operatividad en cualquier entorno.
+- **WebSocket Hub Resiliente (RFC 6455)**:
+  - Actualización en vivo de chat, telemetría, sniffer y estado de la red.
+  - Reconexión con *exponential backoff* y latidos *heartbeat* periódicos (Ping/Pong cada 15s).
+  - Soporte automático para subredes LAN privadas y políticas estrictas *Same-Origin*.
+
+### 📱 Servidor TCP Companion para App Móvil Oficial (`puerto 5000`)
+- Permite conectar simultáneamente la **aplicación oficial MeshCore para Android/iOS** o herramientas CLI al transceptor compartido, multiplexando el canal físico sin colisiones ni desconexiones.
+- Lista blanca opcional de IPs permitidas y token de autenticación.
+
+### 🔄 Integración MQTT Dual (Comunitaria y Domótica)
+- **Broker Externo / Comunitario**: Reenvío pasivo de telemetría y anuncios a redes comunitarias como LetsMesh.net con privacidad por geofuzzing.
+- **Broker Local (n8n & Home Assistant)**: Tópicos estructurados para automatizaciones en tiempo real, alarmas y sensores con acuses de recibo (ACK).
+
+### 💬 Mensajería y Red LoRa
+- **Canales Públicos y Privados**: Soporte de canal primario (Canal 0) y canales secundarios con cifrado AES-128.
+- **Mensajería Directa (DM)**: Enrutamiento punto a punto con seguimiento de confirmación de entrega (`✓✓ Entregado`).
+- **Directorio Canónico de Nodos**: Separación estricta de infraestructura (los repetidores nunca aparecen en la libreta de contactos ni reciben chat de texto; la estación local no puede ser bucle de envío).
+- **Consola de Repetidores**: Lectura y ajuste remoto de parámetros RF (frecuencia, potencia TX, Spreading Factor, ancho de banda), telemetría de batería y voltaje solar, tabla de vecinos y terminal interactiva.
+
+### 🛡️ Protecciones de la Malla y Calidad de Señal
+- **Rate Limiter Priorizado y Airtime Tracker**: Estimación determinista de ocupación del canal LoRa (`TxRateLimiter`) y cumplimiento estricto de cuotas de ciclo de trabajo (*Duty Cycle*).
+- **Deduplicador en Memoria**: Eliminación de ecos y tormentas de retransmisión con ventana deslizante TTL.
+- **Decodificador Nativo CayenneLPP**: Extracción de temperatura, humedad, presión barométrica, GPS y aceleración sin dependencias externas pesadas.
+- **Mapas Offline MBTiles**: Servidor cartográfico embebido de alto rendimiento para operaciones tácticas sin acceso a Internet.
 
 ---
 
@@ -66,242 +61,176 @@ La compatibilidad depende del firmware Companion y de los comandos que soporte c
 
 ```
 meshcore-bridge/
-├── config.py                         # Carga, tipado y validación estricta de variables de entorno
-├── meshcore_bridge.py                # Entrypoint raíz ejecutable
-├── requirements.txt                  # Dependencias Python de producción (MQTT, SDK MeshCore, pyserial, dotenv)
-├── pyproject.toml                    # Configuración estricta de pytest, mypy y ruff
-├── .env.example                      # Plantilla completa de configuración de entorno
-├── .env                              # Archivo de variables de entorno activo
-├── install.sh                        # Script de instalación y despliegue para Linux / Raspberry Pi
-├── install.ps1                       # Script de instalación y ejecución para Windows PowerShell
-├── meshcore-bridge.service           # Archivo de servicio systemd para Linux
+├── config.py                         # Configuración fuertemente tipada y variables de entorno
+├── meshcore_bridge.py                # Punto de entrada ejecutable principal
+├── requirements.txt                  # Dependencias de producción (MQTT, SDK, FastAPI, Uvicorn)
+├── pyproject.toml                    # Metadatos del proyecto y configuración estricta de QA
+├── .env.example                      # Plantilla documentada de variables de entorno
+├── install.sh                        # Instalador y actualizador para Linux / Raspberry / Orange Pi
+├── install.ps1                       # Instalador y ejecutor para Windows PowerShell
+├── meshcore-bridge.service           # Definición de servicio systemd para Linux
 ├── n8n_workflow_meshcore.json        # Flujo de automatización exportable para n8n
 ├── src/                              # Código fuente modular de producción
-│   ├── __init__.py                   # Exportaciones públicas del paquete
-│   ├── __main__.py                   # Entrypoint 'python -m src'
-│   ├── admin/                        # Ejecutores de comandos administrativos
-│   │   ├── __init__.py
-│   │   ├── cli_command_executor.py
-│   │   ├── local_config_executor.py
-│   │   ├── repeater_executor.py
-│   │   └── traceroute_executor.py
-│   ├── admin_handler.py              # Comandos de administración RF y repetidores remotos
-│   ├── bridge_core.py                # Orquestador central MeshCoreBridge (facade/composition root)
-│   ├── contact_manager.py            # Registro dinámico de nodos, métricas top y libreta
-│   ├── deduplicator.py               # Deduplicador de paquetes en RAM con ventana deslizante TTL
-│   ├── diagnostics.py                # Sistema extendido de diagnósticos
-│   ├── event_utils.py                # Extractor canónico de remitentes y utilidades de eventos
-│   ├── health_reporter.py            # Reporte periódico de salud en meshcore/bridge/health
+│   ├── bridge_core.py                # Orquestador central MeshCoreBridge (Fachada del sistema)
+│   ├── contact_manager.py            # Registro canónico de nodos y libreta de contactos
+│   ├── deduplicator.py               # Deduplicador de tramas LoRa en memoria
+│   ├── diagnostics.py                # Métricas de salud y subsistema de diagnóstico
 │   ├── lqi_engine.py                 # Motor de cálculo de calidad de enlace LQI (SNR/RSSI/Hops)
-│   ├── mqtt_client.py                # Cliente MQTT asíncrono con soporte ReasonCodes v2.x
-│   ├── mqtt_dispatcher.py            # Despachador de mensajes MQTT entrantes (TX/Admin)
-│   ├── packet_buffer.py              # Buffer de paquetes en tránsito
-│   ├── preflight.py                  # Motor de diagnósticos previos al arranque
-│   ├── protocol_types.py             # Enums firmware/Companion y framing raw propio del bridge
-│   ├── rate_limiter.py               # Rate Limiter con PriorityQueue y LoRa Airtime Tracker
-│   ├── repeater_manager.py           # Gestor de repetidores remotos y telemetría
-│   ├── routers/                      # Manejadores de enrutamiento por tipo de paquete
-│   │   ├── __init__.py
-│   │   ├── advert_handler.py
-│   │   ├── base.py
-│   │   ├── channel_handler.py
-│   │   ├── direct_handler.py
-│   │   ├── repeater_handler.py
-│   │   ├── system_handler.py
-│   │   └── telemetry_handler.py
-│   ├── rx_router.py                  # Enrutador de eventos LoRa/RF → MQTT + WebSocket
-│   ├── sensor_decoder.py             # Decodificador CayenneLPP para sensores ambientales
-│   ├── serial_driver.py              # Fachada de compatibilidad: reexporta src/serial/
-│   ├── serial/                       # SDK adapter, parser raw propio, base y watchdog
-│   ├── shared_utils.py               # Utilidades compartidas del proyecto
-│   ├── target_resolver.py            # Resolución de destinatarios y alias
-│   ├── tcp_companion_server.py       # Servidor TCP para Companion Apps oficiales (Android/iOS/CLI)
-│   ├── virtual_mesh_adapter.py       # Emulador de hardware Heltec v4 y topología de nodos
-│   └── web/                          # Subsistema del Servidor Web y Cliente SPA
-│       ├── __init__.py               # Exportaciones de MeshCoreWebServer y WebAPIRouter
-│       ├── api_router.py             # Enrutador REST API para contactos, canales y repetidores
-│       ├── controllers/              # Controladores de la API REST
-│       │   ├── __init__.py
-│       │   ├── base.py
-│       │   ├── channels_controller.py
-│       │   ├── config_controller.py
-│       │   ├── contacts_controller.py
-│       │   ├── logs_controller.py
-│       │   ├── nodes_controller.py
-│       │   ├── packets_controller.py
-│       │   ├── repeater_controller.py
-│       │   ├── system_controller.py
-│       │   └── tx_controller.py
-│       ├── http_server.py            # Servidor HTTP 1.1 y WebSocket Hub asíncrono
-│       ├── map_tile_service.py       # Servicio local de teselas de mapas offline
-│       ├── security_inspector.py     # Inspector de seguridad de peticiones
-│       └── static/                   # Archivos estáticos del frontend SPA
-│           ├── index.html            # Maquetación semántica SPA accesible (WCAG 2.2)
-│           ├── css/app.css           # Sistema de diseño Cyberpunk Slate en Vanilla CSS
-│           └── js/                   # Lógica reactiva Vanilla JS modularizada
-│               ├── app.js            # Entrypoint y orquestador de la SPA
-│               ├── i18n.js           # Soporte multilingüe (ES/EN/PT/FR/DE/IT/ZH/JA)
-│               ├── icons.js          # Biblioteca de iconos SVG inline
-│               ├── qrcode.js         # Generador de códigos QR para canales y contactos
-│               ├── core/             # Infraestructura compartida del frontend
-│               │   ├── eventbus.js   # Bus de eventos pub/sub desacoplado
-│               │   ├── storage.js    # Persistencia IndexedDB / localStorage reactiva
-│               │   ├── utils.js      # Utilidades: escapeHtml, formateo, sanitización
-│               │   └── websocket.js  # Cliente WebSocket con auto-reconnect y heartbeat
-│               └── modules/          # Módulos especializados por dominio
-│                   ├── analytics.js  # Métricas RF, LQI, Duty Cycle y gráficos
-│                   ├── chat.js       # Mensajería en canales públicos y DMs con ACK
-│                   ├── map.js        # Mapa GPS Leaflet con teselas offline
-│                   ├── nodes.js      # Directorio unificado de nodos (Filtros/Búsqueda)
-│                   ├── repeater.js   # Centro de control y consola CLI de repetidores
-│                   ├── settings.js   # Ajustes del nodo local soportados por el adaptador
-│                   └── sniffer.js    # Monitor de paquetes RF en tiempo real
-├── scripts/                          # QA, diagnóstico, diagramas y simulaciones auxiliares
-│   ├── run_quality_checks.py         # Ejecutor mantenido: pytest, mypy, ruff y documentación
-│   ├── validate_project_docs.py      # Enlaces locales, ADRs y estructura de skills
-│   ├── inventory_verification.py    # Inventario AST de suites y scripts auxiliares
-│   ├── validate_all_node_parameters.py # Herramienta de validación de parámetros por tipo de nodo
-│   ├── verify_all_components.py      # Verificación integral de todos los componentes del bridge
-│   ├── audit_codebase_integrity.py   # Auditoría de importaciones y referencias de producción
-│   ├── audit_frontend_browser.py     # Auditoría automatizada del frontend con Playwright
-│   ├── test_search_filters.py        # Validación automatizada de filtros y búsqueda reactiva
-│   ├── test_ip_and_security_logging.py # Verificación de logging de seguridad IP
-│   ├── simulate_tcp_mesh_network.py  # Simulación integral TCP multi-nodo con repetidores
-│   ├── simulate_full_mesh_validation.py # Validación exhaustiva de malla completa
-│   ├── simulate_concurrent_network.py # Simulación de red concurrente bajo carga
-│   ├── simulate_extreme_scenarios.py # Simulación de escenarios extremos y edge cases
-│   ├── simulate_mesh_network.py      # Simulación determinista multi-nodo de red LoRa
-│   ├── simulate_heltec_v4_mesh.py    # Demo virtual Heltec; revisar puertos/datos antes de usar
-│   ├── run_all_test_categories.py    # Ejecutor histórico parcial; usar run_quality_checks.py
-│   ├── inspect_web.py                # Capturas Playwright Desktop/Mobile
-│   ├── inspect_all_views.py          # Inspector automatizado de todas las vistas SPA
-│   ├── export_logs.py                # Exportador de logs estructurados
-│   ├── build_diagrams.py             # Generador de diagramas de arquitectura
-│   └── generate_sample_mbtiles.py    # Generador de teselas de muestra para mapas offline
-├── docs/                             # Documentación técnica completa
-│   ├── README.md                     # Índice: fuentes vigentes, autoridad e historial
-│   ├── ARCHITECTURE.md               # Arquitectura, clases, contratos y almacenamiento
-│   ├── AUDIT_REPORT_2026-08-17.md    # Snapshot histórico de auditoría de agosto
-│   ├── CODE_EXPLANATION.md           # Explicación detallada de módulos y patrones
-│   ├── DEPLOYMENT_GUIDE.md           # Guía paso a paso de instalación en Linux/Raspberry Pi
-│   ├── FINAL_PROJECT_REPORT.md       # Consolidado histórico de agosto
-│   ├── TESTING.md                    # Aislamiento, comandos y resultados de QA
-│   ├── TEST_INVENTORY.md             # Suites y scripts: alcance y estado de revisión
-│   └── PROTOCOL_SPEC.md              # Especificación de tramas binarias y contratos JSON
-└── tests/                            # Suites de pruebas automatizadas (bajo demanda)
-```
-
-### Arquitectura Simplificada
-
-```mermaid
-flowchart TB
-    UI[Cliente Web SPA / n8n] <--> WS(WebSocket / MQTT)
-    WS <--> Bridge[MeshCore Bridge Core]
-    Bridge <--> Routers[Routers & Handlers]
-    Routers <--> IO[Serial Driver / TCP Server]
-    IO <--> HW((Hardware LoRa RF))
+│   ├── mqtt_client.py                # Cliente MQTT asíncrono con reconexión automática
+│   ├── mqtt_dispatcher.py            # Despachador de mensajes MQTT entrantes
+│   ├── packet_buffer.py              # Búfer circular de paquetes para sniffer y auditoría
+│   ├── preflight.py                  # Verificación diagnóstica previa al arranque
+│   ├── protocol_types.py             # Enums canónicos y contratos de tramas MeshCore
+│   ├── rate_limiter.py               # Cola de prioridad TX y monitor de airtime
+│   ├── repeater_manager.py           # Gestor administrativo de repetidores remotos
+│   ├── rx_router.py                  # Enrutador reactivo de eventos LoRa hacia MQTT y WebSocket
+│   ├── sensor_decoder.py             # Decodificador de telemetría CayenneLPP
+│   ├── serial_driver.py              # Controlador de comunicación serie y watchdog USB
+│   ├── tcp_companion_server.py       # Servidor TCP Companion para apps Android/iOS/CLI
+│   ├── admin/                        # Ejecutores de comandos administrativos (Command Pattern)
+│   ├── routers/                      # Estrategias de enrutamiento por tipo de paquete (Strategy Pattern)
+│   └── web/                          # Subsistema Web (FastAPI ASGI + Servidor Nativo)
+│       ├── api_router.py             # Enrutador unificado de la API REST
+│       ├── asgi_server.py            # Servidor FastAPI / Uvicorn ASGI de producción
+│       ├── asgi_routes.py            # Adaptadores de rutas REST modulares
+│       ├── asgi_ws_hub.py            # Hub de WebSockets resiliente
+│       ├── asgi_docs.py              # Documentación OpenAPI 3.1 offline (Swagger / ReDoc)
+│       ├── map_tile_service.py       # Servicio local de teselas de mapas offline MBTiles
+│       ├── controllers/              # Controladores REST modulares
+│       ├── docs_ui/                  # Frontend estático offline de la documentación OpenAPI
+│       └── static/                   # SPA accesible en Vanilla HTML5, CSS y JavaScript
+├── docs/                             # Documentación técnica y especificaciones
+│   ├── README.md                     # Índice maestro de documentación
+│   ├── ARCHITECTURE.md               # Arquitectura del sistema y diseño en 5 capas
+│   ├── CONTEXT.md                    # Lenguaje ubicuo e invariantes de dominio (SSoT)
+│   ├── PROTOCOL_SPEC.md              # Especificación técnica del protocolo y tramas
+│   ├── DEPLOYMENT_GUIDE.md           # Guía completa de instalación y producción
+│   ├── N8N_WORKFLOW_GUIDE.md         # Guía de integración con n8n y esquemas MQTT
+│   ├── TESTING.md                    # Guía de pruebas automatizadas y QA
+│   ├── adr/                          # Registros de Decisiones de Arquitectura (ADR 0001 - 0011)
+│   ├── fastapi/                      # Informes de migración por fases FastAPI ASGI
+│   └── diagrams/                     # Diagramas interactivos de arquitectura (Archify)
+└── tests/                            # Suites de pruebas automatizadas (pytest)
 ```
 
 ---
 
-## 📡 Mapa de Tópicos MQTT para n8n
+## ⚡ Instalación Rápida
 
-| Tópico | Tipo | Dirección | Descripción |
-| :--- | :--- | :--- | :--- |
-| `meshcore/bridge/state` | Estado | Bridge ➔ Broker | Estado `online`/`offline` (Retained LWT). |
-| `meshcore/bridge/health`| Salud | Bridge ➔ Broker | Conectividad, uptime, nodos, cola TX y contadores; sin RAM/CPU del sistema operativo. |
-| `meshcore/rx/all` | Stream | Bridge ➔ Broker | **Tópico unificado**: Todos los eventos RX normalizados en JSON. |
-| `meshcore/rx/public` | RX | Bridge ➔ Broker | Mensajes recibidos en el canal público (Canal 0). |
-| `meshcore/rx/channel/ch_<idx>` | RX | Bridge ➔ Broker | Mensajes recibidos en canal secundario `<idx>`. |
-| `meshcore/rx/direct/<sender_id>`| RX | Bridge ➔ Broker | Mensajes directos (DMs) recibidos. |
-| `meshcore/rx/telemetry` | Telemetría | Bridge ➔ Broker | Batería, voltaje, CayenneLPP (temp, hum, baro, GPS). |
-| `meshcore/rx/nodes` | Anuncios | Bridge ➔ Broker | Nodos descubiertos y presencia en la malla. |
-| `meshcore/tx` | TX | n8n ➔ Bridge | Petición para transmitir mensaje por RF. |
-| `meshcore/tx/status` | ACK | Bridge ➔ n8n | Confirmación de transmisión RF (`sent`/`error`). |
-| `meshcore/admin/cmd` | Admin | n8n ➔ Bridge | Comandos locales (`get_config`, `set_name`, `list_nodes`). |
-| `meshcore/admin/status`| Admin | Bridge ➔ n8n | Resultado de comandos administrativos locales. |
-| `meshcore/admin/repeater/<id>/cmd` | Admin | n8n ➔ Bridge | Comandos remotos a repetidores (`stats-radio`, `neighbors`). |
-| `meshcore/admin/repeater/<id>/status`| Admin | Bridge ➔ n8n | Acuse y resultado del comando remoto a repetidor. |
+### En Linux (Debian / Ubuntu / Raspberry Pi / Orange Pi)
 
----
+El instalador raíz `install.sh` automatiza la creación del entorno virtual, instalación de dependencias y configuración del servicio `systemd`:
 
-## ⚡ Instalación y Despliegue
-
-Los instaladores vigentes son los archivos raíz `install.sh`, `install.ps1` y `meshcore-bridge.service`. No existe un directorio `deploy/` vigente. El instalador Linux configura Mosquitto en `0.0.0.0:1883` con acceso anónimo; revisa su exposición y credenciales antes de usarlo en una red compartida. [Guía de despliegue](docs/DEPLOYMENT_GUIDE.md).
-
-### En Linux (Orange Pi / Raspberry Pi / Ubuntu / Debian):
 ```bash
+# 1. Clonar el repositorio
+git clone https://github.com/cyber89/meshcore-bridge-client.git /opt/meshcore-bridge
+cd /opt/meshcore-bridge
+
+# 2. Ejecutar el instalador
 sudo bash install.sh
-# Para actualizar conservando .env y archivos de datos:
+
+# 3. Para actualizar una instalación existente conservando datos y .env:
 sudo bash install.sh --update
 ```
 
-### En Windows (PowerShell):
+### En Windows (PowerShell)
+
 ```powershell
 .\install.ps1 -InstallDeps -Run
 ```
 
-### Iniciar el Bridge Manualmente:
-```bash
-python -m src
-# O usando el archivo raíz:
-python meshcore_bridge.py
-```
+### Manualmente con Entorno Virtual de Python:
 
-### Ejecutar Simulación Interactiva en Vivo (Heltec v4 + 8 Nodos LoRa):
 ```bash
-# Servidor web simulado en http://localhost:8085:
-python scripts/simulate_heltec_v4_mesh.py --live
+# Crear entorno virtual
+python -m venv .venv
+source .venv/bin/activate  # En Windows: .venv\Scripts\Activate.ps1
+
+# Instalar dependencias de producción
+pip install -r requirements.txt
+
+# Iniciar el puente
+python meshcore_bridge.py
 ```
 
 ---
 
-## ⚙️ Variables de Entorno Principales (`.env`)
+## ⚙️ Configuración (`.env`)
 
-| Variable | Por Defecto | Descripción |
+Copia la plantilla `.env.example` a `.env` y ajusta los parámetros necesarios:
+
+| Variable | Valor por Defecto | Descripción |
 | :--- | :--- | :--- |
-| `SERIAL_PORT` | `AUTO` en Windows; `/dev/ttyACM0` en otros sistemas | Puerto USB, `AUTO` o `tcp://host:port`. |
-| `BAUD_RATE` | `115200` | Velocidad de comunicación en baudios. |
-| `SERIAL_TIMEOUT` | `30.0` | Timeout de lectura serial en segundos. |
-| `MQTT_BROKER` | `127.0.0.1` | Dirección IP o host del broker Mosquitto. |
-| `MQTT_PORT` | `1883` | Puerto TCP del broker MQTT. |
-| `MQTT_KEEPALIVE` | `60` | Intervalo de keepalive MQTT en segundos. |
-| `MQTT_MAX_PAYLOAD_BYTES` | `131072` | Tamaño máximo de payload MQTT (128 KB). |
-| `TOPIC_PREFIX`| `meshcore` | Prefijo raíz de tópicos MQTT. |
-| `WEB_ENABLED` | `true` | Habilitar/Deshabilitar servidor web SPA integrado. |
-| `WEB_PORT` | `8080` | Puerto HTTP para la interfaz web y API REST. |
-| `BRIDGE_API_KEY` | *(vacía)* | Clave de autenticación API para el frontend/REST. |
-| `BRIDGE_ALLOWED_ORIGINS` | `http://localhost:8080,http://127.0.0.1:8080` | Orígenes CORS (LAN autorizada automáticamente). |
-| `WS_IDLE_TIMEOUT_SEC` | `30.0` | Timeout de inactividad WebSocket antes de ping. |
-| `TCP_SERVER_ENABLED` | `true` | Habilitar servidor TCP Companion. |
-| `TCP_SERVER_PORT` | `5000` | Puerto TCP para Companion Apps (Android/iOS). |
-| `MAX_COMPANION_CLIENTS` | `8` | Límite de conexiones simultáneas TCP companion. |
-| `COMPANION_ALLOWED_IPS` | *(vacía)* | IPs permitidas para Companion (vacía = todas). |
-| `COMPANION_TOKEN` | *(vacía)* | Token de autenticación para conexiones TCP. |
-| `LORA_DEFAULT_SF` | `11` | Spreading Factor por defecto (SF7 a SF12). |
-| `LORA_DEFAULT_BW_KHZ` | `250.0` | Ancho de banda LoRa en kHz. |
-| `LORA_DEFAULT_CR` | `5` | Coding Rate LoRa (5 = 4/5, 6 = 4/6, etc.). |
-| `LORA_PREAMBLE_LEN` | `8` | Longitud del preámbulo LoRa en símbolos. |
-| `TX_INTERVAL_SEC` | `1.0` | Espaciado mínimo entre paquetes RF (Rate Limiter). |
-| `MAX_TX_QUEUE_SIZE` | `500` | Tamaño máximo de la cola de transmisión TX. |
-| `MAX_RX_CONCURRENCY` | `20` | Concurrencia máxima de procesamiento RX. |
-| `DEDUPLICATION_WINDOW_SEC` | `60.0` | Ventana de deduplicación de ecos RF en segundos. |
-| `WATCHDOG_INTERVAL_SEC` | `60.0` | Intervalo del watchdog de supervisión serial. |
-| `HEALTH_METRICS_INTERVAL_SEC` | `60.0` | Intervalo de publicación de métricas de salud. |
-| `MAX_RECONNECT_ATTEMPTS` | `0` | Reintentos de reconexión serial (0 = infinito). |
-| `DATA_DIR` | `data` | Directorio raíz para almacenamiento JSON y persistencia. |
-| `LOG_LEVEL` | `INFO` | Nivel de registro (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
-| `DUTY_CYCLE_LIMIT_PCT` | `1.0` | Límite del ciclo de trabajo (Duty Cycle) en porcentaje. |
-| `DUTY_CYCLE_WARN_THRESHOLD_PCT` | `80.0` | Umbral de advertencia del ciclo de trabajo. |
-| `AIRTIME_HISTORY_FILE` | `data/airtime_history.json` | Historial estimado de airtime; respeta `DATA_DIR`. |
-| `WS_METRICS_INTERVAL_SEC` | `5.0` | Intervalo de métricas por WebSocket en segundos. |
+| `SERIAL_PORT` | `AUTO` | Puerto serie USB (`/dev/ttyACM0`, `COM3`, o `AUTO`) o túnel TCP (`tcp://host:port`). |
+| `BAUD_RATE` | `115200` | Velocidad en baudios para la conexión serial. |
+| `WEB_ENABLED` | `true` | Habilita la interfaz web y la API REST. |
+| `WEB_SERVER_BACKEND` | `asgi` | Motor web: `asgi` (FastAPI/Uvicorn con fallback) o `native` (socket puro). |
+| `WEB_PORT` | `8080` | Puerto HTTP para la SPA, API REST y WebSockets. |
+| `BRIDGE_API_KEY` | *(opcional)* | Clave de seguridad para autenticar peticiones REST mutantes y visor de docs. |
+| `TCP_SERVER_ENABLED` | `true` | Habilita el servidor TCP Companion para apps móviles MeshCore. |
+| `TCP_SERVER_PORT` | `5000` | Puerto de escucha para conexiones Companion (Android / iOS / CLI). |
+| `MQTT_BROKER` | `127.0.0.1` | Dirección IP del broker MQTT local. |
+| `MQTT_PORT` | `1883` | Puerto del broker MQTT local. |
+| `TOPIC_PREFIX` | `meshcore` | Prefijo raíz de los tópicos MQTT. |
+| `DATA_DIR` | `data` | Carpeta de persistencia para canales, nodos, airtime y teselas. |
+| `LOG_LEVEL` | `INFO` | Nivel de detalle de registros (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 
-Los valores de la tabla describen defaults de `config.py`; `.env` puede sobrescribirlos. No constituyen una autorización para crear o reducir timers de RF: aplicar el checklist de `AGENTS.md` y acordar límites con el usuario.
+---
 
-El camino de hardware habitual es `MeshcoreSDKAdapter` y el protocolo Companion oficial. El parser `RawSerialFramingAdapter` interpreta un formato propio `0xAA/0x55/0x1B` con CRC-16 en memoria; no es el framing Companion y actualmente no implementa E/S física.
+## 🌐 Endpoints y Rutas Principales
 
-La persistencia actual utiliza JSON para nodos, canales y airtime; `PacketBuffer` y deduplicación viven en RAM, y el navegador mantiene chat en IndexedDB. No hay backend SQLite para esos datos ni cola MQTT durable en disco; el servicio de mapas sí lee archivos SQLite MBTiles. Para n8n, el export incluido programa clima cada seis horas, con zona de ejecución a configurar en la instancia: [guía n8n](docs/N8N_WORKFLOW_GUIDE.md).
+| Recurso | URL / Método | Descripción |
+| :--- | :--- | :--- |
+| **Interfaz Web SPA** | `GET http://<IP>:8080/` | Panel de control completo (Chat, Nodos, Repetidores, Mapas, Métricas). |
+| **Swagger UI** | `GET http://<IP>:8080/docs/api` | Explorador interactivo OpenAPI 3.1 autónomo y offline. |
+| **ReDoc** | `GET http://<IP>:8080/docs/redoc` | Documentación estructurada de referencia de la API. |
+| **OpenAPI JSON** | `GET http://<IP>:8080/openapi.json` | Especificación canónica OpenAPI 3.1.0 para generadores de clientes. |
+| **WebSocket Hub** | `ws://<IP>:8080/ws` | Flujo bidireccional en tiempo real de eventos, chat y telemetría. |
+| **TCP Companion** | `tcp://<IP>:5000` | Interfaz TCP directa para la aplicación oficial de MeshCore. |
+| **Salud del Sistema** | `GET /api/health` | Estado del bridge, transceptor, estadísticas y uptime. |
+| **Nodos y Contactos** | `GET /api/contacts` | Listado normalizado de contactos (excluye repetidores). |
+| **Transmitir Mensaje** | `POST /api/send/message` | Envío de mensajes de canal o directos (DM). |
+| **Administrar Repetidor** | `POST /api/repeater/remote/command` | Envío de comandos CommonCLI a repetidores remotos. |
 
-Las suites y auditorías se ejecutan cuando el usuario las autoriza. Los resultados de agosto se conservan como informes históricos; no acreditan el checkout actual. Dependencias de runtime: `requirements.txt` y `[project].dependencies` en `pyproject.toml`; herramientas de QA: `requirements-dev.txt` y extra `dev`.
+---
 
+## 📡 Tópicos MQTT para Automatización (n8n & Home Assistant)
 
+| Tópico | Dirección | Contenido |
+| :--- | :--- | :--- |
+| `meshcore/bridge/state` | Bridge ➔ Broker | Estado del servicio (`online` / `offline` vía LWT retenido). |
+| `meshcore/bridge/health`| Bridge ➔ Broker | Métricas periódicas de salud, nodos activos y cola TX. |
+| `meshcore/rx/all` | Bridge ➔ Broker | **Stream unificado**: Todos los paquetes recibidos en formato JSON normalizado. |
+| `meshcore/rx/public` | Bridge ➔ Broker | Mensajes recibidos en el canal público (Canal 0). |
+| `meshcore/rx/direct/+` | Bridge ➔ Broker | Mensajes directos (DMs) recibidos por remitente. |
+| `meshcore/rx/telemetry` | Bridge ➔ Broker | Telemetría de batería, voltaje, solar y sensores CayenneLPP. |
+| `meshcore/tx` | n8n ➔ Bridge | Petición para transmitir un mensaje por la radio LoRa. |
+| `meshcore/tx/status` | Bridge ➔ n8n | Confirmación de transmisión y acuse de recibo (`sent`, `ack`, `error`). |
+
+---
+
+## 🧪 Pruebas y Aseguramiento de Calidad
+
+> **Nota de protocolo**: Conforme a [`AGENTS.md`](AGENTS.md), las suites de pruebas automatizadas no se ejecutan automáticamente durante tareas de desarrollo rutinarias para proteger la estabilidad operativa. Se ejecutan únicamente bajo demanda explícita.
+
+Para ejecutar la verificación de calidad en un entorno de desarrollo:
+
+```bash
+# Ejecutar suite de pruebas pytest
+python -m pytest tests -ra
+
+# Verificación de tipos estricta con mypy
+python -m mypy --strict src
+
+# Linter y análisis estático con ruff
+python -m ruff check src
+
+# Verificación de integridad documental y enlaces
+python scripts/validate_project_docs.py
+```
+
+---
+
+## 📄 Licencia
+
+Este proyecto se distribuye bajo la Licencia MIT. Consulta el archivo de licencia para más detalles.

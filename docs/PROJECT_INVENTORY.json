@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-09-30T09:43:13.572588+00:00",
-  "project_head": "da6eaaf68c91b41ccd3d9e9dbc5d2b25f02e96d1",
+  "generated_at_utc": "2026-10-06T00:47:53.204128+00:00",
+  "project_head": "776eed7ce1452a15c96e254fca938809317fb84a",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,11 +14,11 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 28,
+    "documents": 77,
     "references": 15,
-    "source_files": 80,
+    "source_files": 83,
     "project_skills": 22,
-    "vendor_skills": 2
+    "vendor_skills": 8
   },
   "documents": [
     {
@@ -42,7 +42,7 @@
     {
       "path": "docs/adr/0004-airtime-duty-cycle-alerting-and-persistence.md",
       "category": "maintained-or-decision",
-      "sha256": "2cd4dc8fb946c6c3f382ec1ea76ef5defe5cee385913220acbbd7680c96613d3",
+      "sha256": "0b11ba877d4f272880da830c9a77e56eb6975e6770fee736eebd36b701a3cab2",
       "lines": 79
     },
     {
@@ -70,10 +70,34 @@
       "lines": 55
     },
     {
+      "path": "docs/adr/0009-official-companion-protocol-layers.md",
+      "category": "maintained-or-decision",
+      "sha256": "8ed159acd65ef61f0dbf78f2eeaf58c5b16f742ab7b82fe565ae303a386dbe0e",
+      "lines": 51
+    },
+    {
+      "path": "docs/adr/0010-duty-cycle-configurable-budget.md",
+      "category": "maintained-or-decision",
+      "sha256": "ec4648ccd5bd10da073b02c6c0e0ef95801c8c59c87b8710511f185231ea8a1f",
+      "lines": 45
+    },
+    {
+      "path": "docs/AGENT_ACTIVITY_REPORT.md",
+      "category": "maintained-or-decision",
+      "sha256": "c122f29eb6a64d657ac192be699372ba72f4e700e004e10c02e78de00d74a9cd",
+      "lines": 5723
+    },
+    {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "516974748c61dadf9cf37a0c99fa8c0f2dd88fe8573d4de90c0785097e1796a8",
-      "lines": 405
+      "sha256": "31c05ad42a6945d6e97ba7683ed53d3a14d0fcdad44af654a0917fe3da9be3d6",
+      "lines": 590
+    },
+    {
+      "path": "docs/AUDIT_REMEDIATION_2026-10-05.md",
+      "category": "maintained-or-decision",
+      "sha256": "3d90929cd1dc2de3bfa2c520040787ee0e73ed417d484b5d94ac9a90e7844d2c",
+      "lines": 310
     },
     {
       "path": "docs/AUDIT_REPORT_2026-08-17.md",
@@ -82,16 +106,226 @@
       "lines": 161
     },
     {
+      "path": "docs/AUDIT_REPORT_LAYER_BY_LAYER.md",
+      "category": "maintained-or-decision",
+      "sha256": "f93bbd96ea316550d170ec339e54843025000f071d175d4b8cdf5d6d12f1ff6e",
+      "lines": 1169
+    },
+    {
+      "path": "docs/audits/config-parameters-2026-10-04/frontend-remote.md",
+      "category": "maintained-or-decision",
+      "sha256": "345666edc87da1884253ff10071d93c64238b7ee61a1658a8d9205e0a49eebbe",
+      "lines": 60
+    },
+    {
+      "path": "docs/audits/config-parameters-2026-10-04/protocol-matrix.md",
+      "category": "maintained-or-decision",
+      "sha256": "06e7c8fe18a508168d4b8cd90d088608bdd15940a5718de10e1c8095348a2793",
+      "lines": 104
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/admin-remaining.md",
+      "category": "maintained-or-decision",
+      "sha256": "6283f95932eacc4c5bb4e7706e80961865f11f144a07907259ae2e9907e258db",
+      "lines": 74
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/core-remaining.md",
+      "category": "maintained-or-decision",
+      "sha256": "6e95e3ccb73fb92d25ab019fbb27d94c7d1466baa35c3c951ab51f23f7af8732",
+      "lines": 148
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/installer-remaining.md",
+      "category": "maintained-or-decision",
+      "sha256": "46bdcfd3d75cab7c01e755e2d0e3d9d4fbacf7f59f2c36c39edd3f1d84a6a011",
+      "lines": 55
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/PI-02.md",
+      "category": "maintained-or-decision",
+      "sha256": "8d327c68427006010a0a3be0b28585be6736172aa780faa26afc910aee85336b",
+      "lines": 79
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/policy-remaining.md",
+      "category": "maintained-or-decision",
+      "sha256": "558c344b9000eb5ecd0f020c65f1c8363f3ccc1c99adc94fbcd1cb3bc812626f",
+      "lines": 47
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/quality-remaining.md",
+      "category": "maintained-or-decision",
+      "sha256": "83b31613eca953064096ebdc45d311dde50ea18692235835ddb54c0b45755885",
+      "lines": 85
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/RUNTIME-01.md",
+      "category": "maintained-or-decision",
+      "sha256": "dcef6e6a565039c0a14acc1f407dc84662798725e82149db07230beb3e309c71",
+      "lines": 72
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/RUNTIME-04.md",
+      "category": "maintained-or-decision",
+      "sha256": "3d9c39fe03386040f076a46bebea369b605d413cc4cf7f9cc801d9afa522c4c5",
+      "lines": 57
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/RUNTIME-05.md",
+      "category": "maintained-or-decision",
+      "sha256": "35c9f1732175837000edbf4ea1e8e78930dd31fc83f4ffafe3560f968b313668",
+      "lines": 61
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/RUNTIME-06.md",
+      "category": "maintained-or-decision",
+      "sha256": "fbffe9282ed70d1119cb839630614db5d1fabc0892a8066e9ae8a3765cafc798",
+      "lines": 46
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/WEB-01-auth.md",
+      "category": "maintained-or-decision",
+      "sha256": "2073f2c5dc08fbe4da83b12206633b90ce8eb52198575f3ea142c4b40e387565",
+      "lines": 77
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/WEB-01-capture.md",
+      "category": "maintained-or-decision",
+      "sha256": "2aae049a248e54c970ed8d79488b1bcc1a511539ba0f1f7161f393025e294b7f",
+      "lines": 44
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/WEB-02.md",
+      "category": "maintained-or-decision",
+      "sha256": "4f56f41b2b878c31ae461415260f964d2ec5c4b7dcd0f258bc82d2b3dd6a4b92",
+      "lines": 75
+    },
+    {
+      "path": "docs/audits/fixes-2026-10-05/web-remaining.md",
+      "category": "maintained-or-decision",
+      "sha256": "7712a0d6da4179693ff0f1362dbc944d8b7cc10a3d1796b433e8d88007a4d2b5",
+      "lines": 188
+    },
+    {
+      "path": "docs/audits/frontend-exhaustive-2026-10-03/css-quality.md",
+      "category": "maintained-or-decision",
+      "sha256": "0094439fe05f12063e2d34e023ef60b1dc410880690d7e0efdcd4514b9227b26",
+      "lines": 45
+    },
+    {
+      "path": "docs/audits/frontend-exhaustive-2026-10-03/interaction.md",
+      "category": "maintained-or-decision",
+      "sha256": "f51a7a12235cc808ef5f36024bf7ab498bccfcd904aa23083047df78c2a21ef6",
+      "lines": 111
+    },
+    {
+      "path": "docs/audits/frontend-exhaustive-2026-10-03/visual.md",
+      "category": "maintained-or-decision",
+      "sha256": "abc72e083a80cf608efd10bacd7dd3c58c966f83439f2cccf9295cb11975f111",
+      "lines": 71
+    },
+    {
+      "path": "docs/audits/layers-2026-10-04/protocol-integration.md",
+      "category": "maintained-or-decision",
+      "sha256": "e4c7f220cdbdbf74fb500c10229ba6ebb3205c7c7c4ebdff0a76150662094212",
+      "lines": 240
+    },
+    {
+      "path": "docs/audits/layers-2026-10-04/quality.md",
+      "category": "maintained-or-decision",
+      "sha256": "6cd226884b266ace9f5c9cc7c572b4307620602ce97c6fd960edcd5a1c798d3b",
+      "lines": 94
+    },
+    {
+      "path": "docs/audits/layers-2026-10-04/runtime.md",
+      "category": "maintained-or-decision",
+      "sha256": "0386ac96fc4249e8415e7c6bf89e8a5c8b16d4a46a850abf44c1288efeda9865",
+      "lines": 162
+    },
+    {
+      "path": "docs/audits/layers-2026-10-04/web.md",
+      "category": "maintained-or-decision",
+      "sha256": "9777475d5cc1af58df5896fe774428c790942f96ef083c848fed8ba2b32f8526",
+      "lines": 317
+    },
+    {
+      "path": "docs/audits/node-config-2026-10-03/backend/README.md",
+      "category": "maintained-or-decision",
+      "sha256": "4a30dfbde9651edf3af9576161075c3cf00b428741d67abf146bcc7c1164fa13",
+      "lines": 116
+    },
+    {
+      "path": "docs/audits/node-config-2026-10-03/frontend/FINDINGS.md",
+      "category": "maintained-or-decision",
+      "sha256": "d7efe30028cf8b82904aa28c9abaa18fcaf4d8f435e1dea1115d03f4bc67c77f",
+      "lines": 66
+    },
+    {
+      "path": "docs/audits/node-config-2026-10-03/protocol/PROTOCOL_FINDINGS.md",
+      "category": "maintained-or-decision",
+      "sha256": "5fc51a7734c32c6aa6b902869f7e5c3f9d90719dc128bb6066c7caa7d66aefc9",
+      "lines": 106
+    },
+    {
+      "path": "docs/audits/node-config-verification-2026-10-03/backend/FINDINGS.md",
+      "category": "maintained-or-decision",
+      "sha256": "7fc92aee027669c4d27f94b04a7e4879d00e2a273dc0efe3b9eff2f00a3aa058",
+      "lines": 138
+    },
+    {
+      "path": "docs/audits/node-config-verification-2026-10-03/frontend/CONTROL_INVENTORY.md",
+      "category": "maintained-or-decision",
+      "sha256": "cef29f0d66ef412ce2556865c0e532c3760e9bbc5fdb807025a1f6af528c1cd8",
+      "lines": 83
+    },
+    {
+      "path": "docs/audits/node-config-verification-2026-10-03/frontend/FINDINGS.md",
+      "category": "maintained-or-decision",
+      "sha256": "c0ecc55a99b4301c6f10f3c7e54f54368dc122658cc047c0d43a639a293bd1d9",
+      "lines": 76
+    },
+    {
+      "path": "docs/audits/node-config-verification-2026-10-03/integration/official-client-observation.md",
+      "category": "maintained-or-decision",
+      "sha256": "e106c071166e0af6263985051f21af6690f5544493c82e2db73a30548664ae3e",
+      "lines": 34
+    },
+    {
+      "path": "docs/audits/node-config-verification-2026-10-03/protocol/PROTOCOL_FINDINGS.md",
+      "category": "maintained-or-decision",
+      "sha256": "6f0e6336124562c702d54fc5e7c91997a8ec1df25017d56882d621a3d8b0b479",
+      "lines": 131
+    },
+    {
+      "path": "docs/BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md",
+      "category": "maintained-or-decision",
+      "sha256": "a54a8613bfb86d28e329c163eb6d4522488aa563908025e0a744717990dee604",
+      "lines": 76
+    },
+    {
       "path": "docs/CODE_EXPLANATION.md",
       "category": "maintained-or-decision",
       "sha256": "586bab4ec8adccd19a279761920eb2f7c3a20c7556b780010fb6b23710abd25b",
       "lines": 76
     },
     {
+      "path": "docs/COMPATIBILITY_AUDIT_2026-09-30.md",
+      "category": "maintained-or-decision",
+      "sha256": "32bbbf8058b098404ae3ae17492ad8be8639cbd99d76342dacd92c287d50871b",
+      "lines": 215
+    },
+    {
+      "path": "docs/CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md",
+      "category": "maintained-or-decision",
+      "sha256": "2ef5018549c202c4714596edeb1933ba058d98ff0d4f8068400b7c63a6da05e2",
+      "lines": 251
+    },
+    {
       "path": "docs/DEPLOYMENT_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "7c9a887ef00e1208c3ec4a8a62eb7b75e91676e8f043d88754aec3c6d9af1271",
-      "lines": 246
+      "sha256": "5c380fea561663528dcaac7c8b4e307a0cbf9ae575bd93f0ea4a35d14c5e3f92",
+      "lines": 254
     },
     {
       "path": "docs/FINAL_PROJECT_REPORT.md",
@@ -100,28 +334,82 @@
       "lines": 235
     },
     {
+      "path": "docs/FRONTEND_EXHAUSTIVE_AUDIT_2026-10-03.md",
+      "category": "maintained-or-decision",
+      "sha256": "ae5171988c6659af187aa2cd4a3b6e6bab10687412b6be11150ebc20e2487261",
+      "lines": 111
+    },
+    {
+      "path": "docs/FRONTEND_UI_REVIEW_2026-10-03.md",
+      "category": "maintained-or-decision",
+      "sha256": "3b8daac3277aca07024a53b6bcddbc3b49de62fe6d5eb392a22c3ec0ad276b30",
+      "lines": 198
+    },
+    {
+      "path": "docs/FRONTEND_VISUAL_REFRESH_2026-10-03.md",
+      "category": "maintained-or-decision",
+      "sha256": "581f3d46cd7bdaf426a3b703f2747503e19fdbaad45b8f9ee39877567cf09df7",
+      "lines": 54
+    },
+    {
+      "path": "docs/LAYERED_SYSTEM_AUDIT_2026-10-04.md",
+      "category": "maintained-or-decision",
+      "sha256": "e460fc5f6f0ab6e51dd4b64aff1ac682e8307458738a40fb3be3f07bf04b7bd3",
+      "lines": 394
+    },
+    {
+      "path": "docs/LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md",
+      "category": "maintained-or-decision",
+      "sha256": "c8db4fb0e29f6021a29eeca8a1ee81d659acd904a2136144f3ec7d4a20345fef",
+      "lines": 167
+    },
+    {
       "path": "docs/N8N_WORKFLOW_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "f8458f129812aaf6dda50db3a1e1bb275570e1626555d5455079d1e3d2dfa378",
+      "sha256": "4c5c6def02cf82bb706e59a95ecc4a0be6c2eed30035ef4f8c7af9124c78fd2c",
       "lines": 85
+    },
+    {
+      "path": "docs/NODE_CONFIGURATION_AUDIT_2026-10-03.md",
+      "category": "maintained-or-decision",
+      "sha256": "2f48fe684892b3d0cce546bdbf96d54388d6c6ffea90eb6c16e6b0ef42aeddc9",
+      "lines": 332
+    },
+    {
+      "path": "docs/NODE_CONFIGURATION_VERIFICATION_2026-10-03.md",
+      "category": "maintained-or-decision",
+      "sha256": "db7cde5fd89737d0134e01fa698a1fb1d43abb91d85bea97c2292e83602e9951",
+      "lines": 287
+    },
+    {
+      "path": "docs/NODES_TELEMETRY_AUDIT_2026-10-03.md",
+      "category": "maintained-or-decision",
+      "sha256": "d79f0474273702fd7acbeb902f260fa0a7b38e49ee46cab390d55f3daeb897ba",
+      "lines": 233
     },
     {
       "path": "docs/PROJECT_KNOWLEDGE.md",
       "category": "maintained-or-decision",
-      "sha256": "50ee989fc327d4e59dbdaad8954c5072a74f91f9d45756ab78163255b6c2912b",
+      "sha256": "0ec4968f8db1d893b610d13f0970f3af02d9e7fb207e50a7a0c73823d7a70bfd",
       "lines": 175
+    },
+    {
+      "path": "docs/PROTOCOL_AUDIT_2026-09-29.md",
+      "category": "maintained-or-decision",
+      "sha256": "a89e24295d3dc8d0e9389f55d1991209e193cc6b412725d262723d934d32e326",
+      "lines": 120
     },
     {
       "path": "docs/PROTOCOL_SPEC.md",
       "category": "maintained-or-decision",
-      "sha256": "fe46e2b9b460758276d59f72f49212e21c9a9e47d4e120bcb16666e3d064949e",
-      "lines": 453
+      "sha256": "89851491904376f35f0a8504f581c61e8c88d8c3121fc78a95b9fdcbdeeaf421",
+      "lines": 508
     },
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "13054de98f785d6a8624101a730218468a99828545613d5ea28fab40f8004fe0",
-      "lines": 40
+      "sha256": "8d79e8d982d4d89c406c9b8cd888d27f306f498ca4023f81c620676237eba933",
+      "lines": 57
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",
@@ -148,6 +436,12 @@
       "lines": 80
     },
     {
+      "path": "docs/SYSTEM_LAYERS_MANUAL.md",
+      "category": "maintained-or-decision",
+      "sha256": "6de95a217eccb96d786ed2ecdd74805cd40a2a9d2266b8dfc053d18698877924",
+      "lines": 452
+    },
+    {
       "path": "docs/TEST_INVENTORY.md",
       "category": "maintained-or-decision",
       "sha256": "4f10597a9e63cedb791462140f9b8adbe3ab58fdb8c75db7bf3cd00c3174c012",
@@ -162,14 +456,14 @@
     {
       "path": "README.md",
       "category": "maintained-or-decision",
-      "sha256": "46e51cc717d1a23facc441b6a8da94b780c7205744d5ad73d89f3db3ed61aa4c",
-      "lines": 308
+      "sha256": "a45ae94aa2a78ac54caab669d26790d84c9048c2f2ea1b73129ab5c5903496ac",
+      "lines": 307
     },
     {
       "path": "AGENTS.md",
       "category": "maintained-or-decision",
-      "sha256": "7a74b612e10b997d4d551e4be0200d4bdc259464fa76fcfd5f36fcf34ce6f34f",
-      "lines": 267
+      "sha256": "95e61e201ffbb76951b4ad1ddfb7254789a09ba35e6ccd6e5c2b717f3ef8720a",
+      "lines": 264
     },
     {
       "path": "CONTEXT.md",
@@ -186,8 +480,8 @@
     {
       "path": ".agents/README.md",
       "category": "maintained-or-decision",
-      "sha256": "0e1f1e691ac665288de54d7bd49085264198cfdb5f2836a3de78818514a883f1",
-      "lines": 36
+      "sha256": "352b133a4ec9de2971f78735d6b41d16821ac33d24541e900e1e014411701c97",
+      "lines": 46
     }
   ],
   "references": [
@@ -1087,6 +1381,14 @@
       ]
     },
     {
+      "name": "code-review",
+      "path": ".agents/skills/code-review/SKILL.md",
+      "ownership": "vendor",
+      "description": "\"Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/spec asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to \\\"review since X\\\".\"",
+      "ui_metadata": ".agents/skills/code-review/agents/openai.yaml",
+      "scripts": []
+    },
+    {
       "name": "contract-openapi-sync",
       "path": ".agents/skills/contract-openapi-sync/SKILL.md",
       "ownership": "project",
@@ -1095,6 +1397,14 @@
       "scripts": [
         ".agents/skills/contract-openapi-sync/scripts/verify_api_parity.py"
       ]
+    },
+    {
+      "name": "diagnosing-bugs",
+      "path": ".agents/skills/diagnosing-bugs/SKILL.md",
+      "ownership": "vendor",
+      "description": "Diagnosis loop for hard bugs and performance regressions. Use when the user says \"diagnose\"/\"debug this\", or reports something broken/throwing/failing/slow.",
+      "ui_metadata": ".agents/skills/diagnosing-bugs/agents/openai.yaml",
+      "scripts": []
     },
     {
       "name": "distributed-mesh-simulation",
@@ -1133,6 +1443,14 @@
       "scripts": [
         ".agents/skills/html-css-modern-js/scripts/lint_frontend_standards.py"
       ]
+    },
+    {
+      "name": "improve-codebase-architecture",
+      "path": ".agents/skills/improve-codebase-architecture/SKILL.md",
+      "ownership": "vendor",
+      "description": "Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick.",
+      "ui_metadata": ".agents/skills/improve-codebase-architecture/agents/openai.yaml",
+      "scripts": []
     },
     {
       "name": "installer-release-maintenance",
@@ -1221,6 +1539,22 @@
       ]
     },
     {
+      "name": "systematic-debugging",
+      "path": ".agents/skills/systematic-debugging/SKILL.md",
+      "ownership": "vendor",
+      "description": "Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes",
+      "ui_metadata": null,
+      "scripts": []
+    },
+    {
+      "name": "test-driven-development",
+      "path": ".agents/skills/test-driven-development/SKILL.md",
+      "ownership": "vendor",
+      "description": "Use when implementing any feature or bugfix, before writing implementation code",
+      "ui_metadata": null,
+      "scripts": []
+    },
+    {
       "name": "tgrep-code-search",
       "path": ".agents/skills/tgrep-code-search/SKILL.md",
       "ownership": "project",
@@ -1233,6 +1567,14 @@
       "path": ".agents/skills/ui-ux-pro-max/SKILL.md",
       "ownership": "vendor",
       "description": ">-\n  Inteligencia de diseño UI/UX para web, móvil y escritorio. Sistema integral de diseño con 79 estilos (50 activos),\n  192 paletas de color con perfiles de razonamiento, 74 emparejamientos tipográficos, 119 reglas de experiencia de usuario (UX),\n  105 iconos curados, 17 presets de animación y 25 tipos de gráficos sin dependencias pesadas.",
+      "ui_metadata": null,
+      "scripts": []
+    },
+    {
+      "name": "verification-before-completion",
+      "path": ".agents/skills/verification-before-completion/SKILL.md",
+      "ownership": "vendor",
+      "description": "Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1260,6 +1602,7 @@
     "src/admin/cli_command_executor.py",
     "src/admin/local_config_executor.py",
     "src/admin/repeater_executor.py",
+    "src/admin/sdk_commands.py",
     "src/admin/traceroute_executor.py",
     "src/admin_handler.py",
     "src/bridge_core.py",
@@ -1269,6 +1612,7 @@
     "src/event_utils.py",
     "src/health_reporter.py",
     "src/lqi_engine.py",
+    "src/metrics_aggregator.py",
     "src/mqtt_client.py",
     "src/mqtt_dispatcher.py",
     "src/packet_buffer.py",
@@ -1320,6 +1664,7 @@
     "src/web/static/css/tokens.css",
     "src/web/static/index.html",
     "src/web/static/js/app.js",
+    "src/web/static/js/core/chart_engine.js",
     "src/web/static/js/core/eventbus.js",
     "src/web/static/js/core/storage.js",
     "src/web/static/js/core/utils.js",

@@ -16,7 +16,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OFFICIAL = {"meshcore", "meshcore_py", "meshcore_cli"}
-VENDORS = {"archify", "ui-ux-pro-max"}
+VENDORS = {
+    "archify",
+    "ui-ux-pro-max",
+    "code-review",
+    "diagnosing-bugs",
+    "improve-codebase-architecture",
+    "systematic-debugging",
+    "verification-before-completion",
+    "test-driven-development",
+}
 
 
 def git_value(directory: Path, *arguments: str) -> str | None:
@@ -149,4 +158,16 @@ def inventory() -> dict[str, object]:
 
 
 if __name__ == "__main__":
-    print(json.dumps(inventory(), indent=2, ensure_ascii=False))
+    import sys
+    if "--write" in sys.argv:
+        target = ROOT / "docs/PROJECT_INVENTORY.json"
+        target.write_text(
+            json.dumps(inventory(), indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8"
+        )
+    else:
+        encoding = getattr(sys.stdout, "encoding", "") or ""
+        reconfigure = getattr(sys.stdout, "reconfigure", None)
+        if encoding.lower() != "utf-8" and callable(reconfigure):
+            reconfigure(encoding="utf-8")
+        print(json.dumps(inventory(), indent=2, ensure_ascii=False))

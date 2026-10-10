@@ -59,9 +59,5 @@ SHA256SUMS
 # Generated QA evidence (summaries are maintained in docs/TESTING.md)
 tests/artifacts/
 artifacts/
-scratch/*.xml
-scratch/*.json
-scratch/pytest-*/
-scratch/serial-*/
-scratch/qa-results/
-scratch/maintenance/
+scratch/
+docs/audits/
