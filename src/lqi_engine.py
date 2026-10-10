@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import math
 import time
-from enum import Enum
+from enum import StrEnum
 
 
-class LQIStatus(str, Enum):
+class LQIStatus(StrEnum):
     """Clasificación cualitativa de la calidad de enlace."""
     EXCELLENT = "EXCELLENT"      # >= 80% (Verde)
     GOOD = "GOOD"                # 60% - 79% (Azul)

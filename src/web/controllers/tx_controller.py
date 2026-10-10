@@ -80,10 +80,11 @@ class TxController(BaseController):
                     future = submit_res
 
                 if asyncio.isfuture(future) or asyncio.iscoroutine(future):
-                    res = await asyncio.wait_for(future, timeout=30.0)
+                    async with asyncio.timeout(30.0):
+                        res = await future
                 else:
                     return problem_details(503, "Service Unavailable", "La cola no confirmó la admisión de la transmisión", "tx_submission_failed")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 err_msg = "Timeout esperando turno de transmisión en cola de Airtime LoRa (30s)"
                 self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
                 return problem_details(408, "Request Timeout", err_msg, "tx_timeout")

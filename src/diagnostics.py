@@ -89,7 +89,7 @@ class SystemLogHandler(logging.Handler):
             log_entry = SystemLogRecord(
                 timestamp=record.created,
                 iso_time=datetime.datetime.fromtimestamp(
-                    record.created, tz=datetime.timezone.utc
+                    record.created, tz=datetime.UTC
                 ).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
                 level=record.levelname.upper(),
                 logger_name=record.name,
@@ -283,7 +283,7 @@ class DiagnosticManager:
         return {
             "app_name": "MeshCore Bridge",
             "version": "3.0.0",
-            "report_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "report_timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             "environment": {
                 "os": platform.system(),
                 "os_release": platform.release(),

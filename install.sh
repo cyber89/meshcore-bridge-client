@@ -81,7 +81,7 @@ if [[ "$ACTION" == "--dev" ]]; then
         python3 -m venv "$QA_VENV"
     fi
     PYTHON_BIN="$QA_VENV/bin/python"
-    "$PYTHON_BIN" -c 'import sys; assert sys.version_info >= (3, 10), "Python >=3.10 requerido"'
+    "$PYTHON_BIN" -c 'import sys; assert sys.version_info >= (3, 14, 8), "Python >=3.14.8 requerido"'
     [[ -f "$CURRENT_DIR/requirements-dev.txt" ]]
     [[ -f "$CURRENT_DIR/scripts/run_quality_checks.py" ]]
     echo "[1/3] Instalando dependencias de QA en $QA_VENV"

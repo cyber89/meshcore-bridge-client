@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.routers.base import BaseRxHandler, RxMeta
@@ -70,7 +70,7 @@ class SystemHandler(BaseRxHandler):
 
         import config
 
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         if "timestamp" not in payload:
             payload["timestamp"] = now_iso
 

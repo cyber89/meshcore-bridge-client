@@ -6,7 +6,7 @@ Handles /api/packets and /api/packets/export.
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.web.controllers.base import BaseController, problem_details
@@ -63,7 +63,7 @@ class PacketsController(BaseController):
             return problem_details(503, "Service Unavailable", "PacketBuffer no inicializado", "packet_buffer_unavailable")
 
         fmt = (export_format or "json").strip().lower()
-        now_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        now_str = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
         if fmt == "pcap":
             pcap_bytes = packet_buf.generate_pcap()

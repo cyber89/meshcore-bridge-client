@@ -343,7 +343,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     self.mc = None
                     _mc_raw = MeshCore(cx_wrapped, auto_reconnect=False)
 
-                    res_app = await asyncio.wait_for(_mc_raw.connect(), timeout=_MC_TOTAL_TIMEOUT)
+                    async with asyncio.timeout(_MC_TOTAL_TIMEOUT):
+                        res_app = await _mc_raw.connect()
 
                     if res_app is not None and getattr(res_app, "type", None) != EventType.ERROR:
                         self.mc = _mc_raw
@@ -364,7 +365,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                             "Verifica: (1) firmware en Companion mode, "
                             "(2) baud rate 115200, (3) cable USB funcional."
                         )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logging.error(
                         f"Timeout global ({_MC_TOTAL_TIMEOUT}s) esperando conexión con el "
                         f"transceptor MeshCore en {self.port}. "
@@ -377,7 +378,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 finally:
                     if _mc_raw is not None:
                         try:
-                            await asyncio.wait_for(_mc_raw.disconnect(), timeout=1.5)
+                            async with asyncio.timeout(1.5):
+                                await _mc_raw.disconnect()
                         except Exception:
                             pass
 
@@ -418,8 +420,9 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if self._initial_sync_task and not self._initial_sync_task.done():
             self._initial_sync_task.cancel()
             try:
-                await asyncio.wait_for(self._initial_sync_task, timeout=1.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                async with asyncio.timeout(1.0):
+                    await self._initial_sync_task
+            except (asyncio.CancelledError, TimeoutError, Exception):
                 pass
             self._initial_sync_task = None
 
@@ -428,10 +431,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             task.cancel()
         if self._background_tasks:
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(*self._background_tasks, return_exceptions=True),
-                    timeout=1.0
-                )
+                async with asyncio.timeout(1.0):
+                    await asyncio.gather(*self._background_tasks, return_exceptions=True)
             except Exception:
                 pass
             self._background_tasks.clear()
@@ -439,12 +440,13 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if self.mc:
             try:
                 if hasattr(self.mc, "disconnect"):
-                    await asyncio.wait_for(self.mc.disconnect(), timeout=1.5)
+                    async with asyncio.timeout(1.5):
+                        await self.mc.disconnect()
                 elif hasattr(self.mc, "stop"):
                     self.mc.stop()
                 elif hasattr(self.mc, "close"):
                     self.mc.close()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logging.warning("Timeout (1.5s) al desconectar MeshCore SDK; forzando detención.")
                 try:
                     if hasattr(self.mc, "stop"):
@@ -515,17 +517,20 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             try:
                 cmds = self.mc.commands
                 if hasattr(cmds, "get_time"):
-                    res = await asyncio.wait_for(self.run_sdk_command("get_time"), timeout=3.0)
+                    async with asyncio.timeout(3.0):
+                        res = await self.run_sdk_command("get_time")
                     if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
                         self.heartbeat()
                         return True
                 elif hasattr(cmds, "get_bat"):
-                    res = await asyncio.wait_for(self.run_sdk_command("get_bat"), timeout=3.0)
+                    async with asyncio.timeout(3.0):
+                        res = await self.run_sdk_command("get_bat")
                     if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
                         self.heartbeat()
                         return True
                 elif hasattr(cmds, "send_device_query"):
-                    res = await asyncio.wait_for(self.run_sdk_command("send_device_query"), timeout=3.0)
+                    async with asyncio.timeout(3.0):
+                        res = await self.run_sdk_command("send_device_query")
                     if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
                         self.heartbeat()
                         return True
@@ -1018,13 +1023,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     await connection.send(data)
                     if data[0] == 19:  # Official reboot is fire-and-forget.
                         return True
-                    return bool(await asyncio.wait_for(pending, timeout=self.timeout_sec))
+                    async with asyncio.timeout(self.timeout_sec):
+                        return bool(await pending)
                 finally:
                     if not pending.done():
                         pending.cancel()
                     self._raw_command_future = None
                     self._raw_command_opcode = None
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logging.warning("Timeout de respuesta Companion raw (opcode=%s)", data[0])
             return False
         except Exception as e:
@@ -1629,7 +1635,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 if not isinstance(target_key, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", target_key):
                     raise ValueError("share_contact requiere una clave pública completa resuelta")
 
-                return await asyncio.wait_for(self.run_sdk_command("share_contact", target_key), timeout=10.0)
+                async with asyncio.timeout(10.0):
+                    return await self.run_sdk_command("share_contact", target_key)
             except Exception as e:
                 logging.warning(f"Error compartiendo contacto en radio: {e}")
                 return None
@@ -1657,7 +1664,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     if not isinstance(target_key, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", target_key):
                         raise ValueError("export_contact requiere una clave pública completa resuelta")
 
-                return await asyncio.wait_for(self.run_sdk_command("export_contact", target_key), timeout=10.0)
+                async with asyncio.timeout(10.0):
+                    return await self.run_sdk_command("export_contact", target_key)
             except Exception as e:
                 logging.warning(f"Error exportando contacto desde radio: {e}")
                 return None
@@ -1668,7 +1676,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "import_contact"):
             try:
-                return await asyncio.wait_for(self.run_sdk_command("import_contact", contact_data), timeout=10.0)
+                async with asyncio.timeout(10.0):
+                    return await self.run_sdk_command("import_contact", contact_data)
             except Exception as e:
                 logging.warning(f"Error importando contacto a radio: {e}")
                 return None

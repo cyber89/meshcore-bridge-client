@@ -103,7 +103,8 @@ class TracerouteExecutor:
                     raw_to = send_ev.payload.get("suggested_timeout")
                     if raw_to:
                         suggested_to = max(4.0, float(raw_to) / 800.0)
-                trace_ev = await asyncio.wait_for(trace_waiter, timeout=suggested_to)
+                async with asyncio.timeout(suggested_to):
+                    trace_ev = await trace_waiter
                 if trace_ev and hasattr(trace_ev, "payload") and isinstance(trace_ev.payload, dict):
                     trace_data_payload = trace_ev.payload
             if trace_data_payload is None:

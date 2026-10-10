@@ -400,17 +400,18 @@ async def safe_device_query(
 
     cmd = getattr(mc.commands, command_name)
     try:
-        if inspect.iscoroutinefunction(cmd):
-            res = await asyncio.wait_for(cmd(*args, **kwargs), timeout=timeout)
-        else:
-            def _call_sync() -> Any:
-                return cmd(*args, **kwargs)
-
-            coro_or_val = await asyncio.wait_for(asyncio.to_thread(_call_sync), timeout=timeout)
-            if asyncio.iscoroutine(coro_or_val):
-                res = await asyncio.wait_for(coro_or_val, timeout=timeout)
+        async with asyncio.timeout(timeout):
+            if inspect.iscoroutinefunction(cmd):
+                res = await cmd(*args, **kwargs)
             else:
-                res = coro_or_val
+                def _call_sync() -> Any:
+                    return cmd(*args, **kwargs)
+
+                coro_or_val = await asyncio.to_thread(_call_sync)
+                if asyncio.iscoroutine(coro_or_val):
+                    res = await coro_or_val
+                else:
+                    res = coro_or_val
         return res
     except Exception as e:
         logging.warning("Aviso ejecutando comando de radio '%s': %s", command_name, e)

@@ -14,7 +14,7 @@ import os
 import threading
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -694,7 +694,7 @@ class NodeContactInfo:
         if self.is_local or str(self.role).upper() == "LOCAL":
             presence_status = "online"
             status_label = "Local"
-            last_seen_iso = datetime.now(timezone.utc).isoformat()
+            last_seen_iso = datetime.now(UTC).isoformat()
             last_seen_formatted = "En línea (Local)"
             d["lqi_score"] = 100.0
             d["lqi_status"] = "EXCELLENT"

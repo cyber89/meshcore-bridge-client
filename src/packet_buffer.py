@@ -14,7 +14,7 @@ import struct
 import time
 from collections import deque
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -128,7 +128,7 @@ class PacketBuffer:
 
         self._counter += 1
         now_ts = time.time()
-        iso_time = datetime.now(timezone.utc).isoformat()
+        iso_time = datetime.now(UTC).isoformat()
 
         b_bytes = bytes(raw_bytes) if raw_bytes else b""
         if not b_bytes and text:
@@ -224,7 +224,7 @@ class PacketBuffer:
         export_bundle = {
             "version": "1.0",
             "generator": "MeshCore Bridge v3.0 LoRa Sniffer",
-            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "exported_at": datetime.now(UTC).isoformat(),
             "packet_count": len(packets),
             "packets": packets,
         }

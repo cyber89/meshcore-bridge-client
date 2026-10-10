@@ -53,7 +53,7 @@ if (Test-Path $VenvPython) {
     }
 
     if (-not $SystemPython) {
-        Write-Host "[ERROR] Python no fue encontrado en el PATH. Por favor instala Python 3.10+ desde python.org." -ForegroundColor Red
+        Write-Host "[ERROR] Python no fue encontrado en el PATH. Por favor instala Python 3.14.8+ desde python.org." -ForegroundColor Red
         exit 1
     }
 

@@ -15,7 +15,7 @@ import re
 import struct
 from dataclasses import asdict, dataclass
 from enum import IntEnum
-from typing import Any, Protocol
+from typing import Any, Protocol, Self
 
 # ================= Constantes de Protocolo =================
 
@@ -295,7 +295,7 @@ class FrameHeader:
         )
 
     @classmethod
-    def unpack(cls, data: bytes) -> FrameHeader:
+    def unpack(cls, data: bytes) -> Self:
         """Deserializa 9 bytes binarios a una instancia de FrameHeader."""
         if len(data) < HEADER_SIZE_BYTES:
             raise ValueError(f"Datos insuficientes para cabecera: {len(data)}B < {HEADER_SIZE_BYTES}B")
@@ -466,7 +466,7 @@ class TextMessagePayload:
         return struct.pack("<B16sB", self.channel_idx, alias_bytes, len(text_bytes)) + text_bytes
 
     @classmethod
-    def unpack(cls, data: bytes) -> TextMessagePayload:
+    def unpack(cls, data: bytes) -> Self:
         if len(data) < 18:
             raise ValueError(f"Payload de texto demasiado corto: {len(data)}B < 18B")
         ch_idx, alias_raw, text_len = struct.unpack("<B16sB", data[:18])
@@ -548,7 +548,7 @@ class AckPayload:
         return struct.pack("<BB", self.ack_seq_num, self.status_code)
 
     @classmethod
-    def unpack(cls, data: bytes) -> AckPayload:
+    def unpack(cls, data: bytes) -> Self:
         if len(data) != 2:
             raise ValueError(f"Longitud de ACK raw inválida: {len(data)}B != 2B")
         ack_seq, status = struct.unpack("<BB", data[:2])
@@ -687,7 +687,7 @@ def decode_path_hashes(
     return tuple(hashes), effective_count, bytes_per_hash
 
 
-ParsedPayload = (
+type ParsedPayload = (
     TextMessagePayload | NodeAdvertisement | AckPayload | TelemetryPayload | bytes
 )
 
@@ -725,7 +725,7 @@ class MeshcoreFrame:
         return bytes(escaped_stream)
 
     @classmethod
-    def parse_raw_packet(cls, unescaped_body: bytes, strict: bool = False) -> MeshcoreFrame:
+    def parse_raw_packet(cls, unescaped_body: bytes, strict: bool = False) -> Self:
         """Parsea una trama des-escapada (Header + Payload + CRC)."""
         if len(unescaped_body) < HEADER_SIZE_BYTES + CRC_SIZE_BYTES:
             raise ValueError(f"Trama truncada ({len(unescaped_body)}B)")

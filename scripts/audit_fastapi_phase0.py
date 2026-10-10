@@ -12,7 +12,7 @@ import json
 import re
 import zipfile
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.parser import BytesParser
 from pathlib import Path
 
@@ -183,7 +183,7 @@ def main() -> int:
     args = parser.parse_args()
     results = [audit_target(t, args.downloads, args.manifests) for t in TARGETS]
     report = {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "scope": "wheel hashes, filename/METADATA identity, target tags, pinned versions, Requires-Python and dependency markers",
         "download_index": "https://pypi.org/simple",
         "input_sha256": hashlib.sha256((args.manifests / "candidate.in").read_bytes()).hexdigest(),

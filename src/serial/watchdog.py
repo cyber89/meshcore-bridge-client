@@ -127,8 +127,9 @@ class SerialWatchdog:
                 if idle_sec > self.timeout_sec:
                     logging.debug(f"Watchdog Serial: Sin tráfico RF en {idle_sec:.1f}s. Comprobando respuesta del transceptor...")
                     try:
-                        is_alive = bool(await asyncio.wait_for(self.adapter.ping_or_check_alive(), timeout=10.0))
-                    except (asyncio.TimeoutError, Exception) as ping_err:
+                        async with asyncio.timeout(10.0):
+                            is_alive = bool(await self.adapter.ping_or_check_alive())
+                    except (TimeoutError, Exception) as ping_err:
                         is_alive = False
                         logging.warning(f"Watchdog Serial: Ping o comprobación de vivacidad falló: {ping_err}")
 

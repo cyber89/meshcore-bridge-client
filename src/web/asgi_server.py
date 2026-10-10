@@ -133,7 +133,7 @@ class _EmbeddedUvicornServer(Server):
         self.ready = asyncio.Event()
 
     @contextmanager
-    def capture_signals(self) -> Generator[None, None, None]:
+    def capture_signals(self) -> Generator[None]:
         """Leave installation, restoration and re-emission of signals to the core."""
         yield
 

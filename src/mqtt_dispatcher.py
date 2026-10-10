@@ -11,7 +11,7 @@ import logging
 import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import config
@@ -234,14 +234,15 @@ class MqttInboundDispatcher:
         )
 
         try:
-            res = await asyncio.wait_for(future, timeout=30.0)
+            async with asyncio.timeout(30.0):
+                res = await future
             status_payload = {
                 "status": res.get("status", "sent"),
                 "request_id": req_id,
                 "target": target,
                 "channel_idx": channel_idx,
                 "queue_depth": self._ctx.rate_limiter.get_queue_depth(),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             if "error" in res:
                 status_payload["error"] = res["error"]
@@ -253,7 +254,7 @@ class MqttInboundDispatcher:
                 status_payload["message"] = res["message"]
             self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logging.error("TX future timeout, activating diagnostic alert")
             status_payload = {
                 "status": "error",
@@ -261,7 +262,7 @@ class MqttInboundDispatcher:
                 "request_id": req_id,
                 "target": target,
                 "channel_idx": channel_idx,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
         except Exception as e:
@@ -272,14 +273,14 @@ class MqttInboundDispatcher:
                 "request_id": req_id,
                 "target": target,
                 "channel_idx": channel_idx,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
 
     def _reject_tx_input(self, error: str) -> None:
         self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps({
             "status": "error", "error": error,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }), qos=1)
 
     async def _handle_admin_request(self, payload_str: str) -> None:

@@ -21,7 +21,7 @@ WEB_DEPENDENCIES = (
     ("fastapi", "fastapi", (0, 143, 0)),
     ("uvicorn", "uvicorn", (0, 54, 0)),
     ("pydantic", "pydantic", (2, 14, 0)),
-    ("websockets", "websockets", (16, 1, 1)),
+    ("websockets", "websockets", (17, 2, 0)),
     ("starlette", "starlette", (1, 7, 0)),
     ("h11", "h11", (0, 16, 0)),
 )
@@ -47,8 +47,8 @@ def check_dependencies(
 ) -> list[str]:
     """Return all failures; importing one package never certifies another."""
     failures = []
-    if sys.version_info < (3, 10):  # noqa: UP036 - installer may select an unsupported host Python
-        failures.append("Python requiere >=3.10")
+    if sys.version_info < (3, 14, 8):
+        failures.append("Python requiere >=3.14.8")
     if dependencies is None:
         selected_profile = (
             profile if profile is not None else os.getenv("MESHCORE_PROFILE", "web")

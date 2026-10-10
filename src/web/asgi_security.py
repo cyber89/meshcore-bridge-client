@@ -231,8 +231,9 @@ class BridgeSecurityMiddleware:
                 self._abort_http(scope)
                 return None
             try:
-                message = await asyncio.wait_for(receive(), timeout=remaining)
-            except asyncio.TimeoutError:
+                async with asyncio.timeout(remaining):
+                    message = await receive()
+            except TimeoutError:
                 self._abort_http(scope)
                 return None
             if message["type"] == "http.disconnect":

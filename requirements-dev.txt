@@ -1,6 +1,6 @@
 # Herramientas de desarrollo, QA, auditoría de seguridad y E2E (NO requeridas en producción)
 # Instalar con: pip install -r requirements-dev.txt
-# Incluye producción para heredar su backend WS compatible con Python 3.10.
+# Incluye producción para heredar dependencias en Python >= 3.14.8.
 -r requirements.txt
 pytest==9.1.1
 pytest-asyncio==1.4.0

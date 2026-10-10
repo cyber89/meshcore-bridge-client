@@ -22,7 +22,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 # Añadir el directorio raíz al path de importación
@@ -590,7 +590,7 @@ class ExtremeMeshSimulation:
         # Generar reporte estructurado en Markdown
         report_md = rf"""# Reporte de Simulación Extrema de Red y Análisis de Logs
 
-**Fecha de Ejecución**: {datetime.now(timezone.utc).isoformat()}
+**Fecha de Ejecución**: {datetime.now(UTC).isoformat()}
 **Plataforma**: MeshCore Universal Bridge v3.0 Pro
 
 ---

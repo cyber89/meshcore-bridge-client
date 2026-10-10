@@ -18,7 +18,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.services_config import ExternalMqttConfig
@@ -133,7 +133,7 @@ class ExternalBridgeMQTTClient:
             "reason": "unexpected_disconnect",
             "gateway_id": self.local_pubkey or "gateway",
             "timestamp": int(time.time()),
-            "iso_time": datetime.now(timezone.utc).isoformat(),
+            "iso_time": datetime.now(UTC).isoformat(),
         })
         try:
             self.client.will_set(state_topic, lwt_payload, qos=1, retain=True)
@@ -187,7 +187,7 @@ class ExternalBridgeMQTTClient:
                     "reason": "graceful_shutdown",
                     "gateway_id": self.local_pubkey or "gateway",
                     "timestamp": int(time.time()),
-                    "iso_time": datetime.now(timezone.utc).isoformat(),
+                    "iso_time": datetime.now(UTC).isoformat(),
                 })
                 self.client.publish(state_topic, offline_payload, qos=0, retain=True)
             except Exception as e:
@@ -362,7 +362,7 @@ class ExternalBridgeMQTTClient:
         if self.config.payload_format == "analyzer_packet":
             msg_payload = {
                 "timestamp": int(time.time()),
-                "iso_time": datetime.now(timezone.utc).isoformat(),
+                "iso_time": datetime.now(UTC).isoformat(),
                 "gateway_id": self.local_pubkey or "gateway",
                 "region": self.config.region_iata,
                 "event": event_type,
@@ -382,7 +382,7 @@ class ExternalBridgeMQTTClient:
             if "timestamp" not in safe_data:
                 safe_data["timestamp"] = int(time.time())
             if "iso_time" not in safe_data:
-                safe_data["iso_time"] = datetime.now(timezone.utc).isoformat()
+                safe_data["iso_time"] = datetime.now(UTC).isoformat()
             safe_data["event"] = event_type
             safe_data["gateway_id"] = self.local_pubkey or "gateway"
             payload_str = json.dumps(safe_data, ensure_ascii=False)
@@ -464,7 +464,7 @@ class ExternalBridgeMQTTClient:
                 "gateway_id": self.local_pubkey or "gateway",
                 "region": self.config.region_iata,
                 "timestamp": int(time.time()),
-                "iso_time": datetime.now(timezone.utc).isoformat(),
+                "iso_time": datetime.now(UTC).isoformat(),
             })
             try:
                 self.client.publish(state_topic, online_payload, qos=1, retain=True)
@@ -617,8 +617,9 @@ class ExternalBridgeMQTTClient:
             client.loop_start()
 
             try:
-                await asyncio.wait_for(connected_event.wait(), timeout=timeout)
-            except asyncio.TimeoutError:
+                async with asyncio.timeout(timeout):
+                    await connected_event.wait()
+            except TimeoutError:
                 return {
                     "ok": False,
                     "error": f"Tiempo de espera agotado ({timeout}s) conectando a {host}:{port}.",

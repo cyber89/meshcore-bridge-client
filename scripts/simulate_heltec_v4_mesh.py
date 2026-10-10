@@ -12,7 +12,7 @@ import logging
 import math
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -92,7 +92,7 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
                         "metrics": {"rssi": node["rssi"], "snr": node["snr"]},
                         "hop_count": node["hops"],
                         "battery": node["battery"],
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     })
 
                 # 2. Tráfico Canal 1 (Operaciones Tácticas - Cifrado AES)
@@ -116,7 +116,7 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
                         "channel_index": 1,
                         "metrics": {"rssi": node["rssi"], "snr": node["snr"]},
                         "hop_count": node["hops"],
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     })
 
                 # 3. Tráfico Canal 3 (Emergencias Malla - Cifrado)
@@ -135,7 +135,7 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
                         "channel_index": 3,
                         "metrics": {"rssi": node["rssi"], "snr": node["snr"]},
                         "hop_count": node["hops"],
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     })
 
                 # 4. Mensajes Directos Punto a Punto (DMs)
@@ -158,7 +158,7 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
                         "text": dm_txt,
                         "metrics": {"rssi": node["rssi"], "snr": node["snr"]},
                         "hop_count": node["hops"],
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     })
 
                 # 5. Telemetría Ambiental CayenneLPP (Canal 2 / Sensores)
@@ -204,7 +204,7 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
             "raw_hex": raw_hex,
             "snr": round(8.0 + (int(time.time()) % 5), 1),
             "rssi": -70 - (int(time.time()) % 15),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         self._dispatch_event(sniff_event)
 
@@ -245,7 +245,7 @@ async def run_simulation(duration_sec: int = 15) -> None:
     async def logging_broadcast(event_data: dict[str, Any]) -> None:
         try:
             entry = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "event_type": event_data.get("type") or event_data.get("event_type") or "unknown",
                 "sender": event_data.get("sender") or event_data.get("recipient") or "system",
                 "details": event_data,

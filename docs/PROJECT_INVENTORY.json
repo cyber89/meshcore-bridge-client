@@ -1,6 +1,6 @@
-{
-  "generated_at_utc": "2026-10-10T04:06:51.123954+00:00",
-  "project_head": "e509da0128d802de288bbd9f2208d98786be9283",
+﻿{
+  "generated_at_utc": "2026-10-10T04:27:33.690587+00:00",
+  "project_head": "930823f81fefb1393a68841bcd044fa43111d5c2",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,7 +14,7 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 52,
+    "documents": 53,
     "references": 15,
     "source_files": 103,
     "project_skills": 22,
@@ -92,6 +92,12 @@
       "category": "maintained-or-decision",
       "sha256": "0481b011f7ae5fb389be14311439a2e55d0399840e5c891085fa3cb0c3e1dfa7",
       "lines": 48
+    },
+    {
+      "path": "docs/adr/0013-python-3-14-modernization.md",
+      "category": "maintained-or-decision",
+      "sha256": "8278e65b8e0b34b086742456614c7b9f2bca17e4721312f22eb4600c1a039f9a",
+      "lines": 55
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -276,7 +282,7 @@
     {
       "path": "docs/reference_analysis/03_CLI_AND_REPEATER_MANAGEMENT.md",
       "category": "maintained-or-decision",
-      "sha256": "c2401880c7f11e5c7531cf3dd1f563a9edae67a583e1cfa59a8a2851f414c14a",
+      "sha256": "852691a9091310e01e46a66fd83f312cf3340ca0d00306be97475bb88875a27a",
       "lines": 113
     },
     {
@@ -312,7 +318,7 @@
     {
       "path": "AGENTS.md",
       "category": "maintained-or-decision",
-      "sha256": "95e61e201ffbb76951b4ad1ddfb7254789a09ba35e6ccd6e5c2b717f3ef8720a",
+      "sha256": "3352c9b7fa4988cb587164cdee9e806398aad712ed40d7afac2b80cffea35683",
       "lines": 264
     },
     {
@@ -1175,7 +1181,7 @@
       "name": "api-design-testing",
       "path": ".agents/skills/api-design-testing/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  DiseÃ±o, especificaciÃ³n OpenAPI/Swagger, estÃ¡ndares RESTful (RFC 7807 Problem Details),\n  manejo estricto de cÃ³digos HTTP (200, 201, 204, 400, 401, 403, 404, 413, 422, 429),\n  idempotencia, CORS, OpenAPI 3.1, rate limiting y pruebas automatizadas de contratos.",
+      "description": ">-\n  Dise├▒o, especificaci├│n OpenAPI/Swagger, est├índares RESTful (RFC 7807 Problem Details),\n  manejo estricto de c├│digos HTTP (200, 201, 204, 400, 401, 403, 404, 413, 422, 429),\n  idempotencia, CORS, OpenAPI 3.1, rate limiting y pruebas automatizadas de contratos.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/api-design-testing/scripts/validate_api_contract.py"
@@ -1203,7 +1209,7 @@
       "name": "asyncio-profiler-leak-detector",
       "path": ".agents/skills/asyncio-profiler-leak-detector/SKILL.md",
       "ownership": "project",
-      "description": "Medir event-loop lag y asignaciones con tracemalloc en escenarios aislados; distinguir el benchmark sintÃ©tico del perfilado del servicio real.",
+      "description": "Medir event-loop lag y asignaciones con tracemalloc en escenarios aislados; distinguir el benchmark sint├⌐tico del perfilado del servicio real.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/asyncio-profiler-leak-detector/scripts/profile_async_health.py"
@@ -1223,7 +1229,7 @@
       "name": "clean-code-solid",
       "path": ".agents/skills/clean-code-solid/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  AuditorÃ­a y aplicaciÃ³n de principios SOLID, patrones de diseÃ±o GoF, reducciÃ³n de complejidad\n  ciclomÃ¡tica y detecciÃ³n de Code Smells (God Classes, Long Methods, Feature Envy, Primitive Obsession).",
+      "description": ">-\n  Auditor├¡a y aplicaci├│n de principios SOLID, patrones de dise├▒o GoF, reducci├│n de complejidad\n  ciclom├ítica y detecci├│n de Code Smells (God Classes, Long Methods, Feature Envy, Primitive Obsession).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/clean-code-solid/scripts/audit_architecture_contracts.py",
@@ -1242,7 +1248,7 @@
       "name": "contract-openapi-sync",
       "path": ".agents/skills/contract-openapi-sync/SKILL.md",
       "ownership": "project",
-      "description": "Revisar compatibilidad REST y WebSocket entre Python y la SPA de MeshCore Bridge; usar comparaciÃ³n lÃ©xica de rutas como seÃ±al parcial y pruebas aisladas para contratos reales.",
+      "description": "Revisar compatibilidad REST y WebSocket entre Python y la SPA de MeshCore Bridge; usar comparaci├│n l├⌐xica de rutas como se├▒al parcial y pruebas aisladas para contratos reales.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/contract-openapi-sync/scripts/verify_api_parity.py"
@@ -1260,7 +1266,7 @@
       "name": "distributed-mesh-simulation",
       "path": ".agents/skills/distributed-mesh-simulation/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  SimulaciÃ³n avanzada de redes de malla distribuidas e ingenierÃ­a del caos para LoRa/MeshCore.\n  Protocolos de pruebas de estrÃ©s multi-nodo, particiones de red, latencia por saltos,\n  inyecciÃ³n de tramas binarias corruptas, saturaciÃ³n de colas y anÃ¡lisis automatizado de logs.",
+      "description": ">-\n  Simulaci├│n avanzada de redes de malla distribuidas e ingenier├¡a del caos para LoRa/MeshCore.\n  Protocolos de pruebas de estr├⌐s multi-nodo, particiones de red, latencia por saltos,\n  inyecci├│n de tramas binarias corruptas, saturaci├│n de colas y an├ílisis automatizado de logs.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1268,7 +1274,7 @@
       "name": "domain-adr-keeper",
       "path": ".agents/skills/domain-adr-keeper/SKILL.md",
       "ownership": "project",
-      "description": "Mantener CONTEXT.md y ADRs coherentes con invariantes y capacidades implementadas; conservar decisiones histÃ³ricas y registrar discrepancias explÃ­citas.",
+      "description": "Mantener CONTEXT.md y ADRs coherentes con invariantes y capacidades implementadas; conservar decisiones hist├│ricas y registrar discrepancias expl├¡citas.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/domain-adr-keeper/scripts/audit_domain_adr.py"
@@ -1278,7 +1284,7 @@
       "name": "gof-design-patterns-expert",
       "path": ".agents/skills/gof-design-patterns-expert/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  CatÃ¡logo y directrices de implementaciÃ³n de patrones de diseÃ±o clÃ¡sicos (GoF) y micro-patrones\n  en Python moderno: Strategy, Factory Method, Adapter, Observer, Command, State Machine,\n  Facade, Builder y Object Pool.",
+      "description": ">-\n  Cat├ílogo y directrices de implementaci├│n de patrones de dise├▒o cl├ísicos (GoF) y micro-patrones\n  en Python moderno: Strategy, Factory Method, Adapter, Observer, Command, State Machine,\n  Facade, Builder y Object Pool.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/gof-design-patterns-expert/scripts/analyze_design_patterns.py"
@@ -1288,7 +1294,7 @@
       "name": "html-css-modern-js",
       "path": ".agents/skills/html-css-modern-js/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  EstÃ¡ndares de frontend moderno: HTML5 semÃ¡ntico (header, nav, main, section, aside),\n  CSS moderno (Flexbox, CSS Grid, Custom Properties, clamp()), y JavaScript ES6-ES2024\n  (async/await, AbortController, WebSocket auto-reconnect, CustomEvents, sanitizaciÃ³n DOM).",
+      "description": ">-\n  Est├índares de frontend moderno: HTML5 sem├íntico (header, nav, main, section, aside),\n  CSS moderno (Flexbox, CSS Grid, Custom Properties, clamp()), y JavaScript ES6-ES2024\n  (async/await, AbortController, WebSocket auto-reconnect, CustomEvents, sanitizaci├│n DOM).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/html-css-modern-js/scripts/lint_frontend_standards.py"
@@ -1306,7 +1312,7 @@
       "name": "installer-release-maintenance",
       "path": ".agents/skills/installer-release-maintenance/SKILL.md",
       "ownership": "project",
-      "description": "Revisar o mantener instaladores raÃ­z, servicio systemd y publicaciÃ³n Git de MeshCore Bridge; comprobar rutas, entorno Python y cÃ³digos de salida antes de ejecutar cambios autorizados.",
+      "description": "Revisar o mantener instaladores ra├¡z, servicio systemd y publicaci├│n Git de MeshCore Bridge; comprobar rutas, entorno Python y c├│digos de salida antes de ejecutar cambios autorizados.",
       "ui_metadata": ".agents/skills/installer-release-maintenance/agents/openai.yaml",
       "scripts": []
     },
@@ -1314,7 +1320,7 @@
       "name": "lora-frame-validator",
       "path": ".agents/skills/lora-frame-validator/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Herramienta de anÃ¡lisis, cÃ¡lculo y verificaciÃ³n de tramas binarias de protocolo LoRa/MeshCore.\n  Permite validar delimitaciÃ³n SOF/EOF, secuencias de escape (byte stuffing) y calcular\n  mÃºltiples algoritmos de CRC (CRC-CCITT, CRC-16-IBM, CRC-32, Fletcher-16, XOR). Usar para\n  validar capturas de tramas UART/LoRa reales o depurar serializadores/deserializadores.",
+      "description": ">-\n  Herramienta de an├ílisis, c├ílculo y verificaci├│n de tramas binarias de protocolo LoRa/MeshCore.\n  Permite validar delimitaci├│n SOF/EOF, secuencias de escape (byte stuffing) y calcular\n  m├║ltiples algoritmos de CRC (CRC-CCITT, CRC-16-IBM, CRC-32, Fletcher-16, XOR). Usar para\n  validar capturas de tramas UART/LoRa reales o depurar serializadores/deserializadores.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/lora-frame-validator/scripts/validate_frame.py"
@@ -1324,7 +1330,7 @@
       "name": "lora-packet-simulator",
       "path": ".agents/skills/lora-packet-simulator/SKILL.md",
       "ownership": "project",
-      "description": "Reproducir escenarios virtuales y regresiones MeshCore sin hardware; no sustituye la interoperabilidad con radio oficial ni incluye replay PCAP genÃ©rico.",
+      "description": "Reproducir escenarios virtuales y regresiones MeshCore sin hardware; no sustituye la interoperabilidad con radio oficial ni incluye replay PCAP gen├⌐rico.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/lora-packet-simulator/scripts/simulate_virtual_mesh.py"
@@ -1334,7 +1340,7 @@
       "name": "meshcore-source-inspector",
       "path": ".agents/skills/meshcore-source-inspector/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Herramienta especializada para analizar el cÃ³digo fuente de referencia en C/C++ y Python\n  de MeshCore (/reference/). Extrae structs binarios, enums, constantes de framing (#define)\n  y algoritmos de CRC sin saturar la ventana de contexto. Usar cuando se requiera investigar\n  tipos, formatos de tramas o layouts de memoria del firmware.",
+      "description": ">-\n  Herramienta especializada para analizar el c├│digo fuente de referencia en C/C++ y Python\n  de MeshCore (/reference/). Extrae structs binarios, enums, constantes de framing (#define)\n  y algoritmos de CRC sin saturar la ventana de contexto. Usar cuando se requiera investigar\n  tipos, formatos de tramas o layouts de memoria del firmware.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/meshcore-source-inspector/scripts/inspect_meshcore_ast.py"
@@ -1344,7 +1350,7 @@
       "name": "project-reference-audit",
       "path": ".agents/skills/project-reference-audit/SKILL.md",
       "ownership": "project",
-      "description": "Inventariar y verificar documentaciÃ³n y procedencia de referencias de MeshCore Bridge; contrastar afirmaciones con el checkout y parsers oficiales sin arrancar servicios.",
+      "description": "Inventariar y verificar documentaci├│n y procedencia de referencias de MeshCore Bridge; contrastar afirmaciones con el checkout y parsers oficiales sin arrancar servicios.",
       "ui_metadata": ".agents/skills/project-reference-audit/agents/openai.yaml",
       "scripts": []
     },
@@ -1362,7 +1368,7 @@
       "name": "refactoring-clean-architecture",
       "path": ".agents/skills/refactoring-clean-architecture/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  CatÃ¡logo de tÃ©cnicas de refactorizaciÃ³n de Martin Fowler, mÃ©tricas de calidad de cÃ³digo\n  (complejidad ciclomÃ¡tica de McCabe, longitud de mÃ©todos, acoplamiento aferente/eferente)\n  y principios de Clean Architecture.",
+      "description": ">-\n  Cat├ílogo de t├⌐cnicas de refactorizaci├│n de Martin Fowler, m├⌐tricas de calidad de c├│digo\n  (complejidad ciclom├ítica de McCabe, longitud de m├⌐todos, acoplamiento aferente/eferente)\n  y principios de Clean Architecture.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/refactoring-clean-architecture/scripts/evaluate_refactoring_metrics.py"
@@ -1372,7 +1378,7 @@
       "name": "security-code-auditor",
       "path": ".agents/skills/security-code-auditor/SKILL.md",
       "ownership": "project",
-      "description": "Auditar entradas, secretos, permisos y lÃ­mites de MeshCore Bridge con evidencia de cÃ³digo y regresiones aisladas; distinguir heurÃ­sticas de pruebas de seguridad.",
+      "description": "Auditar entradas, secretos, permisos y l├¡mites de MeshCore Bridge con evidencia de c├│digo y regresiones aisladas; distinguir heur├¡sticas de pruebas de seguridad.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/security-code-auditor/scripts/run_security_audit.py"
@@ -1382,7 +1388,7 @@
       "name": "software-architecture-patterns",
       "path": ".agents/skills/software-architecture-patterns/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  EstÃ¡ndares y directrices para Arquitectura Hexagonal (Ports & Adapters), Arquitectura Dirigida\n  por Eventos (EDA), Domain-Driven Design (DDD), CQRS, State Machines y Patrones de Resiliencia\n  (Circuit Breaker, Exponential Backoff, Bulkhead, Fallback).",
+      "description": ">-\n  Est├índares y directrices para Arquitectura Hexagonal (Ports & Adapters), Arquitectura Dirigida\n  por Eventos (EDA), Domain-Driven Design (DDD), CQRS, State Machines y Patrones de Resiliencia\n  (Circuit Breaker, Exponential Backoff, Bulkhead, Fallback).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/software-architecture-patterns/scripts/audit_architecture.py"
@@ -1408,7 +1414,7 @@
       "name": "tgrep-code-search",
       "path": ".agents/skills/tgrep-code-search/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Motor de bÃºsqueda indexada por trigramas de alto rendimiento (microsoft/tgrep).\n  Permite realizar bÃºsquedas regex ultra-rÃ¡pidas (segÃºn Ã­ndice y carga) en miles de archivos del\n  repositorio, bases de cÃ³digo C/C++ de referencia (/reference/) y mÃ³dulos del bridge.",
+      "description": ">-\n  Motor de b├║squeda indexada por trigramas de alto rendimiento (microsoft/tgrep).\n  Permite realizar b├║squedas regex ultra-r├ípidas (seg├║n ├¡ndice y carga) en miles de archivos del\n  repositorio, bases de c├│digo C/C++ de referencia (/reference/) y m├│dulos del bridge.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1416,7 +1422,7 @@
       "name": "ui-ux-pro-max",
       "path": ".agents/skills/ui-ux-pro-max/SKILL.md",
       "ownership": "vendor",
-      "description": ">-\n  Inteligencia de diseÃ±o UI/UX para web, mÃ³vil y escritorio. Sistema integral de diseÃ±o con 79 estilos (50 activos),\n  192 paletas de color con perfiles de razonamiento, 74 emparejamientos tipogrÃ¡ficos, 119 reglas de experiencia de usuario (UX),\n  105 iconos curados, 17 presets de animaciÃ³n y 25 tipos de grÃ¡ficos sin dependencias pesadas.",
+      "description": ">-\n  Inteligencia de dise├▒o UI/UX para web, m├│vil y escritorio. Sistema integral de dise├▒o con 79 estilos (50 activos),\n  192 paletas de color con perfiles de razonamiento, 74 emparejamientos tipogr├íficos, 119 reglas de experiencia de usuario (UX),\n  105 iconos curados, 17 presets de animaci├│n y 25 tipos de gr├íficos sin dependencias pesadas.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1432,7 +1438,7 @@
       "name": "web-browser-inspection",
       "path": ".agents/skills/web-browser-inspection/SKILL.md",
       "ownership": "project",
-      "description": "Inspeccionar la SPA con Playwright autorizado, servidor virtual propio y capturas desktop/mobile; no usar una estaciÃ³n operativa como fixture.",
+      "description": "Inspeccionar la SPA con Playwright autorizado, servidor virtual propio y capturas desktop/mobile; no usar una estaci├│n operativa como fixture.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1440,7 +1446,7 @@
       "name": "web-ui-design-system",
       "path": ".agents/skills/web-ui-design-system/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  DiseÃ±o visual de interfaces de grado profesional: Sistema de tokens de diseÃ±o, paletas armÃ³nicas HSL,\n  escala tipogrÃ¡fica fluida (clamp), grilla espacial de 8pt, contraste accesible WCAG 2.2 AA (al menos 4.5:1),\n  micro-animaciones y soporte responsivo desktop/mobile.",
+      "description": ">-\n  Dise├▒o visual de interfaces de grado profesional: Sistema de tokens de dise├▒o, paletas arm├│nicas HSL,\n  escala tipogr├ífica fluida (clamp), grilla espacial de 8pt, contraste accesible WCAG 2.2 AA (al menos 4.5:1),\n  micro-animaciones y soporte responsivo desktop/mobile.",
       "ui_metadata": null,
       "scripts": []
     }

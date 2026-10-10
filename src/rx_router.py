@@ -13,7 +13,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 from typing import Any, Protocol
 
@@ -810,9 +810,8 @@ class RxEventRouter:
                 return
             try:
                 if callable(getattr(ser, "run_sdk_command", None)):
-                    result = await asyncio.wait_for(
-                        ser.run_sdk_command("get_contact_by_key", bytes.fromhex(target_key)), timeout=4.0,
-                    )
+                    async with asyncio.timeout(4.0):
+                        result = await ser.run_sdk_command("get_contact_by_key", bytes.fromhex(target_key))
                 else:
                     result = await safe_device_query(
                         ser.mc, "get_contact_by_key", bytes.fromhex(target_key), timeout=4.0,
@@ -912,7 +911,7 @@ class RxEventRouter:
         else:
             is_cmd_response = is_command_or_system_message(msg.text, msg.txt_type)
 
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
 
         if is_cmd_response:
             admin = getattr(self._ctx, "admin_handler", None)
@@ -1157,7 +1156,7 @@ class RxEventRouter:
             if isinstance(v, (bytes, bytearray)):
                 payload_dict[k] = bytes(v).hex()
 
-        payload_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
+        payload_dict["timestamp"] = datetime.now(UTC).isoformat()
         evt_json = json.dumps(payload_dict, sort_keys=True)
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
         if any(k in payload_dict for k in ("battery", "battery_pct", "battery_mv", "voltage", "voltage_v", "temperature", "temperature_c", "humidity_pct", "pressure_hpa", "solar_v")):

@@ -10,7 +10,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import config
@@ -69,7 +69,7 @@ class HealthReporter:
             "total_tx_packets": self._ctx.counters.tx_count,
             "total_tx_errors": self._ctx.counters.tx_error_count,
             "total_processing_errors": self._ctx.counters.err_count,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     async def _loop(self) -> None:

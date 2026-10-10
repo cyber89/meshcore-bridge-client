@@ -256,7 +256,7 @@ class WebSocketHub:
             _, pending = await asyncio.wait({send_task}, timeout=WS_SEND_TIMEOUT_SEC)
             if pending:
                 send_task.cancel()
-                raise asyncio.TimeoutError
+                raise TimeoutError
             if send_task.cancelled() and not self.running:
                 # Shutdown cancelled this hub's child, not the bridge caller.
                 return

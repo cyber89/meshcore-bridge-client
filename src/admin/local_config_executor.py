@@ -86,7 +86,8 @@ class LocalConfigExecutor:
         self._fetch_lock = asyncio.Lock()
 
     async def _write_device(self, mc: Any, command: str, *args: Any, timeout: float = 3.0, **kwargs: Any) -> Any:
-        response = await asyncio.wait_for(run_sdk_command(self._ctx, mc, command, *args, **kwargs), timeout=timeout)
+        async with asyncio.timeout(timeout):
+            response = await run_sdk_command(self._ctx, mc, command, *args, **kwargs)
         return require_success(response, command)
 
     async def _query_device(self, mc: Any, command: str, *args: Any, timeout: float = 3.0, **kwargs: Any) -> Any:
@@ -496,7 +497,7 @@ class LocalConfigExecutor:
         mc = self._ctx.mc_provider()
         try:
             await self._write_device(mc, "set_time", ts, timeout=3.0)
-        except (RuntimeError, NotImplementedError, ConnectionError, asyncio.TimeoutError) as error:
+        except (TimeoutError, RuntimeError, NotImplementedError, ConnectionError) as error:
             return {"status": "error", "message": str(error)}
 
         self._local_config["clock"] = time.strftime("%I:%M:%S %p", time.localtime(ts))

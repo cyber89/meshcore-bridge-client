@@ -17,6 +17,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
 import config
@@ -1137,8 +1138,8 @@ class RepeaterAdminExecutor:
                     if len(clock_bytes) < 4:
                         raise ValueError("Respuesta RTC incompleta")
                     ts_int = int.from_bytes(clock_bytes[:4], byteorder="little")
-                    from datetime import datetime, timezone
-                    dt = datetime.fromtimestamp(ts_int, timezone.utc)
+                    from datetime import datetime
+                    dt = datetime.fromtimestamp(ts_int, UTC)
                     clock_str = dt.strftime("%H:%M - %d/%m/%Y UTC")
                     rf_ctx.res.update({
                         "status": "ok",

@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,7 +136,7 @@ def inventory() -> dict[str, object]:
               if path.is_file() and path.suffix in {".py", ".js", ".css", ".html"}
               and "__pycache__" not in path.parts]
     return {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "project_head": git_value(ROOT, "rev-parse", "HEAD"),
         "project_branch": git_value(ROOT, "branch", "--show-current"),
         "project_origin": git_value(ROOT, "remote", "get-url", "origin"),

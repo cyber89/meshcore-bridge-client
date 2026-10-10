@@ -76,8 +76,9 @@ class MeshCoreCompanionServer:
         if self.server:
             self.server.close()
             try:
-                await asyncio.wait_for(self.server.wait_closed(), timeout=1.0)
-            except (asyncio.TimeoutError, Exception):
+                async with asyncio.timeout(1.0):
+                    await self.server.wait_closed()
+            except (TimeoutError, Exception):
                 pass
             self.server = None
 
@@ -95,19 +96,18 @@ class MeshCoreCompanionServer:
                 task.cancel()
         if self._client_tasks:
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(*self._client_tasks, return_exceptions=True),
-                    timeout=1.0,
-                )
-            except (asyncio.TimeoutError, Exception):
+                async with asyncio.timeout(1.0):
+                    await asyncio.gather(*self._client_tasks, return_exceptions=True)
+            except (TimeoutError, Exception):
                 pass
             self._client_tasks.clear()
 
         # 3. Drenar wait_closed con timeout breve de protección
         for writer in list(self.active_clients):
             try:
-                await asyncio.wait_for(writer.wait_closed(), timeout=0.3)
-            except (asyncio.TimeoutError, Exception):
+                async with asyncio.timeout(0.3):
+                    await writer.wait_closed()
+            except (TimeoutError, Exception):
                 pass
         self.active_clients.clear()
         logging.info("Servidor TCP Companion MeshCore detenido.")
@@ -153,8 +153,9 @@ class MeshCoreCompanionServer:
                     dead_writers.append(writer)
                     continue
                 writer.write(pkt)
-                await asyncio.wait_for(writer.drain(), timeout=2.0)
-            except asyncio.TimeoutError:
+                async with asyncio.timeout(2.0):
+                    await writer.drain()
+            except TimeoutError:
                 dead_writers.append(writer)
                 continue
             except Exception as e:
@@ -183,7 +184,8 @@ class MeshCoreCompanionServer:
             if writer.transport.get_write_buffer_size() > 65536:
                 raise Exception("Write buffer exceeded")
             writer.write(pkt)
-            await asyncio.wait_for(writer.drain(), timeout=2.0)
+            async with asyncio.timeout(2.0):
+                await writer.drain()
         except Exception as e:
             logging.debug(f"Error enviando trama a cliente TCP: {e}")
             self.active_clients.discard(writer)
@@ -194,7 +196,8 @@ class MeshCoreCompanionServer:
         """Cierra el writer TCP y espera la liberación ordenada de descriptores de archivo."""
         try:
             writer.close()
-            await asyncio.wait_for(writer.wait_closed(), timeout=0.5)
+            async with asyncio.timeout(0.5):
+                await writer.wait_closed()
         except Exception:
             pass
 
@@ -241,7 +244,8 @@ class MeshCoreCompanionServer:
                 writer.write(b"AUTH_REQUIRED\n")
                 await writer.drain()
                 try:
-                    auth_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
+                    async with asyncio.timeout(5.0):
+                        auth_line = await reader.readline()
                     received_token = auth_line.decode("utf-8", errors="ignore").strip()
                     if not hmac.compare_digest(received_token, f"TOKEN:{token}"):
                         SecurityTrafficInspector.log_suspicious_traffic(
@@ -255,12 +259,13 @@ class MeshCoreCompanionServer:
                         )
                         writer.write(b"AUTH_FAILED\n")
                         try:
-                            await asyncio.wait_for(writer.drain(), timeout=1.0)
+                            async with asyncio.timeout(1.0):
+                                await writer.drain()
                         except Exception:
                             pass
                         await self._safe_close_writer(writer)
                         return
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     SecurityTrafficInspector.log_suspicious_traffic(
                         SuspiciousTrafficEvent(
                             client_ip=peer_ip,
@@ -272,7 +277,8 @@ class MeshCoreCompanionServer:
                     )
                     writer.write(b"AUTH_FAILED\n")
                     try:
-                        await asyncio.wait_for(writer.drain(), timeout=1.0)
+                        async with asyncio.timeout(1.0):
+                            await writer.drain()
                     except Exception:
                         pass
                     await self._safe_close_writer(writer)

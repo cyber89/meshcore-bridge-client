@@ -12,7 +12,7 @@ import logging
 import signal
 import time
 from collections.abc import Callable, Coroutine
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol, cast
 
@@ -286,9 +286,10 @@ class MeshCoreBridge:
                 try:
                     future = await self.rate_limiter.submit(payload=payload, priority=TxPriority.NORMAL,
                                                            target=target, channel_idx=channel_idx)
-                    result = await asyncio.wait_for(future, timeout=timeout)
+                    async with asyncio.timeout(timeout):
+                        result = await future
                     return isinstance(result, dict) and str(result.get("status", "")).lower() in ("sent", "ok", "success")
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logging.warning("Timeout esperando confirmación de transmisión chat TCP en rate limiter", extra={"skip_broadcast": True})
                     return False
                 except Exception:
@@ -671,7 +672,8 @@ class MeshCoreBridge:
         dispatcher = getattr(self, "mqtt_dispatcher", None)
         if dispatcher is not None:
             try:
-                await asyncio.wait_for(dispatcher.close(), timeout=1.5)
+                async with asyncio.timeout(1.5):
+                    await dispatcher.close()
             except Exception:
                 logging.warning("MQTT ingress shutdown did not complete within existing shutdown bound")
 
@@ -679,8 +681,9 @@ class MeshCoreBridge:
         if cleanup_task is not None and not cleanup_task.done():
             cleanup_task.cancel()
             try:
-                await asyncio.wait_for(cleanup_task, timeout=0.5)
-            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                async with asyncio.timeout(0.5):
+                    await cleanup_task
+            except (asyncio.CancelledError, TimeoutError, Exception):
                 pass
             self._cleanup_task = None
 
@@ -692,8 +695,9 @@ class MeshCoreBridge:
         if owned:
             # Reuse the existing per-subsystem shutdown bound.
             try:
-                await asyncio.wait_for(asyncio.gather(*owned, return_exceptions=True), timeout=1.5)
-            except asyncio.TimeoutError:
+                async with asyncio.timeout(1.5):
+                    await asyncio.gather(*owned, return_exceptions=True)
+            except TimeoutError:
                 logging.warning("Timeout al detener tareas background", extra={"skip_broadcast": True})
             self._background_tasks.difference_update(task for task in owned if task.done())
 
@@ -717,8 +721,9 @@ class MeshCoreBridge:
             if coro is None:
                 continue
             try:
-                await asyncio.wait_for(coro, timeout=1.5)
-            except asyncio.TimeoutError:
+                async with asyncio.timeout(1.5):
+                    await coro
+            except TimeoutError:
                 logging.warning(f"Timeout (1.5s) al detener subsistema '{subsystem_name}'.")
             except Exception as e:
                 logging.error("Error deteniendo %s: %s", subsystem_name, type(e).__name__)
@@ -726,16 +731,18 @@ class MeshCoreBridge:
         # Persistir libreta de contactos y métricas de nodos de forma no bloqueante
         try:
             if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
-                await asyncio.wait_for(asyncio.to_thread(self.node_registry.save_to_file, None, True), timeout=1.0)
-        except (asyncio.TimeoutError, Exception) as e:
+                async with asyncio.timeout(1.0):
+                    await asyncio.to_thread(self.node_registry.save_to_file, None, True)
+        except (TimeoutError, Exception) as e:
             logging.debug("Error o timeout guardando NodeRegistry al detener: %s", type(e).__name__)
 
         sm_instance = getattr(self, "services_manager", None)
         if sm_instance is None or getattr(sm_instance, "local_mqtt", None) is not getattr(self, "mqtt", None):
             if hasattr(self, "mqtt") and self.mqtt is not None and hasattr(self.mqtt, "stop"):
                 try:
-                    await asyncio.wait_for(asyncio.to_thread(self.mqtt.stop), timeout=1.5)
-                except (asyncio.TimeoutError, Exception) as e:
+                    async with asyncio.timeout(1.5):
+                        await asyncio.to_thread(self.mqtt.stop)
+                except (TimeoutError, Exception) as e:
                     logging.warning("Error o timeout deteniendo cliente MQTT: %s", type(e).__name__)
 
         if hasattr(self, "log_handler") and self.log_handler in logging.getLogger().handlers:
@@ -743,7 +750,8 @@ class MeshCoreBridge:
         manager = getattr(self, "repeater_manager", None)
         if manager is not None:
             try:
-                await asyncio.wait_for(manager.close(), timeout=1.5)
+                async with asyncio.timeout(1.5):
+                    await manager.close()
             except Exception:
                 logging.warning("Repeater cooldown persistence did not complete at shutdown")
         if hasattr(self, "_pending_acks"):
@@ -953,7 +961,7 @@ class MeshCoreBridge:
             "target": target,
             "channel_idx": ch_idx,
             "expected_ack": expected_ack_hex,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         if error_detail:
             ack_payload["error"] = error_detail
@@ -1150,8 +1158,9 @@ class MeshCoreBridge:
 
             async def _async_shutdown() -> None:
                 try:
-                    await asyncio.wait_for(self.stop(), timeout=5.0)
-                except asyncio.TimeoutError:
+                    async with asyncio.timeout(5.0):
+                        await self.stop()
+                except TimeoutError:
                     logging.warning("Timeout global (5.0s) en self.stop() durante apagado por señal.")
                 finally:
                     loop.stop()
@@ -1172,20 +1181,27 @@ class MeshCoreBridge:
         except (KeyboardInterrupt, SystemExit):
             logging.info("Interrupción por usuario recibida.")
         finally:
+            async def _final_stop() -> None:
+                async with asyncio.timeout(3.0):
+                    await self.stop()
+
             try:
-                loop.run_until_complete(asyncio.wait_for(self.stop(), timeout=3.0))
-            except (asyncio.TimeoutError, Exception):
+                loop.run_until_complete(_final_stop())
+            except (TimeoutError, Exception):
                 pass
 
             pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
             if pending:
                 for task in pending:
                     task.cancel()
+
+                async def _cancel_pending() -> None:
+                    async with asyncio.timeout(2.0):
+                        await asyncio.gather(*pending, return_exceptions=True)
+
                 try:
-                    loop.run_until_complete(
-                        asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=2.0)
-                    )
-                except (asyncio.TimeoutError, Exception):
+                    loop.run_until_complete(_cancel_pending())
+                except (TimeoutError, Exception):
                     pass
 
             try:

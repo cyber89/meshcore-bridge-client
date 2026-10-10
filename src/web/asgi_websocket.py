@@ -128,16 +128,14 @@ class BridgeWebSocketProtocol(WebSocketsSansIOProtocol):
         try:
             # Native control-frame writes already allow two seconds. Writable
             # wait is ASGI flow control, not an asserted StreamWriter.drain match.
-            await asyncio.wait_for(
-                self.writable.wait(), timeout=max(0.0, deadline - self.loop.time())
-            )
+            async with asyncio.timeout(max(0.0, deadline - self.loop.time())):
+                await self.writable.wait()
             if self.close_sent or self.disconnected:
                 return
             self.conn.send_ping(b"")
             self.transport.write(b"".join(self.conn.data_to_send()))
-            await asyncio.wait_for(
-                self.writable.wait(), timeout=max(0.0, deadline - self.loop.time())
-            )
+            async with asyncio.timeout(max(0.0, deadline - self.loop.time())):
+                await self.writable.wait()
         except asyncio.CancelledError:
             raise
         except Exception:

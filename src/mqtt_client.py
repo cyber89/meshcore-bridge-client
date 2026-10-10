@@ -15,7 +15,7 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import config
@@ -123,7 +123,7 @@ class AsyncBridgeMQTTClient:
 
         lwt_payload = json.dumps({
             "status": "offline",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "reason": "unexpected_disconnect",
         })
         self.client.will_set(self.topic_state, lwt_payload, qos=1, retain=True)
@@ -156,7 +156,7 @@ class AsyncBridgeMQTTClient:
                 offline_payload = json.dumps({
                     "status": "offline",
                     "reason": "graceful_shutdown",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 })
                 self.client.publish(self.topic_state, offline_payload, qos=0, retain=True)
             except Exception as e:
@@ -240,7 +240,7 @@ class AsyncBridgeMQTTClient:
             online_payload = json.dumps({
                 "status": "online",
                 "timestamp": int(time.time()),
-                "iso_time": datetime.now(timezone.utc).isoformat(),
+                "iso_time": datetime.now(UTC).isoformat(),
             })
             self.client.publish(self.topic_state, online_payload, qos=1, retain=True)
 

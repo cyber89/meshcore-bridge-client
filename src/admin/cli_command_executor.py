@@ -470,7 +470,8 @@ class CliCommandExecutor:
         actual_mc = mc if mc is not None else cfg_or_mc
         now_ts = int(time.time())
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-        result = await asyncio.wait_for(run_sdk_command(self._ctx, actual_mc, "set_time", now_ts), timeout=3.0)
+        async with asyncio.timeout(3.0):
+            result = await run_sdk_command(self._ctx, actual_mc, "set_time", now_ts)
         require_success(result, "set_time")
         self._local_config["clock"] = time.strftime("%I:%M:%S %p", time.localtime(now_ts))
         self._local_config["device_epoch_time"] = now_ts
