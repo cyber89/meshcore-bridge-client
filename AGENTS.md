@@ -247,6 +247,7 @@ Ejecutar obligatoriamente cuando la feature a implementar involucre:
 
 ## 6. Documentación, herramientas y evidencia
 
+- **English-only README and installers (effective 2026-10-10)**: The root `README.md` and all installation scripts, including `install.sh` and `install.ps1`, must use English for all prose, headings, comments, help text, prompts, status/error messages, and example comments. Apply this rule to future edits and new installation scripts. Preserve configuration keys, command names, file paths, and other identifiers. This rule does not change the language of the application UI or other technical documents.
 - Índice y autoridad documental: `docs/README.md`. `CONTEXT.md` define el dominio; firmware/SDK oficiales definen el protocolo; el código actual determina qué capacidades están implementadas. Registrar discrepancias explícitamente sin presentar propuestas como comportamiento existente.
 - No recrear `deploy/` ni `scripts/sync_deploy.py`: se retiraron el 2026-09-25. Los instaladores vigentes están en la raíz.
 - Skills propias: `.agents/README.md`; los paquetes de terceros `archify` y `ui-ux-pro-max` conservan su procedencia. No actualizar paquetes, herramientas globales o referencias oficiales indiscriminadamente.

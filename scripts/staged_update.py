@@ -37,10 +37,10 @@ def prepare(source: Path, target: Path) -> Path:
     """Copy a complete independent release before the caller stops anything."""
     source, target = source.resolve(), target.resolve()
     if not target.is_dir() or target.parent == target:
-        raise ValueError("Destino debe ser una instalación existente y no la raíz")
+        raise ValueError("Target must be an existing installation, not a filesystem root")
     for relative in REQUIRED:
         if not (source / relative).is_file():
-            raise ValueError(f"Release incompleto: {relative}")
+            raise ValueError(f"Incomplete release: {relative}")
     stage = Path(tempfile.mkdtemp(prefix=".meshcore-stage-", dir=target.parent))
     try:
         release = stage / "release"
@@ -67,20 +67,20 @@ def _state(stage: Path) -> UpdateState:
     stage = stage.resolve()
     decoded = json.loads((stage / MARKER).read_text(encoding="utf-8"))
     if not isinstance(decoded, dict) or not isinstance(decoded.get("target"), str):
-        raise ValueError("Journal de actualización inválido")
+        raise ValueError("Invalid update journal")
     state = cast(UpdateState, decoded)
     original_target = Path(state["target"])
     if not original_target.is_absolute() or original_target.is_symlink():
-        raise ValueError("Destino de journal debe ser absoluto y no symlink")
+        raise ValueError("Journal target must be an absolute path, not a symlink")
     target = original_target.resolve()
     if not target.is_dir() or target.parent == target:
-        raise ValueError("Destino de journal debe ser una instalación y no raíz")
+        raise ValueError("Journal target must be an installation, not a filesystem root")
     if not stage.name.startswith(".meshcore-stage-") or stage.parent != target.parent or stage == target:
-        raise ValueError("Directorio staging no pertenece al destino verificado")
+        raise ValueError("Staging directory does not belong to the verified target")
     for key in ("moved", "installed"):
         entries = decoded.get(key)
         if not isinstance(entries, list) or any(not isinstance(item, str) or item not in COMPONENTS for item in entries):
-            raise ValueError("Componente de rollback inválido")
+            raise ValueError("Invalid rollback component")
     return state
 
 
@@ -96,7 +96,7 @@ def apply(stage: Path) -> None:
     moved = list(state["moved"])
     installed = list(state["installed"])
     if moved or installed:
-        raise ValueError("Staging ya aplicado; completar o revertir antes de repetir")
+        raise ValueError("Staging already applied; finish or roll back before retrying")
     try:
         for component in COMPONENTS:
             candidate = stage / "release" / component
@@ -157,7 +157,7 @@ def relocate_environment(stage: Path) -> None:
     state = _state(stage)
     environment = Path(state["target"]) / "venv"
     if environment.is_symlink() or not environment.is_dir():
-        raise ValueError("Entorno de release inexistente o symlink")
+        raise ValueError("Release environment is missing or is a symlink")
     previous = str(stage.resolve() / "release" / "venv")
     venv.EnvBuilder(with_pip=False, symlinks=os.name != "nt").create(str(environment))
     scripts = environment / ("Scripts" if os.name == "nt" else "bin")
@@ -180,7 +180,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.action == "prepare":
         if args.target is None:
-            parser.error("prepare requiere origen y destino")
+            parser.error("prepare requires source and target paths")
         print(prepare(args.path, args.target))
     else:
         {"apply": apply, "rollback": rollback, "finish": finish, "relocate": relocate_environment}[args.action](args.path)

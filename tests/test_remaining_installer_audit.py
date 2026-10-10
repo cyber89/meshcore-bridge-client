@@ -91,7 +91,7 @@ def test_web_profile_rejects_unevaluated_asgi_versions(distribution: str, varian
         versions[distribution] = expected + variant
     failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='web')
     assert len(failures) == 1 and distribution in failures[0]
-    assert f'requiere == {expected}' in failures[0]
+    assert f'requires == {expected}' in failures[0]
 
 
 def test_web_profile_accepts_equivalent_final_release_zero_padding() -> None:
@@ -113,7 +113,7 @@ def test_unsupported_runtime_is_rejected_before_package_imports(
     monkeypatch.setattr(dependencies, 'sys', SimpleNamespace(version_info=runtime))
     imported: list[str] = []
     failures = dependencies.check_dependencies(lambda module: imported.append(module), profile='web')
-    assert failures == ['Python requiere >=3.14.8 estable']
+    assert failures == ['Python requires >=3.14.8 stable']
     assert imported == []
 
 
@@ -131,14 +131,14 @@ def test_profiles_reject_dependencies_older_than_the_updated_minimum(
     versions[distribution] = version
     failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile=profile)
     assert len(failures) == 1 and distribution in failures[0]
-    assert 'requiere >=' in failures[0]
+    assert 'requires >=' in failures[0]
 
 
 @pytest.mark.parametrize('profile', ['', 'unknown', 'web-extra'])
 def test_invalid_profile_fails_before_importing_packages(profile: str) -> None:
     imported: list[str] = []
     failures = dependencies.check_dependencies(lambda module: imported.append(module), profile=profile)
-    assert len(failures) == 1 and 'Perfil' in failures[0]
+    assert len(failures) == 1 and 'profile' in failures[0]
     assert imported == []
 
 

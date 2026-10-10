@@ -38,7 +38,7 @@ PROFILES: dict[str, tuple[tuple[str, str, tuple[int, ...]], ...]] = {
     "web": DEPENDENCIES + WEB_DEPENDENCIES,
 }
 
-MIN_PYTHON_VERSION = (3, 11, 0)
+MIN_PYTHON_VERSION = (3, 14, 8)
 
 
 def _stable_release(version: str) -> tuple[int, ...] | None:
@@ -59,15 +59,15 @@ def check_dependencies(
 ) -> list[str]:
     """Return all failures; importing one package never certifies another."""
     failures = []
-    if sys.version_info[:2] < MIN_PYTHON_VERSION[:2]:
-        return [f"Python requiere >={MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}"]
+    if sys.version_info[:3] < MIN_PYTHON_VERSION or sys.version_info.releaselevel != "final":
+        return [f"Python requires >={'.'.join(map(str, MIN_PYTHON_VERSION))} stable"]
     if dependencies is None:
         selected_profile = (
             profile if profile is not None else os.getenv("MESHCORE_PROFILE", "web")
         ).strip().lower()
         dependencies = PROFILES.get(selected_profile)
         if dependencies is None:
-            failures.append("Perfil de dependencias inválido; use core o web")
+            failures.append("Invalid dependency profile; use core or web")
             return failures
     for distribution, module, minimum in dependencies:
         try:
@@ -76,35 +76,35 @@ def check_dependencies(
             pinned = WEB_PINNED_VERSIONS.get(distribution)
             if pinned is not None:
                 if _stable_release(version) != _stable_release(pinned):
-                    failures.append(f"{distribution}: {version}, requiere == {pinned}")
+                    failures.append(f"{distribution}: {version}, requires == {pinned}")
                 continue
             match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?", version)
             if match is None:
-                failures.append(f"{distribution}: versión no verificable")
+                failures.append(f"{distribution}: version cannot be verified")
                 continue
             release = tuple(int(part or 0) for part in match.groups())
             prerelease_at_minimum = release == minimum and bool(re.search(r"(?:a|b|rc|dev)\d*", version[match.end():]))
             if release < minimum or prerelease_at_minimum:
-                failures.append(f"{distribution}: {version}, requiere >= {'.'.join(map(str, minimum))}")
+                failures.append(f"{distribution}: {version}, requires >= {'.'.join(map(str, minimum))}")
         except Exception as exc:
             failures.append(f"{distribution}: {type(exc).__name__}")
     return failures
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Verificador de dependencias de MeshCore Bridge por perfil.")
+    parser = argparse.ArgumentParser(description="Check MeshCore Bridge dependencies by profile.")
     parser.add_argument(
         "--profile",
         choices=["core", "web"],
         default=os.getenv("MESHCORE_PROFILE", "web"),
-        help="Perfil de dependencias a verificar (core: headless mínimo; web: core + stack ASGI).",
+        help="Dependency profile to check (core: minimal headless; web: core + ASGI stack).",
     )
     args = parser.parse_args(argv)
     failures = check_dependencies(profile=args.profile)
     for failure in failures:
         print(f"[ERROR] {failure}", file=sys.stderr)
     if not failures:
-        print(f"Dependencias del perfil '{args.profile}' verificadas con {sys.executable}")
+        print(f"Dependencies for the '{args.profile}' profile verified with {sys.executable}")
     return int(bool(failures))
 
 

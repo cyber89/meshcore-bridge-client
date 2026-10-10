@@ -1,9 +1,32 @@
 # ==============================================================================
-# MeshCore Bridge - Script de Instalacion y Ejecucion para Windows PowerShell
-# Version: 3.0.0 (Produccion)
-# Arquitectura: CPython >= 3.11 | FastAPI ASGI | LoRa MeshCore Companion
+# MeshCore Bridge - Installation and Launch for Windows PowerShell
+# Version: 3.0.0 (Production)
+# Architecture: CPython >= 3.14.8 | FastAPI ASGI | LoRa MeshCore Companion
 # ==============================================================================
 
+<#
+.SYNOPSIS
+Set up MeshCore Bridge in a local Python virtual environment.
+.DESCRIPTION
+Requires stable CPython 3.14.8 or newer. Creates or reuses .venv, installs
+production dependencies when missing, and preserves an existing .env.
+Windows setup does not install a service or an MQTT broker. NO_COLOR disables
+terminal colors; redirected output uses plain text.
+.PARAMETER Run
+Start the bridge after setup using the local virtual environment.
+.PARAMETER InstallDeps
+Reinstall production dependencies from requirements.txt.
+.PARAMETER InstallDev
+Install development tools and Chromium. This does not run test suites.
+.PARAMETER Simulate
+Launch the isolated interactive virtual mesh demo after setup.
+.EXAMPLE
+.\install.ps1
+.EXAMPLE
+.\install.ps1 -Run
+.EXAMPLE
+.\install.ps1 -InstallDev
+#>
 [CmdletBinding()]
 param (
     [switch]$Run,
@@ -13,37 +36,53 @@ param (
 )
 
 $ErrorActionPreference = "Stop"
+$UseColor = -not [Console]::IsOutputRedirected -and
+    $null -eq [Environment]::GetEnvironmentVariable('NO_COLOR') -and
+    $env:TERM -ne 'dumb'
 
-# Helpers de formato visual y estados
+function Write-Terminal {
+    param(
+        [string]$Message = '',
+        [ConsoleColor]$ForegroundColor = [ConsoleColor]::Gray,
+        [switch]$NoNewline
+    )
+    if ($UseColor) {
+        Write-Host $Message -ForegroundColor $ForegroundColor -NoNewline:$NoNewline
+    } else {
+        Write-Host $Message -NoNewline:$NoNewline
+    }
+}
+
+# Terminal presentation helpers
 function Write-Step {
     param([string]$Step, [string]$Title)
-    Write-Host ""
-    Write-Host "[$Step] " -ForegroundColor Cyan -NoNewline
-    Write-Host "$Title" -ForegroundColor White
+    Write-Terminal ""
+    Write-Terminal "$Step  " -ForegroundColor Cyan -NoNewline
+    Write-Terminal "$Title" -ForegroundColor White
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "  [OK] " -ForegroundColor Green -NoNewline
-    Write-Host "$Message" -ForegroundColor Gray
+    Write-Terminal "  OK    " -ForegroundColor Green -NoNewline
+    Write-Terminal "$Message" -ForegroundColor Gray
 }
 
 function Write-Info {
     param([string]$Message)
-    Write-Host "  [..] " -ForegroundColor Cyan -NoNewline
-    Write-Host "$Message" -ForegroundColor Gray
+    Write-Terminal "  INFO  " -ForegroundColor Cyan -NoNewline
+    Write-Terminal "$Message" -ForegroundColor Gray
 }
 
 function Write-Warn {
     param([string]$Message)
-    Write-Host "  [!]  " -ForegroundColor Yellow -NoNewline
-    Write-Host "$Message" -ForegroundColor Yellow
+    Write-Terminal "  WARN  " -ForegroundColor Yellow -NoNewline
+    Write-Terminal "$Message" -ForegroundColor Yellow
 }
 
 function Write-Fail {
     param([string]$Message)
-    Write-Host "  [ERR] " -ForegroundColor Red -NoNewline
-    Write-Host "$Message" -ForegroundColor Red
+    Write-Terminal "  ERROR " -ForegroundColor Red -NoNewline
+    Write-Terminal "$Message" -ForegroundColor Red
 }
 
 function Invoke-NativeCommand {
@@ -56,7 +95,7 @@ function Invoke-NativeCommand {
         $ErrorActionPreference = "Continue"
         & $Command
         if ($LASTEXITCODE -ne 0) {
-            Write-Fail "$ErrorMessage (Codigo de salida: $LASTEXITCODE)"
+            Write-Fail "$ErrorMessage (exit code: $LASTEXITCODE)"
             exit $LASTEXITCODE
         }
     } finally {
@@ -80,9 +119,17 @@ function Test-RuntimeDependencies {
 
 function Test-PythonRuntime {
     param([string]$PythonPath)
-    if (-not (Test-Path $PythonPath)) { return $false }
-    & $PythonPath -c "import sys, venv, ensurepip; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" 2>$null
-    return ($LASTEXITCODE -eq 0)
+    if (-not (Test-Path -LiteralPath $PythonPath)) { return $false }
+    $prevEAP = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $PythonPath -c "import sys, venv, ensurepip; raise SystemExit(0 if sys.implementation.name == 'cpython' and sys.version_info[:3] >= (3, 14, 8) and sys.version_info.releaselevel == 'final' else 1)" 2>$null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prevEAP
+    }
 }
 
 function Get-PythonVersionString {
@@ -91,19 +138,19 @@ function Get-PythonVersionString {
     if ($vOutput) {
         return ($vOutput -replace '^Python\s*', '').Trim()
     }
-    return "3.11+"
+    return "unknown"
 }
 
 function Find-PythonRuntime {
     if ($env:MESHCORE_PYTHON) {
         if (-not (Test-PythonRuntime -PythonPath $env:MESHCORE_PYTHON)) {
-            throw "MESHCORE_PYTHON ($env:MESHCORE_PYTHON) no es compatible. Se requiere CPython >= 3.11 con venv/ensurepip."
+            throw "MESHCORE_PYTHON ($env:MESHCORE_PYTHON) is unsupported. Stable CPython >= 3.14.8 with venv/ensurepip is required."
         }
         return $env:MESHCORE_PYTHON
     }
 
     $Candidates = @()
-    foreach ($Name in @('python3.14', 'python3.13', 'python3.12', 'python3.11', 'python')) {
+    foreach ($Name in @('python3.15', 'python3.14', 'python3', 'python')) {
         $Command = Get-Command $Name -ErrorAction SilentlyContinue
         if ($Command) { $Candidates += $Command.Source }
     }
@@ -113,7 +160,7 @@ function Find-PythonRuntime {
         $Installed = & $Launcher.Source -0p 2>$null
         if ($LASTEXITCODE -eq 0) {
             foreach ($Line in $Installed) {
-                if ($Line -match '^\s*-(?:V:)?(3\.(?:1[1-9]|[2-9][0-9]))(?:-\d+)?\s+\*?\s*(.+?)\s*$') {
+                if ($Line -match '^\s*-(?:V:)?(3\.\d+)(?:-\d+)?\s+\*?\s*(.+?)\s*$') {
                     $Candidates += $Matches[2]
                 }
             }
@@ -124,91 +171,99 @@ function Find-PythonRuntime {
         if (Test-PythonRuntime -PythonPath $Candidate) { return $Candidate }
     }
 
-    throw "No se encontro CPython >= 3.11 compatible en el sistema. Instalalo desde https://python.org o define la variable MESHCORE_PYTHON."
+    throw "No supported stable CPython >= 3.14.8 was found. Install it from https://python.org or set MESHCORE_PYTHON to its executable path."
 }
 
 # ==============================================================================
-# Banner de Presentacion
+# Welcome
 # ==============================================================================
-Write-Host "==================================================================" -ForegroundColor Cyan
-Write-Host "    MESHCORE BRIDGE - GESTOR DE INSTALACION Y ENTORNO" -ForegroundColor Cyan
-Write-Host "    LoRa Companion <-> MQTT <-> WebSocket <-> Web Station SPA v3.0" -ForegroundColor Yellow
-Write-Host "==================================================================" -ForegroundColor Cyan
+Write-Terminal ""
+Write-Terminal "MeshCore Bridge  3.0 | Windows setup" -ForegroundColor Cyan
+Write-Terminal "  LoRa Companion / MQTT / Web Station" -ForegroundColor DarkGray
+Write-Terminal "  Mode: $(if ($Simulate) { 'setup + virtual demo' } elseif ($Run) { 'setup + launch' } elseif ($InstallDev) { 'development setup' } else { 'setup' })"
 
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ScriptDir = [System.IO.Path]::GetFullPath((Split-Path -Parent $MyInvocation.MyCommand.Path))
 
-# 1. Comprobar / Crear entorno virtual de Python
-Write-Step "1/5" "Verificando runtime de Python y entorno virtual (.venv)..."
+# 1. Check or create the Python environment
+Write-Step "1/5" "Check Python runtime and virtual environment"
 
 $VenvPython = "$ScriptDir\.venv\Scripts\python.exe"
 $NeedNewVenv = $true
+$SystemPython = $null
 
 if (Test-Path $VenvPython) {
     if (Test-PythonRuntime -PythonPath $VenvPython) {
         $PythonPath = $VenvPython
         $vStr = Get-PythonVersionString -PythonPath $PythonPath
-        Write-Success "Entorno virtual existente detectado: Python $vStr ($PythonPath)"
+        Write-Success "Existing environment: Python $vStr ($PythonPath)"
         $NeedNewVenv = $false
     } else {
-        Write-Warn "El entorno virtual existente en .venv no cumple con CPython >= 3.11. Se recreara..."
-        Remove-Item "$ScriptDir\.venv" -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Warn "The existing .venv requires stable CPython >= 3.14.8. Recreating it."
+        # Locate a supported replacement before removing the old environment.
+        $SystemPython = Find-PythonRuntime
+        $VenvDirectory = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir '.venv'))
+        if ([System.IO.Path]::GetDirectoryName($VenvDirectory) -ne $ScriptDir -or
+            [System.IO.Path]::GetFileName($VenvDirectory) -ne '.venv') {
+            throw "Virtual environment path is outside the project: $VenvDirectory"
+        }
+        $VenvItem = Get-Item -LiteralPath $VenvDirectory -Force
+        if ($VenvItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            throw "Refusing to remove a linked virtual environment: $VenvDirectory"
+        }
+        Remove-Item -LiteralPath $VenvDirectory -Recurse -Force
     }
 }
 
 if ($NeedNewVenv) {
-    Write-Info "Buscando interprete Python compatible (>= 3.11) en el sistema..."
-    $SystemPython = Find-PythonRuntime
+    Write-Info "Find stable CPython >= 3.14.8"
+    if (-not $SystemPython) { $SystemPython = Find-PythonRuntime }
     $sysVer = Get-PythonVersionString -PythonPath $SystemPython
-    Write-Success "Interprete base detectado: Python $sysVer ($SystemPython)"
+    Write-Success "Base runtime: Python $sysVer ($SystemPython)"
 
-    Write-Info "Creando entorno virtual aislado en $ScriptDir\.venv..."
-    Invoke-NativeCommand { & $SystemPython -m venv "$ScriptDir\.venv" } "Fallo al crear el entorno virtual."
+    Write-Info "Create isolated environment in $ScriptDir\.venv"
+    Invoke-NativeCommand { & $SystemPython -m venv "$ScriptDir\.venv" } "Could not create the virtual environment."
     $PythonPath = $VenvPython
-    Write-Success "Entorno virtual inicializado exitosamente."
+    Write-Success "Virtual environment created."
 }
 
-# 2. Instalar dependencias de produccion
-Write-Step "2/5" "Instalando dependencias del ecosistema MeshCore Bridge..."
+# 2. Install production dependencies
+Write-Step "2/5" "Check production dependencies"
 
 $DepsValid = Test-RuntimeDependencies -PythonPath $PythonPath -ScriptDir $ScriptDir
 
 if ($InstallDeps -or -not $DepsValid) {
-    Write-Info "Actualizando pip y herramientas de empaquetado..."
-    & $PythonPath -m pip install --upgrade pip setuptools wheel -q 2>$null
+    Write-Info "Update pip and packaging tools"
+    Invoke-NativeCommand { & $PythonPath -m pip install --upgrade pip setuptools wheel -q } "Could not update pip and packaging tools."
 
-    Write-Info "Instalando paquetes desde requirements.txt..."
-    Write-Host "     * paho-mqtt (2.1.0)        * meshcore SDK (2.3.15)" -ForegroundColor DarkGray
-    Write-Host "     * pyserial (3.5)           * python-dotenv (1.2.4)" -ForegroundColor DarkGray
-    Write-Host "     * fastapi (0.143.0)        * uvicorn (0.54.0)" -ForegroundColor DarkGray
-    Write-Host "     * pydantic (2.14.0)        * websockets (17.2)" -ForegroundColor DarkGray
-    Write-Host "     * starlette & h11 (ASGI)   * bleak & pycayennelpp" -ForegroundColor DarkGray
+    Write-Info "Install packages from requirements.txt"
+    Write-Info "MeshCore SDK, MQTT, serial access and the FastAPI/Uvicorn web stack"
 
-    Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements.txt" } "Fallo al instalar requirements.txt."
+    Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements.txt" } "Could not install requirements.txt."
 
-    Write-Info "Verificando integridad de dependencias instaladas (perfil web)..."
-    Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" --profile web } "Dependencias incompletas o incompatibles tras la instalacion."
-    Write-Success "Todas las dependencias de produccion se encuentran instaladas y certificadas."
+    Write-Info "Verify dependency imports and versions for the web profile"
+    Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" --profile web } "Dependencies are missing or incompatible after installation."
+    Write-Success "Production dependencies installed; imports and versions verified."
 } else {
-    Write-Success "Todas las dependencias de produccion ya se encuentran disponibles y verificadas."
+    Write-Success "Production dependencies are already available; imports and versions verified."
 }
 
-# 3. Herramientas de desarrollo / QA / auditoria (opcional)
+# 3. Optional development and quality tools
 if ($InstallDev) {
-    Write-Step "3/5" "Instalando herramientas de desarrollo y QA (pytest, mypy, ruff, playwright)..."
-    Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements-dev.txt" -q } "Fallo al instalar requirements-dev.txt."
-    Invoke-NativeCommand { & $PythonPath -m pip install -e "$ScriptDir" -q } "Fallo al instalar el paquete en modo editable."
+    Write-Step "3/5" "Install development tools"
+    Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements-dev.txt" -q } "Could not install requirements-dev.txt."
+    Invoke-NativeCommand { & $PythonPath -m pip install -e "$ScriptDir" -q } "Could not install the package in editable mode."
     $PlaywrightExe = "$ScriptDir\.venv\Scripts\playwright.exe"
     if (Test-Path $PlaywrightExe) {
-        Write-Info "Instalando navegador Chromium para pruebas E2E..."
-        Invoke-NativeCommand { & $PlaywrightExe install chromium } "Fallo al instalar Chromium para Playwright."
+        Write-Info "Install Chromium for Playwright"
+        Invoke-NativeCommand { & $PlaywrightExe install chromium } "Could not install Chromium for Playwright."
     }
-    Write-Success "Tooling de desarrollo y suites de prueba instalados."
+    Write-Success "Development tools installed. No test suites have been run."
 } else {
-    Write-Step "3/5" "Omitiendo herramientas de desarrollo (usa -InstallDev si las requieres)."
+    Write-Step "3/5" "Skip development tools (enable with -InstallDev)"
 }
 
-# 4. Deteccion de puertos y transceptores LoRa conectados
-Write-Step "4/5" "Detectando puertos serie y transceptores USB conectados..."
+# 4. Detect connected serial devices
+Write-Step "4/5" "Detect USB serial devices"
 
 $DetectedPorts = @()
 try {
@@ -219,58 +274,61 @@ try {
 } catch {}
 
 if ($DetectedPorts.Count -gt 0) {
-    Write-Success "Puertos COM detectados: $($DetectedPorts -join ', ')"
+    Write-Success "Available COM ports: $($DetectedPorts -join ', ')"
     $DefaultPort = $DetectedPorts[0]
 } else {
-    Write-Warn "No se detectaron transceptores USB conectados actualmente. Se usara modo 'AUTO'."
+    Write-Warn "No connected serial device detected. Using AUTO discovery."
     $DefaultPort = "AUTO"
 }
 
-# 5. Configurar .env si no existe
-Write-Step "5/5" "Verificando archivo de configuracion local (.env)..."
+# 5. Create configuration if missing
+Write-Step "5/5" "Check local configuration"
 
+$ConfigCreated = $false
 if (-not (Test-Path "$ScriptDir\.env")) {
     if (Test-Path "$ScriptDir\.env.example") {
         Copy-Item "$ScriptDir\.env.example" "$ScriptDir\.env" -Force
         if ($DefaultPort -ne "AUTO") {
             (Get-Content "$ScriptDir\.env") -replace '^SERIAL_PORT=.*', "SERIAL_PORT=$DefaultPort" | Set-Content "$ScriptDir\.env"
         }
-        Write-Success "Archivo .env creado a partir de .env.example (SERIAL_PORT=$DefaultPort)."
+        $ConfigCreated = $true
+        Write-Success "Created .env from .env.example (SERIAL_PORT=$DefaultPort)."
     } else {
-        Write-Warn "No se encontro .env.example para generar la plantilla."
+        Write-Warn "No .env.example found; create your configuration before launch."
     }
 } else {
-    Write-Success "Archivo .env existente conservado intacto."
+    Write-Success "Existing .env preserved."
 }
 
 # ==============================================================================
-# Tarjeta de Resumen y Comandos Rapidos
+# Setup summary and launch commands
 # ==============================================================================
-Write-Host ""
-Write-Host "==================================================================" -ForegroundColor Green
-Write-Host "    INSTALACION DE MESHCORE BRIDGE COMPLETADA EXITOSAMENTE" -ForegroundColor Green
-Write-Host "==================================================================" -ForegroundColor Green
-Write-Host "  Directorio del servicio:  $ScriptDir" -ForegroundColor Gray
-Write-Host "  Interprete Python (.venv): $PythonPath" -ForegroundColor Gray
-Write-Host "  Web Station SPA:          http://localhost:8080" -ForegroundColor Yellow
-Write-Host "  Broker MQTT Local:        127.0.0.1:1883 (Canal meshcore/#)" -ForegroundColor Gray
-Write-Host "  Puerto Serial LoRa:       $DefaultPort" -ForegroundColor Gray
-Write-Host "------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host "  Comandos de Ejecucion:" -ForegroundColor Cyan
-Write-Host "    * Iniciar en Produccion:    .\install.ps1 -Run" -ForegroundColor White
-Write-Host "    * Iniciar Simulacion LoRa:  .\install.ps1 -Simulate" -ForegroundColor White
-Write-Host "    * Reinstalar Dependencias:  .\install.ps1 -InstallDeps" -ForegroundColor White
-Write-Host "==================================================================" -ForegroundColor Green
-Write-Host ""
+Write-Terminal ""
+Write-Terminal "Local environment ready" -ForegroundColor Green
+Write-Terminal "------------------------------------------------------------" -ForegroundColor DarkGray
+Write-Terminal "  Project       $ScriptDir"
+Write-Terminal "  Python        $PythonPath"
+Write-Terminal "  Configuration $(if (Test-Path -LiteralPath "$ScriptDir\.env") { "$ScriptDir\.env" } else { 'Missing; create .env before launch' })"
+Write-Terminal "  Web default   http://localhost:8080 (after launch; see .env)"
+Write-Terminal "  MQTT          Configure an existing broker in .env"
+Write-Terminal "  Serial port   $(if ($ConfigCreated) { $DefaultPort } elseif (Test-Path -LiteralPath "$ScriptDir\.env") { 'Existing .env setting preserved' } else { 'Configure SERIAL_PORT in .env' })"
+Write-Terminal ""
+Write-Terminal "Next steps" -ForegroundColor Cyan
+Write-Terminal "  Review     Edit .env for your radio, MQTT broker and web access"
+Write-Terminal "  Start      .\install.ps1 -Run"
+Write-Terminal "  Demo       .\install.ps1 -Simulate"
+Write-Terminal "  Refresh    .\install.ps1 -InstallDeps"
+Write-Terminal "  Develop    .\install.ps1 -InstallDev"
+Write-Terminal ""
 
 Push-Location $ScriptDir
 try {
     if ($Simulate) {
-        Write-Host "Iniciando simulacion interactiva con malla virtual..." -ForegroundColor Cyan
-        Invoke-NativeCommand { & $PythonPath "$ScriptDir\run_interactive_demo.py" } "La simulacion finalizo con error."
+        Write-Terminal "Start the interactive virtual mesh demo" -ForegroundColor Cyan
+        Invoke-NativeCommand { & $PythonPath "$ScriptDir\run_interactive_demo.py" } "The virtual mesh demo exited with an error."
     } elseif ($Run) {
-        Write-Host "Iniciando MeshCore Bridge en produccion..." -ForegroundColor Cyan
-        Invoke-NativeCommand { & $PythonPath -m src } "MeshCore Bridge finalizo con error."
+        Write-Terminal "Start MeshCore Bridge" -ForegroundColor Cyan
+        Invoke-NativeCommand { & $PythonPath -m src } "MeshCore Bridge exited with an error."
     }
 } finally {
     Pop-Location
