@@ -198,8 +198,8 @@ def _validate_config() -> None:
     # Ports
     if not (1 <= MQTT_PORT <= 65535):
         errors.append(f"MQTT_PORT={MQTT_PORT} must be in range 1-65535")
-    if not (1 <= WEB_PORT <= 65535):
-        errors.append(f"WEB_PORT={WEB_PORT} must be in range 1-65535")
+    if not (0 <= WEB_PORT <= 65535):
+        errors.append(f"WEB_PORT={WEB_PORT} must be in range 0-65535")
     if not (1 <= TCP_SERVER_PORT <= 65535):
         errors.append(f"TCP_SERVER_PORT={TCP_SERVER_PORT} must be in range 1-65535")
 

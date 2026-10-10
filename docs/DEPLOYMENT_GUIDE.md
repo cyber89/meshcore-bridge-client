@@ -8,7 +8,7 @@ Guía revisada por lectura de código el 2026-10-09 y actualizada para el baseli
 
 ## 📻 Dispositivos de Radio LoRa Compatibles
 
-El adaptador principal utiliza el SDK `meshcore==2.3.15` con firmware **MeshCore Companion**. El baseline del host es CPython 3.14.8 o superior, según [ADR 0015](adr/0015-python-3-14-8-baseline.md). La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
+El adaptador principal utiliza el SDK `meshcore==2.3.15` con firmware **MeshCore Companion**. El baseline del host es CPython 3.11 o superior (compatible con Python 3.11, 3.12, 3.13 y 3.14+). La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
 
 | Fabricante / Familia | Modelos Soportados | Chipset USB Típico | Puerto Serial Habitual |
 | :--- | :--- | :--- | :--- |
@@ -24,11 +24,7 @@ El adaptador principal utiliza el SDK `meshcore==2.3.15` con firmware **MeshCore
 
 Si ya clonaste o descargaste esta carpeta en tu Orange Pi / servidor Linux, simplemente ejecuta el instalador automatizado:
 
-El instalador exige primero un intérprete estable CPython 3.14.8+ con `venv` y
-`ensurepip`. Selecciona `MESHCORE_PYTHON` si está definido; en otro caso busca
-`python3.14` y después `python3`, comprobando su versión. No descarga ese intérprete
-ni convierte una venv antigua. Si usas una ruta explícita, pásala al proceso con
-privilegios, por ejemplo `sudo env MESHCORE_PYTHON=/ruta/python3.14 bash install.sh`.
+El instalador detecta e instala automáticamente las dependencias del sistema vía APT (python3, python3-venv, build-essential, mosquitto, etc.) y soporta un intérprete CPython >= 3.11 con `venv` y `ensurepip`. Selecciona `MESHCORE_PYTHON` si está definido; en otro caso busca candidatos como `python3.14`, `python3.13`, `python3.12`, `python3.11` y `python3`. Si usas una ruta explícita, pásala al proceso con privilegios, por ejemplo `sudo env MESHCORE_PYTHON=/ruta/python3 bash install.sh`.
 
 ```bash
 cd meshcore-bridge

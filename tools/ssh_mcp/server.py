@@ -20,10 +20,9 @@ from typing import Any, BinaryIO
 
 if (
     sys.implementation.name != "cpython"
-    or sys.version_info[:3] < (3, 14, 8)
-    or sys.version_info.releaselevel != "final"
+    or sys.version_info[:2] < (3, 11)
 ):
-    raise RuntimeError("CPython 3.14.8 or newer stable is required for SSH maintenance")
+    raise RuntimeError("CPython >=3.11 is required for SSH maintenance")
 
 import paramiko  # noqa: E402 - validate the runtime before loading third-party SDKs
 from mcp.server.mcpserver import MCPServer  # noqa: E402

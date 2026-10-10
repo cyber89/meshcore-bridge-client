@@ -14,9 +14,8 @@ import pytest
 
 
 @pytest.mark.parametrize("version,implementation", [
-    ((3, 10, 0, "final", 0), "cpython"), ((3, 14, 8, "final", 0), "cpython"),
-    ((3, 15, 0, "candidate", 1), "cpython"), ((3, 16, 0, "alpha", 1), "cpython"),
-    ((3, 15, 0, "final", 0), "pypy"),
+    ((3, 9, 0, "final", 0), "cpython"), ((3, 10, 0, "final", 0), "cpython"),
+    ((3, 12, 0, "final", 0), "pypy"),
 ])
 def test_unsupported_python_is_rejected_before_loading_mcp_or_paramiko(monkeypatch, version, implementation):
     import builtins
