@@ -92,7 +92,7 @@ Constituye la frontera perimetral del sistema frente a redes IP, operadores huma
 #### `AsgiWebServer` (`src/web/asgi_server.py`)
 Servidor web asíncrono de producción basado en FastAPI y Uvicorn (ASGI).
 - **`async start() -> None`**: Inicializa el socket Uvicorn en `WEB_HOST:WEB_PORT`, arranca el ciclo de vida ASGI y el hub WebSocket.
-- **`async stop() -> None`**: Cierra el servidor Uvicorn de forma limpia y drena tareas y conexiones dentro del presupuesto de apagado.
+- **`async stop() -> None`**: Cierra listeners y conexiones, intenta drenar tareas dentro del presupuesto compartido y conserva workers de mapas pendientes fuera de ese plazo; el reinicio espera a que terminen.
 - **`async broadcast_event(event_data: dict[str, Any]) -> None`**: Registra y difunde eventos en tiempo real a las conexiones listas mediante `WebSocketHub`; el perímetro reserva hasta 32 sesiones concurrentes.
 
 El core crea este servidor cuando `WEB_ENABLED` está activo. El servidor HTTP nativo está retirado y no existe fallback hacia él. Las rutas REST reciben `Request`; los DTO Pydantic con `Any` y campos extra documentan entradas, sin validarlas en ejecución. El esquema se consulta en `/openapi.json` y el visor propio offline en `/docs` o `/redoc`; no se incluyen los paquetes Swagger UI/ReDoc ni se ejecutan acciones desde el visor. La política Origin admite allowlist, Host, loopback y LAN privada.
