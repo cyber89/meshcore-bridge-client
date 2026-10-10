@@ -1,5 +1,7 @@
 # Fase 1: seguridad perimetral del candidato ASGI
 
+> Snapshot histórico de preparación. El checkout posterior selecciona ASGI y retiró el servidor nativo (`933ccce`). Véanse la [auditoría actual](../audits/2026-10-09-layer-audit.md) y la [fase 6 rectificada](PHASE_6_REPORT.md). Las puertas de ejecución continúan pendientes.
+
 Fecha: 2026-10-09. Base: `e8a7030` y checkout existente. Preparación autorizada,
 conservando la instrucción de continuar **sin ejecutar suites**. El líder integra
 especialistas de política, middleware y transporte; revisión cruzada de lectura.

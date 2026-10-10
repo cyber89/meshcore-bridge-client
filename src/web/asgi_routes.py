@@ -1,9 +1,8 @@
-"""REST transport registration for the inactive FastAPI candidate.
+"""REST transport registration for the FastAPI application.
 
 Routes describe six migration batches while borrowing one existing dispatcher.
 That dispatcher still owns query merging, aliases, controller validation and
-business effects. Tiles, WebSocket, static assets and documentation are separate
-phases. Registration and listener readiness do not establish runtime parity.
+business effects. Tiles, WebSocket, static assets and documentation use separate adapters. Registration and listener readiness do not establish runtime parity.
 """
 
 from __future__ import annotations

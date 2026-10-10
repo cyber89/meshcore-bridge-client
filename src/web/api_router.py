@@ -150,6 +150,35 @@ class WebAPIRouter:
         # Referencia compartida de canales para retrocompatibilidad
         self.channels: dict[int, dict[str, Any]] = self.channels_ctrl.channels
         self._background_tasks: set[asyncio.Task[Any]] = set()
+        self._notifications_enabled = True
+
+    def owned_notification_tasks(self) -> set[asyncio.Task[Any]]:
+        """Expose only this router's notification tasks to its web lifecycle owner."""
+        return set(self._background_tasks)
+
+    def cancel_notifications(self) -> None:
+        """Reject new notifications and cancel retained deliveries without waiting."""
+        self._notifications_enabled = False
+        current = asyncio.current_task()
+        for task in tuple(self._background_tasks):
+            if task is not current and not task.done():
+                task.cancel()
+
+    def resume_notifications(self) -> None:
+        """Resume admission only after the previous deliveries have finished."""
+        if any(not task.done() for task in self._background_tasks):
+            raise RuntimeError("Previous web notifications have not finished")
+        self._notifications_enabled = True
+
+    def _notification_done(self, task: asyncio.Task[Any]) -> None:
+        self._background_tasks.discard(task)
+        if not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                logging.warning(
+                    "Web notification failed: %s", type(error).__name__,
+                    extra={"skip_broadcast": True},
+                )
 
     def _load_channels(self) -> None:
         """Carga la configuración persistida de canales delegando al controlador."""
@@ -166,13 +195,19 @@ class WebAPIRouter:
 
     def _notify_web_clients(self, event: dict[str, Any]) -> None:
         """Emite eventos en tiempo real a clientes WebSocket manejando corutinas y mocks síncronos."""
+        if not self._notifications_enabled:
+            return
         web = getattr(self.bridge, "web_server", None)
         if web and hasattr(web, "broadcast_event"):
             res = web.broadcast_event(event)
             if asyncio.iscoroutine(res):
-                task = asyncio.create_task(res)
+                try:
+                    task = asyncio.create_task(res)
+                except BaseException:
+                    res.close()
+                    raise
                 self._background_tasks.add(task)
-                task.add_done_callback(self._background_tasks.discard)
+                task.add_done_callback(self._notification_done)
 
     def log_system_event(self, level: str, message: str, source: str = "bridge") -> None:
         """Registra un evento interno en el búfer de logs del sistema."""

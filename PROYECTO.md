@@ -1,12 +1,14 @@
 # Futuro de MeshCore Bridge: evaluación y plan condicionado de FastAPI
 
-**Estado:** preparación autorizada e iniciada por fases; adopción de producción pendiente de paridad y verificación.
+**Estado actual (2026-10-09):** FastAPI/Uvicorn es el transporte web seleccionado en el código; el servidor HTTP nativo fue retirado en `933ccce`. La aceptación operativa sigue pendiente. Las secciones de propuesta y preparación conservan su contexto histórico.
+
+La [auditoría por capas](docs/audits/2026-10-09-layer-audit.md) concilia el checkout actual, los cambios de seguridad y las limitaciones de verificación. Adopción en código no equivale a certificación de producción.
 
 **Fecha de revisión:** 2026-10-09; revisión inicial 2026-10-08.
 
 **Versión declarada implementada:** 3.0.0; 3.1.0 era una versión objetivo de la guía inicial, no una release aprobada.
 
-**Base inspeccionada:** HEAD `558385ad77afb8e691252c037dacb76e730b51db` y el árbol de trabajo existente. Había modificaciones ajenas sin commit: los hallazgos describen ese checkout, no sólo el commit.
+**Base de la revisión inicial (histórica):** HEAD `558385ad77afb8e691252c037dacb76e730b51db` y el árbol de trabajo existente. Había modificaciones ajenas sin commit: los hallazgos describen ese checkout, no sólo el commit.
 
 **Alcance inicial:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; revisión documental publicada en `457903d`. **Continuación autorizada:** catálogos y dependencias de fase 0, infraestructura de fase 1 publicada en `e8a7030`, seguridad perimetral publicada en `9eead69`, DTO/errores de fase 2 publicados en `42f7104` y registro REST de fase 3 preparado el 2026-10-09. Los candidatos se descargaron para inspección, sin instalarlos en el entorno del bridge. El usuario indicó «Continúa sin ejecutar suites»; no se arrancan servicios, radio o workflows.
 
@@ -92,16 +94,18 @@ No se proponen intervalos ni umbrales nuevos. Los valores existentes citados aba
 
 ## 4. Plan secuencial: una etapa antes de la siguiente
 
-Las fases se entregan secuencialmente. El usuario autorizó comenzar y continuar **sin ejecutar suites**. La lectura estática no declara superadas las puertas operativas. Fase 5 consolida QA; las verificaciones de ejecución permanecen pendientes mientras no estén autorizadas. La preparación del siguiente seam puede avanzar sin activar el candidato ni retirar la recuperación.
+Las fases se entregan secuencialmente. El usuario autorizó comenzar y continuar **sin ejecutar suites**. La lectura estática no declara superadas las puertas operativas. Las fases 5 y 6 ya tienen implementación documental y de instalación. Las verificaciones de ejecución permanecen pendientes mientras no estén autorizadas. El checkout actual activó ASGI y retiró el transporte anterior; los informes de preparación son snapshots históricos.
 
 | Etapa | Estado actual | Evidencia / pendiente |
 |---|---|---|
 | 0 | Preparación documental y binaria entregada | [Informe](docs/fastapi/PHASE_0_REPORT.md); seis cierres con wheels, catálogos y snapshot. Recursos e interoperabilidad sin medir |
 | 1 | Infraestructura y seguridad ASGI preparadas; aceptación operativa pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md) y [seguridad](docs/fastapi/PHASE_1_SECURITY_REPORT.md); servidor actual predeterminado. Lifecycle y paridad en ejecución sin verificar |
 | 2 | DTO y errores del framework preparados; aceptación pendiente | [Informe](docs/fastapi/PHASE_2_REPORT.md), [inventario](docs/fastapi/PHASE_2_REQUEST_INVENTORY.json) y [ejemplos sanitizados](docs/fastapi/PHASE_2_COMPATIBILITY_CASES.json); sin validación en ejecución |
-| 3 | Seis lotes REST JSON preparados en el candidato inactivo | [Informe](docs/fastapi/PHASE_3_REPORT.md) y [registro estático](docs/fastapi/PHASE_3_ROUTE_REGISTRY.json); 90 operaciones canónicas + 50 de alias, dispatcher compartido, redacción selectiva. Contratos/efectos en ejecución pendientes |
-| 4 | WS, SPA/assets y tiles preparados en el candidato inactivo | [Informe](docs/fastapi/PHASE_4_REPORT.md) y [registro estático](docs/fastapi/PHASE_4_ADAPTER_REGISTRY.json); lifecycle compartido, diferencias de transporte explícitas. Aceptación operativa pendiente |
-| 5–6 | Pendientes | OpenAPI, QA autorizado, instaladores, adopción y retiro |
+| 3 | Seis lotes REST JSON conectados a ASGI | [Informe](docs/fastapi/PHASE_3_REPORT.md) y [registro estático](docs/fastapi/PHASE_3_ROUTE_REGISTRY.json); 90 operaciones canónicas + 50 de alias, dispatcher compartido, redacción selectiva. Contratos/efectos en ejecución pendientes |
+| 4 | WS, SPA/assets y tiles conectados a ASGI | [Informe](docs/fastapi/PHASE_4_REPORT.md) y [registro estático](docs/fastapi/PHASE_4_ADAPTER_REGISTRY.json); lifecycle compartido, diferencias de transporte explícitas. Aceptación operativa pendiente |
+| 5 | OpenAPI y visor local implementados | [Informe histórico](docs/fastapi/PHASE_5_REPORT.md); generación y contratos en ejecución pendientes |
+| 6 | ASGI seleccionado, servidor nativo retirado e instaladores actualizados | [Informe rectificado](docs/fastapi/PHASE_6_REPORT.md); pruebas de instalación, recursos y operación pendientes |
+| Auditoría actual | Revisión por capas e integración de correcciones | [Acta e informe](docs/audits/2026-10-09-layer-audit.md); evidencia estática separada de QA suspendida |
 
 [ADR 0011](docs/adr/0011-staged-asgi-migration.md) registra la preparación autorizada y sus condiciones de adopción. No se convierte una comprobación pendiente en aprobada por no ejecutar suites.
 

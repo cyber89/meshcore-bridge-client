@@ -1,4 +1,4 @@
-"""Lazy OpenAPI documentation for the inactive compatibility ASGI candidate.
+"""Lazy OpenAPI documentation for the compatibility ASGI application.
 
 The schema describes source evidence, not runtime acceptance. It does not call
 controllers, read configuration or apply input/response DTOs to requests. Model
@@ -341,11 +341,11 @@ def build_openapi_schema() -> dict[str, Any]:
         "openapi": "3.1.0",
         "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
         "info": {
-            "title": "MeshCore Bridge — candidato ASGI de compatibilidad",
-            "version": "phase-5-preparation",
+            "title": "MeshCore Bridge API",
+            "version": "3.0.0",
             "description": (
-                "Documentación obtenida por lectura estática. FastAPI permanece "
-                "inactivo; no acredita suites, interoperabilidad, seguridad completa "
+                "Contratos del transporte FastAPI seleccionado en el código. "
+                "La revisión estática no acredita suites, interoperabilidad, seguridad completa "
                 "o rendimiento. No ejecutar operaciones desde la documentación. "
                 "GET refresh/preflight y otros endpoints pueden tener efectos."
             ),

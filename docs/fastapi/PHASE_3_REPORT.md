@@ -1,5 +1,7 @@
 # FastAPI: registro REST preparatorio de fase 3
 
+> Snapshot histórico de preparación. El checkout posterior selecciona ASGI y retiró el servidor nativo (`933ccce`). Véanse la [auditoría actual](../audits/2026-10-09-layer-audit.md) y la [fase 6 rectificada](PHASE_6_REPORT.md). Las puertas de ejecución continúan pendientes.
+
 Fecha: 2026-10-09. Base: `42f7104` y checkout con cambios anteriores conservados.
 Estado: **seis lotes JSON registrados en el código del candidato inactivo**,
 con revisión estática. No se ha importado, construido ni ejecutado la aplicación.

@@ -19,8 +19,9 @@ arranque ni compatibilidad de una SBC en ejecución.
 
 También se corrigen el default core, la opción de servidor nativo y el carácter
 opcional del stack ASGI. El [registro de fase 6](PHASE_6_RELEASE_REGISTRY.json)
-es un snapshot anterior a estos cambios. Sus valores de RSS y garantías se
-consideran retirados, y sus estados históricos no describen el servidor actual.
+conserva la procedencia histórica y ahora registra los contratos vigentes.
+Sus valores de RSS son `null`, las garantías sin evidencia están retiradas y
+los recuentos históricos no describen el servidor actual.
 Los recuentos de líneas/bytes del informe anterior no tenían una comparación de
 conjuntos equivalentes ni un recibo verificable; no se reutilizan como métricas
 actuales ni como evidencia de mejora de arquitectura o rendimiento.

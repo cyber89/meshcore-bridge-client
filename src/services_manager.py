@@ -198,6 +198,7 @@ class ServicesManager:
                 await self.tcp_server.start()
             except Exception as e:
                 logger.error("TCP Companion startup failed: %s", type(e).__name__)
+                raise
 
     async def stop(self) -> None:
         """Detiene ordenadamente todos los servicios de red."""
@@ -302,11 +303,14 @@ class ServicesManager:
             # Si el nuevo está habilitado, crearlo e iniciarlo
             if new_tcp.enabled:
                 self.tcp_server = self._create_tcp_server(new_tcp)
+                if hasattr(self.bridge, "tcp_server"):
+                    self.bridge.tcp_server = self.tcp_server
                 if self.is_running:
                     try:
                         await self.tcp_server.start()
                     except Exception as e:
                         logger.error("TCP Companion reload failed: %s", type(e).__name__)
+                        raise
             if hasattr(self.bridge, "tcp_server"):
                 self.bridge.tcp_server = self.tcp_server
             reloaded.append("tcp_server")

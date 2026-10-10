@@ -1,4 +1,4 @@
-"""Local, read-only documentation routes for the inactive ASGI candidate.
+"""Local, read-only documentation routes for the ASGI application.
 
 The public login shell and two fixed assets contain no API catalog or schema.
 When configured, documentation requires X-Api-Key, never a URL credential or

@@ -182,7 +182,6 @@ class CommandType(IntEnum):
     SET_DEFAULT_FLOOD_SCOPE = 63
     GET_DEFAULT_FLOOD_SCOPE = 64
     SEND_RAW_PACKET = 65
-    RUN_CLI_COMMAND = 66
 
 
 # Deprecated: Use CommandType instead. FirmwareCommandType was an alias maintained

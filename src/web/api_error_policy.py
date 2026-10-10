@@ -1,4 +1,4 @@
-"""Reviewed error redaction for the inactive ASGI REST adapter.
+"""Reviewed error redaction for the ASGI REST adapter.
 
 This module has no optional web dependency. Success/configuration/export payloads
 are deliberately outside this policy; controllers own their public projection.

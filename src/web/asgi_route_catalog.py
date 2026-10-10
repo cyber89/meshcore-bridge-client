@@ -1,4 +1,4 @@
-"""Canonical JSON operation catalog for the optional ASGI preparation.
+"""Canonical JSON operation catalog for the ASGI transport.
 
 The six batches describe transport registration, not new domain ownership.
 Existing controllers keep validation, coercion, effects and response envelopes.

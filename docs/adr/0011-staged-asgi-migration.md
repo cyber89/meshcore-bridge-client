@@ -1,6 +1,7 @@
-# ADR 0011: Preparación gradual de FastAPI con servidor actual conservado
+# ADR 0011: Migración gradual y adopción del transporte FastAPI ASGI
 
-- **Estado**: Completado. Servidor ASGI (FastAPI / Uvicorn) adoptado en producción y servidor legacy retirado definitivamente.
+- **Estado**: ASGI adoptado en código y transporte nativo retirado; aceptación operativa pendiente.
+- **Lectura**: Contexto y decisión iniciales son históricos. La evolución actual al final prevalece para describir la implementación.
 - **Fecha**: 2026-10-08
 - **Autores**: Líder e investigadores de backend, contratos, seguridad e instalación
 - **Base**: `457903d` y árbol de trabajo existente
@@ -117,25 +118,32 @@ El candidato ASGI permanece inactivo en la configuración predeterminada del bri
 Las puertas operativas, suites de pruebas automatizadas y adopción en producción continúan
 pendientes para la fase 6, respetando la instrucción de suspender ejecución de suites.
 
-### Preparación de fase 6
+### Evolución de fase 6 y auditoría por capas
 
-La [fase 6](../fastapi/PHASE_6_REPORT.md) establece el modelo de release basado en perfiles
-de dependencia (`core` por defecto vs `web` opcional) y el registro de gobernanza
-[PHASE_6_RELEASE_REGISTRY.json](../fastapi/PHASE_6_RELEASE_REGISTRY.json). El perfil `core`
-mantiene las cuatro dependencias esenciales (`pyserial`, `paho-mqtt`, `meshcore`, `dotenv`)
-con soporte para estaciones y microcontroladores o SBCs de bajos recursos (ej. 512 MB RAM),
-evitando la compilación de `pydantic-core` (Rust/C) en arquitecturas sin wheels precompilados.
-El perfil `web` incorpora `fastapi`, `uvicorn`, `pydantic` y `websockets` para estaciones que
-habiliten el candidato ASGI.
+El checkout selecciona `AsgiWebServer` en `bridge_core.py`; `933ccce` retiró
+`src/web/http_server.py`. No hay selector ni fallback nativo. Se reutiliza el router
+con controladores y estado existente: no es otro servidor HTTP. REST, WS, SPA,
+teselas y documentación local están registrados en la composición ASGI.
 
-Se actualizó `scripts/check_runtime_dependencies.py` con soporte para `--profile core` y
-`--profile web` (o variable de entorno `MESHCORE_PROFILE`), preservando la tupla inmutable
-`DEPENDENCIES` para compatibilidad de pruebas existentes. Se integró `requirements-web.txt` en
-los componentes gestionados por `scripts/staged_update.py`, garantizando verificación de sintaxis,
-despliegue en staging y reversión atómica en caso de fallo.
+`requirements.txt` instala la pila web y `requirements-web.txt` es un shim de
+compatibilidad. El checker distingue los cuatro mínimos core de seis pins web:
+FastAPI 0.143.0, Uvicorn 0.54.0, Pydantic 2.14.0, websockets 16.1.1,
+Starlette 1.7.0 y h11 0.16.0. Headless (`WEB_ENABLED=false`) evita construir el
+servidor; el perfil del checker no cambia esa configuración ni demuestra ausencia
+de imports transitivos.
 
-El balance de retiro del servidor heredado completó una reducción neta superior a -2.800 líneas
-de código y pruebas obsoletas tras la convergencia completa. El servidor `AsgiWebServer` opera
-como el runtime predeterminado activo en `bridge_core.py`. La activación en producción de ASGI
-se completó con éxito, consolidando REST, WebSocket Hub, teselas cartográficas y OpenAPI 3.1.
+Se retiran garantías anteriores sobre RSS, viabilidad SBC, reducción neta de
+líneas y rollback atómico global. La actualización escalonada intenta revertir
+componentes; no es una transacción indivisible. El presupuesto web comparte un
+plazo; el cierre de todos los subsistemas no tiene una garantía global de 1,5 s.
+Los workers de disco no se pueden detener forzosamente al cancelar al solicitante.
 
+La [auditoría actual](../audits/2026-10-09-layer-audit.md) registra propiedad y cierre
+de tareas, mapas y escrituras, saneamiento de errores y eliminación de símbolos
+sin consumidores encontrados. No se añaden consultas RF, timers ni intervalos.
+El callback de fallo web comunica terminación al propietario sin reinicio automático.
+
+Los DTO son metadatos permisivos para OpenAPI; los controladores mantienen la
+validación. `/docs` y `/redoc` sirven un visor propio offline de solo lectura, no
+bundles Swagger/ReDoc. Generación, paridad, autenticación, cancelación, recursos e
+instalación en ejecución continúan pendientes por la instrucción de no ejecutar suites.

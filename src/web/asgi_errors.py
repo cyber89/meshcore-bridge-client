@@ -1,4 +1,4 @@
-"""Preparatory application errors and unfiltered JSON for the optional ASGI app.
+"""Application errors and unfiltered compatibility JSON for the ASGI app.
 
 Perimeter errors keep their own phase-1 envelopes. Business controllers still
 own validation and status selection; these handlers do not rewrite their return
@@ -111,7 +111,7 @@ async def _internal_error(request: Request, error: Exception) -> Response:
 
 
 def install_error_handlers(app: FastAPI) -> None:
-    """Install handlers on the candidate instance, with no global mutations."""
+    """Install handlers on the application instance, with no global mutations."""
     app.add_exception_handler(CompatibilityRequestError, _compatibility_error)
     app.add_exception_handler(RequestValidationError, _validation_error)
     app.add_exception_handler(HTTPException, _http_error)

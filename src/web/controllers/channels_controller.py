@@ -50,8 +50,8 @@ class ChannelsController(BaseController):
                         self.channels = {int(c.get("index", i)): c for i, c in enumerate(data)}
                     elif isinstance(data, dict):
                         self.channels = {int(k): v for k, v in data.items() if str(k).isdigit()}
-            except Exception as e:
-                logging.warning(f"Error cargando canales desde {self.channels_file}: {e}")
+            except Exception as error:
+                logging.warning("Channel load failed: %s", type(error).__name__)
 
         if 0 not in self.channels:
             self.channels[0] = {
@@ -77,14 +77,14 @@ class ChannelsController(BaseController):
                     json.dump(channels_data, f, indent=2, ensure_ascii=False)
                 os.replace(tmp_path, self.channels_file)
                 self._dirty = False
-                logging.debug(f"Canales persistidos exitosamente en {self.channels_file}")
-            except Exception as e:
+                logging.debug("Canales persistidos exitosamente")
+            except Exception as error:
                 if os.path.exists(tmp_path):
                     try:
                         os.remove(tmp_path)
                     except OSError:
                         pass
-                logging.error(f"Error persistiendo canales en {self.channels_file}: {e}")
+                logging.error("Channel persistence failed: %s", type(error).__name__)
                 raise
 
     async def _save_channels_async(self, force: bool = False) -> None:
@@ -163,10 +163,10 @@ class ChannelsController(BaseController):
         """Sincroniza los canales desde el hardware serial y retorna la lista enmascarada."""
         try:
             await self._sync_from_serial()
-        except ConnectionError as e:
-            return problem_details(503, "Service Unavailable", f"No se pudo sincronizar canales: {e}", "sync_failed")
-        except Exception as e:
-            return problem_details(503, "Service Unavailable", f"Fallo sincronizando canales del transceptor: {e}", "sync_failed")
+        except ConnectionError:
+            return problem_details(503, "Service Unavailable", "No se pudo sincronizar canales", "sync_failed")
+        except Exception:
+            return problem_details(503, "Service Unavailable", "Fallo sincronizando canales del transceptor", "sync_failed")
         masked_list = self._get_masked_channels_list()
         return 200, {"status": "ok", "data": masked_list, "count": len(masked_list)}
 

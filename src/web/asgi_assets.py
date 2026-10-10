@@ -1,4 +1,4 @@
-"""Native static/SPA and public tile semantics for the inactive ASGI candidate.
+"""Compatibility static/SPA and public tile semantics for the ASGI application.
 
 The router owns the borrowed tile service. This adapter neither opens nor closes
 its storage. Filesystem work and compression run outside the event loop; this

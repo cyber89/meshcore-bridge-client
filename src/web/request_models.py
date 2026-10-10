@@ -1,4 +1,4 @@
-"""Preparatory wire DTOs for the optional ASGI adapter.
+"""Descriptive OpenAPI DTOs for the production ASGI adapter.
 
 Known request fields intentionally use ``Any``. The current controllers own
 defaults, coercion, validation order and domain checks; a stricter model here
@@ -6,8 +6,10 @@ would change existing 400/422 responses before those controllers run. Unknown
 fields, explicit nulls and query lists must also reach them unchanged.
 
 These declarations describe observed field names, not complete validation or
-certified transport parity. Only JSON-decoded mappings are supported at this
-boundary. The optional web dependencies are required to import this module.
+certified transport parity. The REST adapter passes JSON-decoded mappings
+directly to the controllers; it neither instantiates nor dumps these models.
+The OpenAPI schema builder uses model_json_schema() lazily. Importing this
+module requires the web dependencies; headless composition avoids its import.
 """
 
 from __future__ import annotations
@@ -19,18 +21,9 @@ from pydantic import BaseModel, ConfigDict
 
 
 class CompatibilityBodyDTO(BaseModel):
-    """Preserve a decoded request mapping until the legacy controller handles it."""
+    """Describe compatible fields without imposing runtime request coercion."""
 
     model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
-
-    def to_legacy_body(self) -> dict[str, Any]:
-        """Retain explicit null/default values and extras; omit absent fields.
-
-        Do not use ``exclude_none``/``exclude_defaults``, JSON mode or a typed
-        nested DTO: these would erase nulls or alter controller inputs. This
-        method does not reproduce the router's separate query-merging rules.
-        """
-        return self.model_dump(mode="python", exclude_unset=True)
 
     def __repr__(self) -> str:
         """Keep both known credentials and arbitrary extra values out of repr."""

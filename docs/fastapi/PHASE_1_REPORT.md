@@ -1,5 +1,7 @@
 # FastAPI: base opcional de infraestructura de fase 1
 
+> Snapshot histórico de preparación. El checkout posterior selecciona ASGI y retiró el servidor nativo (`933ccce`). Véanse la [auditoría actual](../audits/2026-10-09-layer-audit.md) y la [fase 6 rectificada](PHASE_6_REPORT.md). Las puertas de ejecución continúan pendientes.
+
 Fecha local: 2026-10-08. Continuación de [fase 0](PHASE_0_REPORT.md).
 Estado actualizado el 2026-10-09: **infraestructura y seguridad perimetral
 preparatorias escritas y revisadas estáticamente**; integración y aceptación

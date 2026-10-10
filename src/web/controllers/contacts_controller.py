@@ -141,10 +141,10 @@ class ContactsController(BaseController):
                     )
                     imported_count += 1
             await self._save_registry_async()
-        except ConnectionError as e:
-            return problem_details(503, "Service Unavailable", f"No se pudo sincronizar contactos: {e}", "sync_failed")
-        except Exception as e:
-            return problem_details(503, "Service Unavailable", f"Fallo sincronizando contactos con el nodo: {e}", "sync_failed")
+        except ConnectionError:
+            return problem_details(503, "Service Unavailable", "No se pudo sincronizar contactos", "sync_failed")
+        except Exception:
+            return problem_details(503, "Service Unavailable", "Fallo sincronizando contactos con el nodo", "sync_failed")
 
         nodes = self.ctx.bridge.node_registry.list_client_contacts()
         return 200, {"status": "ok", "imported": imported_count, "data": nodes, "count": len(nodes)}
@@ -307,8 +307,8 @@ class ContactsController(BaseController):
                             pass
                     if pk:
                         contacts_to_add.append(c_entry)
-                except Exception as e:
-                    logging.warning(f"Error parseando URI meshcore: {e}")
+                except Exception as error:
+                    logging.warning("Contact URI parsing failed: %s", type(error).__name__)
 
             # Caso 2b: JSON string
             elif raw_payload.startswith("{") or raw_payload.startswith("["):
@@ -320,8 +320,8 @@ class ContactsController(BaseController):
                         contacts_to_add.append(loaded)
                     elif isinstance(loaded, list):
                         contacts_to_add.extend(c for c in loaded if isinstance(c, dict))
-                except Exception as e:
-                    logging.warning(f"Error deserializando JSON de contacto: {e}")
+                except Exception as error:
+                    logging.warning("Contact JSON parsing failed: %s", type(error).__name__)
 
             # Caso 2c: Volcado binario hexadecimal (legado)
             if not contacts_to_add:

@@ -97,7 +97,6 @@ def create_asgi_app(
     app.state.web_lifespan_task = None
     app.state.web_shutdown_deadline = None
     app.state.websocket_hub = hub
-    app.state.application_contract_ready = True
     return app
 
 
@@ -154,8 +153,6 @@ class AsgiWebServer:
     The metrics timer publishes passive web snapshots only.
     """
 
-    application_contract_ready = True
-
     def __init__(
         self,
         router: WebAPIRouter | Any = None,
@@ -166,6 +163,7 @@ class AsgiWebServer:
         on_failure: Callable[[Exception], None] | None = None,
         static_dir: Path | None = None,
         bridge: Any | None = None,
+        owns_tile_service: bool | None = None,
     ) -> None:
         if not math.isfinite(shutdown_budget_s) or shutdown_budget_s <= 0:
             raise ValueError("shutdown_budget_s must be finite and positive")
@@ -174,12 +172,15 @@ class AsgiWebServer:
         if isinstance(router, WebAPIRouter):
             actual_router = router
             actual_bridge = router.bridge
+            created_router = False
         elif bridge is not None:
             actual_bridge = bridge
             actual_router = WebAPIRouter(bridge)
+            created_router = True
         elif router is not None:
             actual_bridge = router
             actual_router = WebAPIRouter(router)
+            created_router = True
         else:
             raise ValueError("Either router or bridge must be provided")
 
@@ -194,6 +195,11 @@ class AsgiWebServer:
         )
         self.websocket_hub: WebSocketHub = self.app.state.websocket_hub
         self.tile_service = actual_router.map_tile_service
+        self._owns_tile_service = created_router if owns_tile_service is None else owns_tile_service
+        self._tiles_closed = False
+        self._tile_operation_task: asyncio.Task[None] | None = None
+        self._tile_operation_kind: str | None = None
+        self._tile_tasks: set[asyncio.Task[None]] = set()
         self.running = False
         self.failure: Exception | None = None
         self._on_failure = on_failure
@@ -251,6 +257,57 @@ class AsgiWebServer:
         if not task.cancelled():
             task.exception()
 
+    def _tile_operation_done(self, task: asyncio.Task[None]) -> None:
+        self._tile_tasks.discard(task)
+        if not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                logger.error(
+                    "ASGI map lifecycle failed: %s", type(error).__name__,
+                    extra={"skip_broadcast": True},
+                )
+
+    def _start_tile_operation(self, kind: str) -> asyncio.Task[None]:
+        """Serialize owned map workers; cancelling a waiter never cancels disk I/O."""
+        previous = self._tile_operation_task
+        if kind == "reload":
+            # A partial reload can open connections before reporting failure.
+            # Its cancellation/failure therefore always needs a later close.
+            self._tiles_closed = False
+
+        async def operate() -> None:
+            if previous is not None:
+                try:
+                    await asyncio.shield(previous)
+                except Exception:
+                    # Its result callback already reports failures. A close
+                    # must still follow a failed or interrupted reload attempt.
+                    pass
+            if kind == "close":
+                await asyncio.to_thread(self.tile_service.close)
+                self._tiles_closed = True
+            else:
+                await asyncio.to_thread(self.tile_service.reload_mbtiles)
+                self._tiles_closed = False
+
+        task = asyncio.create_task(operate(), name=f"MeshCoreASGIMap{kind.title()}")
+        self._tile_operation_task = task
+        self._tile_operation_kind = kind
+        self._tile_tasks.add(task)
+        self._retain_task(task)
+        task.add_done_callback(self._tile_operation_done)
+        return task
+
+    def _schedule_tile_close(self) -> asyncio.Task[None] | None:
+        if not self._owns_tile_service:
+            return None
+        previous = self._tile_operation_task
+        if previous is not None and not previous.done() and self._tile_operation_kind == "close":
+            return previous
+        if self._tiles_closed and (previous is None or previous.done()):
+            return None
+        return self._start_tile_operation("close")
+
     def _serve_done(self, task: asyncio.Task[None]) -> None:
         unexpected = self.running and not self._stopping
         self.running = False
@@ -267,7 +324,10 @@ class AsgiWebServer:
             failure = error or RuntimeError("ASGI server stopped unexpectedly")
             self.failure = failure
             self._force_close()
-            logger.error("Embedded ASGI server failed with %s", type(failure).__name__)
+            logger.error(
+                "Embedded ASGI server failed with %s", type(failure).__name__,
+                extra={"skip_broadcast": True},
+            )
             if self._on_failure is not None:
                 try:
                     self._on_failure(failure)
@@ -275,6 +335,7 @@ class AsgiWebServer:
                     logger.error(
                         "ASGI owner failure callback failed with %s",
                         type(callback_error).__name__,
+                        extra={"skip_broadcast": True},
                     )
 
     async def _serve(self, server: _EmbeddedUvicornServer) -> None:
@@ -295,7 +356,7 @@ class AsgiWebServer:
             self._close_listeners(server)
 
     async def start(self) -> None:
-        """Wait for lifespan and listener readiness; never select this adapter implicitly."""
+        """Restore owned maps and wait for lifespan and listener readiness."""
         async with self._start_lock:
             if self.running:
                 return
@@ -307,6 +368,19 @@ class AsgiWebServer:
             self.failure = None
             self._stop_task = None
             self.app.state.web_shutdown_deadline = None
+            if self._owns_tile_service and (
+                self._tiles_closed or self._tile_operation_kind == "close"
+            ):
+                try:
+                    await asyncio.shield(self._start_tile_operation("reload"))
+                except BaseException:
+                    self._stopping = True
+                    self._force_close()
+                    raise
+            if self._stopping:
+                self._force_close()
+                raise RuntimeError("ASGI startup interrupted by shutdown")
+            self.router.resume_notifications()
             config = Config(
                 self.app,
                 host=self.host,
@@ -379,6 +453,8 @@ class AsgiWebServer:
 
     def _server_tasks(self) -> set[asyncio.Task[Any]]:
         tasks: set[asyncio.Task[Any]] = self.websocket_hub.owned_tasks()
+        tasks.update(self.router.owned_notification_tasks())
+        tasks.update(self._tile_tasks)
         if self._serve_task is not None:
             tasks.add(self._serve_task)
         if self._server is not None:
@@ -397,6 +473,7 @@ class AsgiWebServer:
         deadline = asyncio.get_running_loop().time()
         self.app.state.web_shutdown_deadline = deadline
         self.websocket_hub.force_stop(deadline=deadline)
+        self.router.cancel_notifications()
         server = self._server
         if server is not None:
             server.should_exit = True
@@ -409,18 +486,26 @@ class AsgiWebServer:
                     if transport is not None:
                         transport.abort()
                 except Exception as close_error:
-                    logger.debug("ASGI forced closure failed with %s", type(close_error).__name__)
+                    logger.debug(
+                        "ASGI forced closure failed with %s", type(close_error).__name__,
+                        extra={"skip_broadcast": True},
+                    )
         current = asyncio.current_task()
         for task in self._server_tasks():
-            if task is not current and not task.done():
+            if task is not current and task not in self._tile_tasks and not task.done():
                 self._retain_task(task)
                 task.cancel()
+        # Retain an off-loop closer even when the caller has no remaining
+        # budget. Map workers cannot safely be force-cancelled while their
+        # underlying thread still owns SQLite or the storage lock.
+        self._schedule_tile_close()
 
     async def _shutdown(self, deadline: float) -> None:
         loop = asyncio.get_running_loop()
         server = self._server
         task = self._serve_task
         self.app.state.web_shutdown_deadline = deadline
+        self.router.cancel_notifications()
         try:
             if server is not None:
                 server.should_exit = True
@@ -441,7 +526,10 @@ class AsgiWebServer:
                 # Retained tasks already have cancellation requested and result
                 # callbacks; refuse restart until they finish. Never extend the
                 # owner's deadline waiting for cancellation-resistant handlers.
-                logger.warning("ASGI tasks exceeded shutdown budget: %s", len(pending))
+                logger.warning(
+                    "ASGI tasks exceeded shutdown budget: %s", len(pending),
+                    extra={"skip_broadcast": True},
+                )
 
     async def stop(self) -> None:
         """Share one bounded cleanup; cancellation closes sockets and cancels owned tasks."""
@@ -459,13 +547,8 @@ class AsgiWebServer:
             self._force_close()
             self._stop_task.cancel()
             raise
-        finally:
-            self._server = None
-            if self.tile_service is not None:
-                try:
-                    self.tile_service.close()
-                except Exception:
-                    pass
+        # Keep server/map/task references until they finish. start() refuses a
+        # new generation while any retained work remains, including map I/O.
 
     async def broadcast_event(self, event_data: dict[str, Any]) -> None:
         """Delegate history and event delivery once through the borrowed-state hub."""

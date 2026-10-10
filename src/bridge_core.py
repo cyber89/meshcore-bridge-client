@@ -101,7 +101,7 @@ class MeshCoreBridge:
         try:
             self.node_registry.load_from_file()
         except Exception as e:
-            logging.debug(f"No se pudo cargar NodeRegistry previo: {e}")
+            logging.debug("No se pudo cargar NodeRegistry previo: %s", type(e).__name__)
         self.repeater_manager = RepeaterManager(storage_path=Path(config.DATA_DIR) / "repeater_cooldowns.json")
         self.rate_limiter = TxRateLimiter(
             tx_interval_sec=config.TX_INTERVAL_SEC,
@@ -359,7 +359,7 @@ class MeshCoreBridge:
                     if hasattr(self.node_registry, "save_to_file"):
                         await asyncio.to_thread(self.node_registry.save_to_file)
             except Exception as e:
-                logging.debug(f"Fallo en mantenimiento periódico de NodeRegistry: {e}")
+                logging.debug("Fallo en mantenimiento periódico de NodeRegistry: %s", type(e).__name__)
 
     def _create_web_server(self) -> WebServerProtocol | None:
         """Crea el servidor web asíncrono FastAPI ASGI si está habilitado por configuración."""
@@ -375,6 +375,16 @@ class MeshCoreBridge:
             host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
             port=getattr(config, "WEB_PORT", 8080),
             shutdown_budget_s=getattr(config, "SHUTDOWN_TIMEOUT", 1.5),
+            owns_tile_service=True,
+            on_failure=self._on_web_server_failure,
+        )
+
+    def _on_web_server_failure(self, error: Exception) -> None:
+        """Observe web termination without initiating radio work or a restart."""
+        logging.error(
+            "Web subsystem terminated unexpectedly: %s",
+            type(error).__name__,
+            extra={"skip_broadcast": True},
         )
 
     def _create_tcp_server(self) -> MeshCoreCompanionServer | None:
@@ -711,14 +721,14 @@ class MeshCoreBridge:
             except asyncio.TimeoutError:
                 logging.warning(f"Timeout (1.5s) al detener subsistema '{subsystem_name}'.")
             except Exception as e:
-                logging.error(f"Error deteniendo {subsystem_name}: {e}", exc_info=True)
+                logging.error("Error deteniendo %s: %s", subsystem_name, type(e).__name__)
 
         # Persistir libreta de contactos y métricas de nodos de forma no bloqueante
         try:
             if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
                 await asyncio.wait_for(asyncio.to_thread(self.node_registry.save_to_file, None, True), timeout=1.0)
         except (asyncio.TimeoutError, Exception) as e:
-            logging.debug(f"Error o timeout guardando NodeRegistry al detener: {e}")
+            logging.debug("Error o timeout guardando NodeRegistry al detener: %s", type(e).__name__)
 
         sm_instance = getattr(self, "services_manager", None)
         if sm_instance is None or getattr(sm_instance, "local_mqtt", None) is not getattr(self, "mqtt", None):
@@ -726,7 +736,7 @@ class MeshCoreBridge:
                 try:
                     await asyncio.wait_for(asyncio.to_thread(self.mqtt.stop), timeout=1.5)
                 except (asyncio.TimeoutError, Exception) as e:
-                    logging.warning(f"Error o timeout deteniendo cliente MQTT: {e}")
+                    logging.warning("Error o timeout deteniendo cliente MQTT: %s", type(e).__name__)
 
         if hasattr(self, "log_handler") and self.log_handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(self.log_handler)
@@ -761,7 +771,7 @@ class MeshCoreBridge:
                         self.web_server.router.channels[idx] = ch
                     logging.info(f"Auto-importados {len(node_channels)} canales desde el transceptor serial.")
             except Exception as e:
-                logging.debug(f"Error en auto-importación de canales: {e}")
+                logging.debug("Error en auto-importación de canales: %s", type(e).__name__)
 
         # 2. Sincronizar libreta de contactos desde el hardware
         if hasattr(self.serial_adapter, "sync_all_contacts"):
@@ -795,7 +805,7 @@ class MeshCoreBridge:
 
                     logging.info(f"Auto-importados {len(imported_contacts)} contactos desde el transceptor serial.")
             except Exception as e:
-                logging.debug(f"Error en auto-importación de contactos: {e}")
+                logging.debug("Error en auto-importación de contactos: %s", type(e).__name__)
 
         # 3. Consultar y cachear configuración del dispositivo
         if hasattr(self.admin_handler, "fetch_device_config"):
@@ -818,7 +828,7 @@ class MeshCoreBridge:
                     )
                 logging.info("Configuración de radio y hardware del nodo Heltec sincronizada.")
             except Exception as e:
-                logging.debug(f"Error consultando parámetros de radio del nodo: {e}")
+                logging.debug("Error consultando parámetros de radio del nodo: %s", type(e).__name__)
 
     async def _reconnect_serial(self) -> None:
         """Rutina de reconexión segura invocada por el Watchdog con pausa de estabilización USB."""
@@ -933,7 +943,8 @@ class MeshCoreBridge:
                 if hasattr(self, "packet_buffer") and getattr(self.packet_buffer, "metrics_aggregator", None):
                     self.packet_buffer.metrics_aggregator.record_error("timeouts")
             status_val = "error"
-            error_detail = str(e)
+            logging.warning("Transmisión no confirmada: %s", type(e).__name__)
+            error_detail = "No se confirmó la transmisión por radio"
 
         # Publicar ACK de transmisión
         ack_payload: dict[str, Any] = {
@@ -1043,7 +1054,7 @@ class MeshCoreBridge:
             )
             self._on_incoming_mqtt_message(topic, payload_str)
         except Exception as e:
-            logging.error(f"Error procesando mensaje MQTT directo: {e}")
+            logging.error("Error procesando mensaje MQTT directo: %s", type(e).__name__)
 
     async def _execute_tx_transmission(self, item: TxItem) -> dict[str, Any]:
         """Callback real de emisión hacia el adaptador serial."""
@@ -1090,7 +1101,7 @@ class MeshCoreBridge:
                 alert_topic = getattr(config, "TOPIC_ALERT", f"{config.TOPIC_PREFIX}/bridge/alert")
                 self.mqtt.publish_safe(alert_topic, json.dumps(payload), qos=1)
             except Exception as e:
-                logging.debug(f"Error publicando duty_cycle_alert en MQTT: {e}")
+                logging.debug("Error publicando duty_cycle_alert en MQTT: %s", type(e).__name__)
 
     def _on_airtime_cutoff_change(self, active: bool, channel_utilization: float) -> None:
         """Notifica transiciones del Airtime Cutoff dinámico a WebSockets y MQTT."""
@@ -1116,7 +1127,7 @@ class MeshCoreBridge:
                 alert_topic = getattr(config, "TOPIC_ALERT", f"{config.TOPIC_PREFIX}/bridge/alert")
                 self.mqtt.publish_safe(alert_topic, json.dumps(payload), qos=1)
             except Exception as e:
-                logging.debug(f"Error publicando airtime_cutoff_change en MQTT: {e}")
+                logging.debug("Error publicando airtime_cutoff_change en MQTT: %s", type(e).__name__)
 
 
     def run_forever(self) -> None:

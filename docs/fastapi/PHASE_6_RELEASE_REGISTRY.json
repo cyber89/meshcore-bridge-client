@@ -1,13 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "phase": 6,
   "date": "2026-10-09",
-  "base": "a32cb14",
-  "status": "Release documentation and installer profile hardening prepared; candidate remains optional/inactive pending operational execution gates",
+  "base": "fcaf89b",
+  "status": "FastAPI selected in source; current release audit patches recorded; functional QA and platform execution remain pending",
   "profiles": {
     "core": {
-      "description": "Headless gateway profile for low-resource SBCs (Orange Pi 2W, Raspberry Pi Zero 2W, 512MB RAM)",
-      "manifest": "requirements.txt",
+      "description": "Dependency-check profile for the four core minimums; applicable to manually prepared headless environments",
+      "manifest": null,
       "dependencies": [
         {
           "name": "paho-mqtt",
@@ -30,12 +30,14 @@
           "min_version": "1.0.1"
         }
       ],
-      "ram_footprint_rss_mb": "35 - 45 MB",
-      "server_default": "MeshCoreWebServer (native asyncio.start_server)"
+      "ram_footprint_rss_mb": null,
+      "maintained_core_only_installation": false,
+      "runtime_headless_condition": "WEB_ENABLED=false prevents ASGI import and construction; --profile core only selects checker scope",
+      "resource_measurement_status": "Not measured; previously stated RSS range withdrawn"
     },
     "web": {
-      "description": "Full ASGI profile with OpenAPI 3.1.0 and offline documentation viewer",
-      "manifest": "requirements-web.txt",
+      "description": "Default production dependency-check profile: four core minimums plus six evaluated ASGI exact pins",
+      "manifest": "requirements.txt",
       "pyproject_extra": "web",
       "dependencies": [
         {
@@ -57,10 +59,28 @@
           "name": "websockets",
           "module": "websockets",
           "pinned_version": "16.1.1"
+        },
+        {
+          "name": "starlette",
+          "module": "starlette",
+          "pinned_version": "1.7.0"
+        },
+        {
+          "name": "h11",
+          "module": "h11",
+          "pinned_version": "0.16.0"
         }
       ],
-      "ram_footprint_rss_mb": "75 - 90 MB",
-      "server_candidate": "create_asgi_app (Uvicorn SansIO embedded loop)"
+      "ram_footprint_rss_mb": null,
+      "compatibility_manifest": "requirements-web.txt",
+      "compatibility_manifest_contents": "-r requirements.txt",
+      "pyproject_extra_role": "Compatibility alias; ASGI pins are also in project.dependencies",
+      "includes_core_dependencies": true,
+      "version_policy": "Exact metadata version equality; alternate releases, pre/dev/post releases and local builds are rejected",
+      "resource_measurement_status": "Not measured; previously stated RSS range withdrawn",
+      "server_default": "AsgiWebServer (embedded Uvicorn/FastAPI) when WEB_ENABLED=true",
+      "native_server_fallback": false,
+      "full_transitive_hash_lock": false
     }
   },
   "installer_contracts": {
@@ -84,14 +104,27 @@
       "install.ps1",
       "venv"
     ],
-    "atomic_rollback": true,
+    "atomic_rollback": false,
     "operational_data_preservation": [
       ".env",
       "data/nodes.json",
       "data/channels.json",
       "data/maps/",
       "logs/"
-    ]
+    ],
+    "checker_default_profile_without_environment": "web",
+    "installer_checker_argument": "--profile web",
+    "checker_explicit_argument_precedes_environment": true,
+    "unknown_profile_policy": "Fail before package imports; never silently fall back to core",
+    "checker_exit_codes": {
+      "success": 0,
+      "dependency_or_environment_profile_failure": 1,
+      "invalid_cli_arguments": 2
+    },
+    "rollback_model": "Journaled replacement and attempted recovery of individual components; rollback can fail and then staging is retained",
+    "atomicity_scope": "Each successful os.replace on the same filesystem; no complete-tree transaction or power-loss guarantee",
+    "operational_preservation_scope": "Release components exclude .env and the default data/, data/maps/ and logs/ directories. Arbitrary custom paths within replaced components are not covered by that exclusion; environment and application files are replaced",
+    "real_installation_verified_in_audit": false
   },
   "process_model": {
     "entrypoint": "meshcore_bridge.py",
@@ -99,7 +132,12 @@
     "uvicorn_embedding": "uvicorn.Server.serve() called directly in loop without uvicorn.run or CLI reload",
     "signal_handlers_intercepted": false,
     "multiprocess_workers": 1,
-    "radio_ownership": "Single owner; BridgeCore owns serial adapter; web server only borrows context"
+    "radio_ownership": "Single owner; BridgeCore owns serial adapter; web server only borrows context",
+    "web_shutdown_budget_default_s": 1.5,
+    "web_shutdown_budget_scope": "Owner-provided common deadline for web cleanup; a static implementation intent, not a measured guarantee for the complete bridge or workers",
+    "systemd_timeout_stop_sec": 20,
+    "clean_shutdown_runtime_verified": false,
+    "native_http_server_removed_in_commit": "933ccce"
   },
   "codebase_accounting": {
     "legacy_stack": {
@@ -126,17 +164,79 @@
         "src/web/asgi_openapi.py",
         "src/web/request_models.py"
       ]
-    }
+    },
+    "status": "Historical reported values retained for provenance; not a current measurement or validated equivalent-set comparison",
+    "source_date": "2026-10-09",
+    "source": "Original phase-6 report and registry based on a32cb14; no reproducible counting receipt was recorded",
+    "scope": "Legacy stack includes dispatcher/controllers; ASGI candidate set lists transport modules and DTOs; sets are not established as comparable",
+    "regenerated_in_current_audit": false,
+    "equivalent_comparison_verified": false,
+    "performance_or_quality_inference_permitted": false,
+    "native_primary_module_current_status": "src/web/http_server.py removed; src/web/api_router.py and controllers remain live shared business logic"
   },
   "release_gates": [
-    "RELEASE-GATE-01: Verificación de perfiles de dependencias (core y web) en los 6 entornos diana",
-    "RELEASE-GATE-02: Verificación de instalación limpia y actualización transaccional con install.sh --update",
-    "RELEASE-GATE-03: Verificación de arranque y parada limpia de meshcore-bridge.service en systemd",
-    "RELEASE-GATE-04: Verificación de rollback transaccional ante fallo simulado durante staged_update",
-    "RELEASE-GATE-05: Verificación de preservación íntegra de archivos .env y data/*.json en actualización",
-    "RELEASE-GATE-06: Verificación de ciclo de vida del puente: timeout de apagado conjunto acotado a 1.5s",
-    "RELEASE-GATE-07: Comprobación de que no existen procesos huérfanos ni tareas de asyncio sin cancelar",
-    "RELEASE-GATE-08: Verificación de compatibilidad estricta con Python 3.10 sin constructos exclusivos 3.11+",
-    "RELEASE-GATE-09: Aprobación formal de adopción del candidato ASGI y cambio de servidor predeterminado en BridgeCore"
+    {
+      "id": "RELEASE-GATE-01",
+      "status": "pending_execution",
+      "description": "Verify core/web dependency profiles on all six historical target environments; wheel resolution alone is insufficient"
+    },
+    {
+      "id": "RELEASE-GATE-02",
+      "status": "pending_execution",
+      "description": "Verify isolated clean install and staged update with the current manifests and explicit web probes"
+    },
+    {
+      "id": "RELEASE-GATE-03",
+      "status": "pending_execution",
+      "description": "Verify actual systemd startup and shutdown behavior"
+    },
+    {
+      "id": "RELEASE-GATE-04",
+      "status": "pending_execution",
+      "description": "Exercise isolated component replacement and attempted rollback, including recovery failure"
+    },
+    {
+      "id": "RELEASE-GATE-05",
+      "status": "pending_execution",
+      "description": "Verify .env and operational data preservation during update"
+    },
+    {
+      "id": "RELEASE-GATE-06",
+      "status": "pending_execution",
+      "description": "Measure web cleanup against the owner deadline, default 1.5 seconds, and separately measure full bridge shutdown; no whole-process 1.5-second guarantee"
+    },
+    {
+      "id": "RELEASE-GATE-07",
+      "status": "pending_execution",
+      "description": "Verify no retained sockets, orphan processes, unfinished workers or unowned asyncio tasks"
+    },
+    {
+      "id": "RELEASE-GATE-08",
+      "status": "pending_execution",
+      "description": "Verify supported Python 3.10 runtime; current AST syntax inspection does not certify imports or behavior"
+    },
+    {
+      "id": "RELEASE-GATE-09",
+      "status": "implemented_in_source",
+      "description": "AsgiWebServer selected by BridgeCore and native HTTP server removed in 933ccce; functional REST/WS/docs and deployment acceptance remain pending"
+    }
+  ],
+  "historical_base": "a32cb14",
+  "evidence_scope": {
+    "date": "2026-10-09",
+    "source": "fcaf89b checkout and current layer-audit working-tree patches",
+    "kind": "Static source, AST, manifest, wheel METADATA and diff inspection",
+    "suites_executed": false,
+    "installers_executed": false,
+    "services_started": false,
+    "resource_measurements": false,
+    "original_phase6_registry_rectified": true
+  },
+  "rectifications": [
+    "Previous RSS ranges of 35-45 MB and 75-90 MB are withdrawn because no platform, workload, process or measurement method supported them.",
+    "No guarantee of SBC installation, absence of compilation, memory use, startup time or hardware support is established by the six historical wheel resolutions.",
+    "ASGI is selected in source; the native HTTP server is removed. Adoption in code does not certify deployment or operational QA.",
+    "Core is a dependency-check profile, not the default production manifest or an alternative native web server.",
+    "Rollback is an attempted multi-component recovery using individual renames, not an atomic switch of the complete installation."
   ]
 }

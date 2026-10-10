@@ -157,7 +157,6 @@ REPEATER_PRE_SEND_DELAY_S = _safe_float("REPEATER_PRE_SEND_DELAY_S", 2.5)       
 
 # ================= Servidor Web Embebido y Cliente Web SPA =================
 WEB_ENABLED = os.getenv("WEB_ENABLED", "true").lower() in ("true", "1", "yes")
-WEB_SERVER_BACKEND = os.getenv("WEB_SERVER_BACKEND", "asgi").lower()
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = _safe_int("WEB_PORT", 8080)
 BRIDGE_API_KEY = os.getenv("BRIDGE_API_KEY", "")

@@ -1,5 +1,7 @@
 # FastAPI: OpenAPI, documentación local y verificación de fase 5
 
+> Snapshot histórico de preparación. El checkout posterior selecciona ASGI y retiró el servidor nativo (`933ccce`). Véanse la [auditoría actual](../audits/2026-10-09-layer-audit.md) y la [fase 6 rectificada](PHASE_6_REPORT.md). Las puertas de ejecución continúan pendientes.
+
 Fecha: 2026-10-09. Base documental: fase 4 publicada en `f5e9f79` y checkout
 con cambios anteriores conservados. Estado: **especificación OpenAPI 3.1.0 y visor
 local offline preparados y revisados estáticamente para el candidato inactivo**.

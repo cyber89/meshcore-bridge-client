@@ -37,16 +37,21 @@ Los ADRs documentan las decisiones arquitectónicas fundamentales tomadas a lo l
 
 ---
 
+## Auditoría actual
+
+- [Reunión técnica y auditoría por capas del 2026-10-09](audits/2026-10-09-layer-audit.md): implementación, correcciones y evidencia estática; QA en ejecución pendiente.
+- [Plan y evolución FastAPI](../PROYECTO.md): distingue propuesta histórica de transporte seleccionado.
+
 ## 🚀 Migración FastAPI / Uvicorn ASGI
 
-Los informes de diseño y verificación de la pila FastAPI ASGI residen en [`docs/fastapi/`](fastapi/):
+Los informes de preparación son snapshots históricos; la auditoría actual y la fase 6 rectificada describen la evolución. Las comprobaciones estáticas no certifican ejecución. Los informes de la pila FastAPI ASGI residen en [`docs/fastapi/`](fastapi/):
 
 - **[Fase 0: Auditoría y Viabilidad](fastapi/PHASE_0_REPORT.md)**
 - **[Fase 1: Servidor ASGI Base y Ciclo de Vida](fastapi/PHASE_1_REPORT.md)** y **[Seguridad ASGI](fastapi/PHASE_1_SECURITY_REPORT.md)**
 - **[Fase 2: DTOs Pydantic y Política de Errores RFC 7807](fastapi/PHASE_2_REPORT.md)**
 - **[Fase 3: Rutas REST Modulares](fastapi/PHASE_3_REPORT.md)**
 - **[Fase 4: WebSocket Hub, Assets SPA y Servicio MBTiles](fastapi/PHASE_4_REPORT.md)**
-- **[Fase 5: OpenAPI 3.1.0 y Documentación Interactiva](fastapi/PHASE_5_REPORT.md)**
+- **[Fase 5: OpenAPI 3.1.0 y Visor de Solo Lectura](fastapi/PHASE_5_REPORT.md)**
 - **[Fase 6: Perfiles de Instalación y Resiliencia en Producción](fastapi/PHASE_6_REPORT.md)**
 
 ---

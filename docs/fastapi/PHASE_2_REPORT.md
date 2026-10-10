@@ -1,5 +1,9 @@
 # FastAPI: preparación de DTO y errores de fase 2
 
+> La auditoría actual retiró `CompatibilityBodyDTO.to_legacy_body`, sin consumidores encontrados; los DTO permanecen como metadatos de esquema y no se ejecutan para validar requests.
+
+> Snapshot histórico de preparación. El checkout posterior selecciona ASGI y retiró el servidor nativo (`933ccce`). Véanse la [auditoría actual](../audits/2026-10-09-layer-audit.md) y la [fase 6 rectificada](PHASE_6_REPORT.md). Las puertas de ejecución continúan pendientes.
+
 Fecha: 2026-10-09. Base: `9eead69` y checkout con cambios anteriores conservados.
 Estado: **preparación escrita y revisión estática**. La aceptación de ejecución
 de fases 1 y 2 continúa pendiente; el usuario pidió continuar sin suites.
