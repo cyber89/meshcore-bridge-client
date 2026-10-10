@@ -6,7 +6,7 @@ description: Auditar entradas, secretos, permisos y límites de MeshCore Bridge 
 # Seguridad del bridge
 
 Leer [AGENTS.md](../../../AGENTS.md) y los límites reales en
-[http_server.py](../../../src/web/http_server.py), [config.py](../../../config.py)
+[asgi_server.py](../../../src/web/asgi_server.py), [config.py](../../../config.py)
 y [tcp_companion_server.py](../../../src/tcp_companion_server.py).
 No copiar límites de ejemplos: extraer configuración y constantes vigentes.
 

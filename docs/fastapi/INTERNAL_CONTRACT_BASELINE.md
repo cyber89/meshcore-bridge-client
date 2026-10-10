@@ -22,7 +22,7 @@ Skills aplicadas: `async-concurrency-engineering`,
 
 ## 1. Frontera actual: sustituir transporte no sustituye estado
 
-[MeshCoreWebServer](../../src/web/http_server.py), líneas 61–86, crea un
+`MeshCoreWebServer` (servidor nativo original en `src/web/http_server.py`), líneas 61–86, creaba un
 [WebAPIRouter](../../src/web/api_router.py), líneas 119–152. El router crea
 estado mutable, servicio cartográfico, contexto y diez controladores; el servidor
 lo retiene y expone `tile_service` como alias. Borrar ambos archivos antes de

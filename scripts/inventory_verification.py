@@ -37,10 +37,13 @@ def build_inventory(root: Path) -> dict[str, object]:
     files: list[dict[str, object]] = []
     for directory in ("tests", "scripts", "scratch"):
         for path in sorted((root / directory).rglob("*.py")):
-            if "__pycache__" in path.parts or (directory == "scratch" and "maintenance" in path.parts):
+            if "__pycache__" in path.parts or "artifacts" in path.parts or (directory == "scratch" and "maintenance" in path.parts):
                 continue
             source = path.read_text(encoding="utf-8-sig")
-            tree = ast.parse(source, filename=str(path))
+            try:
+                tree = ast.parse(source, filename=str(path))
+            except SyntaxError:
+                continue
             functions = [node.name for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
             if directory == "tests":
                 category, reason = ("maintained-pytest-suite", "Collected by full pytest gate with isolated configuration/state.") if path.name.startswith("test_") else ("maintained-pytest-fixtures", "Shared isolation and virtual loopback/browser fixtures.")

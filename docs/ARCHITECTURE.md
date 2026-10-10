@@ -1,14 +1,12 @@
 # Arquitectura de MeshCore Bridge v3.0
 
 ## 1. Resumen Ejecutivo
-MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante Python 3.10+ y `asyncio`. El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa HTTP 1.1 y WebSocket con `asyncio.start_server`, sin ASGI.
+MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante Python 3.10+ y `asyncio`. El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa una pila de producción basada en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) para REST, WebSocket, teselas MBTiles y SPA.
 
-Documento vigente revisado el 2026-09-29 por inspección de código. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
+Documento vigente revisado el 2026-10-09 por inspección de código. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
 
 Actualización de arquitectura (Octubre 2026): El bridge opera con un servidor de producción
-basado en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) por defecto, con
-conmutación automática y resiliente (Zero-Crash) hacia el servidor nativo `MeshCoreWebServer`
-si las librerías ASGI no estuvieran instaladas en el entorno host. Las fases preparatorias
+basado en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`). Las fases de migración
 ([fase 0](fastapi/PHASE_0_REPORT.md), [fase 1](fastapi/PHASE_1_REPORT.md), [seguridad](fastapi/PHASE_1_SECURITY_REPORT.md),
 [DTO/errores de fase 2](fastapi/PHASE_2_REPORT.md), [rutas REST de fase 3](fastapi/PHASE_3_REPORT.md),
 [WS/SPA/mapas de fase 4](fastapi/PHASE_4_REPORT.md), [OpenAPI/docs de fase 5](fastapi/PHASE_5_REPORT.md)
@@ -87,7 +85,7 @@ flowchart TB
 
 | Capa | Nombre Canónico | Responsabilidad Principal | Módulos y Rutas del Código |
 |---|---|---|---|
-| **Capa 1** | **Presentación y Exposición** | Frontera exterior con redes IP y usuarios humanos. Servidor HTTP/WS, controladores REST, cliente SPA y broker MQTT. Sin lógica RF directa. | [`src/web/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/) (SPA, `http_server.py`, `api_router.py`, `controllers/*`), [`src/mqtt_client.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_client.py), [`src/mqtt_dispatcher.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_dispatcher.py) |
+| **Capa 1** | **Presentación y Exposición** | Frontera exterior con redes IP y usuarios humanos. Servidor HTTP/WS, controladores REST, cliente SPA y broker MQTT. Sin lógica RF directa. | [`src/web/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/) (SPA, `asgi_server.py`, `api_router.py`, `controllers/*`), [`src/mqtt_client.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_client.py), [`src/mqtt_dispatcher.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_dispatcher.py) |
 | **Capa 2** | **Aplicación y Orquestación** | Orquestación de casos de uso de alto nivel, coordinación de ciclo de vida, apagado ordenado y despacho de comandos administrativos. | [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) (`MeshCoreBridge`), [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py), [`src/admin/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/) (`local_config`, `repeater`, `traceroute`, `cli`), [`src/preflight.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/preflight.py), [`src/health_reporter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/health_reporter.py) |
 | **Capa 3** | **Dominio de Malla y Enrutamiento** | Lógica de red LoRa: enrutamiento de eventos entrantes, priorización TX, estimación de airtime, deduplicación de ecos, LQI y gestión de nodos. | [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py), [`src/routers/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/), [`src/rate_limiter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rate_limiter.py) (`TxRateLimiter`, `AirtimeTracker`), [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) (`NodeRegistry`), [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py), [`src/lqi_engine.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/lqi_engine.py), [`src/deduplicator.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/deduplicator.py), [`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py) |
 | **Capa 4** | **Dominio Puro y Protocolo Canónico** | Definiciones fundamentales del protocolo y tipos estrictos alineados con el firmware C/C++ oficial. Invariantes inmutables de dominio de [`CONTEXT.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md). Libre de dependencias externas. | [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py) (`FirmwareAdvertType`, roles, opcodes, eventos `@dataclass(frozen=True)`), invariantes canónicas de [`CONTEXT.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md) |
@@ -167,7 +165,7 @@ flowchart TB
     end
 
     subgraph Capa Web
-        Web[MeshCoreWebServer]
+        Web[AsgiWebServer]
         API[WebAPIRouter]
         CTRL[Controllers MVC]
         WSH[WebSocket Hub]
@@ -240,7 +238,7 @@ graph TD
     serial_driver --> protocol_types
     sensor_decoder --> protocol_types
 
-    http_server --> api_router
+    asgi_server --> api_router
     api_router --> controllers_star[controllers/*]
     controllers_star --> bridge_core
 
@@ -371,7 +369,7 @@ sequenceDiagram
 | `LinkQualityEngine` | `lqi_engine.py` | Calcula LQI con SNR, RSSI y saltos, EMA y decaimiento temporal; no acredita enlaces bidireccionales. | Engine | Ninguna |
 | `DiagnosticManager` | `diagnostics.py` | Colecta métricas de OS, proceso y logs para reportes de salud avanzados. | Manager | Ninguna |
 | `HealthReporter` | `health_reporter.py` | Publica conectividad, uptime, nodos, cola TX y contadores en MQTT; sin métricas RAM/CPU del OS. | Worker | `mqtt_client` |
-| `MeshCoreWebServer` | `web/http_server.py` | Servidor HTTP nativo de asyncio para servir SPA, UI y WebSockets. | Server | `WebAPIRouter` |
+| `AsgiWebServer` | `web/asgi_server.py` | Servidor ASGI de producción basado en FastAPI y Uvicorn para SPA, REST, teselas y WebSockets. | Server | `WebAPIRouter` |
 | `WebAPIRouter` | `web/api_router.py` | Enrutador HTTP que dirige el tráfico a módulos tipo API de dominio. | Router / Dispatcher | `controllers/*` |
 | `LogsController` | `web/controllers/logs_controller.py` | Controlador REST dedicado para mensajes, telemetría y logs del sistema. | Controller (MVC) | `diagnostics`, `PacketBuffer` |
 | `VirtualMeshAdapter` | `virtual_mesh_adapter.py` | Simula la interfaz de radio completa para pruebas de integración continua. | Mock / Adapter | Ninguna |
@@ -440,7 +438,7 @@ sequenceDiagram
 
 | Nombre del Evento | Dirección | Payload | Módulo Emisor / Responsable |
 | --- | --- | --- | --- |
-| `ping` / `pong` | Bidireccional | `{ type, timestamp }` | Servidor Python `MeshCoreWebServer` y Cliente Javascript para KeepAlive. |
+| `ping` / `pong` | Bidireccional | `{ type, timestamp }` | Servidor WebSocket Hub (`AsgiWebServer`) y Cliente Javascript para KeepAlive. |
 | `metrics_update` | Server→Client | `node_count`, `rx_count`, `tx_count`, `error_rate`, `queue_depth`, `serial_connected` | Periodicidad `WS_METRICS_INTERVAL_SEC` (default de config: 5 s). |
 | `system_log` | Server→Client | `level`, `message`, `source`, `timestamp` | Re-despachado por el registro en vivo desde `WebAPIRouter` y subsistema `DiagnosticManager`. |
 | `rf_packet` | Server→Client | Headers crudos L2 interceptados, metadata LQI. | Enrutado nativo a través del hub originado en `RxEventRouter` post-parseo. |

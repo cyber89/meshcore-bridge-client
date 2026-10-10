@@ -69,7 +69,7 @@ No hay backend SQLite para nodos, mensajes o colas MQTT. `MapTileService` sí us
 
 ## 7. Web, MQTT y mantenimiento
 
-`MeshCoreWebServer` es HTTP 1.1/WebSocket sobre `asyncio.start_server`, no ASGI. `WebAPIRouter` normaliza alias y delega en controladores por dominio. La SPA organiza WebSocket, eventos y almacenamiento en `core/` y chat, nodos, repetidores, mapa, ajustes, analítica y sniffer en `modules/`.
+`AsgiWebServer` es el servidor de producción basado en FastAPI / Uvicorn (ASGI) (`src/web/asgi_server.py`). `WebAPIRouter` normaliza alias y delega en controladores por dominio. La SPA organiza WebSocket, eventos y almacenamiento en `core/` y chat, nodos, repetidores, mapa, ajustes, analítica y sniffer en `modules/`.
 
 `BRIDGE_API_KEY` protege operaciones sensibles y handshake WebSocket cuando está configurada. Companion TCP tiene controles independientes (`COMPANION_ALLOWED_IPS`, `COMPANION_TOKEN`, límite de clientes). La política HTTP no autentica las conexiones MQTT; éstas dependen del broker.
 

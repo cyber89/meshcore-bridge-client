@@ -362,45 +362,19 @@ class MeshCoreBridge:
                 logging.debug(f"Fallo en mantenimiento periódico de NodeRegistry: {e}")
 
     def _create_web_server(self) -> WebServerProtocol | None:
-        """Crea el servidor HTTP/WebSocket asíncrono si está habilitado por configuración."""
+        """Crea el servidor web asíncrono FastAPI ASGI si está habilitado por configuración."""
         if not getattr(config, "WEB_ENABLED", True):
             return None
-        import unittest.mock
 
-        from src.web.http_server import MeshCoreWebServer
+        from src.web.api_router import WebAPIRouter
+        from src.web.asgi_server import AsgiWebServer
 
-        # Retrocompatibilidad con tests que mockean MeshCoreWebServer explícitamente
-        if isinstance(MeshCoreWebServer, (unittest.mock.MagicMock, unittest.mock.AsyncMock)):
-            mock_srv = MeshCoreWebServer(
-                bridge=self,
-                host=getattr(config, "WEB_HOST", "0.0.0.0"),
-                port=getattr(config, "WEB_PORT", 8080),
-            )
-            return cast(WebServerProtocol, mock_srv)
-
-        backend = getattr(config, "WEB_SERVER_BACKEND", "asgi").lower()
-        if backend not in ("legacy", "native"):
-            try:
-                from src.web.api_router import WebAPIRouter
-                from src.web.asgi_server import AsgiWebServer
-
-                router = WebAPIRouter(bridge=self)
-                return AsgiWebServer(
-                    router=router,
-                    host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
-                    port=getattr(config, "WEB_PORT", 8080),
-                    shutdown_budget_s=getattr(config, "SHUTDOWN_TIMEOUT", 1.5),
-                )
-            except (ImportError, ModuleNotFoundError) as err:
-                logging.warning(
-                    f"FastAPI/Uvicorn no está disponible en este entorno ({err}). "
-                    "Recurriendo automáticamente al servidor web nativo MeshCoreWebServer."
-                )
-
-        return MeshCoreWebServer(
-            bridge=self,
+        router = WebAPIRouter(bridge=self)
+        return AsgiWebServer(
+            router=router,
             host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
             port=getattr(config, "WEB_PORT", 8080),
+            shutdown_budget_s=getattr(config, "SHUTDOWN_TIMEOUT", 1.5),
         )
 
     def _create_tcp_server(self) -> MeshCoreCompanionServer | None:

@@ -21,15 +21,13 @@ Compatible con el ecosistema de hardware oficial soportado por el firmware MeshC
 
 ## 🚀 Características Principales
 
-### 🌐 Doble Servidor Web de Alta Disponibilidad (`http://<IP>:8080`)
+### 🌐 Servidor Web de Alto Rendimiento (`http://<IP>:8080`)
 - **Pila ASGI de Producción (Uvicorn 0.54 + FastAPI 0.143 + Pydantic 2.14)**:
-  - Servidor por defecto para máxima concurrencia, bajo consumo de memoria y validación estricta de esquemas.
+  - Servidor moderno de alto rendimiento para máxima concurrencia, bajo consumo de memoria y validación estricta de esquemas DTO.
   - Documentación interactiva de la API OpenAPI 3.1 autónoma y offline:
     - **Swagger UI**: `http://<IP>:8080/docs/api`
     - **ReDoc**: `http://<IP>:8080/docs/redoc`
     - **Esquema OpenAPI JSON**: `http://<IP>:8080/openapi.json`
-- **Fallback Automático Resiliente (*Zero-Crash*)**:
-  - Si las dependencias ASGI no están instaladas en el host, conmuta automáticamente a `MeshCoreWebServer` (servidor HTTP 1.1 y WebSocket nativo sobre `asyncio.start_server`), garantizando el 100% de operatividad en cualquier entorno.
 - **WebSocket Hub Resiliente (RFC 6455)**:
   - Actualización en vivo de chat, telemetría, sniffer y estado de la red.
   - Reconexión con *exponential backoff* y latidos *heartbeat* periódicos (Ping/Pong cada 15s).

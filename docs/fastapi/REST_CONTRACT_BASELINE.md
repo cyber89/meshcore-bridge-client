@@ -4,7 +4,7 @@ Fecha: 2026-10-08. Base de lectura: HEAD `457903ddf623768a1c5f90f952fb8b77db45e0
 
 ## Alcance, fuentes y notación
 
-Se inspeccionaron [router](../../src/web/api_router.py), [servidor HTTP](../../src/web/http_server.py), los diez [controladores](../../src/web/controllers/), [BaseController](../../src/web/controllers/base.py), [MapTileService](../../src/web/map_tile_service.py), consumidores SPA y flujo n8n. Los números de línea siguientes corresponden a ese checkout. Auth y transporte se complementan con [WEB_CONTRACT_BASELINE.md](WEB_CONTRACT_BASELINE.md); propiedad de estado con [INTERNAL_CONTRACT_BASELINE.md](INTERNAL_CONTRACT_BASELINE.md).
+Se inspeccionaron [router](../../src/web/api_router.py), servidor HTTP nativo original (`src/web/http_server.py`), los diez [controladores](../../src/web/controllers/), [BaseController](../../src/web/controllers/base.py), [MapTileService](../../src/web/map_tile_service.py), consumidores SPA y flujo n8n. Los números de línea siguientes corresponden a ese checkout. Auth y transporte se complementan con [WEB_CONTRACT_BASELINE.md](WEB_CONTRACT_BASELINE.md); propiedad de estado con [INTERNAL_CONTRACT_BASELINE.md](INTERNAL_CONTRACT_BASELINE.md).
 
 Notación: `OK` significa `{"status":"ok",...}`; `PD` significa error de `problem_details`; `CF` significa la traducción de rechazo del comando en BaseController. `P` indica autenticación condicionada a `BRIDGE_API_KEY` configurada, `U` lectura pública, `T` tile anterior a auth. Los códigos de las tablas son los explícitos; **toda operación JSON puede terminar en 500 PD por excepción no capturada por su controlador**. Para CF se conserva el código remoto entero 400..599 cuando es válido, además de 400/422/503 descritos abajo. No reducir el catálogo a 200/422.
 

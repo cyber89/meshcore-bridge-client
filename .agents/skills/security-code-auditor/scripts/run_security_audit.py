@@ -54,12 +54,12 @@ def check_safe_json_storage() -> tuple[None, list[str]]:
 def check_path_traversal() -> tuple[bool | None, list[str]]:
     """Find source markers only; their presence does not establish path safety."""
     issues: list[str] = []
-    server_file = SRC_DIR / "web" / "http_server.py"
+    server_file = SRC_DIR / "web" / "asgi_assets.py"
     if not server_file.exists():
-        return None, ["No se encontró http_server.py para inspeccionar indicadores de rutas."]
+        return None, ["No se encontró asgi_assets.py para inspeccionar indicadores de rutas."]
     content = server_file.read_text(encoding="utf-8")
     if ".resolve()" not in content or "startswith(" not in content:
-        issues.append("No se encontraron ambos indicadores .resolve()/startswith en http_server.py; revisar manualmente.")
+        issues.append("No se encontraron ambos indicadores .resolve()/startswith en asgi_assets.py; revisar manualmente.")
 
     return len(issues) == 0, issues
 

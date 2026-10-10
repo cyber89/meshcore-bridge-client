@@ -17,7 +17,7 @@ Fuentes de lectura:
 
 | Fuente | Función / líneas de referencia | Responsabilidad |
 | --- | --- | --- |
-| [http_server.py](../../src/web/http_server.py) | `_dispatch_client_request` 458, `_is_api_auth_valid` 586, `_handle_websocket_handshake` 698, `_serve_static_file` 1073 | Ingreso, autenticación, WS, estáticos |
+| `http_server.py` (legacy) | `_dispatch_client_request` 458, `_is_api_auth_valid` 586, `_handle_websocket_handshake` 698, `_serve_static_file` 1073 | Ingreso, autenticación, WS, estáticos |
 | [api_router.py](../../src/web/api_router.py) | `_notify_web_clients` 167, `record_incoming_event` 201, `_dispatch_misc` 779 | Puente broadcast, historial y mapas |
 | [websocket.js](../../src/web/static/js/core/websocket.js) | `connect` 20, `onmessage` 62, `_startHeartbeat` 140 | Adaptador WS del navegador |
 | [eventbus.js](../../src/web/static/js/core/eventbus.js) | `EVENTS` 48 | Discriminadores internos SPA |

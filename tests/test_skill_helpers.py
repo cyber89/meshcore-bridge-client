@@ -37,7 +37,7 @@ def security_helper(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleTy
 def write_static_markers(helper: ModuleType) -> None:
     web = helper.SRC_DIR / "web"
     web.mkdir(parents=True)
-    (web / "http_server.py").write_text(
+    (web / "asgi_assets.py").write_text(
         "path.resolve()\nvalue.startswith(prefix)\n", encoding="utf-8"
     )
     utils = helper.STATIC_DIR / "js" / "core" / "utils.js"

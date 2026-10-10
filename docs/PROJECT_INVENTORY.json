@@ -1653,7 +1653,6 @@
     "src/web/controllers/repeater_controller.py",
     "src/web/controllers/system_controller.py",
     "src/web/controllers/tx_controller.py",
-    "src/web/http_server.py",
     "src/web/map_tile_service.py",
     "src/web/security_inspector.py",
     "src/web/static/css/admin.css",

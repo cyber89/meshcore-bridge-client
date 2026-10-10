@@ -1,7 +1,6 @@
 """Observable REST behavior when the official Companion refuses a mutation."""
 from __future__ import annotations
 
-import asyncio
 from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,13 +10,13 @@ import pytest
 from meshcore.events import Event, EventType
 
 from src.contact_manager import NodeContactUpdate, NodeRegistry
+from src.web.access_policy import evaluate_http_access
 from src.web.controllers.base import ApiContext
 from src.web.controllers.channels_controller import ChannelsController
 from src.web.controllers.config_controller import ConfigController
 from src.web.controllers.contacts_controller import ContactsController
 from src.web.controllers.repeater_controller import RepeaterController
 from src.web.controllers.tx_controller import TxController
-from src.web.http_server import HttpRequestContext, MeshCoreWebServer
 from src.web.map_tile_service import MapTileService
 from src.web.security_inspector import SecurityTrafficInspector
 
@@ -165,54 +164,18 @@ async def test_local_admin_error_is_not_wrapped_in_http_success(operation: str) 
     assert body["status"] != "ok"
 
 
-def websocket_server() -> MeshCoreWebServer:
-    server = MeshCoreWebServer.__new__(MeshCoreWebServer)
-    server.running = True
-    server.active_websockets = set()
-    return server
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("wire", [b"\x81\x01x", b"\xc1\x80abcd", b"\x09\x80abcd", b"\x89\xfe\x00\x7eabcd" + b"x" * 126])
-async def test_websocket_rejects_invalid_client_wire_frames(wire: bytes) -> None:
-    reader = asyncio.StreamReader()
-    reader.feed_data(wire)
-    reader.feed_eof()
-    assert await websocket_server()._read_websocket_frame(reader) is None
-
-
-@pytest.mark.asyncio
-async def test_websocket_ping_echoes_identical_payload_in_pong() -> None:
-    reader = asyncio.StreamReader()
-    mask = b"abcd"
-    payload = b"health"
-    encoded = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
-    reader.feed_data(b"\x89" + bytes([0x80 | len(payload)]) + mask + encoded + b"\x88\x80abcd")
-    reader.feed_eof()
-    writer = Mock(drain=AsyncMock())
-    server = websocket_server()
-    server.active_websockets.add(writer)
-    await server._run_websocket_message_loop(reader, writer, "127.0.0.1")
-    assert writer.write.call_args_list[0].args[0] == bytes([0x8A, len(payload)]) + payload
-
-
-@pytest.mark.asyncio
-async def test_channel_secret_export_requires_existing_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_channel_secret_export_requires_existing_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BRIDGE_API_KEY", "server-secret")
-    server = websocket_server()
-    server._write_http_response = AsyncMock()
-    ctx = HttpRequestContext(asyncio.StreamReader(), Mock(), "GET", "/api/channels/export?index=1", {})
-    assert await server._is_api_auth_valid(ctx) is False
+    decision = evaluate_http_access("GET", "/api/channels/export?index=1", {})
+    assert decision.auth_valid is False
+    assert decision.rejection_status == 401
 
 
-@pytest.mark.asyncio
-async def test_failed_api_auth_does_not_log_query_credential(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+def test_failed_api_auth_does_not_log_query_credential(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BRIDGE_API_KEY", "server-secret")
-    server = websocket_server()
-    server._write_http_response = AsyncMock()
-    ctx = HttpRequestContext(asyncio.StreamReader(), Mock(), "POST", "/api/admin/command?api_key=provided-secret", {})
-    assert await server._is_api_auth_valid(ctx) is False
-    assert "provided-secret" not in caplog.text
+    decision = evaluate_http_access("POST", "/api/admin/command?api_key=provided-secret", {})
+    assert decision.auth_valid is False
+    assert "provided-secret" not in decision.log_path
 
 
 def test_map_tile_symlink_cannot_escape_map_storage(tmp_path: Path) -> None:

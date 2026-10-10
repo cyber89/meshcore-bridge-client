@@ -14,18 +14,21 @@ import pytest
 import pytest_asyncio
 
 from src.packet_buffer import PacketBuffer
-from src.web.http_server import MeshCoreWebServer
+from src.web.api_router import WebAPIRouter
+from src.web.asgi_server import AsgiWebServer
 
 API_KEY = "capture-test+key%&"
 PACKET_TEXT = "synthetic capture body"
 
 
 @pytest_asyncio.fixture
-async def capture_server(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[MeshCoreWebServer]:
+async def capture_server(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[AsgiWebServer]:
     monkeypatch.setenv("BRIDGE_API_KEY", API_KEY)
     buffer = PacketBuffer()
     buffer.record(text=PACKET_TEXT, raw_bytes=b"synthetic-capture-bytes")
-    server = MeshCoreWebServer(SimpleNamespace(packet_buffer=buffer), host="127.0.0.1", port=0)
+    bridge = SimpleNamespace(packet_buffer=buffer, channels=[])
+    router = WebAPIRouter(bridge)
+    server = AsgiWebServer(router=router, host="127.0.0.1", port=0)
     try:
         await server.start()
         yield server
@@ -34,14 +37,13 @@ async def capture_server(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[MeshC
 
 
 async def request(
-    server: MeshCoreWebServer,
+    server: AsgiWebServer,
     path: str,
     *,
     method: str = "GET",
     api_key: str | None = None,
 ) -> tuple[int, bytes]:
-    assert server.server is not None
-    port = server.server.sockets[0].getsockname()[1]
+    port = server.port
     reader, writer = await asyncio.open_connection("127.0.0.1", port)
     try:
         headers = f"Host: 127.0.0.1:{port}\r\nConnection: close\r\n"
@@ -67,7 +69,7 @@ async def request(
 ])
 @pytest.mark.parametrize("provided_key", [None, "invalid-key"])
 async def test_capture_read_rejects_missing_or_wrong_key(
-    capture_server: MeshCoreWebServer, path: str, provided_key: str | None,
+    capture_server: AsgiWebServer, path: str, provided_key: str | None,
 ) -> None:
     status, body = await request(capture_server, path, api_key=provided_key)
     assert status == 401
@@ -78,7 +80,7 @@ async def test_capture_read_rejects_missing_or_wrong_key(
 @pytest.mark.parametrize("fmt", ["json", "csv", "pcap"])
 @pytest.mark.parametrize("credential_transport", ["header", "query"])
 async def test_authorized_reads_preserve_capture_and_export_contract(
-    capture_server: MeshCoreWebServer, fmt: str, credential_transport: str,
+    capture_server: AsgiWebServer, fmt: str, credential_transport: str,
 ) -> None:
     auth_query = "&api_key=" + quote(API_KEY, safe="") if credential_transport == "query" else ""
     key = API_KEY if credential_transport == "header" else None
@@ -99,7 +101,7 @@ async def test_authorized_reads_preserve_capture_and_export_contract(
 
 @pytest.mark.parametrize("path", ["/api/packets", "/api/packets/export?format=json"])
 async def test_capture_head_requires_authentication_without_response_body(
-    capture_server: MeshCoreWebServer, path: str,
+    capture_server: AsgiWebServer, path: str,
 ) -> None:
     status, body = await request(capture_server, path, method="HEAD")
     assert status == 401 and body == b""
@@ -110,7 +112,7 @@ async def test_capture_head_requires_authentication_without_response_body(
 
 @pytest.mark.parametrize("path", ["/api/packets", "/api/packets/export?format=json"])
 async def test_development_mode_preserves_capture_read(
-    capture_server: MeshCoreWebServer, monkeypatch: pytest.MonkeyPatch, path: str,
+    capture_server: AsgiWebServer, monkeypatch: pytest.MonkeyPatch, path: str,
 ) -> None:
     monkeypatch.delenv("BRIDGE_API_KEY", raising=False)
     status, body = await request(capture_server, path)
@@ -119,14 +121,14 @@ async def test_development_mode_preserves_capture_read(
 
 @pytest.mark.parametrize("path", ["/api/channels", "/api/packets/debug", "/api/packetsExtra"])
 async def test_auth_boundary_does_not_expand_to_unrelated_reads(
-    capture_server: MeshCoreWebServer, path: str,
+    capture_server: AsgiWebServer, path: str,
 ) -> None:
     status, _ = await request(capture_server, path)
     assert status == (200 if path == "/api/channels" else 404)
 
 
 async def test_wrong_query_key_is_not_logged(
-    capture_server: MeshCoreWebServer, caplog: pytest.LogCaptureFixture,
+    capture_server: AsgiWebServer, caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.DEBUG)
     credential = "rejected-capture+credential%&"
@@ -136,7 +138,7 @@ async def test_wrong_query_key_is_not_logged(
     assert credential not in caplog.text and encoded_credential not in caplog.text
 
 
-async def test_wrong_header_takes_precedence_over_valid_query_key(capture_server: MeshCoreWebServer) -> None:
+async def test_wrong_header_takes_precedence_over_valid_query_key(capture_server: AsgiWebServer) -> None:
     status, _ = await request(
         capture_server, "/api/packets?api_key=" + quote(API_KEY, safe=""), api_key="incorrect",
     )

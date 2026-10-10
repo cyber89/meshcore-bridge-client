@@ -30,7 +30,7 @@ flowchart TB
     subgraph L1 ["Capa 1: Presentación y Exposición (Ingress / Egress)"]
         direction LR
         UI["Web SPA (Vanilla HTML5/CSS3/JS)"]
-        HTTP["HTTP 1.1 / WS Server\n(MeshCoreWebServer)"]
+        HTTP["Servidor ASGI (FastAPI / Uvicorn)\n(AsgiWebServer)"]
         RouterAPI["REST API Router\n(WebAPIRouter)"]
         Controllers["Controladores REST\n(controllers/*)"]
         MQTT_Ext["Cliente y Dispatcher MQTT\n(AsyncBridgeMQTTClient / MqttInboundDispatcher)"]
@@ -87,13 +87,11 @@ Constituye la frontera perimetral del sistema frente a redes IP, operadores huma
 
 ### 3.2 Clases y Métodos Principales
 
-#### `MeshCoreWebServer` (`src/web/http_server.py`)
-Servidor web asíncrono implementado directamente sobre `asyncio.start_server` (sin dependencias ASGI/WSGI como Uvicorn o Flask).
-- **`async start() -> None`**: Inicializa el socket TCP del servidor en `WEB_HOST:WEB_PORT` y comienza la escucha de clientes.
-- **`async stop() -> None`**: Cierra el socket del servidor, cancela tareas activas y desconecta limpiamente las sesiones WebSocket activas.
-- **`async _handle_client(reader: StreamReader, writer: StreamWriter) -> None`**: Lee la petición HTTP 1.1, parsea headers y línea de solicitud. Si detecta `Upgrade: websocket`, delega a `_handle_websocket`; en caso contrario, delega al `WebAPIRouter`.
-- **`async _handle_websocket(reader, writer, headers) -> None`**: Implementa el handshake RFC 6455 (`Sec-WebSocket-Accept` mediante SHA-1 y Base64), decodificación/empaquetado de frames binarios y texto, ping/pong keepalive y suscripción a la difusión.
-- **`broadcast_event(payload: dict[str, Any]) -> None`**: Difunde eventos en tiempo real (mensajes de radio, cambios de estado, métricas) a todas las conexiones WebSocket concurrentes activas (con un límite perimetral de 32 sesiones concurrentes).
+#### `AsgiWebServer` (`src/web/asgi_server.py`)
+Servidor web asíncrono de producción basado en FastAPI y Uvicorn (ASGI).
+- **`async start() -> None`**: Inicializa el socket Uvicorn en `WEB_HOST:WEB_PORT`, arranca el ciclo de vida ASGI y el hub WebSocket.
+- **`async stop() -> None`**: Cierra el servidor Uvicorn de forma limpia y drena tareas y conexiones dentro del presupuesto de apagado.
+- **`broadcast_event(payload: dict[str, Any]) -> None`**: Difunde eventos en tiempo real (mensajes de radio, cambios de estado, métricas) a todas las conexiones WebSocket concurrentes activas (con un límite perimetral de 32 sesiones concurrentes) a través de `WebSocketHub`.
 
 #### `WebAPIRouter` (`src/web/api_router.py`)
 Enrutador de peticiones REST hacia los controladores modulares.
@@ -147,7 +145,7 @@ Fachada maestra (*System Facade*) que actúa como punto central de integración 
   3. Arranca el cliente MQTT (`AsyncBridgeMQTTClient.start()`).
   4. Conecta el transceptor serial a través de `BaseSerialAdapter.connect()`.
   5. Inicia el `SerialWatchdog`.
-  6. Arranca el servidor web (`MeshCoreWebServer.start()`) y el proxy TCP (`MeshCoreCompanionServer.start()`).
+  6. Arranca el servidor web (`AsgiWebServer.start()`) y el proxy TCP (`MeshCoreCompanionServer.start()`).
   7. Ejecuta la sincronización automática de estado con el hardware (`_auto_bootstrap_heltec_state()`).
   8. Lanza el ciclo de reporte periódico de salud (`HealthReporter`).
 - **`async stop() -> None`**:
@@ -363,7 +361,7 @@ sequenceDiagram
     participant C5 as Capa 5: MeshcoreSDKAdapter
     participant C2 as Capa 2: MeshCoreBridge.on_mesh_event()
     participant C3 as Capa 3: RxEventRouter & Handlers
-    participant C1 as Capa 1: MeshCoreWebServer & MQTT
+    participant C1 as Capa 1: AsgiWebServer & MQTT
     participant Client as Clientes IP (Web SPA / n8n)
 
     HW->>C5: Trama de radio recibida por UART (>0x...)

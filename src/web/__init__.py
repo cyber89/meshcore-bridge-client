@@ -8,9 +8,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from src.web.api_router import WebAPIRouter
     from src.web.asgi_server import AsgiWebServer
-    from src.web.http_server import MeshCoreWebServer
 
-__all__ = ["AsgiWebServer", "MeshCoreWebServer", "WebAPIRouter"]
+__all__ = ["AsgiWebServer", "WebAPIRouter"]
 
 
 def __getattr__(name: str) -> Any:
@@ -19,10 +18,6 @@ def __getattr__(name: str) -> Any:
         from src.web.asgi_server import AsgiWebServer
 
         return AsgiWebServer
-    if name == "MeshCoreWebServer":
-        from src.web.http_server import MeshCoreWebServer
-
-        return MeshCoreWebServer
     if name == "WebAPIRouter":
         from src.web.api_router import WebAPIRouter
 

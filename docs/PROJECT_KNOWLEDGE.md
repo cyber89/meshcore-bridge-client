@@ -49,7 +49,7 @@ y [reloj RTC](adr/0008-automatic-rtc-clock-synchronization.md).
 | Administración | `src/admin_handler.py`, `admin/`, `repeater_manager.py` | Operaciones SDK y comandos remotos bajo demanda; cualquier cambio RF requiere checklist y límites acordados. |
 | MQTT | `src/mqtt_client.py`, `mqtt_dispatcher.py`, `health_reporter.py` | Paho y adaptador asyncio; sin cola MQTT durable en disco. Salud MQTT no publica RAM/CPU del OS. |
 | TCP Companion | `src/tcp_companion_server.py` | Proxy Companion con controles de conexión; no equivale a una segunda radio física. |
-| REST/WebSocket | `src/web/http_server.py`, `api_router.py`, `controllers/` | Servidor asyncio propio; no FastAPI/ASGI ni especificación OpenAPI completa publicada. |
+| REST/WebSocket | `src/web/asgi_server.py`, `api_router.py`, `controllers/` | Servidor ASGI de producción basado en FastAPI / Uvicorn con OpenAPI 3.1 (`/docs/api`, `/openapi.json`). |
 | SPA | `src/web/static/`, `src/web/static/index.html` | HTML, Vanilla CSS/JS, WebSocket y almacenamiento IndexedDB del navegador. |
 | Persistencia/cartografía | registros/canales/airtime JSON, `src/web/map_tile_service.py` | JSON atómico, buffers RAM y lectura SQLite MBTiles; no backend SQLite de chat/nodos. |
 | QA | `tests/`, `pyproject.toml`, `scripts/run_quality_checks.py` | Suites sólo por petición explícita; temporal, virtual y loopback. No ejecutar scripts históricos por su nombre. |

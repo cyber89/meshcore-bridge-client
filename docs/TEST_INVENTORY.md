@@ -49,7 +49,6 @@ La cobertura es de líneas Python ejecutadas; no equivale a cobertura del JavaSc
 | [tests/test_rest_controllers.py](../tests/test_rest_controllers.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for REST API Controllers in src/web/controllers/ |
 | [tests/test_rx_routers.py](../tests/test_rx_routers.py) | maintained-pytest-suite | Suite del gate completo. Unit test suite for modular RxRouter Strategy Pattern handlers and RxEventRouter. |
 | [tests/test_sanitization_fixes.py](../tests/test_sanitization_fixes.py) | maintained-pytest-suite | Suite del gate completo. Tests de verificación para el saneamiento integral de MeshCore Bridge. |
-| [tests/test_security_audit.py](../tests/test_security_audit.py) | maintained-pytest-suite | Suite del gate completo. Automated Security Audit & Vulnerability Tests for MeshCore Bridge. |
 | [tests/test_sensor_decoder.py](../tests/test_sensor_decoder.py) | maintained-pytest-suite | Suite del gate completo. Unit tests and fuzzing for CayenneLPP Environmental Sensor Decoder. |
 | [tests/test_serial_adapter.py](../tests/test_serial_adapter.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for Serial Communication Adapters, Framing byte-stuffing, and Watchdog. |
 | [tests/test_serial_watchdog.py](../tests/test_serial_watchdog.py) | maintained-pytest-suite | Suite del gate completo. Pruebas Unitarias para el SerialWatchdog de src/serial_driver.py. |
@@ -63,7 +62,6 @@ La cobertura es de líneas Python ejecutadas; no equivale a cobertura del JavaSc
 | [tests/test_virtual_mesh_simulation.py](../tests/test_virtual_mesh_simulation.py) | maintained-pytest-suite | Suite del gate completo. Automated Integration & Simulation Tests for VirtualMeshAdapter. |
 | [tests/test_web_security_and_maps.py](../tests/test_web_security_and_maps.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for SecurityTrafficInspector and MapTileService. |
 | [tests/test_web_server.py](../tests/test_web_server.py) | maintained-pytest-suite | Suite del gate completo. Unit and Integration tests for MeshCore Web Server and REST API Router. |
-| [tests/test_websocket_live.py](../tests/test_websocket_live.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for WebSocket Live Streaming and Frame Handling in MeshCoreWebServer. |
 | [scripts/audit_codebase_integrity.py](../scripts/audit_codebase_integrity.py) | auxiliary-static-audit | Executed by main QA:59 application imports passed; scans source references. |
 | [scripts/audit_frontend_browser.py](../scripts/audit_frontend_browser.py) | auxiliary-browser-audit | Revisado con AST; sin ejecución independiente. Own virtual radio but standalone server and operator config; CDN assets not isolated. |
 | [scripts/build_diagrams.py](../scripts/build_diagrams.py) | manual-documentation-generator | Revisado con AST; sin ejecución independiente. Generates documentation diagrams; outside test suite and assigned QA write scope. |

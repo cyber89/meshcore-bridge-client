@@ -10,7 +10,7 @@
 2. **[AGENTS.md](../AGENTS.md)**: Protocolo de orquestación multi-agente, gobernanza de cambios, reglas de exclusión y checklist de impacto en la malla LoRa.
 3. **[CONTEXT.md](../CONTEXT.md)**: Modelo de dominio canónico, lenguaje ubicuo, clasificación estricta de nodos (CLIENT, REPEATER, ROOM, SENSOR) e invariantes inmutables.
 4. **[PROTOCOL_SPEC.md](PROTOCOL_SPEC.md)**: Especificación formal del protocolo MeshCore, framing Companion oficial, framing raw propio y contratos binarios.
-5. **[ARCHITECTURE.md](ARCHITECTURE.md)**: Arquitectura en 5 capas, integración FastAPI / Uvicorn ASGI de producción con fallback automático a `MeshCoreWebServer`, WebSocket Hub y ciclo de vida asíncrono.
+5. **[ARCHITECTURE.md](ARCHITECTURE.md)**: Arquitectura en 5 capas, servidor FastAPI / Uvicorn ASGI de producción, WebSocket Hub y ciclo de vida asíncrono.
 6. **[SYSTEM_LAYERS_MANUAL.md](SYSTEM_LAYERS_MANUAL.md)** y **[CODE_EXPLANATION.md](CODE_EXPLANATION.md)**: Manual detallado de subsistemas, módulos, estrategias de enrutamiento y persistencia.
 7. **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**: Guía completa de despliegue en Linux (systemd), Raspberry Pi / Orange Pi y Windows.
 8. **[N8N_WORKFLOW_GUIDE.md](N8N_WORKFLOW_GUIDE.md)**: Integración con automatizaciones n8n y esquemas de mensajería MQTT.

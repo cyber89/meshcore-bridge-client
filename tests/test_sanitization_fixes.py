@@ -258,43 +258,37 @@ class TestSharedUtilsCentralized:
 class TestPathTraversalProtection:
     """Tests para la protección fortalecida contra path traversal."""
 
-    def _make_server(self) -> Any:
-        """Crea instancia mínima del servidor para testing."""
-        from src.web.http_server import MeshCoreWebServer
-        bridge = MagicMock()
-        return MeshCoreWebServer(bridge)
-
     def test_basic_traversal(self) -> None:
         """Verifica detección de ../../../etc/passwd."""
-        server = self._make_server()
-        assert server._is_traversal_attempt("../../../etc/passwd") is True
+        from src.web.asgi_assets import _traversal_attempt
+        assert _traversal_attempt("../../../etc/passwd") is True
 
     def test_url_encoded_traversal(self) -> None:
         """Verifica detección de %2e%2e/%2e%2e/etc/passwd."""
-        server = self._make_server()
-        assert server._is_traversal_attempt("%2e%2e/%2e%2e/etc/passwd") is True
+        from src.web.asgi_assets import _traversal_attempt
+        assert _traversal_attempt("%2e%2e/%2e%2e/etc/passwd") is True
 
     def test_double_encoded_traversal(self) -> None:
         """Verifica detección de %252e%252e (double-encoding)."""
-        server = self._make_server()
-        assert server._is_traversal_attempt("%252e%252e/%252e%252e/etc") is True
+        from src.web.asgi_assets import _traversal_attempt
+        assert _traversal_attempt("%252e%252e/%252e%252e/etc") is True
 
     def test_null_byte_injection(self) -> None:
         """Verifica detección de null byte %00."""
-        server = self._make_server()
-        assert server._is_traversal_attempt("file.txt%00.html") is True
+        from src.web.asgi_assets import _traversal_attempt
+        assert _traversal_attempt("file.txt%00.html") is True
 
     def test_overlong_utf8_traversal(self) -> None:
         """Verifica detección de overlong UTF-8 encoding %c0%ae."""
-        server = self._make_server()
-        assert server._is_traversal_attempt("%c0%ae%c0%ae/etc/passwd") is True
+        from src.web.asgi_assets import _traversal_attempt
+        assert _traversal_attempt("%c0%ae%c0%ae/etc/passwd") is True
 
     def test_clean_path_passes(self) -> None:
         """Verifica que rutas limpias no son bloqueadas."""
-        server = self._make_server()
-        assert server._is_traversal_attempt("css/app.css") is False
-        assert server._is_traversal_attempt("js/app.js") is False
-        assert server._is_traversal_attempt("index.html") is False
+        from src.web.asgi_assets import _traversal_attempt
+        assert _traversal_attempt("css/app.css") is False
+        assert _traversal_attempt("js/app.js") is False
+        assert _traversal_attempt("index.html") is False
 
 
 # ================================================================== #
@@ -304,36 +298,30 @@ class TestPathTraversalProtection:
 class TestCORSValidation:
     """Tests para la validación CORS mejorada."""
 
-    def _make_server(self) -> Any:
-        """Crea instancia mínima del servidor."""
-        from src.web.http_server import MeshCoreWebServer
-        bridge = MagicMock()
-        return MeshCoreWebServer(bridge)
-
     def test_localhost_allowed(self) -> None:
         """Verifica que localhost está permitido."""
-        server = self._make_server()
-        assert server._is_origin_allowed("http://localhost:8080", "", []) is True
+        from src.web.access_policy import is_origin_allowed
+        assert is_origin_allowed("http://localhost:8080", "", []) is True
 
     def test_loopback_allowed(self) -> None:
         """Verifica que 127.0.0.1 está permitido."""
-        server = self._make_server()
-        assert server._is_origin_allowed("http://127.0.0.1:8080", "", []) is True
+        from src.web.access_policy import is_origin_allowed
+        assert is_origin_allowed("http://127.0.0.1:8080", "", []) is True
 
     def test_private_ip_allowed(self) -> None:
         """Verifica que IPs privadas 192.168.x.x están permitidas."""
-        server = self._make_server()
-        assert server._is_origin_allowed("http://192.168.1.100:8080", "", []) is True
+        from src.web.access_policy import is_origin_allowed
+        assert is_origin_allowed("http://192.168.1.100:8080", "", []) is True
 
     def test_evil_localhost_rejected(self) -> None:
         """Verifica que evil-localhost.com NO está permitido."""
-        server = self._make_server()
-        assert server._is_origin_allowed("http://evil-localhost.com", "", []) is False
+        from src.web.access_policy import is_origin_allowed
+        assert is_origin_allowed("http://evil-localhost.com", "", []) is False
 
     def test_no_origin_allowed(self) -> None:
         """Verifica que peticiones sin Origin están permitidas."""
-        server = self._make_server()
-        assert server._is_origin_allowed("", "", []) is True
+        from src.web.access_policy import is_origin_allowed
+        assert is_origin_allowed("", "", []) is True
 
 
 # ================================================================== #

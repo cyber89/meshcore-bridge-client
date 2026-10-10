@@ -46,14 +46,13 @@ from src.virtual_mesh_adapter import VirtualMeshAdapter
 if TYPE_CHECKING:
     from src.web.api_router import WebAPIRouter
     from src.web.asgi_server import AsgiWebServer
-    from src.web.http_server import MeshCoreWebServer
 
 __version__ = "3.0.0"
 
 
 def __getattr__(name: str) -> Any:
     """Keep historical web exports without loading the HTTP server in headless."""
-    if name in {"AsgiWebServer", "MeshCoreWebServer", "WebAPIRouter"}:
+    if name in {"AsgiWebServer", "WebAPIRouter"}:
         return getattr(import_module("src.web"), name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -61,7 +60,6 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "MeshCoreBridge",
     "AsgiWebServer",
-    "MeshCoreWebServer",
     "MeshCoreCompanionServer",
     "WebAPIRouter",
     "VirtualMeshAdapter",
