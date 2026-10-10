@@ -400,7 +400,7 @@ export class NodesModule {
     const accordion = `
       <details class="node-route-accordion">
         <summary class="route-accordion-summary">
-          <span data-lucide="route" data-size="12"></span>
+          <i class="bi bi-signpost-split me-1" style="font-size: 12px;" aria-hidden="true"></i>
           <span>${I18n.t('nodes.route_details_btn')}</span>
         </summary>
         <div class="route-accordion-content">
@@ -409,7 +409,7 @@ export class NodesModule {
               <span>${I18n.t('nodes.route_rx_title')}</span>
               ${rxHashesStr ? `
                 <button type="button" class="btn-copy-hashes" data-hashes="${escapeHtml(rxHashesStr)}" title="${I18n.t('nodes.copy_hashes')}">
-                  <span data-lucide="copy" data-size="11"></span>
+                  <i class="bi bi-clipboard" style="font-size: 11px;" aria-hidden="true"></i>
                 </button>
               ` : ''}
             </div>
@@ -426,7 +426,7 @@ export class NodesModule {
               <span>${I18n.t('nodes.route_tx_title')}</span>
               ${txHashesStr ? `
                 <button type="button" class="btn-copy-hashes" data-hashes="${escapeHtml(txHashesStr)}" title="${I18n.t('nodes.copy_hashes')}">
-                  <span data-lucide="copy" data-size="11"></span>
+                  <i class="bi bi-clipboard" style="font-size: 11px;" aria-hidden="true"></i>
                 </button>
               ` : ''}
             </div>
@@ -538,7 +538,7 @@ export class NodesModule {
               <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
               ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}">🔋 ${escapeHtml(batInfo.chipText)}</span>` : ""}
               <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="${I18n.t('nodes.favorite')}">
-                <span data-lucide="star" data-size="14"></span>
+                <i class="bi ${node.is_favorite ? "bi-star-fill text-warning" : "bi-star"}" style="font-size: 14px;" aria-hidden="true"></i>
               </button>
             </div>
             <div class="node-card-sub-row">
@@ -565,17 +565,17 @@ export class NodesModule {
         </div>
 
         <div class="contact-card-actions">
-          <button type="button" class="btn-primary btn-sm btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
-            <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')}
+          <button type="button" class="btn btn-primary btn-sm btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
+            <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>${I18n.t('nodes.chat_btn')}
           </button>
-          <button type="button" class="btn-secondary btn-sm btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
-            <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
+          <button type="button" class="btn btn-secondary btn-sm btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
+            <i class="bi bi-signpost-split me-1" aria-hidden="true"></i>${I18n.t('nodes.trace_btn')}
           </button>
-          <button type="button" class="btn-outline btn-sm btn-contact-qr" title="${I18n.t('contacts.title_qr')}">
-            <span data-lucide="qr-code" data-size="13"></span>
+          <button type="button" class="btn btn-outline-secondary btn-sm btn-contact-qr" title="${I18n.t('contacts.title_qr')}">
+            <i class="bi bi-qr-code" aria-hidden="true"></i>
           </button>
-          <button type="button" class="btn-outline btn-sm btn-contact-del" title="${I18n.t('contacts.title_del')}">
-            <span data-lucide="trash-2" data-size="13"></span>
+          <button type="button" class="btn btn-outline-danger btn-sm btn-contact-del" title="${I18n.t('contacts.title_del')}">
+            <i class="bi bi-trash" aria-hidden="true"></i>
           </button>
         </div>
       `;
@@ -733,32 +733,32 @@ export class NodesModule {
 
         <div class="node-actions-bar">
           ${isRepeater ? `
-            <button type="button" class="btn-primary btn-sm btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
-              <span data-lucide="sliders" data-size="13"></span>${I18n.t('nodes.manage_btn')}
+            <button type="button" class="btn btn-primary btn-sm btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
+              <i class="bi bi-sliders me-1" aria-hidden="true"></i>${I18n.t('nodes.manage_btn')}
             </button>
           ` : ""}
           ${!isLocal && !isRepeater ? `
-            <button type="button" class="btn-primary btn-sm btn-dm-node" title="${I18n.t('nodes.title_dm')}">
-              <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')} DM
+            <button type="button" class="btn btn-primary btn-sm btn-dm-node" title="${I18n.t('nodes.title_dm')}">
+              <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>${I18n.t('nodes.chat_btn')} DM
             </button>
           ` : ""}
           ${!isLocal && isRepeater ? `
-            <button type="button" class="btn-secondary btn-sm btn-ping-node" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
-              <span data-lucide="crosshair" data-size="13"></span> ${I18n.t('nodes.ping_btn') || 'Ping'}
+            <button type="button" class="btn btn-secondary btn-sm btn-ping-node" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
+              <i class="bi bi-bullseye me-1" aria-hidden="true"></i>${I18n.t('nodes.ping_btn') || 'Ping'}
             </button>
           ` : ""}
           ${isLocal ? `
-            <button type="button" class="btn-secondary btn-sm btn-configure-local" title="${I18n.t('nodes.title_settings')}">
-              <span data-lucide="settings" data-size="13"></span>${I18n.t('nodes.settings_btn')}
+            <button type="button" class="btn btn-secondary btn-sm btn-configure-local" title="${I18n.t('nodes.title_settings')}">
+              <i class="bi bi-gear me-1" aria-hidden="true"></i>${I18n.t('nodes.settings_btn')}
             </button>
           ` : ""}
           ${!isLocal ? `
-            <button type="button" class="btn-secondary btn-sm btn-trace-node" title="${I18n.t('nodes.title_trace')}">
-              <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
+            <button type="button" class="btn btn-secondary btn-sm btn-trace-node" title="${I18n.t('nodes.title_trace')}">
+              <i class="bi bi-signpost-split me-1" aria-hidden="true"></i>${I18n.t('nodes.trace_btn')}
             </button>
           ` : ""}
-          <button type="button" class="btn-outline btn-sm btn-node-qr" title="${I18n.t('nodes.title_qr')}">
-            <span data-lucide="qr-code" data-size="13"></span>
+          <button type="button" class="btn btn-outline-secondary btn-sm btn-node-qr" title="${I18n.t('nodes.title_qr')}">
+            <i class="bi bi-qr-code" aria-hidden="true"></i>
           </button>
         </div>
       `;
@@ -1329,8 +1329,7 @@ export class NodesModule {
     const originalHtml = btnEl ? btnEl.innerHTML : null;
     if (btnEl) {
       btnEl.disabled = true;
-      btnEl.innerHTML = `<span data-lucide="loader-2" data-size="13" class="spin"></span> ${window.I18n ? window.I18n.t('nodes.pinging') || 'Midiendo...' : 'Midiendo...'}`;
-      if (window.initLucideIcons) window.initLucideIcons(btnEl);
+      btnEl.innerHTML = `<i class="bi bi-arrow-repeat spin me-1" style="font-size: 13px;" aria-hidden="true"></i> ${window.I18n ? window.I18n.t('nodes.pinging') || 'Midiendo...' : 'Midiendo...'}`;
     }
 
     try {
@@ -1370,7 +1369,6 @@ export class NodesModule {
         if (btnEl && originalHtml) {
           btnEl.disabled = false;
           btnEl.innerHTML = originalHtml;
-          if (window.initLucideIcons) window.initLucideIcons(btnEl);
         }
       }
     } catch (err) {
@@ -1378,7 +1376,6 @@ export class NodesModule {
       if (btnEl && originalHtml) {
         btnEl.disabled = false;
         btnEl.innerHTML = originalHtml;
-        if (window.initLucideIcons) window.initLucideIcons(btnEl);
       }
     } finally {
       this._pingingNodes.delete(cleanKey);
@@ -1397,12 +1394,10 @@ export class NodesModule {
         if (originalHtml) {
           btnEl.innerHTML = originalHtml;
         } else {
-          btnEl.innerHTML = `<span data-lucide="crosshair" data-size="13"></span> ${window.I18n ? window.I18n.t('nodes.ping_btn') || 'Ping' : 'Ping'}`;
+          btnEl.innerHTML = `<i class="bi bi-bullseye me-1" style="font-size: 13px;" aria-hidden="true"></i> ${window.I18n ? window.I18n.t('nodes.ping_btn') || 'Ping' : 'Ping'}`;
         }
-        if (window.initLucideIcons) window.initLucideIcons(btnEl);
       } else {
-        btnEl.innerHTML = `<span data-lucide="clock" data-size="13"></span> ${remaining}s`;
-        if (window.initLucideIcons) window.initLucideIcons(btnEl);
+        btnEl.innerHTML = `<i class="bi bi-clock me-1" style="font-size: 13px;" aria-hidden="true"></i> ${remaining}s`;
         setTimeout(tick, 1000);
       }
     };

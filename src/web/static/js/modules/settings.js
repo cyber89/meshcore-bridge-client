@@ -960,7 +960,7 @@ export class SettingsModule {
     // Acciones Rápidas de Hardware
     const refreshHardware = async () => {
       const btn = this.dom.btnRefreshLocalConfig || this.dom.btnRefreshLocalTelem;
-      const icon = btn ? btn.querySelector("[data-lucide]") : null;
+      const icon = btn ? btn.querySelector("i, [data-lucide]") : null;
       if (icon) icon.classList.add("spin-animation");
       try {
         await this.fetchLocalNodeConfig(true);
@@ -1291,14 +1291,14 @@ export class SettingsModule {
         <span class="ch-name">${escapeHtml(chDisplayName)}</span>
         <div class="ch-actions">
           <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${lockTitle}">
-            <span data-lucide="${lockIcon}" data-size="13"></span>
+            <i class="bi ${isEnc ? 'bi-lock' : 'bi-unlock'}" style="font-size: 13px;" aria-hidden="true"></i>
           </span>
           ${ch.index > 0 ? `
             <button type="button" class="btn-item-qr" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="${I18n.t('settings.channel_qr_title')}" aria-label="${I18n.t('settings.share_channel', { index: ch.index })}">
-              <span data-lucide="qr-code" data-size="13"></span>
+              <i class="bi bi-qr-code" style="font-size: 13px;" aria-hidden="true"></i>
             </button>
             <button type="button" class="btn-item-delete" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="${I18n.t('settings.delete_channel', { index: ch.index })}" aria-label="${I18n.t('settings.delete_channel', { index: ch.index })}">
-              <span data-lucide="trash-2" data-size="13"></span>
+              <i class="bi bi-trash" style="font-size: 13px;" aria-hidden="true"></i>
             </button>
           ` : ''}
         </div>
@@ -2176,7 +2176,7 @@ export class SettingsModule {
         <td class="font-mono"><strong>${escapeHtml(String(k))}</strong></td>
         <td><code>${escapeHtml(String(v))}</code></td>
         <td style="text-align: right;">
-          <button type="button" disabled class="btn-danger btn-xs btn-del-custom-var" data-key="${escapeHtml(String(k))}" title="${I18n.t("settings.config_unsupported")}">
+          <button type="button" disabled class="btn btn-danger btn-sm btn-del-custom-var" data-key="${escapeHtml(String(k))}" title="${I18n.t("settings.config_unsupported")}">
             ${I18n.t("settings.delete_variable_button")}
           </button>
         </td>

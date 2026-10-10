@@ -441,7 +441,7 @@ class MeshCoreApp {
           item.setAttribute("data-name", name);
           const role = String(node.role || "CLIENT").toUpperCase().replace(/^ROUTER$/, "REPEATER");
           const roleKey = "node.role_" + (["CLIENT", "REPEATER", "ROOM", "SENSOR", "LOCAL"].includes(role) ? role.toLowerCase() : "unknown");
-          item.innerHTML = `<span data-lucide="radio" data-size="14" aria-hidden="true"></span> <span data-i18n="app.node_match">${escapeHtml(I18n.t("app.node_match"))}</span>: <strong>${escapeHtml(name)}</strong> [<span data-i18n="${roleKey}">${escapeHtml(I18n.t(roleKey))}</span>]`;
+          item.innerHTML = `<i class="bi bi-broadcast me-1" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="app.node_match">${escapeHtml(I18n.t("app.node_match"))}</span>: <strong>${escapeHtml(name)}</strong> [<span data-i18n="${roleKey}">${escapeHtml(I18n.t(roleKey))}</span>]`;
           cmdPaletteResults.appendChild(item);
         });
         if (window.lucide && typeof window.lucide.createIcons === "function") {
@@ -1061,7 +1061,7 @@ class MeshCoreApp {
         if (!iconName) {
           if (isDanger || dialogType === "danger") iconName = "alert-triangle";
           else if (dialogType === "warning") iconName = "shield-alert";
-          else if (dialogType === "success") iconName = "check-circle-2";
+          else if (dialogType === "success") iconName = "check";
           else if (config.mode === "prompt") iconName = "edit-3";
           else iconName = config.mode === "alert" ? "info" : "help-circle";
         }
@@ -1071,7 +1071,7 @@ class MeshCoreApp {
 
       if (btnConfirm) {
         setDialogLabel(btnConfirm, config.confirmText, config.confirmKey);
-        btnConfirm.className = `system-dialog-btn ${isDanger ? "btn-danger" : "btn-primary"}`;
+        btnConfirm.className = `btn ${isDanger ? "btn-danger" : "btn-primary"} system-dialog-btn`;
       }
 
       if (btnCancel) {
@@ -1080,7 +1080,7 @@ class MeshCoreApp {
           btnCancel.classList.add("hidden");
         } else {
           btnCancel.classList.remove("hidden");
-          btnCancel.className = "btn-secondary system-dialog-btn";
+          btnCancel.className = "btn btn-secondary system-dialog-btn";
         }
       }
 

@@ -118,7 +118,15 @@ La interfaz de usuario (`src/web/static/`) se concibe como una Single Page Appli
   - Define tokens de diseño desacoplados (`--bg-body`, `--bg-tertiary`, `--accent-primary`, `--font-mono`) enlazados a las variables de Bootstrap 5.3.
   - Cumplimiento riguroso de accesibilidad **WCAG 2.2 AA**: soporte para `@media (prefers-reduced-motion: reduce)` y reglas explícitas de foco `:focus-visible`.
 - **Iconografía Nativa y Aislamiento Offline**:
-  - Unificación integral en **Bootstrap Icons 1.13.2** locales (`/css/bootstrap-icons.min.css`), eliminando llamadas desalineadas a librerías externas o etiquetas no renderizables.
+  - Unificación integral en **Bootstrap Icons 1.13.2** locales (`/css/bootstrap-icons.min.css`), con 100% de iconos migrados a la sintaxis nativa `<i class="bi bi-*">`, eliminando dependencias de librerías secundarias y peticiones de red externas.
+- **Diseño Responsive Móvil Integral (Viewport 360px – 430px)**:
+  - Patrón *Sliding Drawer / Off-canvas* en el módulo de chat (`.chat-channels-panel` con conmutación dinámica `.mobile-open`), permitiendo visualización a pantalla completa de las conversaciones en terminales móviles y navegación fluida mediante el botón táctil `#btnBackToChannelsMobile`.
+  - Targets táctiles ergonómicos normalizados a un mínimo de 44×44px conforme a directrices de accesibilidad WCAG 2.2 y directrices táctiles móviles.
+  - Tipografía en campos de formulario calibrada a `font-size: 16px` en pantallas `<= 640px` para mitigar el zoom forzado en navegadores móviles (iOS/Safari).
+  - Protección perimetral de interfaz respetando márgenes de seguridad mediante `env(safe-area-inset-bottom)`.
+- **Sistema de Notificaciones Toast y Diálogos Modales**:
+  - Contenedor flotante Toast (`#toastContainer`) fijado en capa perimetral (`z-index: 1095`) con soporte para desenfoque translúcido (`backdrop-filter: blur(14px)`), sombras profundas y variantes semánticas automáticas.
+  - Diálogos modales y paleta de comandos (`.system-dialog-card`, `.modal-overlay`, `.cmd-palette-modal`) con centrado elástico, animación de entrada, badges halo de severidad y apilamiento vertical adaptativo en pantallas móviles.
 
 ---
 

@@ -548,20 +548,635 @@ html, body {
 .badge-warning { background-color: var(--bs-warning); color: #000; }
 .badge-danger { background-color: var(--bs-danger); color: #fff; }
 
-/* Responsive Adjustments para Pantallas Móviles */
-@media (max-width: 768px) {
+/* ==========================================================================
+   Modales y Diálogos Emergentes (Sistema Central)
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1055;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s ease;
+}
+
+.modal-overlay.hidden,
+.modal.hidden {
+  display: none !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.modal-dialog {
+  margin: auto;
+  width: 100%;
+  max-width: 540px;
+}
+
+.modal-dialog.modal-lg {
+  max-width: 800px;
+}
+
+.modal-dialog.modal-xl {
+  max-width: 1140px;
+}
+
+.modal-card,
+.modal-content {
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-tertiary-bg);
+}
+
+.modal-header h2,
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bs-primary);
+}
+
+.modal-pubkey-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bs-secondary-bg);
+  color: var(--bs-secondary-color);
+  border: 1px solid var(--bs-border-color);
+}
+
+.modal-body {
+  padding: 1.25rem;
+  max-height: calc(85vh - 130px);
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid var(--bs-border-color);
+  background: var(--bs-tertiary-bg);
+}
+
+/* ==========================================================================
+   Diálogos del Sistema (System Dialog: Confirm, Alert, Prompt)
+   ========================================================================== */
+.system-dialog-card {
+  max-width: 480px;
+  width: 100%;
+  border-radius: var(--radius-lg, 12px);
+  animation: systemDialogZoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.system-dialog-header {
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-tertiary-bg);
+}
+
+.system-dialog-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.system-dialog-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+.system-dialog-icon-badge {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.12));
+  border: 1px solid var(--bs-primary-border-subtle, rgba(13, 110, 253, 0.3));
+  color: var(--bs-primary, #0d6efd);
+}
+
+.system-dialog-icon-badge.badge-danger,
+.system-dialog-icon-badge.badge-error,
+.system-dialog-card.is-danger .system-dialog-icon-badge {
+  background: var(--bs-danger-bg-subtle, rgba(220, 53, 69, 0.12));
+  border-color: var(--bs-danger-border-subtle, rgba(220, 53, 69, 0.35));
+  color: var(--bs-danger, #dc3545);
+}
+
+.system-dialog-icon-badge.badge-warning {
+  background: var(--bs-warning-bg-subtle, rgba(255, 193, 7, 0.12));
+  border-color: var(--bs-warning-border-subtle, rgba(255, 193, 7, 0.35));
+  color: var(--bs-warning-text-emphasis, #997404);
+}
+
+.system-dialog-icon-badge.badge-success {
+  background: var(--bs-success-bg-subtle, rgba(25, 135, 84, 0.12));
+  border-color: var(--bs-success-border-subtle, rgba(25, 135, 84, 0.35));
+  color: var(--bs-success, #198754);
+}
+
+.system-dialog-body {
+  padding: 1.25rem;
+}
+
+.system-dialog-message {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--bs-body-color);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.system-dialog-input-wrap {
+  margin-top: 1rem;
+}
+
+.system-dialog-input {
+  width: 100%;
+  height: 42px;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-body-color);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.system-dialog-input:focus {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.25);
+  outline: none;
+}
+
+.system-dialog-footer {
+  padding: 12px 18px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--bs-border-color);
+  background: var(--bs-tertiary-bg);
+}
+
+.system-dialog-btn {
+  min-height: 38px;
+  min-width: 100px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes systemDialogZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ==========================================================================
+   Notificaciones Toast de Grado Profesional
+   ========================================================================== */
+.toast-container {
+  z-index: 1095 !important;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 400px;
+}
+
+.toast {
+  pointer-events: auto;
+  border-radius: var(--radius-md, 8px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  font-size: 0.875rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
+}
+
+.toast .toast-body {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.toast-message {
+  word-break: break-word;
+}
+
+/* ==========================================================================
+   Paleta de Comandos (Command Palette: Ctrl+K / Cmd+K)
+   ========================================================================== */
+.cmd-palette-modal {
+  max-width: 560px;
+  width: 100%;
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+
+.cmd-palette-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+
+.cmd-palette-header input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--bs-body-color);
+  font-size: 1rem;
+  outline: none;
+}
+
+.kbd-esc {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  font-family: var(--bs-font-monospace);
+}
+
+.cmd-palette-results {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  color: var(--bs-body-color);
+  font-size: 0.875rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cmd-item:hover,
+.cmd-item.active,
+.cmd-item:focus-visible {
+  background: var(--bs-primary-bg-subtle);
+  color: var(--bs-primary-text-emphasis);
+  outline: none;
+}
+
+/* ==========================================================================
+   Modal de Compartir Código QR
+   ========================================================================== */
+.qr-modal-card {
+  max-width: 580px;
+  width: 100%;
+}
+
+.qr-modal-body {
+  padding: 16px 20px;
+}
+
+.qr-modal-layout {
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+}
+
+.qr-preview-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 190px;
+  gap: 8px;
+}
+
+.qr-canvas-container {
+  background: #ffffff;
+  padding: 8px;
+  border-radius: var(--radius-md, 8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.qr-canvas-container canvas {
+  display: block;
+  width: 160px;
+  height: 160px;
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+.qr-scan-hint {
+  font-size: 11px;
+  color: var(--bs-secondary-color);
+  text-align: center;
+}
+
+.qr-details-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.qr-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   Diseño Ultra-Responsivo para Móviles y Teléfonos Inteligentes
+   ========================================================================== */
+
+/* Teléfonos y Tablets en Vista Estrecha (<= 900px) */
+@media (max-width: 900px) {
+  /* Layout Chat Responsivo con Drawer Lateral */
   .chat-layout {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .chat-channels-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    z-index: 50;
+    background: var(--bs-body-bg);
+    transform: translateX(-105%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+    overflow-y: auto;
+    display: flex !important;
+  }
+
+  .chat-channels-panel.mobile-open {
+    transform: translateX(0);
+  }
+
+  .chat-conversation-panel {
+    width: 100%;
+    height: 100%;
+    display: flex;
     flex-direction: column;
   }
-  .chat-channels-panel {
-    width: 100%;
-    max-height: 200px;
-  }
+
   .chat-messages {
-    height: calc(100vh - 360px);
-    min-height: 250px;
+    height: calc(100vh - 210px);
+    min-height: 220px;
   }
+
+  .btn-back-channels-mobile {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    color: var(--bs-body-color);
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Toolbar de Filtros Nodos en Móvil */
+  .nodes-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .nodes-filter-pills {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .filter-pill {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   #contactsGridUi, #nodesUnifiedGridUi {
     grid-template-columns: 1fr;
   }
 }
+
+/* Dispositivos de Escritorio (> 900px) */
+@media (min-width: 901px) {
+  .btn-back-channels-mobile {
+    display: none !important;
+  }
+
+  .chat-channels-panel {
+    transform: none !important;
+    position: static !important;
+    width: 280px !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Teléfonos y Pantallas Estrechas (<= 640px) */
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 8px !important;
+  }
+
+  .modal-card,
+  .modal-content {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: calc(100dvh - 16px) !important;
+    border-radius: var(--radius-md, 8px) !important;
+  }
+
+  .modal-header {
+    padding: 10px 14px !important;
+  }
+
+  .modal-header h2,
+  .modal-header h3 {
+    font-size: 1rem !important;
+  }
+
+  .modal-body {
+    padding: 12px 14px !important;
+    max-height: calc(85dvh - 120px) !important;
+  }
+
+  .modal-footer {
+    padding: 10px 14px !important;
+    flex-direction: column-reverse !important;
+    gap: 8px !important;
+  }
+
+  .modal-footer button,
+  .modal-footer .btn,
+  .system-dialog-btn {
+    width: 100% !important;
+    min-height: 44px !important;
+  }
+
+  /* Toasts en Pantalla Móvil Centrados Abajo */
+  .toast-container {
+    bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    right: 12px !important;
+    left: 12px !important;
+    max-width: calc(100vw - 24px) !important;
+    margin: 0 auto;
+  }
+
+  .toast {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Modal QR en Móvil */
+  .qr-modal-layout {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+
+  .qr-preview-col,
+  .qr-details-col {
+    width: 100% !important;
+  }
+
+  .qr-actions-row {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+
+  .qr-actions-row button {
+    width: 100% !important;
+    min-height: 44px !important;
+  }
+
+  /* Prevención de Auto-Zoom en Safari iOS en Formulario */
+  .modal-card input:not([type="checkbox"]):not([type="range"]):not([type="hidden"]),
+  .modal-card select,
+  .modal-card textarea,
+  .system-dialog-input,
+  #chatInputText {
+    font-size: 16px !important;
+  }
+
+  /* Header Superior en Teléfono */
+  .logo-version {
+    display: none !important;
+  }
+
+  .header-left {
+    gap: 4px !important;
+  }
+
+  .radio-status-pill {
+    padding: 2px 6px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* Área Táctil Mejorada en Pantallas Táctiles (Pointer Coarse) */
+@media (pointer: coarse) {
+  .nav-btn {
+    min-height: 44px;
+  }
+
+  .btn-icon,
+  .btn-chat-tool {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .channel-item {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+}
+

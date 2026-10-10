@@ -139,8 +139,9 @@ Interfaz de usuario gráfica local desacoplada construida en HTML5 semántico, V
 - **Conmutación Dinámica y Eventos**:
   - El método `_applyTheme()` en `src/web/static/js/app.js` conmuta en caliente `<link id="themeStylesheet">`, actualiza `data-bs-theme` en `<html>`, clases en `<body>`, metaetiqueta `theme-color` y persiste en `localStorage.getItem("meshcore_theme")`.
   - Despacha `meshcore:theme-changed` para adaptar mosaicos cartográficos en Leaflet (`map.js`) y colores de gráficos SVG (`chart_engine.js`).
-- **Módulo CSS `app.css`**: Define tokens de superficie, tipografía (`Inter`, `Fira Code`), espaciados y soporte estricto de accesibilidad WCAG 2.2 AA (`:focus-visible`, `@media (prefers-reduced-motion: reduce)`).
-- **Iconografía Bootstrap Icons**: Mapeo completo a **Bootstrap Icons 1.13.2** (`bi bi-*`), garantizando renderizado instantáneo sin parpadeos ni peticiones externas.
+- **Módulo CSS `app.css` y Experiencia Responsive**: Define tokens de superficie, tipografía (`Inter`, `Fira Code`), espaciados y soporte estricto de accesibilidad WCAG 2.2 AA (`:focus-visible`, `@media (prefers-reduced-motion: reduce)`). Implementa patrón de cajón deslizante (*sliding drawer*) para el módulo de chat en smartphones, tamaños de toque ergonómicos de al menos 44px, inputs fijos a 16px para evitar auto-zoom en iOS y alineación con áreas seguras (`safe-area-inset`).
+- **Sistema de Diálogos Modales y Toasts**: Contenedor Toast (`#toastContainer`) flotante con desenfoque translúcido (`backdrop-filter`) y sombras de profundidad, junto con modales de sistema y paleta de comandos adaptativos con halos cromáticos según la severidad (éxito, advertencia, peligro, info).
+- **Iconografía Bootstrap Icons**: Mapeo completo a **Bootstrap Icons 1.13.2** (`bi bi-*`), garantizando renderizado instantáneo sin parpadeos, 0 llamadas a CDNs externas y 100% de coherencia visual.
 - **Invariantes Inmutables**: Los repetidores de red (`REPEATER`) y el transceptor local (`LOCAL`) se excluyen estrictamente de la agenda de contactos y del chat.
 
 ---

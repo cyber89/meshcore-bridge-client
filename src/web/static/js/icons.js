@@ -97,7 +97,24 @@ const BS_ICON_MAP = {
   'bookmark-plus': 'bi-bookmark-plus',
   'bookmark': 'bi-bookmark',
   'smartphone': 'bi-phone',
-  'x': 'bi-x-lg'
+  'x': 'bi-x-lg',
+  'check-circle': 'bi-check-circle',
+  'check-circle-2': 'bi-check-circle',
+  'check-circle-fill': 'bi-check-circle-fill',
+  'x-circle': 'bi-x-circle',
+  'edit': 'bi-pencil',
+  'edit-2': 'bi-pencil',
+  'edit-3': 'bi-pencil-square',
+  'pencil': 'bi-pencil',
+  'bell': 'bi-bell',
+  'bell-off': 'bi-bell-slash',
+  'paperclip': 'bi-paperclip',
+  'menu': 'bi-list',
+  'list': 'bi-list',
+  'grid': 'bi-grid',
+  'shield-x': 'bi-shield-x',
+  'alert-circle': 'bi-exclamation-circle',
+  'info-circle': 'bi-info-circle'
 };
 
 function getLucideIcon(name, extraClass = '', size = 18) {

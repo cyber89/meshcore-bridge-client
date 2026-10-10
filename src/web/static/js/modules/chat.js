@@ -1221,7 +1221,7 @@ export class ChatModule {
             const stationLabel = window.I18n ? window.I18n.t('chat.my_station_sub') : 'Mi Estación Local';
             footerActionHtml = `
               <div class="card-local-pill">
-                <span data-lucide="radio" data-size="13"></span>
+                <i class="bi bi-broadcast me-1" style="font-size: 13px;" aria-hidden="true"></i>
                 <span>${escapeHtml(stationLabel)}</span>
               </div>
             `;
@@ -1231,7 +1231,7 @@ export class ChatModule {
               : (window.I18n ? window.I18n.t('chat.save_contact') : 'Guardar en Contactos');
             footerActionHtml = `
               <button type="button" class="card-action-btn btn-save-shared-contact ${isKnown ? 'btn-saved' : ''}" data-pk="${escapeHtml(cPk)}" data-name="${escapeHtml(cName)}" data-role="${escapeHtml(cRole)}" ${isKnown ? 'disabled' : ''}>
-                <span data-lucide="${isKnown ? 'check' : 'user-plus'}" data-size="13"></span>
+                <i class="bi ${isKnown ? 'bi-check-lg' : 'bi-person-plus'} me-1" style="font-size: 13px;" aria-hidden="true"></i>
                 <span>${btnLabel}</span>
               </button>
             `;
@@ -1264,7 +1264,7 @@ export class ChatModule {
                 </div>
               </div>
               <button type="button" class="card-action-btn btn-join-shared-channel" data-name="${escapeHtml(chName)}" data-secret="${escapeHtml(parsedUri.secret || '')}" data-idx="${chIdx}">
-                <span data-lucide="radio" data-size="13"></span>
+                <i class="bi bi-broadcast me-1" style="font-size: 13px;" aria-hidden="true"></i>
                 <span>${window.I18n ? window.I18n.t('chat.join_channel') : 'Unirse al Canal'}</span>
               </button>
             </div>
@@ -1293,7 +1293,7 @@ export class ChatModule {
             </div>
             <div class="loc-coords-badge">${detectedLat.toFixed(5)}, ${detectedLon.toFixed(5)}</div>
             <button type="button" class="btn-view-on-map" data-lat="${detectedLat}" data-lon="${detectedLon}">
-              <span data-lucide="map-pin" data-size="12"></span> ${window.I18n ? window.I18n.t('chat.view_map') : 'Ver en Mapa'}
+              <i class="bi bi-geo-alt me-1" style="font-size: 12px;" aria-hidden="true"></i> ${window.I18n ? window.I18n.t('chat.view_map') : 'Ver en Mapa'}
             </button>
           </div>
         `;
@@ -1358,10 +1358,9 @@ export class ChatModule {
               btnSave.classList.add("btn-saved");
               btnSave.disabled = true;
               btnSave.innerHTML = `
-                <span data-lucide="check" data-size="13"></span>
+                <i class="bi bi-check-lg me-1" style="font-size: 13px;" aria-hidden="true"></i>
                 <span>${window.I18n ? window.I18n.t('chat.saved_contact') : 'Contacto Guardado'}</span>
               `;
-              if (window.initLucideIcons) window.initLucideIcons(btnSave);
               if (this.ctx.showToast) this.ctx.showToast(I18n.t("chat.contact_saved", { p0: name }), "success");
             }
           } catch (e) {

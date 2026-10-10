@@ -1721,7 +1721,7 @@ export class RepeaterModule {
     } finally {
       if (btn && revision === this._modalRevision) {
         btn.disabled = false;
-        btn.innerHTML = `<span data-lucide="wifi" data-size="14"></span> ${I18n.t('repeater.discover_neighbors')}`;
+        btn.innerHTML = `<i class="bi bi-wifi me-1" style="font-size: 14px;" aria-hidden="true"></i> ${I18n.t('repeater.discover_neighbors')}`;
         I18n.setText(btn, 'repeater.discover_neighbors');
       }
       if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
@@ -1753,7 +1753,7 @@ export class RepeaterModule {
         <td><span class="badge-pill badge-secondary">${I18n.t('repeater.hops', { n: hops })}</span></td>
         <td>${escapeHtml(String(lastSeen))}</td>
         <td>
-          <button type="button" class="btn-secondary btn-xs btn-neighbor-ping" data-target="${escapeHtml(pk)}" title="${I18n.t('repeater.direct_ping')}">
+          <button type="button" class="btn btn-secondary btn-sm btn-neighbor-ping" data-target="${escapeHtml(pk)}" title="${I18n.t('repeater.direct_ping')}">
             🎯 Ping
           </button>
         </td>

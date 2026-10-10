@@ -381,7 +381,7 @@ export class MapModule {
           const popupHtml = `
             <div class="custom-map-popup" style="min-width: 190px;">
               <div class="popup-title" style="color: ${color};">
-                <span data-lucide="flame" data-size="14"></span> <strong>${escapeHtml(pt.name)}</strong>
+                <i class="bi bi-fire me-1" style="font-size: 14px;" aria-hidden="true"></i> <strong>${escapeHtml(pt.name)}</strong>
               </div>
               <div class="popup-info">
                 <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill" style="font-size: 10px;">${escapeHtml(roleLabel)}</span></div>
