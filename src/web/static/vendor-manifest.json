@@ -62,6 +62,34 @@
           "bytes": 1093
         }
       ]
+    },
+    {
+      "package": "bootswatch",
+      "version": "5.3.8",
+      "registry": "https://bootswatch.com",
+      "tarball": "https://bootswatch.com/5/",
+      "npm_integrity": "",
+      "tarball_sha256": "",
+      "files": [
+        {
+          "source": "https://bootswatch.com/5/zephyr/bootstrap.min.css",
+          "path": "src/web/static/css/bootstrap-zephyr.min.css",
+          "sha256": "9f646499880eb7230eea634a79c016d44675e704762b16d51a8f5dfe5708f307",
+          "bytes": 236596
+        },
+        {
+          "source": "https://bootswatch.com/5/slate/bootstrap.min.css",
+          "path": "src/web/static/css/bootstrap-slate.min.css",
+          "sha256": "3b948e51bdceaaaa394ecdb4e0eb878dd8c8b81891aefcb1562b51f657a32349",
+          "bytes": 242692
+        },
+        {
+          "source": "https://github.com/thomaspark/bootswatch/blob/v5/LICENSE",
+          "path": "src/web/static/licenses/bootswatch.txt",
+          "sha256": "4620c84ad5ce8602ff65640ed6b7c8b78ebb9e036584f0ebc1ccc88206a4bb51",
+          "bytes": 1083
+        }
+      ]
     }
   ],
   "leaflet": {

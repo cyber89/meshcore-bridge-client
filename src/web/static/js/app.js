@@ -174,22 +174,32 @@ class MeshCoreApp {
     });
   }
 
+  _applyTheme(theme) {
+    const isDark = theme === "dark";
+    const themeLink = document.getElementById("themeStylesheet");
+    if (themeLink) {
+      const targetHref = isDark ? "/css/bootstrap-slate.min.css" : "/css/bootstrap-zephyr.min.css";
+      if (!themeLink.getAttribute("href")?.endsWith(targetHref)) {
+        themeLink.setAttribute("href", targetHref);
+      }
+    }
+    document.body.classList.remove("dark-theme", "light-theme");
+    document.body.classList.add(`${theme}-theme`);
+    document.documentElement.setAttribute("data-bs-theme", theme);
+    localStorage.setItem("meshcore_theme", theme);
+    this._updateThemeIcon(theme);
+    window.dispatchEvent(new CustomEvent("meshcore:theme-changed", { detail: { theme } }));
+  }
+
   _initTheme() {
     const savedTheme = localStorage.getItem("meshcore_theme") === "light" ? "light" : "dark";
-    document.body.classList.remove("dark-theme", "light-theme");
-    document.body.classList.add(`${savedTheme}-theme`);
-    document.documentElement.setAttribute("data-bs-theme", savedTheme);
-    this._updateThemeIcon(savedTheme);
+    this._applyTheme(savedTheme);
 
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener("click", () => {
         const isDark = document.body.classList.contains("dark-theme") || document.documentElement.getAttribute("data-bs-theme") === "dark";
         const next = isDark ? "light" : "dark";
-        document.body.classList.remove("dark-theme", "light-theme");
-        document.body.classList.add(`${next}-theme`);
-        document.documentElement.setAttribute("data-bs-theme", next);
-        localStorage.setItem("meshcore_theme", next);
-        this._updateThemeIcon(next);
+        this._applyTheme(next);
       });
     }
     // i18n: wire language toggle button
@@ -213,17 +223,12 @@ class MeshCoreApp {
   _updateThemeIcon(theme) {
     if (!this.dom.themeToggleBtn) return;
     const isDark = theme === "dark";
-    const iconName = isDark ? "sun" : "moon";
-    if (window.getLucideIcon) {
-      this.dom.themeToggleBtn.innerHTML = window.getLucideIcon(iconName, "", 16);
-    } else {
-      this.dom.themeToggleBtn.innerHTML = `<span data-lucide="${iconName}" data-size="16"></span>`;
-    }
+    const iconClass = isDark ? "bi-sun" : "bi-moon";
+    this.dom.themeToggleBtn.innerHTML = `<i class="bi ${iconClass}" aria-hidden="true"></i>`;
     const label = I18n.t(isDark ? 'app.dark_theme_title' : 'app.light_theme_title');
     this.dom.themeToggleBtn.title = label;
     this.dom.themeToggleBtn.setAttribute("aria-label", label);
-    const canvasColor = getComputedStyle(document.body).getPropertyValue("--bg-canvas").trim();
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", canvasColor || (isDark ? "#070b14" : "#f8fafc"));
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#1c232b" : "#ffffff");
   }
 
   _initNavigation() {
@@ -974,13 +979,13 @@ class MeshCoreApp {
           <div class="modal-header system-dialog-header">
             <div class="system-dialog-title-group">
               <div class="system-dialog-icon-badge" id="systemDialogIconBadge">
-                <span class="modal-title-icon" id="systemDialogIcon" data-lucide="help-circle" data-size="20"></span>
+                <i class="bi bi-question-circle modal-title-icon" id="systemDialogIcon" style="font-size: 20px;" aria-hidden="true"></i>
               </div>
               <h3 id="systemDialogTitle">
                 <span id="systemDialogTitleText">Confirmar</span>
               </h3>
             </div>
-            <button type="button" class="btn-icon modal-close" id="btnCloseSystemDialog" aria-label="Cerrar modal">✕</button>
+            <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseSystemDialog" aria-label="Cerrar modal"></button>
           </div>
           <div class="modal-body system-dialog-body">
             <p id="systemDialogMessage" class="system-dialog-message"></p>
@@ -990,8 +995,8 @@ class MeshCoreApp {
             </div>
           </div>
           <div class="modal-footer system-dialog-footer">
-            <button type="button" class="btn-secondary system-dialog-btn" id="btnCancelSystemDialog">Cancelar</button>
-            <button type="button" class="btn-primary system-dialog-btn" id="btnConfirmSystemDialog">Confirmar</button>
+            <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSystemDialog">Cancelar</button>
+            <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSystemDialog">Confirmar</button>
           </div>
         </div>
       `;

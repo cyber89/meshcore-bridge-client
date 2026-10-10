@@ -15,114 +15,14 @@
   <!-- Favicon SVG Embebido -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📻</text></svg>">
 
-  <!-- Bootstrap 5.3 & Bootstrap Icons Locales Offline -->
-  <link rel="stylesheet" href="/css/bootstrap.min.css">
+  <!-- Bootswatch 5.3 Themes Locales Offline: Slate (Oscuro) y Zephyr (Claro) -->
+  <link id="themeStylesheet" rel="stylesheet" href="/css/bootstrap-slate.min.css">
   <link rel="stylesheet" href="/css/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/app.css">
 
   <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-  <style>
-    /* MeshCore Bridge SPA - Bootstrap 5.3 Dark Mode Custom Styling */
-    :root {
-      --bs-body-font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      --bs-font-monospace: 'Fira Code', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    .hidden { display: none !important; }
-    .font-mono { font-family: var(--bs-font-monospace) !important; }
-
-    /* Layout Principal */
-    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
-    #app { height: calc(100vh - 56px); }
-
-    /* Scrollbars sobrios */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
-    ::-webkit-scrollbar-track { background: transparent; }
-
-    /* Visibilidad de Subpaneles internos */
-    .repeater-subpanel:not(.active),
-    .local-settings-subpanel:not(.active),
-    .sniffer-subpanel.hidden,
-    .inspector-panel.hidden { display: none !important; }
-    .repeater-subpanel.active,
-    .local-settings-subpanel.active { display: block; }
-
-    /* Contenedor Leaflet */
-    #liveGpsMap { height: calc(100vh - 160px); min-height: 480px; width: 100%; border-radius: 0.375rem; }
-    .map-container { position: relative; width: 100%; height: 100%; }
-    .map-layer-switcher { position: absolute; top: 12px; right: 12px; z-index: 1000; display: flex; gap: 6px; flex-wrap: wrap; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); padding: 6px; border-radius: 8px; border: 1px solid var(--bs-border-color); }
-    .map-overlay-info { position: absolute; bottom: 12px; left: 12px; z-index: 1000; max-width: 320px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--bs-border-color); font-size: 12px; }
-
-    /* Layout Chat */
-    .chat-layout { display: flex; height: 100%; gap: 1rem; }
-    .chat-channels-panel { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; }
-    .chat-conversation-panel { flex-grow: 1; display: flex; flex-direction: column; height: 100%; }
-    .chat-messages { flex-grow: 1; height: calc(100vh - 230px); min-height: 350px; overflow-y: auto; padding: 1rem; border-radius: 0.5rem; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); }
-    .chat-composer-wrapper { position: relative; margin-top: 0.75rem; }
-    .channel-list { list-style: none; padding: 0; margin: 0; }
-    .channel-item { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-radius: 0.375rem; cursor: pointer; margin-bottom: 2px; }
-    .channel-item:hover { background: var(--bs-tertiary-bg); }
-    .channel-item.active { background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); font-weight: 600; }
-
-    /* Burbujas de Chat */
-    .message-bubble-row { display: flex; margin-bottom: 0.5rem; width: 100%; }
-    .message-bubble-row.outgoing { justify-content: flex-end; }
-    .message-bubble-row.incoming { justify-content: flex-start; }
-    .msg-bubble { max-width: 75%; padding: 0.6rem 0.9rem; word-break: break-word; }
-    .message-bubble-row.outgoing .msg-bubble { background: var(--bs-primary); color: #fff; border-radius: 1rem 1rem 0.25rem 1rem; }
-    .message-bubble-row.incoming .msg-bubble { background: var(--bs-tertiary-bg); color: var(--bs-body-color); border-radius: 1rem 1rem 1rem 0.25rem; border: 1px solid var(--bs-border-color); }
-    .msg-footer { display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem; font-size: 0.75rem; opacity: 0.8; margin-top: 0.25rem; }
-    .msg-sender { font-size: 0.75rem; font-weight: 600; opacity: 0.85; margin-bottom: 0.25rem; display: block; }
-
-    /* Grillas Dinámicas de Nodos y Contactos */
-    #contactsGridUi, #nodesUnifiedGridUi {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-      gap: 1rem;
-    }
-    .contact-card, .node-card {
-      background: var(--bs-body-bg);
-      border: 1px solid var(--bs-border-color);
-      border-radius: var(--bs-border-radius-lg);
-      padding: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-    .contact-card:hover, .node-card:hover {
-      border-color: var(--bs-primary);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    }
-    .contact-card-header, .node-card-header { display: flex; align-items: center; gap: 0.75rem; }
-    .node-card-avatar-wrapper { position: relative; }
-    .contact-avatar, .node-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--bs-tertiary-bg); display: flex; align-items: center; justify-content: center; font-weight: bold; border: 1px solid var(--bs-border-color); }
-    .avatar-status-dot { position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bs-body-bg); }
-    .avatar-status-dot.online { background-color: var(--bs-success); }
-    .avatar-status-dot.offline { background-color: var(--bs-secondary); }
-    .stat-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 11px; background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color); font-family: var(--bs-font-monospace); }
-    .contact-card-chips, .node-card-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-    .contact-card-actions, .node-card-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--bs-border-color-translucent); }
-
-    /* Terminales y Logs */
-    .system-logs-box, .linux-term-window pre {
-      font-family: var(--bs-font-monospace);
-      font-size: 12px;
-      line-height: 1.5;
-      background: #090d16;
-      border: 1px solid var(--bs-border-color);
-      border-radius: 0.375rem;
-      padding: 0.75rem;
-      overflow-y: auto;
-      max-height: 520px;
-    }
-
-    /* Modales: backdrop y clases de compatibilidad */
-    .modal-overlay.hidden { display: none !important; }
-  </style>
 </head>
 <body class="bg-body text-body d-flex flex-column vh-100 overflow-hidden">
   <!-- Header Superior Navbar -->
@@ -248,15 +148,15 @@
               <div class="chat-channels-header">
                 <span class="panel-title" data-i18n="chat.channels">Canales</span>
                 <div class="panel-btn-group">
-                  <button class="btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto" aria-label="Importar canal o contacto" data-i18n-title="chat.import_channel_title" data-i18n-aria-label="chat.import_channel_title"><span data-lucide="download" data-size="13"></span></button>
-                  <button class="btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal" data-i18n-title="chat.add_channel_title" data-i18n-aria-label="ui.static_019"><span data-lucide="plus-circle" data-size="13"></span></button>
+                  <button class="btn btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto" aria-label="Importar canal o contacto" data-i18n-title="chat.import_channel_title" data-i18n-aria-label="chat.import_channel_title"><i class="bi bi-download" style="font-size: 13px;" aria-hidden="true"></i></button>
+                  <button class="btn btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal" data-i18n-title="chat.add_channel_title" data-i18n-aria-label="ui.static_019"><i class="bi bi-plus-circle" style="font-size: 13px;" aria-hidden="true"></i></button>
                 </div>
               </div>
               <ul class="channel-list" id="channelListUi" role="listbox" aria-label="Canales disponibles" data-i18n-aria-label="ui.static_020">
                 <li class="channel-item active" data-channel-idx="0" role="option" aria-selected="true">
                   <span class="ch-badge" data-i18n="ui.static_021">Ch 0</span>
                   <span class="ch-name" data-i18n="chat.ch_0_default">Public / Broadcast</span>
-                  <span class="ch-lock" title="Canal Público" data-i18n-title="ui.static_022"><span data-lucide="unlock" data-size="13"></span></span>
+                  <span class="ch-lock" title="Canal Público" data-i18n-title="ui.static_022"><i class="bi bi-unlock" style="font-size: 13px;" aria-hidden="true"></i></span>
                 </li>
               </ul>
 
@@ -277,7 +177,7 @@
                 <div class="header-title-group active-target-info">
                   <div class="target-title-row">
                     <button type="button" class="btn-icon btn-back-channels-mobile" id="btnBackToChannelsMobile" title="Volver a canales" aria-label="Volver a la lista de canales" data-i18n-title="ui.static_023" data-i18n-aria-label="ui.static_024">
-                      <span data-lucide="arrow-left" data-size="18"></span>
+                      <i class="bi bi-arrow-left" style="font-size: 18px;" aria-hidden="true"></i>
                     </button>
                     <div class="chat-target-avatar" id="chatTargetAvatar">💬</div>
                     <div class="chat-target-text">
@@ -287,8 +187,8 @@
                   </div>
                 </div>
                 <div class="chat-header-actions">
-                  <button class="btn-secondary btn-sm hidden" id="btnCloseChat" title="Cerrar chat activo" aria-label="Cerrar chat" data-i18n-title="ui.static_027" data-i18n-aria-label="chat.close_chat" data-i18n="modal.close"><span data-lucide="x" data-size="14"></span> Cerrar</button>
-                  <button class="btn-secondary btn-sm" id="clearChatBtn" aria-label="Limpiar vista de chat" data-i18n-aria-label="ui.static_028" data-i18n="chat.clear"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
+                  <button class="btn btn-secondary btn-sm hidden" id="btnCloseChat" title="Cerrar chat activo" aria-label="Cerrar chat" data-i18n-title="ui.static_027" data-i18n-aria-label="chat.close_chat" data-i18n="modal.close"><i class="bi bi-x-lg" style="font-size: 14px;" aria-hidden="true"></i> Cerrar</button>
+                  <button class="btn btn-secondary btn-sm" id="clearChatBtn" aria-label="Limpiar vista de chat" data-i18n-aria-label="ui.static_028" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Limpiar</button>
                 </div>
               </div>
 
@@ -300,15 +200,15 @@
                 <!-- Menú Flotante de Adjuntos -->
                 <div class="chat-attach-menu hidden" id="chatAttachMenu" role="menu" aria-label="Opciones de adjuntos" data-i18n-aria-label="ui.static_030">
                   <button type="button" class="attach-item" id="attachOptionContact" role="menuitem">
-                    <span class="attach-icon attach-icon-contact"><span data-lucide="user-plus" data-size="16"></span></span>
+                    <span class="attach-icon attach-icon-contact"><i class="bi bi-person-plus" aria-hidden="true"></i></span>
                     <span class="attach-label" data-i18n="chat.share_contact">Compartir Contacto</span>
                   </button>
                   <button type="button" class="attach-item" id="attachOptionChannel" role="menuitem">
-                    <span class="attach-icon attach-icon-channel"><span data-lucide="radio" data-size="16"></span></span>
+                    <span class="attach-icon attach-icon-channel"><i class="bi bi-broadcast" aria-hidden="true"></i></span>
                     <span class="attach-label" data-i18n="chat.share_channel">Compartir Canal</span>
                   </button>
                   <button type="button" class="attach-item" id="attachOptionLocation" role="menuitem">
-                    <span class="attach-icon attach-icon-location"><span data-lucide="map-pin" data-size="16"></span></span>
+                    <span class="attach-icon attach-icon-location"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
                     <span class="attach-label" data-i18n="chat.share_location">Ubicación GPS</span>
                   </button>
                 </div>
@@ -324,12 +224,12 @@
                 </div>
 
                 <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes" data-i18n-aria-label="ui.static_035">
-                  <button type="button" class="btn-icon btn-chat-tool" id="btnEmojiPicker" title="Insertar emoticones" aria-label="Insertar emoticones" data-i18n-title="ui.static_036" data-i18n-aria-label="ui.static_036"><span data-lucide="smile" data-size="18"></span></button>
-                  <button type="button" class="btn-icon btn-chat-tool" id="btnChatAttach" title="Adjuntar contacto, canal o ubicación" aria-label="Adjuntar contenido" data-i18n-title="ui.static_037" data-i18n-aria-label="ui.static_038"><span data-lucide="paperclip" data-size="18"></span></button>
+                  <button type="button" class="btn-icon btn-chat-tool" id="btnEmojiPicker" title="Insertar emoticones" aria-label="Insertar emoticones" data-i18n-title="ui.static_036" data-i18n-aria-label="ui.static_036"><i class="bi bi-emoji-smile" style="font-size: 18px;" aria-hidden="true"></i></button>
+                  <button type="button" class="btn-icon btn-chat-tool" id="btnChatAttach" title="Adjuntar contacto, canal o ubicación" aria-label="Adjuntar contenido" data-i18n-title="ui.static_037" data-i18n-aria-label="ui.static_038"><i class="bi bi-paperclip" style="font-size: 18px;" aria-hidden="true"></i></button>
                   <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir"  data-i18n-placeholder="chat.input_placeholder" data-i18n-aria-label="ui.static_039"/>
                   <span class="chat-char-counter" id="chatCharCounter" title="Presupuesto de transmisión LoRa (160 bytes máx. en UTF-8)" data-i18n-title="ui.static_040">0 / 160 B</span>
                   <button type="submit" class="btn btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio" data-i18n-aria-label="ui.static_042">
-                    <span data-i18n="modal.send">Enviar</span> <span aria-hidden="true" data-lucide="send" data-size="14"></span>
+                    <span data-i18n="modal.send">Enviar</span> <i class="bi bi-send" style="font-size: 14px;" aria-hidden="true"></i>
                   </button>
                 </form>
               </div>
@@ -342,7 +242,7 @@
           <div class="nodes-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2 data-i18n="nodes.title"><span class="section-icon" data-lucide="network" data-size="20"></span> Directorio de Nodos en la Malla</h2>
+                <h2 data-i18n="nodes.title"><i class="bi bi-hdd-network section-icon" style="font-size: 20px;" aria-hidden="true"></i> Directorio de Nodos en la Malla</h2>
                 <p class="header-subtitle" data-i18n="nodes.subtitle">Todos los nodos descubiertos en la red LoRa MeshCore con su telemetría y estado en vivo.</p>
               </div>
             </div>
@@ -351,11 +251,11 @@
             <div class="nodes-toolbar">
               <input type="search" id="nodesSearchInput" class="search-input" placeholder="Buscar nodo por nombre, alias, rol o clave pública..." aria-label="Buscar nodos"  data-i18n-placeholder="nodes.search_placeholder" data-i18n-aria-label="ui.static_043"/>
               <div class="nodes-filter-pills" role="radiogroup" aria-label="Filtrar por rol" data-i18n-aria-label="ui.static_044">
-                <button type="button" class="filter-pill active" data-filter="all" data-i18n="ui.static_045"><span class="chip-icon" data-lucide="network" data-size="13"></span> Todos (<span id="countAllNodes">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="REPEATER" data-i18n="ui.static_046"><span class="chip-icon" data-lucide="radio-tower" data-size="13"></span> Repetidores (<span id="countRepeaters">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="SENSOR" data-i18n="ui.static_047"><span class="chip-icon" data-lucide="gauge" data-size="13"></span> Sensores (<span id="countSensors">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="ROOM" data-i18n="ui.static_048"><span class="chip-icon" data-lucide="home" data-size="13"></span> Salas (<span id="countRooms">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="CLIENT" data-i18n="ui.static_049"><span class="chip-icon" data-lucide="user" data-size="13"></span> Clientes (<span id="countClients">0</span>)</button>
+                <button type="button" class="filter-pill active" data-filter="all" data-i18n="ui.static_045"><i class="bi bi-hdd-network chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Todos (<span id="countAllNodes">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="REPEATER" data-i18n="ui.static_046"><i class="bi bi-broadcast-pin chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Repetidores (<span id="countRepeaters">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="SENSOR" data-i18n="ui.static_047"><i class="bi bi-speedometer2 chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Sensores (<span id="countSensors">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="ROOM" data-i18n="ui.static_048"><i class="bi bi-house chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Salas (<span id="countRooms">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="CLIENT" data-i18n="ui.static_049"><i class="bi bi-person chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Clientes (<span id="countClients">0</span>)</button>
               </div>
             </div>
 
@@ -371,13 +271,13 @@
           <div class="map-container">
             <div id="liveGpsMap" class="leaflet-map-canvas" role="region" aria-label="Mapa interactivo de nodos en la malla" data-i18n-aria-label="ui.static_051"></div>
             <div class="map-layer-switcher" role="toolbar" aria-label="Selector de capas cartográficas" data-i18n-aria-label="ui.static_052">
-              <button type="button" class="map-layer-btn active" data-layer="dark" title="Mapa Oscuro (Esri World Dark Gray)" data-i18n-title="ui.static_053" data-i18n="map.dark"><span data-lucide="moon" data-size="14"></span> Oscuro</button>
-              <button type="button" class="map-layer-btn" data-layer="osm" title="OpenStreetMap (Online)" data-i18n-title="ui.static_054" data-i18n="map.streets"><span data-lucide="map" data-size="14"></span> Calles</button>
-              <button type="button" class="map-layer-btn" data-layer="satellite" title="Vista Satelital (Esri World Imagery)" data-i18n-title="ui.static_055" data-i18n="map.satellite"><span data-lucide="globe" data-size="14"></span> Satelital</button>
-              <button type="button" class="map-layer-btn" data-layer="local" title="Teselas Locales (Offline)" data-i18n-title="ui.static_056" data-i18n="node.role_local"><span data-lucide="database" data-size="14"></span> Local</button>
-              <button type="button" class="map-layer-btn" id="btnCenterLocalNode" title="Centrar mapa en la posición de mi estación base local" data-i18n-title="ui.static_057" data-i18n="ui.static_058"><span data-lucide="crosshair" data-size="14"></span> Centrar Local</button>
+              <button type="button" class="map-layer-btn active" data-layer="dark" title="Mapa Oscuro (Esri World Dark Gray)" data-i18n-title="ui.static_053" data-i18n="map.dark"><i class="bi bi-moon" style="font-size: 14px;" aria-hidden="true"></i> Oscuro</button>
+              <button type="button" class="map-layer-btn" data-layer="osm" title="OpenStreetMap (Online)" data-i18n-title="ui.static_054" data-i18n="map.streets"><i class="bi bi-map" style="font-size: 14px;" aria-hidden="true"></i> Calles</button>
+              <button type="button" class="map-layer-btn" data-layer="satellite" title="Vista Satelital (Esri World Imagery)" data-i18n-title="ui.static_055" data-i18n="map.satellite"><i class="bi bi-globe" style="font-size: 14px;" aria-hidden="true"></i> Satelital</button>
+              <button type="button" class="map-layer-btn" data-layer="local" title="Teselas Locales (Offline)" data-i18n-title="ui.static_056" data-i18n="node.role_local"><i class="bi bi-database" style="font-size: 14px;" aria-hidden="true"></i> Local</button>
+              <button type="button" class="map-layer-btn" id="btnCenterLocalNode" title="Centrar mapa en la posición de mi estación base local" data-i18n-title="ui.static_057" data-i18n="ui.static_058"><i class="bi bi-bullseye" style="font-size: 14px;" aria-hidden="true"></i> Centrar Local</button>
               <div class="toggle-field-inline map-toggle-inline" title="Mostrar/Ocultar Mapa de Calor de Cobertura RF" data-i18n-title="ui.static_059">
-                <span class="toggle-field-label" data-i18n="map.heatmap"><span data-lucide="flame" data-size="14"></span> Heatmap RF</span>
+                <span class="toggle-field-label" data-i18n="map.heatmap"><i class="bi bi-fire" style="font-size: 14px;" aria-hidden="true"></i> Heatmap RF</span>
                 <span class="toggle-state-badge badge-sm" id="mapHeatmapBadge">OFF</span>
                 <label class="toggle-switch toggle-sm" for="chkMapHeatmap">
                   <input type="checkbox" id="chkMapHeatmap" role="switch" aria-label="Mapa de calor RF"  data-i18n-aria-label="ui.static_061"/>
@@ -388,7 +288,7 @@
             <div class="map-overlay-info" id="mapOverlayInfo">
               <div class="map-overlay-header" id="mapOverlayHeader">
                 <div class="map-overlay-title-group">
-                  <span class="map-overlay-icon" data-lucide="users" data-size="16"></span>
+                  <i class="bi bi-people map-overlay-icon" aria-hidden="true"></i>
                   <h4 data-i18n="ui.static_062">Nodos en Malla (<span id="mapNodesCount">0</span>)</h4>
                 </div>
                 <button type="button" class="btn-toggle-overlay" id="btnToggleMapNodes" title="Minimizar / Expandir lista de nodos" aria-label="Minimizar o expandir lista de nodos" aria-expanded="true" data-i18n-title="ui.static_063" data-i18n-aria-label="ui.static_064">
@@ -405,37 +305,37 @@
           <div class="contacts-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2 data-i18n="contacts.title"><span class="section-icon" data-lucide="users" data-size="20"></span> Libreta de Contactos</h2>
+                <h2 data-i18n="contacts.title"><i class="bi bi-people section-icon" style="font-size: 20px;" aria-hidden="true"></i> Libreta de Contactos</h2>
                 <p class="header-subtitle" data-i18n="contacts.subtitle">Directorio de contactos, nodos amigos y gestión de claves públicas de la red.</p>
               </div>
               <div class="header-actions">
-                <button class="btn btn-secondary" id="btnRefreshContacts" aria-label="Actualizar lista de contactos" data-i18n-aria-label="ui.static_065" data-i18n="contacts.refresh"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar</button>
-                <button class="btn btn-secondary" id="btnHeaderImportContact" aria-label="Importar contacto" data-i18n-aria-label="ui.static_066" data-i18n="ui.static_067"><span data-lucide="download" data-size="14"></span> Importar</button>
-                <button class="btn btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto" data-i18n-aria-label="ui.static_068" data-i18n="contacts.add"><span data-lucide="plus" data-size="14"></span> Agregar Contacto</button>
+                <button class="btn btn-secondary" id="btnRefreshContacts" aria-label="Actualizar lista de contactos" data-i18n-aria-label="ui.static_065" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" style="font-size: 14px;" aria-hidden="true"></i> Actualizar</button>
+                <button class="btn btn-secondary" id="btnHeaderImportContact" aria-label="Importar contacto" data-i18n-aria-label="ui.static_066" data-i18n="ui.static_067"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> Importar</button>
+                <button class="btn btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto" data-i18n-aria-label="ui.static_068" data-i18n="contacts.add"><i class="bi bi-plus-lg" style="font-size: 14px;" aria-hidden="true"></i> Agregar Contacto</button>
               </div>
             </div>
 
             <!-- Banner de Contact Discovery Automático -->
             <div id="discoveryBanner" class="discovery-banner hidden">
               <div class="discovery-banner-content">
-                <span class="discovery-icon" data-lucide="wifi" data-size="20"></span>
+                <i class="bi bi-wifi discovery-icon" style="font-size: 20px;" aria-hidden="true"></i>
                 <div>
                   <strong data-i18n="ui.static_069">¡Nuevos Nodos Descubiertos en el Aire! (<span id="discoveryCount">0</span>)</strong>
                   <p data-i18n="ui.static_070">Se han capturado balizas de nuevos nodos en la malla LoRa. Puedes aceptarlos para agregarlos permanentemente.</p>
                 </div>
               </div>
               <div class="discovery-banner-actions">
-                <button type="button" class="btn-xs btn-primary" id="btnAcceptAllDiscovered" data-i18n="contacts.accept_all"><span data-lucide="check" data-size="13"></span> Aceptar Todos</button>
+                <button type="button" class="btn btn-xs btn-primary" id="btnAcceptAllDiscovered" data-i18n="contacts.accept_all"><i class="bi bi-check-lg" style="font-size: 13px;" aria-hidden="true"></i> Aceptar Todos</button>
               </div>
             </div>
 
             <div class="contacts-toolbar">
               <input type="search" id="contactsSearchInput" class="search-input" placeholder="Buscar contacto por nombre, alias o clave pública..." aria-label="Buscar contactos"  data-i18n-placeholder="contacts.search_placeholder" data-i18n-aria-label="ui.static_071"/>
               <div class="contacts-filter-pills" role="radiogroup" aria-label="Filtrar contactos" data-i18n-aria-label="ui.static_072">
-                <button type="button" class="filter-pill active" data-contact-filter="all" data-i18n="ui.static_045"><span class="chip-icon" data-lucide="users" data-size="13"></span> Todos (<span id="countAllContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="favorites" data-i18n="ui.static_073"><span class="chip-icon" data-lucide="star" data-size="13"></span> Favoritos (<span id="countFavContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="online" data-i18n="ui.static_074"><span class="chip-icon" data-lucide="activity" data-size="13"></span> En Línea (<span id="countOnlineContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="gps" data-i18n="ui.static_075"><span class="chip-icon" data-lucide="map-pin" data-size="13"></span> Con Posición (<span id="countGpsContacts">0</span>)</button>
+                <button type="button" class="filter-pill active" data-contact-filter="all" data-i18n="ui.static_045"><i class="bi bi-people chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Todos (<span id="countAllContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="favorites" data-i18n="ui.static_073"><i class="bi bi-star chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Favoritos (<span id="countFavContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="online" data-i18n="ui.static_074"><i class="bi bi-activity chip-icon" style="font-size: 13px;" aria-hidden="true"></i> En Línea (<span id="countOnlineContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="gps" data-i18n="ui.static_075"><i class="bi bi-geo-alt chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Con Posición (<span id="countGpsContacts">0</span>)</button>
               </div>
             </div>
             <div class="nodes-grid" id="contactsGridUi" role="region" aria-label="Lista de contactos" data-i18n-aria-label="ui.static_076">
@@ -449,7 +349,7 @@
           <div class="analytics-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2 data-i18n="analytics.title"><span class="section-icon" data-lucide="activity" data-size="20"></span> Métricas & Analítica de la Red Malla</h2>
+                <h2 data-i18n="analytics.title"><i class="bi bi-activity section-icon" style="font-size: 20px;" aria-hidden="true"></i> Métricas & Analítica de la Red Malla</h2>
                 <p class="header-subtitle" data-i18n="analytics.subtitle">Monitoreo de tráfico RF en tiempo real, gráficos de series temporales, composición de tramas y salud del enlace.</p>
               </div>
               <div class="header-actions">
@@ -458,15 +358,15 @@
                   <button type="button" class="btn-range" data-range="6h" data-i18n="analytics.range_6h">6h</button>
                   <button type="button" class="btn-range active" data-range="24h" data-i18n="analytics.range_24h">24h</button>
                 </div>
-                <button type="button" class="btn-secondary btn-sm" id="btnRefreshAnalytics" data-i18n="analytics.refresh"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar Métricas</button>
-                <button type="button" class="btn-secondary btn-sm btn-danger-hover" id="btnResetMetrics" title="Restablecer contadores y estadísticas acumuladas" data-i18n-title="analytics.reset_title"><span data-lucide="rotate-ccw" data-size="14"></span> <span id="btnResetMetricsText" data-i18n="analytics.reset">Restablecer Métricas</span></button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshAnalytics" data-i18n="analytics.refresh"><i class="bi bi-arrow-repeat" style="font-size: 14px;" aria-hidden="true"></i> Actualizar Métricas</button>
+                <button type="button" class="btn btn-secondary btn-sm btn-danger-hover" id="btnResetMetrics" title="Restablecer contadores y estadísticas acumuladas" data-i18n-title="analytics.reset_title"><i class="bi bi-arrow-counterclockwise" style="font-size: 14px;" aria-hidden="true"></i> <span id="btnResetMetricsText" data-i18n="analytics.reset">Restablecer Métricas</span></button>
               </div>
             </div>
 
             <!-- Fila 1: Tarjetas KPI con Micro-Sparklines -->
             <div class="analytics-kpi-grid">
               <div class="analytics-kpi-card" id="cardKpiPackets">
-                <div class="kpi-icon"><span data-lucide="package" data-size="22"></span></div>
+                <div class="kpi-icon"><i class="bi bi-box-seam" style="font-size: 22px;" aria-hidden="true"></i></div>
                 <div class="kpi-data">
                   <span class="kpi-label" data-i18n="analytics.kpi_packets">Paquetes de la sesión</span>
                   <strong class="kpi-value" id="kpiTotalPackets">0</strong>
@@ -475,7 +375,7 @@
                 <div id="kpiSparklinePackets" class="kpi-sparkline-box"></div>
               </div>
               <div class="analytics-kpi-card" id="cardKpiRouting">
-                <div class="kpi-icon"><span data-lucide="git-merge" data-size="22"></span></div>
+                <div class="kpi-icon"><i class="bi bi-diagram-2" style="font-size: 22px;" aria-hidden="true"></i></div>
                 <div class="kpi-data">
                   <span class="kpi-label" data-i18n="analytics.kpi_routing_eff">Eficiencia Enrutamiento</span>
                   <strong class="kpi-value" id="kpiRoutingDirect">0%</strong>
@@ -484,7 +384,7 @@
                 <div id="kpiSparklineRouting" class="kpi-sparkline-box"></div>
               </div>
               <div class="analytics-kpi-card" id="cardKpiErrorRate">
-                <div class="kpi-icon"><span data-lucide="shield-alert" data-size="22"></span></div>
+                <div class="kpi-icon"><i class="bi bi-shield-exclamation" style="font-size: 22px;" aria-hidden="true"></i></div>
                 <div class="kpi-data">
                   <span class="kpi-label" data-i18n="analytics.kpi_error_rate">Tasa de Error Global</span>
                   <strong class="kpi-value" id="kpiErrorRate">0.0%</strong>
@@ -493,7 +393,7 @@
                 <div id="kpiSparklineErrors" class="kpi-sparkline-box"></div>
               </div>
               <div class="analytics-kpi-card" id="cardKpiDutyCycle">
-                <div class="kpi-icon"><span data-lucide="clock" data-size="22"></span></div>
+                <div class="kpi-icon"><i class="bi bi-clock" style="font-size: 22px;" aria-hidden="true"></i></div>
                 <div class="kpi-data">
                   <span class="kpi-label" data-i18n="analytics.kpi_duty_cycle">Airtime / Duty Cycle</span>
                   <strong class="kpi-value" id="kpiDutyCycleVal">0.00%</strong>
@@ -508,7 +408,7 @@
               <!-- Gráfico de Área Temporal RX vs TX -->
               <div class="analytics-card chart-card-wide" id="cardChartTraffic">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><span data-lucide="trending-up" data-size="18"></span></span>
+                  <span class="card-icon"><i class="bi bi-graph-up-arrow" style="font-size: 18px;" aria-hidden="true"></i></span>
                   <div>
                     <h3 data-i18n="analytics.chart_traffic_title">Actividad Temporal de Tráfico (RX vs TX)</h3>
                     <p data-i18n="analytics.chart_traffic_sub">Ventana seleccionada; el último intervalo está en curso. Los totales superiores cubren toda la sesión.</p>
@@ -523,7 +423,7 @@
               <!-- Gráfico Donut de Tipos de Trama -->
               <div class="analytics-card" id="cardChartTypes">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><span data-lucide="pie-chart" data-size="18"></span></span>
+                  <span class="card-icon"><i class="bi bi-pie-chart" style="font-size: 18px;" aria-hidden="true"></i></span>
                   <div>
                     <h3 data-i18n="analytics.chart_types_title">Composición por Tipo de Trama</h3>
                     <p data-i18n="analytics.chart_types_sub">Distribución del tráfico: Chat, Anuncios, Telemetría, Traceroute y Admin</p>
@@ -538,7 +438,7 @@
               <!-- Diagnóstico de Enrutamiento & Errores -->
               <div class="analytics-card" id="cardRoutingErrors">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><span data-lucide="sliders" data-size="18"></span></span>
+                  <span class="card-icon"><i class="bi bi-sliders" style="font-size: 18px;" aria-hidden="true"></i></span>
                   <div>
                     <h3 data-i18n="analytics.chart_routing_errors_title">Eficiencia de Enrutamiento & Fallos</h3>
                     <p data-i18n="analytics.chart_routing_errors_sub">Proporción Flood vs Directo y causas de error detectadas</p>
@@ -559,7 +459,7 @@
               <!-- Salud del Transceptor y Hardware Local -->
               <div class="analytics-card" id="cardBridgeHealth">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><span data-lucide="cpu" data-size="18"></span></span>
+                  <span class="card-icon"><i class="bi bi-cpu" style="font-size: 18px;" aria-hidden="true"></i></span>
                   <div>
                     <h3 data-i18n="analytics.bridge">Salud del Transceptor & Puente</h3>
                     <p data-i18n="analytics.bridge_sub">Métricas de hardware, piso de ruido RF y estado de subsistemas</p>
@@ -603,14 +503,14 @@
               <!-- Top Nodos Más Activos -->
               <div class="analytics-card" id="cardTopActive">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><span data-lucide="trophy" data-size="18"></span></span>
+                  <span class="card-icon"><i class="bi bi-trophy" style="font-size: 18px;" aria-hidden="true"></i></span>
                   <div>
                     <h3 data-i18n="analytics.top_active">Top Nodos Más Activos</h3>
                     <p data-i18n="analytics.top_active_sub">Nodos con mayor volumen de paquetes y calidad de enlace LQI</p>
                   </div>
                 </div>
                 <div class="table-responsive">
-                  <table class="table table-dark table-hover table-striped table-sm align-middle data-table analytics-table">
+                  <table class="table table-hover table-striped table-sm align-middle data-table analytics-table">
                     <thead>
                       <tr>
                         <th data-i18n="ui.static_082">Nodo / Alias</th>
@@ -631,7 +531,7 @@
               <!-- Presupuesto Horario de Airtime & Duty Cycle -->
               <div class="analytics-card" id="cardAirtimeBudget">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><span data-lucide="radio" data-size="18"></span></span>
+                  <span class="card-icon"><i class="bi bi-broadcast" style="font-size: 18px;" aria-hidden="true"></i></span>
                   <div>
                     <h3 data-i18n="ui.static_101">Presupuesto Horario de Airtime (Duty Cycle)</h3>
                     <p data-i18n="ui.static_102">Monitoreo regulatorio de tiempo en el aire LoRa en ventana móvil de 1 hora</p>
@@ -663,10 +563,10 @@
             <!-- Barra de Subpestañas Dual Sniffer -->
             <div class="subtabs-nav-bar" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
               <button type="button" class="subtab-btn active" id="btnSubtabLogs" data-target="subpanelSystemLogs" data-i18n="logs.subtab_logs">
-                <span data-lucide="file-text" data-size="15"></span> Logs del Sistema
+                <i class="bi bi-file-earmark-text" style="font-size: 15px;" aria-hidden="true"></i> Logs del Sistema
               </button>
               <button type="button" class="subtab-btn" id="btnSubtabSniffer" data-target="subpanelRfPackets" data-i18n="sniffer.title">
-                <span data-lucide="radio" data-size="15"></span> Monitor de Paquetes RF (LoRa Sniffer)
+                <i class="bi bi-broadcast" style="font-size: 15px;" aria-hidden="true"></i> Monitor de Paquetes RF (LoRa Sniffer)
                 <span class="badge-pill badge-primary text-xs" id="snifferPacketsBadge" style="margin-left: 6px;">0</span>
               </button>
             </div>
@@ -675,28 +575,28 @@
             <div id="subpanelSystemLogs" class="sniffer-subpanel active">
               <div class="pane-header">
                 <div class="header-title-group">
-                  <h2 data-i18n="logs.title"><span class="section-icon" data-lucide="file-text" data-size="20"></span> Consola de Logs del Sistema</h2>
+                  <h2 data-i18n="logs.title"><i class="bi bi-file-earmark-text section-icon" style="font-size: 20px;" aria-hidden="true"></i> Consola de Logs del Sistema</h2>
                   <p class="header-subtitle" data-i18n="ui.static_109">Registro de eventos y depuración en tiempo real del puente MeshCore.</p>
                 </div>
                 <div class="pane-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   <div class="toggle-field-inline" title="Alternar nivel de logging DEBUG" data-i18n-title="ui.static_110">
-                    <span class="toggle-field-label" data-i18n="logs.debug_mode"><span data-lucide="bug" data-size="14"></span> Modo DEBUG</span>
+                    <span class="toggle-field-label" data-i18n="logs.debug_mode"><i class="bi bi-bug" style="font-size: 14px;" aria-hidden="true"></i> Modo DEBUG</span>
                     <span class="toggle-state-badge badge-sm" id="debugModeBadge">OFF</span>
                     <label class="toggle-switch toggle-sm" for="chkDebugMode">
                       <input type="checkbox" id="chkDebugMode" role="switch" aria-label="Modo DEBUG"  data-i18n-aria-label="logs.debug_mode"/>
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
-                  <button class="btn btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)" data-i18n-title="ui.static_111" data-i18n="logs.download_log"><span data-lucide="download" data-size="14"></span> Descargar .log</button>
-                  <button class="btn btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs" data-i18n-title="ui.static_112" data-i18n="chat.clear"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
+                  <button class="btn btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)" data-i18n-title="ui.static_111" data-i18n="logs.download_log"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> Descargar .log</button>
+                  <button class="btn btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs" data-i18n-title="ui.static_112" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Limpiar</button>
                 </div>
               </div>
 
               <!-- Chips de Salud de Subsistemas (Serial / TX / Errores) -->
               <div class="subsystems-health-bar" id="subsystemsHealthBar">
-                <span class="health-chip" id="chipSerialHealth" data-i18n="ui.static_113"><span class="chip-icon" data-lucide="radio" data-size="13"></span> Serial: <strong class="val" data-i18n="ui.static_114">Comprobando...</strong></span>
-                <span class="health-chip" id="chipTxHealth" data-i18n="ui.static_115"><span class="chip-icon" data-lucide="clock" data-size="13"></span> TX Queue: <strong class="val">0</strong></span>
-                <span class="health-chip" id="chipErrorsCount" data-i18n="ui.static_116"><span class="chip-icon" data-lucide="alert-triangle" data-size="13"></span> Errores: <strong class="val">0</strong></span>
+                <span class="health-chip" id="chipSerialHealth" data-i18n="ui.static_113"><i class="bi bi-broadcast chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Serial: <strong class="val" data-i18n="ui.static_114">Comprobando...</strong></span>
+                <span class="health-chip" id="chipTxHealth" data-i18n="ui.static_115"><i class="bi bi-clock chip-icon" style="font-size: 13px;" aria-hidden="true"></i> TX Queue: <strong class="val">0</strong></span>
+                <span class="health-chip" id="chipErrorsCount" data-i18n="ui.static_116"><i class="bi bi-exclamation-triangle chip-icon" style="font-size: 13px;" aria-hidden="true"></i> Errores: <strong class="val">0</strong></span>
               </div>
 
               <!-- Barra de Filtros de Logs -->
@@ -718,7 +618,7 @@
                   <input type="text" id="logSearchInput" placeholder="Buscar en logs (módulo, error, texto)..." autocomplete="off" aria-label="Buscar en logs del sistema"  data-i18n-placeholder="logs.search_placeholder" data-i18n-aria-label="ui.static_125"/>
                 </div>
                 <div class="toggle-field-inline" title="Pausar o reanudar desplazamiento automático" data-i18n-title="ui.static_126">
-                  <span class="toggle-field-label" data-i18n="ui.static_127"><span data-lucide="arrow-down" data-size="14"></span> Auto-Scroll</span>
+                  <span class="toggle-field-label" data-i18n="ui.static_127"><i class="bi bi-arrow-down" style="font-size: 14px;" aria-hidden="true"></i> Auto-Scroll</span>
                   <span class="toggle-state-badge badge-sm is-active-success" id="logsAutoScrollBadge">ON</span>
                   <label class="toggle-switch toggle-sm toggle-success" for="chkLogsAutoScroll">
                     <input type="checkbox" id="chkLogsAutoScroll" role="switch" checked aria-label="Auto-scroll de logs"  data-i18n-aria-label="ui.static_129"/>
@@ -735,23 +635,23 @@
             <div id="subpanelRfPackets" class="sniffer-subpanel hidden">
               <div class="pane-header">
                 <div class="header-title-group">
-                  <h2 data-i18n="ui.static_130"><span class="section-icon" data-lucide="radio" data-size="20"></span> Monitor de Paquetes RF en Tránsito (LoRa Sniffer)</h2>
+                  <h2 data-i18n="ui.static_130"><i class="bi bi-broadcast section-icon" style="font-size: 20px;" aria-hidden="true"></i> Monitor de Paquetes RF en Tránsito (LoRa Sniffer)</h2>
                   <p class="header-subtitle" data-i18n="ui.static_131">Inspección de tramas en tiempo real (RX/TX), cálculo de LQI, decodificación semántica y exportación Wireshark.</p>
                 </div>
                 <div class="pane-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   <div class="toggle-field-inline" title="Pausar o reanudar captura de tramas RF" data-i18n-title="ui.static_132">
-                    <span class="toggle-field-label" data-i18n="ui.static_133"><span data-lucide="radio" data-size="14"></span> Captura RF</span>
+                    <span class="toggle-field-label" data-i18n="ui.static_133"><i class="bi bi-broadcast" style="font-size: 14px;" aria-hidden="true"></i> Captura RF</span>
                     <span class="toggle-state-badge badge-sm is-active-success" id="snifferCaptureBadge">ON</span>
                     <label class="toggle-switch toggle-sm toggle-success" for="chkSnifferCapture">
                       <input type="checkbox" id="chkSnifferCapture" role="switch" checked aria-label="Captura de paquetes RF"  data-i18n-aria-label="ui.static_134"/>
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
-                  <button type="button" class="btn-outline btn-sm" id="btnClearSnifferPackets" title="Limpiar búfer de paquetes" data-i18n-title="ui.static_135" data-i18n="chat.clear"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
+                  <button type="button" class="btn btn-outline btn-sm" id="btnClearSnifferPackets" title="Limpiar búfer de paquetes" data-i18n-title="ui.static_135" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Limpiar</button>
                   <div class="btn-group" style="display: flex; gap: 4px;">
-                    <button type="button" class="btn-secondary btn-sm" id="btnExportPcap" title="Descargar captura PCAP binaria (Wireshark DLT_USER0)" data-i18n-title="ui.static_136" data-i18n="ui.static_137"><span data-lucide="download" data-size="14"></span> PCAP (Wireshark)</button>
-                    <button type="button" class="btn-secondary btn-sm" id="btnExportJson" title="Descargar paquetes en formato JSON" data-i18n-title="ui.static_138" data-i18n="ui.static_139"><span data-lucide="code" data-size="14"></span> JSON</button>
-                    <button type="button" class="btn-secondary btn-sm" id="btnExportCsv" title="Descargar paquetes en formato CSV" data-i18n-title="ui.static_140" data-i18n="ui.static_141"><span data-lucide="file-spreadsheet" data-size="14"></span> CSV</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnExportPcap" title="Descargar captura PCAP binaria (Wireshark DLT_USER0)" data-i18n-title="ui.static_136" data-i18n="ui.static_137"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> PCAP (Wireshark)</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnExportJson" title="Descargar paquetes en formato JSON" data-i18n-title="ui.static_138" data-i18n="ui.static_139"><i class="bi bi-code-slash" style="font-size: 14px;" aria-hidden="true"></i> JSON</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnExportCsv" title="Descargar paquetes en formato CSV" data-i18n-title="ui.static_140" data-i18n="ui.static_141"><i class="bi bi-file-earmark-spreadsheet" style="font-size: 14px;" aria-hidden="true"></i> CSV</button>
                   </div>
                 </div>
               </div>
@@ -784,7 +684,7 @@
 
               <!-- Tabla de Paquetes Capturados -->
               <div class="table-responsive" style="max-height: 550px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
-                <table class="table table-dark table-hover table-striped table-sm align-middle data-table sniffer-table" style="font-size: 13px;">
+                <table class="table table-hover table-striped table-sm align-middle data-table sniffer-table" style="font-size: 13px;">
                   <thead>
                     <tr>
                       <th style="width: 50px;">#</th>
@@ -815,7 +715,7 @@
             <div class="pane-header">
               <div class="header-title-group">
                 <div class="header-badge-row">
-                  <h2 data-i18n="ui.static_166"><span class="section-icon" data-lucide="sliders" data-size="20"></span> Configuración & Gestión del Nodo Local</h2>
+                  <h2 data-i18n="ui.static_166"><i class="bi bi-sliders section-icon" style="font-size: 20px;" aria-hidden="true"></i> Configuración & Gestión del Nodo Local</h2>
                   <span class="badge-pill badge-primary" id="localNodeRoleBadge">Base Station</span>
                   <span class="badge-pill badge-secondary" id="localHwBoardBadge">ESP32 / SX1262</span>
                   <span class="badge-pill badge-outline" id="localFwVersionBadge">FW: v1.6.0</span>
@@ -823,26 +723,26 @@
                 <p class="header-subtitle" data-i18n="ui.static_170">Control integral de parámetros RF, telemetría de hardware, identidad y consola interactiva del transceptor MeshCore conectado.</p>
               </div>
               <div class="header-actions">
-                <button type="button" class="btn-secondary btn-sm" id="btnRefreshLocalConfig" data-i18n="settings.refresh"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar Parámetros</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshLocalConfig" data-i18n="settings.refresh"><i class="bi bi-arrow-repeat" style="font-size: 14px;" aria-hidden="true"></i> Actualizar Parámetros</button>
               </div>
             </div>
 
             <!-- Subpestañas de Configuración del Nodo Local -->
             <div class="local-settings-subtabs">
-              <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry" data-i18n="settings.subtab_telem"><span class="subtab-icon" data-lucide="activity" data-size="15"></span> Telemetría & Estado</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-radio" data-i18n="settings.subtab_radio"><span class="subtab-icon" data-lucide="radio" data-size="15"></span> Parámetros RF & Radio</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos" data-i18n="settings.subtab_identity"><span class="subtab-icon" data-lucide="map-pin" data-size="15"></span> Identidad & Posición GPS</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-console" data-i18n="settings.subtab_terminal"><span class="subtab-icon" data-lucide="terminal" data-size="15"></span> Terminal</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps" data-i18n="settings.subtab_maps"><span class="subtab-icon" data-lucide="map" data-size="15"></span> Mapas Offline</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-security" data-i18n="settings.subtab_security"><span class="subtab-icon" data-lucide="shield" data-size="15"></span> Seguridad & API</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-services" data-i18n="settings.subtab_services"><span class="subtab-icon" data-lucide="server" data-size="15"></span> Servicios & Red</button>
+              <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry" data-i18n="settings.subtab_telem"><i class="bi bi-activity subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Telemetría & Estado</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-radio" data-i18n="settings.subtab_radio"><i class="bi bi-broadcast subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Parámetros RF & Radio</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos" data-i18n="settings.subtab_identity"><i class="bi bi-geo-alt subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Identidad & Posición GPS</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-console" data-i18n="settings.subtab_terminal"><i class="bi bi-terminal subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Terminal</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps" data-i18n="settings.subtab_maps"><i class="bi bi-map subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Mapas Offline</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-security" data-i18n="settings.subtab_security"><i class="bi bi-shield-check subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Seguridad & API</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-services" data-i18n="settings.subtab_services"><i class="bi bi-hdd-stack subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Servicios & Red</button>
             </div>
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
             <div id="local-telemetry" class="local-settings-subpanel active">
               <div class="info-grid info-grid-extended">
                 <div class="metric-card">
-                  <div class="card-icon"><span data-lucide="zap" data-size="20"></span></div>
+                  <div class="card-icon"><i class="bi bi-lightning" style="font-size: 20px;" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_171">Alimentación Host (USB)</span>
                     <strong class="card-value" id="localSolarValue">Conectado (5V)</strong>
@@ -850,7 +750,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon"><span data-lucide="clock" data-size="20"></span></div>
+                  <div class="card-icon"><i class="bi bi-clock" style="font-size: 20px;" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_174">Reloj RTC (Hora Nodo)</span>
                     <strong class="card-value" id="localClockValue">--:--:--</strong>
@@ -858,7 +758,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon"><span data-lucide="activity" data-size="20"></span></div>
+                  <div class="card-icon"><i class="bi bi-activity" style="font-size: 20px;" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_176">Tiempo Activo (Uptime)</span>
                     <strong class="card-value" id="localUptimeValue">--</strong>
@@ -866,7 +766,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon"><span data-lucide="radio" data-size="20"></span></div>
+                  <div class="card-icon"><i class="bi bi-broadcast" style="font-size: 20px;" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_177">Total Airtime (En Aire)</span>
                     <strong class="card-value" id="localAirtimeValue">-- ms</strong>
@@ -875,7 +775,7 @@
                 </div>
 
                 <div class="metric-card">
-                  <div class="card-icon"><span data-lucide="volume-2" data-size="20"></span></div>
+                  <div class="card-icon"><i class="bi bi-volume-up" style="font-size: 20px;" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_179">Piso de Ruido (Noise)</span>
                     <strong class="card-value" id="localNoiseValue">-- dBm</strong>
@@ -883,7 +783,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon"><span data-lucide="package" data-size="20"></span></div>
+                  <div class="card-icon"><i class="bi bi-box-seam" style="font-size: 20px;" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_181">Paquetes TX / RX</span>
                     <strong class="card-value" id="localPacketsValue">-- / --</strong>
@@ -905,36 +805,36 @@
               <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
               <div class="hardware-actions-section">
                 <div class="section-micro-header">
-                  <span class="micro-title" data-i18n="settings.hw_actions_title"><span data-lucide="zap" data-size="14"></span> Acciones Rápidas de Hardware</span>
+                  <span class="micro-title" data-i18n="settings.hw_actions_title"><i class="bi bi-lightning" style="font-size: 14px;" aria-hidden="true"></i> Acciones Rápidas de Hardware</span>
                   <span class="micro-subtitle" data-i18n="settings.hw_actions_sub">Comandos de ejecución y control directo sobre el microcontrolador y transceptor LoRa</span>
                 </div>
                 <div class="hardware-actions-toolbar">
                   <button type="button" class="btn-compact-action btn-compact-primary" id="btnActionAdvertHop" title="Difunde anuncio directo a nodos vecinos en alcance visual de 1 salto (0 saltos)" data-i18n-title="ui.static_188">
-                    <span class="btn-compact-icon" data-lucide="radio" data-size="14"></span>
+                    <i class="bi bi-broadcast btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_advert_hop">Advert Hop 0</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionAdvertFlood" title="Difunde anuncio enrutado por inundación a toda la malla" data-i18n-title="ui.static_189">
-                    <span class="btn-compact-icon" data-lucide="wifi" data-size="14"></span>
+                    <i class="bi bi-wifi btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_advert_flood">Advert Flood</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnRefreshLocalTelem" title="Consulta telemetría y contadores de hardware en tiempo real" data-i18n-title="ui.static_190">
-                    <span class="btn-compact-icon" data-lucide="activity" data-size="14"></span>
+                    <i class="bi bi-activity btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_stats">Stats Hardware</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnSyncLocalClock" title="Ajusta el reloj de tiempo real RTC del nodo con la hora del host" data-i18n-title="ui.static_191">
-                    <span class="btn-compact-icon" data-lucide="clock" data-size="14"></span>
+                    <i class="bi bi-clock btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_sync_rtc">Sincronizar RTC</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionClearLocalStats" title="Restablece contadores de paquetes, duplicados y tiempos de aire" data-i18n-title="settings.action_clear_stats_title">
-                    <span class="btn-compact-icon" data-lucide="trash-2" data-size="14"></span>
+                    <i class="bi bi-trash btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_clear_stats">Limpiar Stats</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionReconnectSerial" title="Cierra y reabre de forma segura la conexión USB/Serial con el transceptor" data-i18n-title="ui.static_192">
-                    <span class="btn-compact-icon" data-lucide="radio" data-size="14"></span>
+                    <i class="bi bi-broadcast btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_reconnect_serial">Reconectar Serial</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-danger" id="btnActionRebootLocal" title="Envía comando de reinicio de hardware al microcontrolador ESP32/nRF52" data-i18n-title="ui.static_193">
-                    <span class="btn-compact-icon" data-lucide="refresh-cw" data-size="14"></span>
+                    <i class="bi bi-arrow-repeat btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_reboot">Reiniciar Nodo</span>
                   </button>
                 </div>
@@ -1022,7 +922,7 @@
                   </div>
                   <!-- Sección: Balizas & Transmisiones Periódicas -->
                   <div class="form-section-title span-full" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;" data-i18n="ui.static_223">
-                    <span class="section-icon" data-lucide="radio" data-size="16"></span> Balizas &amp; Transmisiones Periódicas
+                    <i class="bi bi-broadcast section-icon" aria-hidden="true"></i> Balizas &amp; Transmisiones Periódicas
                   </div>
                   <p id="localPeriodicSupportHint" class="field-hint span-full" data-i18n="settings.periodic_unsupported">El nodo local Companion no permite configurar estas transmisiones periódicas. Los modos de telemetría de abajo controlan quién puede solicitar datos; no programan envíos.</p>
 
@@ -1068,7 +968,7 @@
 
                   <!-- Sección de Parámetros Avanzados del Firmware MeshCore -->
                   <div class="form-section-title span-full" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;" data-i18n="ui.static_236">
-                    <span class="section-icon" data-lucide="cpu" data-size="16"></span> Parámetros Avanzados &amp; Firmware MeshCore
+                    <i class="bi bi-cpu section-icon" aria-hidden="true"></i> Parámetros Avanzados &amp; Firmware MeshCore
                   </div>
                   <div class="form-group">
                     <label for="localDevicePin" data-i18n="ui.static_237">PIN del Dispositivo (BLE/Emparejamiento):</label>
@@ -1160,7 +1060,7 @@
                     </div>
                   </div>
                   <div class="form-actions-full">
-                    <button type="submit" class="btn btn-primary" id="btnSaveLocalRadio" data-i18n="modal.save"><span class="btn-icon" data-lucide="save" data-size="16"></span> Guardar</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveLocalRadio" data-i18n="modal.save"><i class="bi bi-floppy btn-icon" aria-hidden="true"></i> Guardar</button>
                   </div>
                 </form>
               </div>
@@ -1169,14 +1069,14 @@
               <div class="card-panel" style="margin-top: 20px;">
                 <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                   <div>
-                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;" data-i18n="ui.static_265"><span class="section-icon" data-lucide="cpu" data-size="16"></span> Variables Personalizadas del Dispositivo (Custom Vars - CMD 40/41)</h3>
+                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;" data-i18n="ui.static_265"><i class="bi bi-cpu section-icon" aria-hidden="true"></i> Variables Personalizadas del Dispositivo (Custom Vars - CMD 40/41)</h3>
                     <p style="font-size: 0.82rem; color: var(--color-text-secondary); margin: 3px 0 0 0;" data-i18n="ui.static_266">Parámetros clave-valor configurados directamente en la memoria flash del transceptor.</p>
                   </div>
-                  <button type="button" class="btn-secondary btn-xs" id="btnRefreshCustomVars" data-i18n="contacts.refresh"><span data-lucide="refresh-cw" data-size="12"></span> Actualizar</button>
+                  <button type="button" class="btn btn-secondary btn-xs" id="btnRefreshCustomVars" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" style="font-size: 12px;" aria-hidden="true"></i> Actualizar</button>
                 </div>
                 
                 <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
-                  <table class="table table-dark table-hover table-striped table-sm align-middle data-table" id="localCustomVarsTable">
+                  <table class="table table-hover table-striped table-sm align-middle data-table" id="localCustomVarsTable">
                     <thead>
                       <tr>
                         <th style="width: 35%;" data-i18n="ui.static_267">Clave (Key)</th>
@@ -1200,7 +1100,7 @@
                     <input type="text" id="inputCustomVarVal" placeholder="Ej: 60" required  data-i18n-placeholder="ui.static_274"/>
                   </div>
                   <div class="form-group">
-                    <button type="button" class="btn-primary btn-block" id="btnSaveCustomVar" data-i18n="ui.static_275"><span data-lucide="plus" data-size="14"></span> Guardar Variable</button>
+                    <button type="button" class="btn btn-primary btn-block" id="btnSaveCustomVar" data-i18n="ui.static_275"><i class="bi bi-plus-lg" style="font-size: 14px;" aria-hidden="true"></i> Guardar Variable</button>
                   </div>
                 </form>
               </div>
@@ -1211,7 +1111,7 @@
             <div id="local-owner-pos" class="local-settings-subpanel">
               <div class="card-panel">
                 <form id="localOwnerPosForm" class="grid-form-2col" aria-label="Identidad y ubicación" data-i18n-aria-label="ui.form_identity">
-                  <div class="form-section-title span-full" data-i18n="ui.static_276"><span class="section-icon" data-lucide="user" data-size="16"></span> Identidad del Nodo Local</div>
+                  <div class="form-section-title span-full" data-i18n="ui.static_276"><i class="bi bi-person section-icon" aria-hidden="true"></i> Identidad del Nodo Local</div>
                   <div class="form-group">
                     <label for="localNodeName" data-i18n="ui.static_277">Nombre del Nodo / Alias:</label>
                     <input type="text" id="localNodeName" placeholder="MeshCore_Base" required  data-i18n-placeholder="ui.static_278"/>
@@ -1220,7 +1120,7 @@
                     <label for="localNodePubkey" data-i18n="ui.static_279">Clave Pública (Identidad Hexadecimal):</label>
                     <div class="input-with-action">
                       <input type="text" id="localNodePubkey" readonly class="input-readonly font-mono" />
-                      <button type="button" class="btn-secondary btn-sm" id="btnCopyLocalPubkey" title="Copiar clave pública" data-i18n-title="ui.static_280" data-i18n="qr.copy_btn"><span data-lucide="copy" data-size="13"></span> Copiar</button>
+                      <button type="button" class="btn btn-secondary btn-sm" id="btnCopyLocalPubkey" title="Copiar clave pública" data-i18n-title="ui.static_280" data-i18n="qr.copy_btn"><i class="bi bi-clipboard" style="font-size: 13px;" aria-hidden="true"></i> Copiar</button>
                     </div>
                   </div>
                   <div class="form-group span-full">
@@ -1228,7 +1128,7 @@
                     <input type="text" id="localOwnerInfo" placeholder="Ej: Operador Base - Canal 0 / TG-LoRa"  data-i18n-placeholder="ui.static_282"/>
                   </div>
 
-                  <div class="form-section-title span-full" data-i18n="ui.static_283"><span class="section-icon" data-lucide="map-pin" data-size="16"></span> Coordenadas Geográficas Fijas (GPS / Mapa)</div>
+                  <div class="form-section-title span-full" data-i18n="ui.static_283"><i class="bi bi-geo-alt section-icon" aria-hidden="true"></i> Coordenadas Geográficas Fijas (GPS / Mapa)</div>
                   <div class="form-group">
                     <label for="localGpsLat" data-i18n="ui.static_284">Latitud (°):</label>
                     <input type="number" id="localGpsLat" step="0.000001" min="-90" max="90" placeholder="Ej: 23.1136"  data-i18n-placeholder="ui.static_285"/>
@@ -1257,10 +1157,10 @@
                     </div>
                   </div>
                   <div class="form-group flex-row-align">
-                    <button type="button" class="btn btn-secondary" id="btnGetBrowserGps" data-i18n="ui.static_294"><span data-lucide="compass" data-size="14"></span> Obtener GPS del Navegador</button>
+                    <button type="button" class="btn btn-secondary" id="btnGetBrowserGps" data-i18n="ui.static_294"><i class="bi bi-compass" style="font-size: 14px;" aria-hidden="true"></i> Obtener GPS del Navegador</button>
                   </div>
                   <div class="form-actions-full">
-                    <button type="submit" class="btn btn-primary" id="btnSaveLocalIdentityPos" data-i18n="ui.static_295"><span data-lucide="save" data-size="14"></span> Guardar Identidad & Posición</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveLocalIdentityPos" data-i18n="ui.static_295"><i class="bi bi-floppy" style="font-size: 14px;" aria-hidden="true"></i> Guardar Identidad & Posición</button>
                   </div>
                 </form>
               </div>
@@ -1277,15 +1177,15 @@
                   </div>
                   <span class="linux-term-title" data-i18n="ui.static_296">MeshCore Node CLI — Transceptor Local</span>
                   <div class="linux-term-actions">
-                    <button type="button" class="btn-xs btn-outline-term" id="btnToggleLocalCmdHelp" data-i18n="ui.static_297"><span data-lucide="info" data-size="13"></span> Ayuda (help)</button>
-                    <button type="button" class="btn-xs btn-outline-term" id="btnClearLocalTerminal" data-i18n="chat.clear"><span data-lucide="trash-2" data-size="13"></span> Limpiar</button>
+                    <button type="button" class="btn btn-xs btn-outline-term" id="btnToggleLocalCmdHelp" data-i18n="ui.static_297"><i class="bi bi-info-circle" style="font-size: 13px;" aria-hidden="true"></i> Ayuda (help)</button>
+                    <button type="button" class="btn btn-xs btn-outline-term" id="btnClearLocalTerminal" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 13px;" aria-hidden="true"></i> Limpiar</button>
                   </div>
                 </div>
 
                 <!-- Desplegable interactivo de ayuda de comandos -->
                 <div id="localTerminalHelpDrawer" class="terminal-help-drawer hidden">
                   <div class="help-drawer-header">
-                    <strong data-i18n="ui.static_298"><span data-lucide="file-text" data-size="14"></span> Referencia Oficial de Comandos MeshCore</strong>
+                    <strong data-i18n="ui.static_298"><i class="bi bi-file-earmark-text" style="font-size: 14px;" aria-hidden="true"></i> Referencia Oficial de Comandos MeshCore</strong>
                     <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help">✕</button>
                   </div>
                   <div class="help-drawer-grid">
@@ -1418,7 +1318,7 @@
               <div class="card-panel">
                 <div class="panel-header-modern">
                   <div>
-                    <h3 data-i18n="ui.static_331"><span class="section-icon" data-lucide="database" data-size="18"></span> Almacenamiento Local & Mapas Offline</h3>
+                    <h3 data-i18n="ui.static_331"><i class="bi bi-database section-icon" style="font-size: 18px;" aria-hidden="true"></i> Almacenamiento Local & Mapas Offline</h3>
                     <p class="panel-desc" data-i18n="ui.static_332">Gestiona la base de datos IndexedDB del navegador y la configuración de capas cartográficas fuera de línea.</p>
                   </div>
                 </div>
@@ -1427,7 +1327,7 @@
                   <!-- Tarjeta 1: Almacén IndexedDB y Notificaciones -->
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <h3 data-i18n="ui.static_333"><span class="section-icon" data-lucide="database" data-size="16"></span> Persistencia & Alertas de Chat</h3>
+                      <h3 data-i18n="ui.static_333"><i class="bi bi-database section-icon" aria-hidden="true"></i> Persistencia & Alertas de Chat</h3>
                       <span class="badge-pill badge-success" id="indexedDbStatusBadge" data-i18n="ui.static_334">Activo (MeshCoreStationDB)</span>
                     </div>
                     <p class="card-desc" data-i18n="ui.static_335">Los mensajes de chat y el estado de la estación se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
@@ -1435,7 +1335,7 @@
                       <div class="form-group toggle-field-group" style="margin-bottom: 14px;">
                         <div class="toggle-field-row">
                           <div class="toggle-field-info">
-                            <span class="toggle-field-title" data-i18n="ui.static_336"><span data-lucide="volume-2" data-size="14"></span> Timbre de Alerta Sonora</span>
+                            <span class="toggle-field-title" data-i18n="ui.static_336"><i class="bi bi-volume-up" style="font-size: 14px;" aria-hidden="true"></i> Timbre de Alerta Sonora</span>
                             <span class="toggle-field-desc" data-i18n="ui.static_337">Reproduce un chime de audio sintetizado al recibir mensajes entrantes (Web Audio API)</span>
                           </div>
                           <div style="display: flex; align-items: center; gap: 8px;">
@@ -1448,7 +1348,7 @@
                         </div>
                       </div>
                       <div class="form-row">
-                        <button type="button" class="btn-danger btn-sm" id="btnClearIndexedDbStorage" data-i18n="ui.static_340"><span data-lucide="trash-2" data-size="14"></span> Vaciar Almacenamiento Local IndexedDB</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="btnClearIndexedDbStorage" data-i18n="ui.static_340"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Vaciar Almacenamiento Local IndexedDB</button>
                       </div>
                     </div>
                   </div>
@@ -1456,15 +1356,15 @@
                   <!-- Tarjeta 2: Servidor de Mosaicos / Mapas Offline -->
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <h3 data-i18n="ui.static_341"><span class="section-icon" data-lucide="map" data-size="16"></span> Servidor de Teselas / Mapas Offline</h3>
+                      <h3 data-i18n="ui.static_341"><i class="bi bi-map section-icon" aria-hidden="true"></i> Servidor de Teselas / Mapas Offline</h3>
                       <span class="badge-pill badge-primary" data-i18n="ui.static_342">Soporte SQLite MBTiles & XYZ</span>
                     </div>
                     <p class="card-desc"><span data-i18n="ui.mixed_maps_before">Permite navegar cartográficamente 100% fuera de línea sin conexión a Internet usando bases de datos</span> <code>.mbtiles</code> <span data-i18n="ui.mixed_maps_after">o carpetas de teselas XYZ locales.</span></p>
                     
                     <div id="localMapsStatusCard" class="analytics-card" style="margin-bottom: 16px; background: var(--bg-surface-elevated);">
                       <div class="card-title-row">
-                        <h4 style="font-size: 0.9rem; font-weight: 600;" data-i18n="ui.static_343"><span data-lucide="hard-drive" data-size="14"></span> Estado del Almacenamiento Local</h4>
-                        <button type="button" class="btn-secondary btn-xs" id="btnReloadLocalMaps" title="Volver a escanear archivos .mbtiles en data/maps/" data-i18n-title="ui.static_344" data-i18n="ui.static_345"><span data-lucide="refresh-cw" data-size="12"></span> Reindexar</button>
+                        <h4 style="font-size: 0.9rem; font-weight: 600;" data-i18n="ui.static_343"><i class="bi bi-hdd" style="font-size: 14px;" aria-hidden="true"></i> Estado del Almacenamiento Local</h4>
+                        <button type="button" class="btn btn-secondary btn-xs" id="btnReloadLocalMaps" title="Volver a escanear archivos .mbtiles en data/maps/" data-i18n-title="ui.static_344" data-i18n="ui.static_345"><i class="bi bi-arrow-repeat" style="font-size: 12px;" aria-hidden="true"></i> Reindexar</button>
                       </div>
                       <div id="localMapsStatusContent" style="font-size: 0.85rem; color: var(--color-text-secondary); margin-top: 8px;">
                         Detectando mapas locales en <code>data/maps/</code>...
@@ -1477,7 +1377,7 @@
                         <input type="text" id="inputLocalTileUrl" class="form-control" placeholder="/api/map/tiles/{z}/{x}/{y}.png" value="/api/map/tiles/{z}/{x}/{y}.png"  data-i18n-placeholder="ui.static_348"/>
                       </div>
                       <div class="form-row">
-                        <button type="button" class="btn-primary btn-sm" id="btnSaveMapSettings" data-i18n="ui.static_349"><span data-lucide="save" data-size="14"></span> Guardar Configuración de Mapas</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="btnSaveMapSettings" data-i18n="ui.static_349"><i class="bi bi-floppy" style="font-size: 14px;" aria-hidden="true"></i> Guardar Configuración de Mapas</button>
                       </div>
                     </div>
                   </div>
@@ -1491,7 +1391,7 @@
                 <div class="settings-cards-col" style="max-width: 800px;">
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <h3 data-i18n="ui.static_350"><span class="section-icon" data-lucide="shield" data-size="16"></span> Autenticación & API Key del Bridge</h3>
+                      <h3 data-i18n="ui.static_350"><i class="bi bi-shield-check section-icon" aria-hidden="true"></i> Autenticación & API Key del Bridge</h3>
                       <span class="badge-pill badge-primary" data-i18n="ui.static_351">Control de Acceso</span>
                     </div>
                     <p class="card-desc">
@@ -1503,8 +1403,8 @@
                         <label for="inputBridgeApiKey" data-i18n="ui.static_353">API Key del Bridge (Cabecera X-Api-Key)</label>
                         <div style="display: flex; gap: 8px; align-items: center;">
                           <input type="password" id="inputBridgeApiKey" class="form-control" placeholder="Ingresa tu clave secreta de BRIDGE_API_KEY..." autocomplete="current-password"  data-i18n-placeholder="ui.static_354"/>
-                          <button type="button" class="btn-primary btn-sm" id="btnSaveBridgeApiKey" data-i18n="modal.save">Guardar</button>
-                          <button type="button" class="btn-secondary btn-sm" id="btnClearBridgeApiKey" data-i18n="chat.clear">Limpiar</button>
+                          <button type="button" class="btn btn-primary btn-sm" id="btnSaveBridgeApiKey" data-i18n="modal.save">Guardar</button>
+                          <button type="button" class="btn btn-secondary btn-sm" id="btnClearBridgeApiKey" data-i18n="chat.clear">Limpiar</button>
                         </div>
                         <span id="apiKeyStatusHint" class="text-success text-xs hidden" style="margin-top: 8px; display: inline-block;">✓ API Key guardada con éxito en este navegador</span>
                       </div>
@@ -1514,7 +1414,7 @@
                   <!-- Tarjeta de Ámbito de Inundación (Flood Scope) -->
                   <div class="settings-card" style="margin-top: 16px;">
                     <div class="card-title-row">
-                      <h3 data-i18n="ui.static_355"><span class="section-icon" data-lucide="radio" data-size="16"></span> Ámbito de Inundación LoRa (Flood Scope)</h3>
+                      <h3 data-i18n="ui.static_355"><i class="bi bi-broadcast section-icon" aria-hidden="true"></i> Ámbito de Inundación LoRa (Flood Scope)</h3>
                       <span class="badge-pill badge-secondary" data-i18n="ui.static_356">Aislamiento de Malla</span>
                     </div>
                     <p class="card-desc">
@@ -1525,8 +1425,8 @@
                         <label for="inputFloodScope" data-i18n="ui.static_357">Nombre de Scope (#grupo) o Clave Hexadecimal de Transporte:</label>
                         <div style="display: flex; gap: 8px; align-items: center;">
                           <input type="text" id="inputFloodScope" class="form-control font-mono" placeholder="Ej: #emergencia o clave 16B hex..."  data-i18n-placeholder="ui.static_358"/>
-                          <button type="button" class="btn-primary btn-sm" id="btnSaveFloodScope" data-i18n="ui.static_359">Aplicar Scope</button>
-                          <button type="button" class="btn-secondary btn-sm" id="btnResetFloodScope" data-i18n="ui.static_360">Global (Reset)</button>
+                          <button type="button" class="btn btn-primary btn-sm" id="btnSaveFloodScope" data-i18n="ui.static_359">Aplicar Scope</button>
+                          <button type="button" class="btn btn-secondary btn-sm" id="btnResetFloodScope" data-i18n="ui.static_360">Global (Reset)</button>
                         </div>
                         <span id="floodScopeStatusHint" class="text-xs" style="margin-top: 6px; display: inline-block; color: var(--color-text-secondary);" data-i18n="ui.static_361">Ámbito actual: <strong id="currentFloodScopeLabel">Global (*)</strong></span>
                       </div>
@@ -1536,7 +1436,7 @@
                   <!-- Tarjeta de Política de Auto-Adición de Contactos -->
                   <div class="settings-card" style="margin-top: 16px;">
                     <div class="card-title-row">
-                      <h3 data-i18n="ui.static_362"><span class="section-icon" data-lucide="user-plus" data-size="16"></span> Política de Auto-Adición de Contactos (AutoAdd Contact Config)</h3>
+                      <h3 data-i18n="ui.static_362"><i class="bi bi-person-plus section-icon" aria-hidden="true"></i> Política de Auto-Adición de Contactos (AutoAdd Contact Config)</h3>
                       <span class="badge-pill badge-secondary" data-i18n="ui.static_363">Memoria Flash</span>
                     </div>
                     <p class="card-desc" data-i18n="ui.static_364">
@@ -1555,7 +1455,7 @@
                         <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
                           <label for="numAutoAddMaxHops" style="margin: 0; min-width: 170px;" data-i18n="ui.static_367">Máximo de saltos para auto-adición:</label>
                           <input type="number" id="numAutoAddMaxHops" min="0" max="64" disabled style="width: 80px;" class="form-control" />
-                          <button type="button" class="btn-primary btn-sm" id="btnSaveAutoAddConfig" data-i18n="ui.static_368">Guardar Política</button>
+                          <button type="button" class="btn btn-primary btn-sm" id="btnSaveAutoAddConfig" data-i18n="ui.static_368">Guardar Política</button>
                         </div>
                       </div>
                     </form>
@@ -1573,7 +1473,7 @@
                   <div class="settings-card">
                     <div class="card-title-row">
                       <div style="display: flex; align-items: center; gap: 8px;">
-                        <span class="section-icon" data-lucide="globe" data-size="18"></span>
+                        <i class="bi bi-globe section-icon" style="font-size: 18px;" aria-hidden="true"></i>
                         <h3 data-i18n="services.ext_title">Servidor MQTT Externo / Upstream</h3>
                       </div>
                       <div style="display: flex; align-items: center; gap: 10px;">
@@ -1591,18 +1491,18 @@
                     <!-- Gestor de Presets -->
                     <div class="form-group" style="background: var(--color-bg-secondary, rgba(255,255,255,0.03)); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
                       <label for="selExtMqttPreset" style="font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
-                        <span><span data-lucide="bookmark" data-size="14" style="vertical-align: middle;"></span> <span data-i18n="services.preset_label">Perfil de Conexión (Preset):</span></span>
+                        <span><i class="bi bi-bookmark" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="services.preset_label">Perfil de Conexión (Preset):</span></span>
                         <span id="presetTypeBadge" class="badge-pill badge-primary text-xs" style="font-size: 10px;">Personalizado</span>
                       </label>
                       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                         <select id="selExtMqttPreset" class="form-control" style="flex: 1; min-width: 200px;">
                           <!-- Dinámico desde API / services_config.json -->
                         </select>
-                        <button type="button" class="btn-secondary btn-sm" id="btnSaveCurrentAsPreset" title="Guardar los valores actuales como un perfil nuevo">
-                          <span data-lucide="plus-circle" data-size="14"></span> <span data-i18n="services.btn_save_preset">Guardar como Preset</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnSaveCurrentAsPreset" title="Guardar los valores actuales como un perfil nuevo">
+                          <i class="bi bi-plus-circle" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="services.btn_save_preset">Guardar como Preset</span>
                         </button>
-                        <button type="button" class="btn-danger btn-sm" id="btnDeleteCustomPreset" title="Eliminar el preset personalizado seleccionado" disabled>
-                          <span data-lucide="trash-2" data-size="14"></span> <span data-i18n="services.btn_delete_preset">Borrar</span>
+                        <button type="button" class="btn btn-danger btn-sm" id="btnDeleteCustomPreset" title="Eliminar el preset personalizado seleccionado" disabled>
+                          <i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="services.btn_delete_preset">Borrar</span>
                         </button>
                       </div>
                       <small id="presetDescriptionText" style="display: block; margin-top: 6px; color: var(--color-text-secondary);"></small>
@@ -1719,7 +1619,7 @@
                       <!-- Filtros de Contenido -->
                       <div style="background: var(--color-bg-secondary, rgba(255,255,255,0.02)); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin: 12px 0;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                          <strong data-i18n="services.filters_title"><span data-lucide="filter" data-size="14"></span> Filtros de Reenvío LoRa &rarr; MQTT</strong>
+                          <strong data-i18n="services.filters_title"><i class="bi bi-funnel" style="font-size: 14px;" aria-hidden="true"></i> Filtros de Reenvío LoRa &rarr; MQTT</strong>
                           <label for="chkExtObserverMode" style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--color-warning, #f59e0b);">
                             <input type="checkbox" id="chkExtObserverMode" />
                             <strong data-i18n="services.observer_mode">Modo Observer (Sin chats)</strong>
@@ -1767,7 +1667,7 @@
                       <!-- Botón Probar Conexión -->
                       <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px;">
                         <button type="button" class="btn btn-secondary" id="btnTestExternalMqtt">
-                          <span data-lucide="zap" data-size="14"></span> <span data-i18n="services.btn_test_conn">Probar Conexión</span>
+                          <i class="bi bi-lightning" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="services.btn_test_conn">Probar Conexión</span>
                         </button>
                         <span id="extMqttTestStatus" class="text-xs" style="font-weight: 500;"></span>
                       </div>
@@ -1778,7 +1678,7 @@
                   <div class="settings-card" style="margin-top: 16px;">
                     <div class="card-title-row">
                       <div style="display: flex; align-items: center; gap: 8px;">
-                        <span class="section-icon" data-lucide="cpu" data-size="18"></span>
+                        <i class="bi bi-cpu section-icon" style="font-size: 18px;" aria-hidden="true"></i>
                         <h3 data-i18n="services.local_mqtt_title">Servidor MQTT Local / Domótica (n8n & Home Assistant)</h3>
                       </div>
                       <label class="switch-toggle" style="margin: 0;" for="chkLocalMqttEnabled" aria-label="Habilitar Servidor MQTT Local">
@@ -1829,7 +1729,7 @@
                   <div class="settings-card" style="margin-top: 16px;">
                     <div class="card-title-row">
                       <div style="display: flex; align-items: center; gap: 8px;">
-                        <span class="section-icon" data-lucide="smartphone" data-size="18"></span>
+                        <i class="bi bi-phone section-icon" style="font-size: 18px;" aria-hidden="true"></i>
                         <h3 data-i18n="services.tcp_title">Servidor TCP Companion (App Móvil Oficial & CLI)</h3>
                       </div>
                       <label class="switch-toggle" style="margin: 0;" for="chkTcpServerEnabled" aria-label="Habilitar Servidor TCP Companion">
@@ -1870,7 +1770,7 @@
                   <!-- Botón Principal Guardar y Aplicar -->
                   <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
                     <button type="button" class="btn btn-primary" id="btnSaveServicesConfig" style="padding: 10px 24px; font-size: 14px;">
-                      <span data-lucide="save" data-size="16"></span> <span data-i18n="services.btn_save_all">Guardar y Aplicar Servicios</span>
+                      <i class="bi bi-floppy" aria-hidden="true"></i> <span data-i18n="services.btn_save_all">Guardar y Aplicar Servicios</span>
                     </button>
                   </div>
 
@@ -1889,7 +1789,7 @@
       <div class="modal-content modal-card bg-body-tertiary border-secondary" style="max-width: 480px;">
         <div class="modal-header">
           <h3 id="modalSavePresetTitle" style="display: flex; align-items: center; gap: 8px;">
-            <span data-lucide="bookmark-plus" data-size="18"></span> <span data-i18n="services.modal_save_title">Guardar como Preset</span>
+            <i class="bi bi-bookmark-plus" style="font-size: 18px;" aria-hidden="true"></i> <span data-i18n="services.modal_save_title">Guardar como Preset</span>
           </h3>
           <button type="button" class="btn-close modal-close-btn" data-bs-dismiss="modal" id="btnCloseSavePresetModal">&times;</button>
         </div>
@@ -1904,8 +1804,8 @@
           </div>
         </div>
         <div class="modal-footer" style="padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px;">
-          <button type="button" class="btn-secondary" id="btnCancelSavePreset" data-i18n="modal.cancel">Cancelar</button>
-          <button type="button" class="btn-primary" id="btnConfirmSavePreset" data-i18n="modal.save">Guardar Perfil</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelSavePreset" data-i18n="modal.cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmSavePreset" data-i18n="modal.save">Guardar Perfil</button>
         </div>
       </div>
     </div>
@@ -1917,21 +1817,21 @@
       <div class="modal-content modal-card cmd-palette-modal bg-body-tertiary border-secondary">
         <h2 id="cmdPaletteTitle" class="sr-only" data-i18n="cmd.palette_title">Paleta de Comandos</h2>
         <div class="cmd-palette-header">
-          <span class="search-icon" data-lucide="search" data-size="16"></span>
+          <i class="bi bi-search search-icon" aria-hidden="true"></i>
           <input type="text" id="cmdPaletteInput" placeholder="Escribe un comando o busca un nodo..." autocomplete="off" aria-label="Buscar nodo, comando o canal"  data-i18n-placeholder="cmd.palette_placeholder" data-i18n-aria-label="ui.static_369"/>
           <kbd class="kbd-esc">ESC</kbd>
         </div>
         <div class="cmd-palette-results" id="cmdPaletteResults" role="listbox" aria-labelledby="cmdPaletteTitle">
-          <div class="cmd-item" data-action="tab-chat" role="option" tabindex="0" data-i18n="cmd.tab_chat"><span data-lucide="message-square" data-size="14"></span> Ir a Mensajería</div>
-          <div class="cmd-item" data-action="tab-contacts" role="option" tabindex="0" data-i18n="cmd.tab_contacts"><span data-lucide="users" data-size="14"></span> Ir a Contactos</div>
-          <div class="cmd-item" data-action="tab-nodes" role="option" tabindex="0" data-i18n="cmd.tab_nodes"><span data-lucide="network" data-size="14"></span> Ir a Nodos</div>
-          <div class="cmd-item" data-action="tab-map" role="option" tabindex="0" data-i18n="cmd.tab_map"><span data-lucide="map" data-size="14"></span> Abrir Mapa</div>
-          <div class="cmd-item" data-action="tab-logs" role="option" tabindex="0" data-i18n="cmd.tab_logs"><span data-lucide="file-text" data-size="14"></span> Ver Consola de Logs del Sistema</div>
-          <div class="cmd-item" data-action="action-diag" role="option" tabindex="0" data-i18n="cmd.action_diag"><span data-lucide="stethoscope" data-size="14"></span> Ejecutar Auto-Diagnóstico de Subsistemas</div>
-          <div class="cmd-item" data-action="action-debug-toggle" role="option" tabindex="0" data-i18n="cmd.action_debug"><span data-lucide="bug" data-size="14"></span> Alternar Modo DEBUG</div>
-          <div class="cmd-item" data-action="action-advert-hop" role="option" tabindex="0" data-i18n="cmd.advert_hop"><span data-lucide="radio" data-size="14"></span> Advert Hop (0 Saltos)</div>
-          <div class="cmd-item" data-action="action-advert-flood" role="option" tabindex="0" data-i18n="cmd.advert_flood"><span data-lucide="wifi" data-size="14"></span> Advert Flood Routed</div>
-          <div class="cmd-item" data-action="action-advert-clipboard" role="option" tabindex="0" data-i18n="cmd.advert_clipboard"><span data-lucide="copy" data-size="14"></span> Copiar Advert al Portapapeles</div>
+          <div class="cmd-item" data-action="tab-chat" role="option" tabindex="0" data-i18n="cmd.tab_chat"><i class="bi bi-chat-dots" style="font-size: 14px;" aria-hidden="true"></i> Ir a Mensajería</div>
+          <div class="cmd-item" data-action="tab-contacts" role="option" tabindex="0" data-i18n="cmd.tab_contacts"><i class="bi bi-people" style="font-size: 14px;" aria-hidden="true"></i> Ir a Contactos</div>
+          <div class="cmd-item" data-action="tab-nodes" role="option" tabindex="0" data-i18n="cmd.tab_nodes"><i class="bi bi-hdd-network" style="font-size: 14px;" aria-hidden="true"></i> Ir a Nodos</div>
+          <div class="cmd-item" data-action="tab-map" role="option" tabindex="0" data-i18n="cmd.tab_map"><i class="bi bi-map" style="font-size: 14px;" aria-hidden="true"></i> Abrir Mapa</div>
+          <div class="cmd-item" data-action="tab-logs" role="option" tabindex="0" data-i18n="cmd.tab_logs"><i class="bi bi-file-earmark-text" style="font-size: 14px;" aria-hidden="true"></i> Ver Consola de Logs del Sistema</div>
+          <div class="cmd-item" data-action="action-diag" role="option" tabindex="0" data-i18n="cmd.action_diag"><i class="bi bi-heart-pulse" style="font-size: 14px;" aria-hidden="true"></i> Ejecutar Auto-Diagnóstico de Subsistemas</div>
+          <div class="cmd-item" data-action="action-debug-toggle" role="option" tabindex="0" data-i18n="cmd.action_debug"><i class="bi bi-bug" style="font-size: 14px;" aria-hidden="true"></i> Alternar Modo DEBUG</div>
+          <div class="cmd-item" data-action="action-advert-hop" role="option" tabindex="0" data-i18n="cmd.advert_hop"><i class="bi bi-broadcast" style="font-size: 14px;" aria-hidden="true"></i> Advert Hop (0 Saltos)</div>
+          <div class="cmd-item" data-action="action-advert-flood" role="option" tabindex="0" data-i18n="cmd.advert_flood"><i class="bi bi-wifi" style="font-size: 14px;" aria-hidden="true"></i> Advert Flood Routed</div>
+          <div class="cmd-item" data-action="action-advert-clipboard" role="option" tabindex="0" data-i18n="cmd.advert_clipboard"><i class="bi bi-clipboard" style="font-size: 14px;" aria-hidden="true"></i> Copiar Advert al Portapapeles</div>
         </div>
       </div>
     </div>
@@ -1942,8 +1842,8 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
-          <h3 id="createChannelTitle" data-i18n="modal.channel_title"><span class="modal-title-icon" data-lucide="radio" data-size="18"></span> Configurar Canal LoRa</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <h3 id="createChannelTitle" data-i18n="modal.channel_title"><i class="bi bi-broadcast modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Configurar Canal LoRa</h3>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="createChannelForm" class="modal-body" aria-labelledby="createChannelTitle">
           <div class="form-group">
@@ -1985,14 +1885,14 @@
             <label for="chModalPsk" data-i18n="ui.static_386">Clave Precompartida (PSK / AES-128):</label>
             <div class="input-with-action">
               <input type="text" id="chModalPsk" placeholder="Clave secreta o token hexadecimal..." required  data-i18n-placeholder="ui.static_387"/>
-              <button type="button" class="btn-secondary btn-sm" id="btnGenRandomPsk" title="Generar clave AES-128 aleatoria" data-i18n-title="ui.static_388" data-i18n="ui.static_389"><span data-lucide="refresh-cw" data-size="13"></span> Generar</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnGenRandomPsk" title="Generar clave AES-128 aleatoria" data-i18n-title="ui.static_388" data-i18n="ui.static_389"><i class="bi bi-arrow-repeat" style="font-size: 13px;" aria-hidden="true"></i> Generar</button>
             </div>
             <span class="field-hint" data-i18n="ui.static_390">Los miembros deben compartir el mismo índice, nombre y clave PSK.</span>
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-secondary" id="btnCancelCreateChannel" data-i18n="modal.cancel">Cancelar</button>
-            <button type="submit" class="btn-primary" id="btnSaveChannel" data-i18n="modal.save_channel"><span data-lucide="save" data-size="14"></span> Guardar y Sincronizar al Nodo</button>
+            <button type="button" class="btn btn-secondary" id="btnCancelCreateChannel" data-i18n="modal.cancel">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btnSaveChannel" data-i18n="modal.save_channel"><i class="bi bi-floppy" style="font-size: 14px;" aria-hidden="true"></i> Guardar y Sincronizar al Nodo</button>
           </div>
         </form>
       </div>
@@ -2004,8 +1904,8 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
-          <h3 id="createContactTitle" data-i18n="modal.contact_title"><span class="modal-title-icon" data-lucide="user" data-size="18"></span> Agregar Nuevo Contacto</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <h3 id="createContactTitle" data-i18n="modal.contact_title"><i class="bi bi-person modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Agregar Nuevo Contacto</h3>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="createContactForm" class="modal-body" aria-labelledby="createContactTitle">
           <div class="form-group">
@@ -2047,8 +1947,8 @@
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-secondary" id="btnCancelCreateContact" data-i18n="modal.cancel">Cancelar</button>
-            <button type="submit" class="btn-primary" id="btnSaveContact" data-i18n="modal.save_contact"><span data-lucide="save" data-size="14"></span> Guardar Contacto</button>
+            <button type="button" class="btn btn-secondary" id="btnCancelCreateContact" data-i18n="modal.cancel">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btnSaveContact" data-i18n="modal.save_contact"><i class="bi bi-floppy" style="font-size: 14px;" aria-hidden="true"></i> Guardar Contacto</button>
           </div>
         </form>
       </div>
@@ -2060,8 +1960,8 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
-          <h3 id="modalShareContactTitle" data-i18n="chat.share_contact"><span class="modal-title-icon" data-lucide="user-check" data-size="18"></span> Compartir Contacto</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <h3 id="modalShareContactTitle" data-i18n="chat.share_contact"><i class="bi bi-person-check modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Compartir Contacto</h3>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareContactModalInstruction" data-i18n="ui.static_403">Selecciona un contacto de tu libreta para compartir su enlace oficial en esta conversación:</p>
@@ -2071,8 +1971,8 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn-secondary" id="btnCancelShareContact" data-i18n="modal.cancel">Cancelar</button>
-          <button type="button" class="btn-primary" id="btnConfirmShareContact" disabled data-i18n="ui.static_406"><span data-lucide="send" data-size="14"></span> Compartir en Chat</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelShareContact" data-i18n="modal.cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmShareContact" disabled data-i18n="ui.static_406"><i class="bi bi-send" style="font-size: 14px;" aria-hidden="true"></i> Compartir en Chat</button>
         </div>
       </div>
     </div>
@@ -2083,8 +1983,8 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
-          <h3 id="modalShareChannelTitle" data-i18n="chat.share_channel"><span class="modal-title-icon" data-lucide="radio" data-size="18"></span> Compartir Canal</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <h3 id="modalShareChannelTitle" data-i18n="chat.share_channel"><i class="bi bi-broadcast modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Compartir Canal</h3>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareChannelModalInstruction" data-i18n="ui.static_407">Selecciona un canal para compartir sus parámetros de conexión y clave en esta conversación:</p>
@@ -2092,13 +1992,13 @@
             <!-- Renderizado dinámico de canales disponibles -->
           </div>
           <div class="callout-box warning-callout" style="margin-top: 12px; font-size: 0.8rem;">
-            <span data-lucide="shield-alert" data-size="14"></span>
+            <i class="bi bi-shield-exclamation" style="font-size: 14px;" aria-hidden="true"></i>
             <span id="shareChannelWarningText" data-i18n="ui.static_408">Atención: Al compartir un canal privado, su clave secreta (PSK) se transmitirá por la radio para que los participantes puedan unirse.</span>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn-secondary" id="btnCancelShareChannel" data-i18n="modal.cancel">Cancelar</button>
-          <button type="button" class="btn-primary" id="btnConfirmShareChannel" disabled data-i18n="ui.static_406"><span data-lucide="send" data-size="14"></span> Compartir en Chat</button>
+          <button type="button" class="btn btn-secondary" id="btnCancelShareChannel" data-i18n="modal.cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmShareChannel" disabled data-i18n="ui.static_406"><i class="bi bi-send" style="font-size: 14px;" aria-hidden="true"></i> Compartir en Chat</button>
         </div>
       </div>
     </div>
@@ -2109,8 +2009,8 @@
     <div class="modal-dialog modal-dialog-centered modal-sm">
       <div class="modal-content modal-card qr-modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
-          <h3 id="qrModalTitle"><span class="modal-title-icon" data-lucide="qr-code" data-size="18"></span> Compartir por Código QR</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseQrShareModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <h3 id="qrModalTitle"><i class="bi bi-qr-code modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Compartir por Código QR</h3>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseQrShareModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body qr-modal-body">
           <div class="qr-modal-layout">
@@ -2119,7 +2019,7 @@
               <div class="qr-canvas-container">
                 <canvas id="qrCanvas" width="180" height="180"></canvas>
               </div>
-              <span class="qr-scan-hint" id="qrShareDesc" data-i18n="qr.scan_hint"><span data-lucide="qr-code" data-size="14"></span> Escanea con la app MeshCore o cámara</span>
+              <span class="qr-scan-hint" id="qrShareDesc" data-i18n="qr.scan_hint"><i class="bi bi-qr-code" style="font-size: 14px;" aria-hidden="true"></i> Escanea con la app MeshCore o cámara</span>
             </div>
             
             <!-- Columna Derecha: Enlace URI, JSON y Acciones -->
@@ -2128,7 +2028,7 @@
                 <label for="qrUriDisplay" data-i18n="ui.static_409">Enlace Canónico (URI):</label>
                 <div class="input-with-action">
                   <input type="text" id="qrUriDisplay" readonly />
-                  <button type="button" class="btn-primary btn-sm" id="btnCopyQrUri" data-i18n="qr.copy_btn"><span data-lucide="copy" data-size="13"></span> Copiar</button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btnCopyQrUri" data-i18n="qr.copy_btn"><i class="bi bi-clipboard" style="font-size: 13px;" aria-hidden="true"></i> Copiar</button>
                 </div>
               </div>
 
@@ -2138,8 +2038,8 @@
               </div>
 
               <div class="qr-actions-row">
-                <button type="button" class="btn-secondary btn-sm" id="btnDownloadQrJson" data-i18n="qr.download_json"><span data-lucide="download" data-size="14"></span> Descargar JSON</button>
-                <button type="button" class="btn-primary btn-sm" id="btnCloseQrModalAction" data-i18n="qr.done">Listo</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnDownloadQrJson" data-i18n="qr.download_json"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> Descargar JSON</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnCloseQrModalAction" data-i18n="qr.done">Listo</button>
               </div>
             </div>
           </div>
@@ -2154,18 +2054,18 @@
       <div class="modal-content modal-card repeater-admin-modal-card locked bg-body-tertiary border-secondary" id="repeaterAdminModalCard">
         <div class="modal-header repeater-admin-modal-header">
           <div class="header-node-info">
-            <h3 id="repeaterAdminTitle" data-i18n="ui.static_411"><span class="modal-title-icon" data-lucide="sliders" data-size="18"></span> Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
+            <h3 id="repeaterAdminTitle" data-i18n="ui.static_411"><i class="bi bi-sliders modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
             <div class="header-node-badges">
               <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
             </div>
           </div>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
 
         <!-- Tarjeta de Bloqueo / Gate de Autenticación Requerida -->
         <div class="repeater-auth-gate" id="repeaterAuthGate">
           <div class="auth-gate-card">
-            <div class="auth-gate-shield"><span data-lucide="shield" data-size="36"></span></div>
+            <div class="auth-gate-shield"><i class="bi bi-shield-check" style="font-size: 36px;" aria-hidden="true"></i></div>
             <h4 data-i18n="rep.restricted_access">Acceso de Administración Restringido</h4>
             <p data-i18n="rep.restricted_desc">Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.</p>
             
@@ -2175,17 +2075,17 @@
                 <label for="repeaterGatePassword" class="auth-gate-label" data-i18n="rep.pin_label">Contraseña de Administración (PIN):</label>
                 <div class="auth-gate-input-row">
                   <input type="password" id="repeaterGatePassword" placeholder="PIN / Contraseña del repetidor..." autocomplete="current-password" required  data-i18n-placeholder="rep.pin_placeholder"/>
-                  <button type="button" class="btn-icon btn-toggle-pwd" id="btnToggleGatePwd" title="Mostrar u ocultar contraseña" data-i18n-title="ui.static_412"><span data-lucide="eye" data-size="16"></span></button>
+                  <button type="button" class="btn-icon btn-toggle-pwd" id="btnToggleGatePwd" title="Mostrar u ocultar contraseña" data-i18n-title="ui.static_412"><i class="bi bi-eye" aria-hidden="true"></i></button>
                 </div>
               </div>
 
               <div class="auth-gate-status hidden" id="repeaterGateStatus"></div>
 
               <div class="auth-gate-actions">
-                <button type="button" class="btn-primary btn-block" id="btnRepeaterGateSubmit" data-i18n="rep.unlock_btn">
-                  <span class="btn-icon" data-lucide="unlock" data-size="16"></span> Desbloquear & Autenticar Repetidor
+                <button type="button" class="btn btn-primary btn-block" id="btnRepeaterGateSubmit" data-i18n="rep.unlock_btn">
+                  <i class="bi bi-unlock btn-icon" aria-hidden="true"></i> Desbloquear & Autenticar Repetidor
                 </button>
-                <button type="button" class="btn-secondary btn-block" id="btnRepeaterGateCancel" style="margin-top: 8px;" data-i18n="modal.cancel">
+                <button type="button" class="btn btn-secondary btn-block" id="btnRepeaterGateCancel" style="margin-top: 8px;" data-i18n="modal.cancel">
                   Cancelar
                 </button>
               </div>
@@ -2198,26 +2098,26 @@
           <!-- Barra de Autenticación / PIN de Administración -->
           <div class="repeater-auth-strip">
             <div class="auth-strip-left">
-              <span class="auth-icon" data-lucide="unlock" data-size="18"></span>
+              <i class="bi bi-unlock auth-icon" style="font-size: 18px;" aria-hidden="true"></i>
               <div class="auth-label-group">
                 <span class="auth-label" data-i18n="ui.static_413">Sesión de Administración Activa</span>
                 <span class="auth-hint" data-i18n="ui.static_414">Credenciales verificadas y guardadas para este repetidor</span>
               </div>
             </div>
             <div class="auth-strip-right">
-              <span class="auth-status-chip authenticated" id="adminModalAuthStatus" data-i18n="ui.static_415"><span data-lucide="unlock" data-size="12"></span> Autenticado</span>
-              <button type="button" class="btn-outline btn-xs" id="btnRepeaterLogout" title="Cerrar sesión y olvidar contraseña de este repetidor" data-i18n-title="ui.static_416" data-i18n="ui.static_417"><span data-lucide="lock" data-size="13"></span> Cerrar Sesión</button>
+              <span class="auth-status-chip authenticated" id="adminModalAuthStatus" data-i18n="ui.static_415"><i class="bi bi-unlock" style="font-size: 12px;" aria-hidden="true"></i> Autenticado</span>
+              <button type="button" class="btn btn-outline btn-xs" id="btnRepeaterLogout" title="Cerrar sesión y olvidar contraseña de este repetidor" data-i18n-title="ui.static_416" data-i18n="ui.static_417"><i class="bi bi-lock" style="font-size: 13px;" aria-hidden="true"></i> Cerrar Sesión</button>
             </div>
           </div>
 
           <!-- Subpestañas del Repetidor -->
           <div class="repeater-subtabs">
-            <button class="subtab-btn active" data-subtab="rep-info" data-i18n="settings.subtab_telem"><span class="subtab-icon" data-lucide="activity" data-size="15"></span> Telemetría & Estado</button>
-            <button class="subtab-btn" data-subtab="rep-radio" data-i18n="ui.static_418"><span class="subtab-icon" data-lucide="radio" data-size="15"></span> Configuración RF</button>
-            <button class="subtab-btn" data-subtab="rep-owner-pos" data-i18n="ui.static_419"><span class="subtab-icon" data-lucide="map-pin" data-size="15"></span> Propietario & Posición</button>
-            <button class="subtab-btn" data-subtab="rep-security" data-i18n="ui.static_420"><span class="subtab-icon" data-lucide="shield" data-size="15"></span> Seguridad & ACL</button>
-            <button class="subtab-btn" data-subtab="rep-neighbors" data-i18n="ui.static_421"><span class="subtab-icon" data-lucide="network" data-size="15"></span> Malla & Vecinos</button>
-            <button class="subtab-btn" data-subtab="rep-console" data-i18n="settings.subtab_terminal"><span class="subtab-icon" data-lucide="terminal" data-size="15"></span> Terminal</button>
+            <button class="subtab-btn active" data-subtab="rep-info" data-i18n="settings.subtab_telem"><i class="bi bi-activity subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Telemetría & Estado</button>
+            <button class="subtab-btn" data-subtab="rep-radio" data-i18n="ui.static_418"><i class="bi bi-broadcast subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Configuración RF</button>
+            <button class="subtab-btn" data-subtab="rep-owner-pos" data-i18n="ui.static_419"><i class="bi bi-geo-alt subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Propietario & Posición</button>
+            <button class="subtab-btn" data-subtab="rep-security" data-i18n="ui.static_420"><i class="bi bi-shield-check subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Seguridad & ACL</button>
+            <button class="subtab-btn" data-subtab="rep-neighbors" data-i18n="ui.static_421"><i class="bi bi-hdd-network subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Malla & Vecinos</button>
+            <button class="subtab-btn" data-subtab="rep-console" data-i18n="settings.subtab_terminal"><i class="bi bi-terminal subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Terminal</button>
           </div>
 
         <div class="modal-body repeater-admin-modal-body">
@@ -2227,7 +2127,7 @@
           <div id="rep-info" class="repeater-subpanel active">
             <div class="info-grid info-grid-extended">
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="battery" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-battery-half" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_422">Batería & Voltaje</span>
                   <strong class="card-value" id="repBatValue">-- %</strong>
@@ -2235,7 +2135,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="zap" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-lightning" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_423">Panel Solar / Entrada</span>
                   <strong class="card-value" id="repSolarValue">-- V</strong>
@@ -2243,7 +2143,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="thermometer" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-thermometer-half" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_425">Temperatura MCU</span>
                   <strong class="card-value" id="repTempValue">-- °C</strong>
@@ -2251,7 +2151,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="clock" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-clock" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_174">Reloj RTC (Hora Nodo)</span>
                   <strong class="card-value" id="repClockValue">--:--:--</strong>
@@ -2259,7 +2159,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="activity" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-activity" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_176">Tiempo Activo (Uptime)</span>
                   <strong class="card-value" id="repUptimeValue">--</strong>
@@ -2267,7 +2167,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="radio" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-broadcast" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_177">Total Airtime (En Aire)</span>
                   <strong class="card-value" id="repAirtimeValue">-- ms</strong>
@@ -2275,7 +2175,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="signal" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-reception-4" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_428">Calidad de Señal RF</span>
                   <strong class="card-value" id="repSnrValue">-- dB</strong>
@@ -2283,7 +2183,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="volume-2" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-volume-up" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_179">Piso de Ruido (Noise)</span>
                   <strong class="card-value" id="repNoiseValue">-- dBm</strong>
@@ -2291,7 +2191,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon"><span data-lucide="package" data-size="20"></span></div>
+                <div class="card-icon"><i class="bi bi-box-seam" style="font-size: 20px;" aria-hidden="true"></i></div>
                 <div class="card-data">
                   <span class="card-label" data-i18n="ui.static_181">Paquetes TX / RX</span>
                   <strong class="card-value" id="repPacketsValue">-- / --</strong>
@@ -2314,40 +2214,40 @@
             <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
             <div class="hardware-actions-section">
               <div class="section-micro-header">
-                <span class="micro-title" data-i18n="ui.static_437"><span data-lucide="zap" data-size="14"></span> Acciones Rápidas de Control Remoto</span>
+                <span class="micro-title" data-i18n="ui.static_437"><i class="bi bi-lightning" style="font-size: 14px;" aria-hidden="true"></i> Acciones Rápidas de Control Remoto</span>
                 <span class="micro-subtitle" data-i18n="ui.static_438">Comandos de ejecución y sondeo directo por RF sobre el repetidor</span>
               </div>
               <div class="hardware-actions-toolbar">
                 <button type="button" class="btn-compact-action btn-compact-primary" id="btnModalActionPing" title="Sonda de enlace directo para medir RTT, RSSI y SNR" data-i18n-title="ui.static_439">
-                  <span class="btn-compact-icon" data-lucide="crosshair" data-size="14"></span>
+                  <i class="bi bi-bullseye btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                   <span class="btn-compact-label" data-i18n="node.ping">Ping</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnRefreshRepeaterTelem" title="Consulta telemetría de CPU, batería, solar y reloj" data-i18n-title="ui.static_440">
-                  <span class="btn-compact-icon" data-lucide="activity" data-size="14"></span>
+                  <i class="bi bi-activity btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                   <span class="btn-compact-label" data-i18n="ui.static_441">Stats Core</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionRadioStats" title="Consulta métricas de calidad de radio RF (RSSI, SNR, Airtime)" data-i18n-title="ui.static_442">
-                  <span class="btn-compact-icon" data-lucide="radio" data-size="14"></span>
+                  <i class="bi bi-broadcast btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                   <span class="btn-compact-label" data-i18n="ui.static_443">Stats Radio</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnSyncRepeaterClock" title="Ajusta el reloj RTC del repetidor con la hora de la estación base" data-i18n-title="ui.static_444">
-                  <span class="btn-compact-icon" data-lucide="clock" data-size="14"></span>
+                  <i class="bi bi-clock btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                   <span class="btn-compact-label" data-i18n="settings.action_sync_rtc">Sincronizar RTC</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionAdvert" title="Emite un anuncio de presencia del repetidor en la malla" data-i18n-title="ui.static_445">
-                  <span class="btn-compact-icon" data-lucide="wifi" data-size="14"></span>
+                  <i class="bi bi-wifi btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                   <span class="btn-compact-label" data-i18n="ui.static_446">Advert</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionNeighbors" title="Sondea y actualiza la tabla de vecinos del repetidor" data-i18n-title="ui.static_447">
-                  <span class="btn-compact-icon" data-lucide="users" data-size="14"></span>
+                  <i class="bi bi-people btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                   <span class="btn-compact-label" data-i18n="ui.static_448">Vecinos</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionClearStats" title="Pone a cero los contadores de paquetes y estadísticas" data-i18n-title="ui.static_449">
-                  <span class="btn-compact-icon" data-lucide="trash-2" data-size="14"></span>
+                  <i class="bi bi-trash btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                   <span class="btn-compact-label" data-i18n="settings.action_clear_stats">Limpiar Stats</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-danger" id="btnModalActionReboot" title="Reinicia el microcontrolador del repetidor por RF" data-i18n-title="ui.static_450">
-                  <span class="btn-compact-icon" data-lucide="refresh-cw" data-size="14"></span>
+                  <i class="bi bi-arrow-repeat btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
                   <span class="btn-compact-label" data-i18n="ui.static_451">Reiniciar</span>
                 </button>
               </div>
@@ -2357,10 +2257,10 @@
             <div class="card-panel rep-quick-cmd-panel">
               <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <h4 style="margin: 0; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;" data-i18n="ui.static_452">
-                  <span data-lucide="terminal" data-size="15"></span> Comando RF Directo
+                  <i class="bi bi-terminal" style="font-size: 15px;" aria-hidden="true"></i> Comando RF Directo
                 </h4>
-                <button type="button" class="btn-xs btn-outline" id="btnGoToTerminalTab" title="Abrir consola terminal completa con historial y ayuda de comandos" data-i18n-title="ui.static_453" data-i18n="ui.static_454">
-                  <span data-lucide="external-link" data-size="12"></span> Abrir Consola Completa
+                <button type="button" class="btn btn-xs btn-outline" id="btnGoToTerminalTab" title="Abrir consola terminal completa con historial y ayuda de comandos" data-i18n-title="ui.static_453" data-i18n="ui.static_454">
+                  <i class="bi bi-box-arrow-up-right" style="font-size: 12px;" aria-hidden="true"></i> Abrir Consola Completa
                 </button>
               </div>
               <form id="repQuickCmdForm" class="rep-quick-cmd-bar" aria-labelledby="repeaterAdminTitle">
@@ -2460,7 +2360,7 @@
                   <small id="remoteAdvertMinutesHint" data-i18n="repeater.advert_minutes_hint">0 desactiva; de 60 a 240 minutos, en valores pares.</small>
                 </div>
                 <div class="form-actions-full">
-                  <button type="submit" class="btn-primary" id="btnSubmitRepRadio" data-i18n="modal.save"><span class="btn-icon" data-lucide="save" data-size="16"></span> Guardar</button>
+                  <button type="submit" class="btn btn-primary" id="btnSubmitRepRadio" data-i18n="modal.save"><i class="bi bi-floppy btn-icon" aria-hidden="true"></i> Guardar</button>
                 </div>
               </form>
             </div>
@@ -2472,10 +2372,10 @@
               <form id="repOwnerPosForm" class="grid-form-2col" aria-labelledby="repeaterAdminTitle">
                 <p id="remoteOwnerSupportHint" class="form-hint span-full" data-i18n="repeater.config_support_hint">Los controles deshabilitados no tienen comandos compatibles en el firmware oficial. Los cambios de radio requieren reinicio y una lectura posterior bajo demanda.</p>
                 <div class="form-section-title span-full" style="display: flex; justify-content: space-between; align-items: center;">
-                  <span data-i18n="ui.static_467"><span class="section-icon" data-lucide="user" data-size="16"></span> Información del Propietario (Owner Info)</span>
+                  <span data-i18n="ui.static_467"><i class="bi bi-person section-icon" aria-hidden="true"></i> Información del Propietario (Owner Info)</span>
                   <div style="display: flex; gap: 6px;">
-                    <button type="button" class="btn-secondary btn-xs" id="btnFetchRepOwner" title="Consultar propietario remoto por RF (req_owner)" data-i18n-title="ui.static_468" data-i18n="ui.static_469"><span data-lucide="user-check" data-size="12"></span> Consultar Propietario (req_owner)</button>
-                    <button type="button" class="btn-secondary btn-xs" id="btnFetchRepRegions" title="Consultar regiones configuradas (req_regions)" data-i18n-title="ui.static_470" data-i18n="ui.static_471"><span data-lucide="globe" data-size="12"></span> Regiones (req_regions)</button>
+                    <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepOwner" title="Consultar propietario remoto por RF (req_owner)" data-i18n-title="ui.static_468" data-i18n="ui.static_469"><i class="bi bi-person-check" style="font-size: 12px;" aria-hidden="true"></i> Consultar Propietario (req_owner)</button>
+                    <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepRegions" title="Consultar regiones configuradas (req_regions)" data-i18n-title="ui.static_470" data-i18n="ui.static_471"><i class="bi bi-globe" style="font-size: 12px;" aria-hidden="true"></i> Regiones (req_regions)</button>
                   </div>
                 </div>
                 <div class="form-group">
@@ -2487,7 +2387,7 @@
                   <input type="text" id="repOwnerInfo" placeholder="Ej: Frecuencia 915.0 MHz | Contacto: radio@red.org"  data-i18n-placeholder="ui.static_475"/>
                 </div>
 
-                <div class="form-section-title span-full" data-i18n="ui.static_476"><span class="section-icon" data-lucide="map-pin" data-size="16"></span> Coordenadas y Posición del Nodo (Position)</div>
+                <div class="form-section-title span-full" data-i18n="ui.static_476"><i class="bi bi-geo-alt section-icon" aria-hidden="true"></i> Coordenadas y Posición del Nodo (Position)</div>
                 <div class="form-group">
                   <label for="repPosLat" data-i18n="ui.static_477">Latitud (Decimal):</label>
                   <input type="number" id="repPosLat" step="0.00001" placeholder="Ej: 20.15042"  data-i18n-placeholder="ui.static_478"/>
@@ -2516,7 +2416,7 @@
                   </div>
                 </div>
                 <div class="form-actions-full">
-                  <button type="submit" class="btn-primary" id="btnSubmitRepOwnerPos" data-i18n="modal.save"><span class="btn-icon" data-lucide="save" data-size="16"></span> Guardar</button>
+                  <button type="submit" class="btn btn-primary" id="btnSubmitRepOwnerPos" data-i18n="modal.save"><i class="bi bi-floppy btn-icon" aria-hidden="true"></i> Guardar</button>
                 </div>
               </form>
             </div>
@@ -2528,7 +2428,7 @@
               <form id="repSecurityForm" class="grid-form-2col" aria-labelledby="repeaterAdminTitle">
                 <p id="remoteSecuritySupportHint" class="form-hint span-full" data-i18n="repeater.config_support_hint">Los controles deshabilitados no tienen comandos compatibles en el firmware oficial. Los cambios de radio requieren reinicio y una lectura posterior bajo demanda.</p>
                 <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario"  data-i18n-aria-label="ui.static_352"/>
-                <div class="form-section-title span-full" data-i18n="ui.static_487"><span class="section-icon" data-lucide="lock" data-size="16"></span> Contraseñas de Administración y Acceso</div>
+                <div class="form-section-title span-full" data-i18n="ui.static_487"><i class="bi bi-lock section-icon" aria-hidden="true"></i> Contraseñas de Administración y Acceso</div>
                 <div class="form-group">
                   <label for="secNewAdminPwd" data-i18n="ui.static_488">Nueva Contraseña de Administrador (Admin Password):</label>
                   <input type="password" id="secNewAdminPwd" placeholder="Dejar vacío para no modificar" autocomplete="new-password"  data-i18n-placeholder="ui.static_489"/>
@@ -2539,8 +2439,8 @@
                 </div>
 
                 <div class="form-section-title span-full" style="display: flex; justify-content: space-between; align-items: center;">
-                  <span data-i18n="ui.static_491"><span class="section-icon" data-lucide="shield" data-size="16"></span> Control de Acceso de Malla (Access Control - ACL)</span>
-                  <button type="button" class="btn-secondary btn-xs" id="btnFetchRepAcl" title="Consultar tabla de control de acceso remota por RF (req_acl)" data-i18n-title="ui.static_492" data-i18n="ui.static_493"><span data-lucide="shield-check" data-size="12"></span> Consultar ACL (req_acl)</button>
+                  <span data-i18n="ui.static_491"><i class="bi bi-shield-check section-icon" aria-hidden="true"></i> Control de Acceso de Malla (Access Control - ACL)</span>
+                  <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepAcl" title="Consultar tabla de control de acceso remota por RF (req_acl)" data-i18n-title="ui.static_492" data-i18n="ui.static_493"><i class="bi bi-shield-check" style="font-size: 12px;" aria-hidden="true"></i> Consultar ACL (req_acl)</button>
                 </div>
                 <div class="form-group">
                   <label for="secAclMode" data-i18n="ui.static_494">Modo de Control de Acceso:</label>
@@ -2555,7 +2455,7 @@
                   <input type="text" id="secIdentityKey" placeholder="Dejar vacío para conservar clave actual" class="font-mono"  data-i18n-placeholder="ui.static_499" disabled aria-describedby="remoteSecuritySupportHint"/>
                 </div>
                 <div class="form-actions-full">
-                  <button type="submit" class="btn-primary" id="btnSubmitRepSecurity" data-i18n="ui.static_500"><span data-lucide="shield" data-size="14"></span> Aplicar Parámetros de Seguridad por RF</button>
+                  <button type="submit" class="btn btn-primary" id="btnSubmitRepSecurity" data-i18n="ui.static_500"><i class="bi bi-shield-check" style="font-size: 14px;" aria-hidden="true"></i> Aplicar Parámetros de Seguridad por RF</button>
                 </div>
               </form>
             </div>
@@ -2565,14 +2465,14 @@
           <div id="rep-neighbors" class="repeater-subpanel">
             <div class="card-panel">
               <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center;">
-                <h4 data-i18n="ui.static_501"><span data-lucide="network" data-size="16"></span> Vecinos Zero-Hop Detectados por Radio (req_neighbours)</h4>
+                <h4 data-i18n="ui.static_501"><i class="bi bi-hdd-network" aria-hidden="true"></i> Vecinos Zero-Hop Detectados por Radio (req_neighbours)</h4>
                 <div style="display: flex; gap: 8px; align-items: center;">
                   <span id="neighborsCountBadge" class="badge-pill badge-primary">0 vecinos</span>
-                  <button type="button" class="btn-secondary btn-sm" id="btnDiscoverNeighbors"><span data-lucide="wifi" data-size="14"></span> Sondear Vecinos (req_neighbours)</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnDiscoverNeighbors"><i class="bi bi-wifi" style="font-size: 14px;" aria-hidden="true"></i> Sondear Vecinos (req_neighbours)</button>
                 </div>
               </div>
               <div class="table-responsive modal-table-scroll">
-                <table class="table table-dark table-hover table-striped table-sm align-middle data-table" id="neighborsTable">
+                <table class="table table-hover table-striped table-sm align-middle data-table" id="neighborsTable">
                   <thead>
                     <tr>
                       <th data-i18n="ui.static_504">Nodo Vecino</th>
@@ -2602,19 +2502,19 @@
                 </div>
                 <span class="linux-term-title" data-i18n="ui.static_511">MeshCore Remote CLI — Repetidor</span>
                 <div class="linux-term-actions">
-                  <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp" data-i18n="ui.static_297"><span data-lucide="info" data-size="13"></span> Ayuda (help)</button>
-                  <button type="button" class="btn-xs btn-outline-term" id="btnClearRepeaterTerminal" title="Limpiar salida de consola" data-i18n-title="ui.static_512" data-i18n="chat.clear"><span data-lucide="trash-2" data-size="13"></span> Limpiar</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping" data-i18n="ui.static_513"><span data-lucide="crosshair" data-size="13"></span> ping</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ver" data-i18n="ui.static_514">ver</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="get radio" data-i18n="ui.static_515">get radio</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="neighbors" data-i18n="ui.static_516">neighbors</button>
+                  <button type="button" class="btn btn-xs btn-outline-term" id="btnToggleCmdHelp" data-i18n="ui.static_297"><i class="bi bi-info-circle" style="font-size: 13px;" aria-hidden="true"></i> Ayuda (help)</button>
+                  <button type="button" class="btn btn-xs btn-outline-term" id="btnClearRepeaterTerminal" title="Limpiar salida de consola" data-i18n-title="ui.static_512" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 13px;" aria-hidden="true"></i> Limpiar</button>
+                  <button type="button" class="btn btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping" data-i18n="ui.static_513"><i class="bi bi-bullseye" style="font-size: 13px;" aria-hidden="true"></i> ping</button>
+                  <button type="button" class="btn btn-xs btn-outline-term rep-quick-cmd" data-cmd="ver" data-i18n="ui.static_514">ver</button>
+                  <button type="button" class="btn btn-xs btn-outline-term rep-quick-cmd" data-cmd="get radio" data-i18n="ui.static_515">get radio</button>
+                  <button type="button" class="btn btn-xs btn-outline-term rep-quick-cmd" data-cmd="neighbors" data-i18n="ui.static_516">neighbors</button>
                 </div>
               </div>
 
               <!-- Desplegable interactivo de ayuda de comandos -->
               <div id="terminalHelpDrawer" class="terminal-help-drawer hidden">
                 <div class="help-drawer-header">
-                  <strong data-i18n="ui.static_517"><span data-lucide="file-text" data-size="14"></span> Referencia Oficial de Comandos MeshCore (RF Remoto)</strong>
+                  <strong data-i18n="ui.static_517"><i class="bi bi-file-earmark-text" style="font-size: 14px;" aria-hidden="true"></i> Referencia Oficial de Comandos MeshCore (RF Remoto)</strong>
                   <button type="button" class="btn-icon btn-xs" id="btnCloseCmdHelp" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help">✕</button>
                 </div>
                 <div class="help-cmd-grid">
@@ -2708,16 +2608,16 @@
       <div class="modal-content modal-card traceroute-modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <div class="header-node-info">
-            <h3 id="tracerouteModalTitle" data-i18n="ui.static_537"><span class="modal-title-icon" data-lucide="activity" data-size="18"></span> Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
+            <h3 id="tracerouteModalTitle" data-i18n="ui.static_537"><i class="bi bi-activity modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
             <span class="modal-pubkey-badge font-mono" id="traceTargetPkDisplay">--</span>
           </div>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseTracerouteModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseTracerouteModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body traceroute-modal-body">
           <div class="traceroute-controls">
             <div class="input-with-action">
               <input type="text" id="traceCustomPathInput" placeholder="Ruta de repetidores opcional (ej: 23,5f,3a o en blanco para auto)" aria-label="Ruta personalizada de repetidores"  data-i18n-placeholder="ui.static_538" data-i18n-aria-label="ui.static_539"/>
-              <button type="button" class="btn-primary btn-sm" id="btnExecuteTrace"><span data-lucide="activity" data-size="14"></span> Iniciar Traza</button>
+              <button type="button" class="btn btn-primary btn-sm" id="btnExecuteTrace"><i class="bi bi-activity" style="font-size: 14px;" aria-hidden="true"></i> Iniciar Traza</button>
             </div>
             <span class="trace-status-pill" id="traceStatusPill">Listo para trazar</span>
           </div>
@@ -2729,7 +2629,7 @@
 
           <!-- Tabla de Desglose de Saltos -->
           <div class="table-responsive" style="margin-top: 14px;">
-            <table class="table table-dark table-hover table-striped table-sm align-middle data-table trace-breakdown-table">
+            <table class="table table-hover table-striped table-sm align-middle data-table trace-breakdown-table">
               <thead>
                 <tr>
                   <th data-i18n="ui.static_542">Salto</th>
@@ -2755,8 +2655,8 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
-          <h3 id="importModalTitle" data-i18n="ui.static_549"><span class="modal-title-icon" data-lucide="download" data-size="18"></span> Importar Canal o Contacto</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseImportModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <h3 id="importModalTitle" data-i18n="ui.static_549"><i class="bi bi-download modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Importar Canal o Contacto</h3>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseImportModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="importForm" class="modal-body" aria-labelledby="importModalTitle">
           <div class="form-group">
@@ -2764,16 +2664,16 @@
             <textarea id="importPayloadInput" placeholder='{"type":"channel","index":1,"name":"Táctico","psk":"..."} o &lt;8d5accef...:1:Nombre&gt; o meshcore://...' rows="5" required class="code-textarea" data-i18n-placeholder="ui.static_551"></textarea>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
               <span class="field-hint" data-i18n="ui.static_552">Soporta enlaces exportados desde MeshCore App, CLI o Web Station.</span>
-              <button type="button" id="btnSelectImportFile" class="btn-secondary btn-xs" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin: 0;" data-i18n="ui.static_553">
-                <span data-lucide="upload" data-size="12"></span> Cargar Archivo
+              <button type="button" id="btnSelectImportFile" class="btn btn-secondary btn-xs" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin: 0;" data-i18n="ui.static_553">
+                <i class="bi bi-upload" style="font-size: 12px;" aria-hidden="true"></i> Cargar Archivo
               </button>
               <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" aria-label="Seleccionar archivo de respaldo o configuración" />
             </div>
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="btn-secondary" id="btnCancelImport" data-i18n="modal.cancel">Cancelar</button>
-            <button type="submit" class="btn-primary" id="btnExecuteImport" data-i18n="ui.static_554"><span data-lucide="download" data-size="14"></span> Procesar e Importar</button>
+            <button type="button" class="btn btn-secondary" id="btnCancelImport" data-i18n="modal.cancel">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btnExecuteImport" data-i18n="ui.static_554"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> Procesar e Importar</button>
           </div>
         </form>
       </div>
@@ -2786,30 +2686,30 @@
       <div class="modal-content modal-card packet-inspector-card bg-body-tertiary border-secondary" style="max-width: 820px; width: 95%;">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <h3 id="packetInspectorTitle" style="margin: 0;" data-i18n="ui.static_555"><span class="modal-title-icon" data-lucide="scan" data-size="18"></span> Trama LoRa <span id="inspectorPktIdDisplay" class="badge-pill badge-primary font-mono">#0</span></h3>
+            <h3 id="packetInspectorTitle" style="margin: 0;" data-i18n="ui.static_555"><i class="bi bi-qr-code-scan modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Trama LoRa <span id="inspectorPktIdDisplay" class="badge-pill badge-primary font-mono">#0</span></h3>
             <span id="inspectorDirBadge" class="badge-pill badge-info">RX</span>
             <span id="inspectorTypeBadge" class="badge-pill badge-secondary">CHAT</span>
           </div>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557"></button>
         </div>
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 75vh; overflow-y: auto;">
           <!-- Barra de Pestañas del Inspector -->
           <div class="subtabs-nav-bar" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
             <button type="button" class="subtab-btn active" id="inspectorTabSemantic" data-panel="inspectorPanelSemantic" data-i18n="ui.static_558">
-              <span data-lucide="layers" data-size="14"></span> Estructura Semántica
+              <i class="bi bi-layers" style="font-size: 14px;" aria-hidden="true"></i> Estructura Semántica
             </button>
             <button type="button" class="subtab-btn" id="inspectorTabHex" data-panel="inspectorPanelHex" data-i18n="ui.static_559">
-              <span data-lucide="binary" data-size="14"></span> Hex Dump (Wireshark)
+              <i class="bi bi-file-earmark-binary" style="font-size: 14px;" aria-hidden="true"></i> Hex Dump (Wireshark)
             </button>
             <button type="button" class="subtab-btn" id="inspectorTabJson" data-panel="inspectorPanelJson" data-i18n="ui.static_560">
-              <span data-lucide="code" data-size="14"></span> JSON Crudo
+              <i class="bi bi-code-slash" style="font-size: 14px;" aria-hidden="true"></i> JSON Crudo
             </button>
           </div>
 
           <!-- Panel 1: Estructura Semántica -->
           <div id="inspectorPanelSemantic" class="inspector-panel">
             <div class="table-responsive">
-              <table class="table table-dark table-hover table-striped table-sm align-middle data-table" style="font-size: 13px;">
+              <table class="table table-hover table-striped table-sm align-middle data-table" style="font-size: 13px;">
                 <tbody>
                   <tr><th style="width: 160px;" data-i18n="ui.static_561">Timestamp ISO</th><td id="inspFieldTime" class="font-mono">--</td></tr>
                   <tr><th data-i18n="ui.static_562">Dirección / Flujo</th><td id="inspFieldDir">--</td></tr>
@@ -2829,7 +2729,7 @@
           <div id="inspectorPanelHex" class="inspector-panel hidden">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
               <span class="text-xs text-muted font-mono" data-i18n="ui.static_571">Offset: 00000000  00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f  |ASCII|</span>
-              <button type="button" class="btn-outline btn-xs" id="btnCopyHexDump">Copiar Hex</button>
+              <button type="button" class="btn btn-outline btn-xs" id="btnCopyHexDump">Copiar Hex</button>
             </div>
             <pre id="inspHexDumpView" class="hex-dump-view" style="font-family: var(--font-mono); font-size: 12px; background: var(--bg-canvas); color: var(--accent-primary); padding: 12px; border-radius: 6px; overflow-x: auto; line-height: 1.5; border: 1px solid var(--border-subtle);"></pre>
           </div>
@@ -2837,7 +2737,7 @@
           <!-- Panel 3: JSON Crudo -->
           <div id="inspectorPanelJson" class="inspector-panel hidden">
             <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
-              <button type="button" class="btn-outline btn-xs" id="btnCopyJsonDump">Copiar JSON</button>
+              <button type="button" class="btn btn-outline btn-xs" id="btnCopyJsonDump">Copiar JSON</button>
             </div>
             <pre id="inspJsonDumpView" class="json-dump-view" style="font-family: var(--font-mono); font-size: 12px; background: var(--bg-canvas); color: var(--text-main); padding: 12px; border-radius: 6px; overflow-x: auto; max-height: 350px; border: 1px solid var(--border-subtle);"></pre>
           </div>
@@ -2853,13 +2753,13 @@
       <div class="modal-header system-dialog-header">
         <div class="system-dialog-title-group">
           <div class="system-dialog-icon-badge" id="systemDialogIconBadge">
-            <span class="modal-title-icon" id="systemDialogIcon" data-lucide="help-circle" data-size="20"></span>
+            <i class="bi bi-question-circle modal-title-icon" id="systemDialogIcon" style="font-size: 20px;" aria-hidden="true"></i>
           </div>
           <h3 id="systemDialogTitle">
             <span id="systemDialogTitleText" data-i18n="modal.confirm">Confirmar</span>
           </h3>
         </div>
-        <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseSystemDialog" aria-label="Cerrar modal" data-i18n-aria-label="modal.close">✕</button>
+        <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseSystemDialog" aria-label="Cerrar modal" data-i18n-aria-label="modal.close"></button>
       </div>
       <div class="modal-body system-dialog-body">
         <p id="systemDialogMessage" class="system-dialog-message"></p>
@@ -2869,8 +2769,8 @@
         </div>
       </div>
       <div class="modal-footer system-dialog-footer">
-        <button type="button" class="btn-secondary system-dialog-btn" id="btnCancelSystemDialog" data-i18n="modal.cancel">Cancelar</button>
-        <button type="button" class="btn-primary system-dialog-btn" id="btnConfirmSystemDialog" data-i18n="modal.confirm">Confirmar</button>
+        <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSystemDialog" data-i18n="modal.cancel">Cancelar</button>
+        <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSystemDialog" data-i18n="modal.confirm">Confirmar</button>
       </div>
     </div>
   </div>

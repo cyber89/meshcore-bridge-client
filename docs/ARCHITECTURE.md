@@ -104,6 +104,22 @@ flowchart TB
    - La estación base local (`LOCAL`) nunca se duplica como vecino ni puede ser destinataria de bucles locales de mensajería.
    - Todo paquete saliente (TX) en Capa 3 debe atravesar el control de airtime y cola de prioridades (`TxRateLimiter`) para proteger el medio compartido LoRa.
 
+### 2.3 Arquitectura de Presentación Web SPA y Temas Bootswatch (Zephyr & Slate)
+
+La interfaz de usuario (`src/web/static/`) se concibe como una Single Page Application (SPA) ultraligera en HTML5 semántico, Vanilla CSS y ES6+ nativo sobre **Bootstrap 5.3.8** y temas oficiales de **Bootswatch 5.3.8**, sin sobrecarga de frameworks externos (React, Vue o Tailwind):
+
+- **Arquitectura Dual de Temas**:
+  - **Tema Claro**: [Bootswatch Zephyr](https://bootswatch.com/zephyr/) (`/css/bootstrap-zephyr.min.css`), con acentos azules limpios, bordes redondeados y fondos luminosos de alto contraste.
+  - **Tema Oscuro**: [Bootswatch Slate](https://bootswatch.com/slate/) (`/css/bootstrap-slate.min.css`), con escalas tonales pizarra, degradados sutiles y contraste optimizado para operaciones tácticas nocturnas.
+- **Conmutación Dinámica y Persistencia**:
+  - El conmutador dinámico (`#themeToggleBtn` gestionado por `_applyTheme()` en `src/web/static/js/app.js`) conmuta el elemento `<link id="themeStylesheet">`, actualiza `data-bs-theme="dark|light"`, adapta la metaetiqueta `theme-color` y persiste la preferencia del usuario en `localStorage.getItem("meshcore_theme")`.
+  - Dispara el evento global `meshcore:theme-changed` para coordinar en caliente la sincronización de mosaicos en Leaflet (`src/web/static/js/modules/map.js`), micro-gráficos SVG (`chart_engine.js`) e iconos contextuales.
+- **Módulo CSS Centralizado (`src/web/static/css/app.css`)**:
+  - Define tokens de diseño desacoplados (`--bg-body`, `--bg-tertiary`, `--accent-primary`, `--font-mono`) enlazados a las variables de Bootstrap 5.3.
+  - Cumplimiento riguroso de accesibilidad **WCAG 2.2 AA**: soporte para `@media (prefers-reduced-motion: reduce)` y reglas explícitas de foco `:focus-visible`.
+- **Iconografía Nativa y Aislamiento Offline**:
+  - Unificación integral en **Bootstrap Icons 1.13.2** locales (`/css/bootstrap-icons.min.css`), eliminando llamadas desalineadas a librerías externas o etiquetas no renderizables.
+
 ---
 
 ## 3. Diagrama de Arquitectura General

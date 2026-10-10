@@ -131,6 +131,18 @@ Receptor de mensajes MQTT entrantes.
 - **`_on_message(client, userdata, msg) -> None`**: Recibe mensajes del hilo de red de Paho y agenda su ejecución de manera determinista en el event loop principal de asyncio mediante `loop.call_soon_threadsafe()`.
 - Procesa `{prefix}/tx` (inyección de transmisiones RF) y `{prefix}/admin/cmd` (comandos de gestión remota).
 
+#### Cliente Web SPA y Temas Bootswatch (`src/web/static/`)
+Interfaz de usuario gráfica local desacoplada construida en HTML5 semántico, Vanilla CSS y ES6+ nativo sin frameworks pesados (React/Vue/Tailwind):
+- **Temas Oficiales Bootswatch 5.3.8 Locales**:
+  - **Zephyr (Claro)**: `/css/bootstrap-zephyr.min.css`, optimizado para ambientes diurnos, alta luminosidad y estética moderna plana con bordes redondeados.
+  - **Slate (Oscuro)**: `/css/bootstrap-slate.min.css`, optimizado para operaciones tácticas nocturnas y pantallas OLED mediante tonos pizarra y alto contraste.
+- **Conmutación Dinámica y Eventos**:
+  - El método `_applyTheme()` en `src/web/static/js/app.js` conmuta en caliente `<link id="themeStylesheet">`, actualiza `data-bs-theme` en `<html>`, clases en `<body>`, metaetiqueta `theme-color` y persiste en `localStorage.getItem("meshcore_theme")`.
+  - Despacha `meshcore:theme-changed` para adaptar mosaicos cartográficos en Leaflet (`map.js`) y colores de gráficos SVG (`chart_engine.js`).
+- **Módulo CSS `app.css`**: Define tokens de superficie, tipografía (`Inter`, `Fira Code`), espaciados y soporte estricto de accesibilidad WCAG 2.2 AA (`:focus-visible`, `@media (prefers-reduced-motion: reduce)`).
+- **Iconografía Bootstrap Icons**: Mapeo completo a **Bootstrap Icons 1.13.2** (`bi bi-*`), garantizando renderizado instantáneo sin parpadeos ni peticiones externas.
+- **Invariantes Inmutables**: Los repetidores de red (`REPEATER`) y el transceptor local (`LOCAL`) se excluyen estrictamente de la agenda de contactos y del chat.
+
 ---
 
 ## 4. Capa 2: Aplicación y Orquestación (Application Services & Lifecycles)

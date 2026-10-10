@@ -32,6 +32,10 @@ Compatible con el ecosistema de hardware oficial soportado por el firmware MeshC
   - Actualización en vivo de chat, telemetría, sniffer y estado de la red.
   - Reconexión con *exponential backoff* y latidos *heartbeat* periódicos (Ping/Pong cada 15s).
   - Política Origin compatible con el servidor anterior: permite orígenes configurados, coincidencia con Host, loopback y subredes LAN privadas. No constituye una política estricta de mismo origen.
+- **Web SPA Profesional con Temas Oficiales Bootswatch (Zephyr & Slate)**:
+  - Conmutador dinámico de temas integrado en la cabecera: **Bootswatch Zephyr** (Tema Claro diurno, estética plana con acentos vivos) y **Bootswatch Slate** (Tema Oscuro táctico para misiones nocturnas y pantallas OLED).
+  - Persistencia de preferencias en `localStorage`, sincronización reactiva con mapas Leaflet y gráficos SVG.
+  - Accesibilidad **WCAG 2.2 AA** conforme (`:focus-visible`, `@media (prefers-reduced-motion: reduce)`), hoja de estilos modular `app.css` y 100% offline con **Bootstrap Icons 1.13.2** locales.
 
 El visor es HTML/CSS/JS local, de consulta; no incorpora los paquetes Swagger UI o ReDoc ni ejecuta operaciones del catálogo. Con `BRIDGE_API_KEY`, el esquema requiere `X-Api-Key` y la pantalla permite introducirla en memoria del visor.
 

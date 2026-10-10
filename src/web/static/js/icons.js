@@ -84,8 +84,20 @@ const BS_ICON_MAP = {
   'droplets': 'bi-droplet',
   'compass': 'bi-compass',
   'smile': 'bi-emoji-smile',
-  'paperclip': 'bi-paperclip',
-  'arrow-left': 'bi-arrow-left'
+  'arrow-left': 'bi-arrow-left',
+  'arrow-down': 'bi-arrow-down',
+  'code': 'bi-code-slash',
+  'binary': 'bi-file-earmark-binary',
+  'file-spreadsheet': 'bi-file-earmark-spreadsheet',
+  'external-link': 'bi-box-arrow-up-right',
+  'scan': 'bi-qr-code-scan',
+  'rotate-ccw': 'bi-arrow-counterclockwise',
+  'pie-chart': 'bi-pie-chart',
+  'git-merge': 'bi-diagram-2',
+  'bookmark-plus': 'bi-bookmark-plus',
+  'bookmark': 'bi-bookmark',
+  'smartphone': 'bi-phone',
+  'x': 'bi-x-lg'
 };
 
 function getLucideIcon(name, extraClass = '', size = 18) {

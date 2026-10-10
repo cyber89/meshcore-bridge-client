@@ -273,6 +273,25 @@ export class SettingsModule {
       }
     });
 
+    // Copiar clave pública local al portapapeles
+    const btnCopyPk = document.getElementById("btnCopyLocalPubkey");
+    if (btnCopyPk) {
+      btnCopyPk.addEventListener("click", async () => {
+        const pkInput = document.getElementById("localNodePubkey");
+        const val = pkInput?.value?.trim();
+        if (val) {
+          try {
+            await navigator.clipboard.writeText(val);
+            this._notify(I18n.t("qr.copied") || "Clave pública copiada al portapapeles", "success");
+          } catch (_err) {
+            pkInput.select();
+            document.execCommand("copy");
+            this._notify(I18n.t("qr.copied") || "Clave pública copiada al portapapeles", "success");
+          }
+        }
+      });
+    }
+
     // 1. Crear Canal Modal
     const openCreateChannel = () => {
       if (!this.dom.createChannelModal) return;
