@@ -16,6 +16,7 @@
 8. **[N8N_WORKFLOW_GUIDE.md](N8N_WORKFLOW_GUIDE.md)**: Integración con automatizaciones n8n y esquemas de mensajería MQTT.
 9. **[TESTING.md](TESTING.md)** y **[TEST_INVENTORY.md](TEST_INVENTORY.md)**: Entorno de QA, aislamiento de suites de prueba, fixtures y comandos reproducibles.
 10. **[PROJECT_KNOWLEDGE.md](PROJECT_KNOWLEDGE.md)**: Mapa de conocimiento del proyecto y fuentes de referencia.
+11. **[FRONTEND_DELIVERY.md](FRONTEND_DELIVERY.md)**: Build JS/CSS minimizado, gzip previo y presupuesto de CPU de compresión web.
 
 ---
 

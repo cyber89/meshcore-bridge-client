@@ -174,28 +174,6 @@ export class MeshCoreStorage {
     } catch (_) {}
   }
 
-  async purgeNonCommonMessages(isCommandOrSystemTextFn) {
-    await this.readyPromise;
-    if (!this.db || typeof isCommandOrSystemTextFn !== "function") return;
-    try {
-      const tx = this.db.transaction("chat_messages", "readwrite");
-      const store = tx.objectStore("chat_messages");
-      const req = store.openCursor();
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          const val = cursor.value;
-          const txt = val.text || val.message || "";
-          const txtType = val.txt_type || 0;
-          if (isCommandOrSystemTextFn(txt, txtType)) {
-            cursor.delete();
-          }
-          cursor.continue();
-        }
-      };
-    } catch (_) {}
-  }
-
   async getMessagesByFeed(feedKey, limit = 100) {
     await this.readyPromise;
     if (!this.db) return [];
@@ -204,10 +182,27 @@ export class MeshCoreStorage {
         const tx = this.db.transaction("chat_messages", "readonly");
         const store = tx.objectStore("chat_messages");
         const index = store.index("by_feed");
-        const req = index.getAll(IDBKeyRange.only(feedKey));
+        if (!Number.isInteger(limit) || limit <= 0) {
+          const req = index.getAll(IDBKeyRange.only(feedKey));
+          req.onsuccess = () => resolve((req.result || []).slice(-limit));
+          req.onerror = () => resolve([]);
+          return;
+        }
+        // Walk newest records first and stop at the visible history limit.
+        // getAll() allocated the entire conversation before discarding older messages.
+        const msgs = [];
+        const maxMessages = limit;
+        const req = index.openCursor(IDBKeyRange.only(feedKey), "prev");
         req.onsuccess = () => {
-          const msgs = req.result || [];
-          resolve(msgs.slice(-limit));
+          const cursor = req.result;
+          if (cursor && msgs.length < maxMessages) {
+            msgs.push(cursor.value);
+            if (msgs.length < maxMessages) {
+              cursor.continue();
+              return;
+            }
+          }
+          resolve(msgs.reverse());
         };
         req.onerror = () => resolve([]);
       } catch (_) {

@@ -119,9 +119,9 @@ La interfaz de usuario (`src/web/static/`) se concibe como una Single Page Appli
   - **Calibración de Tema Claro Anti-Resplandor**: Fondo de lienzo en pizarra suave (`#f1f5f9`), tarjetas y paneles elevados en blanco nítido (`#ffffff`) con bordes sutiles (`#cbd5e1`) y sombras difusas, mitigando el resplandor de blanco plano.
   - **Barra Lateral Colapsable**: Transición fluida a riel de iconos (64px) mediante `#btnToggleSidebar`, ocultando etiquetas de texto, centrando iconos y persistiendo el estado en `localStorage`.
   - **Identidad Simplificada**: Cabecera unificada con la marca pura `Meshcore-Bridge`, prescindiendo de iconos y badges de versión redundantes.
-  - **Botones Estilizados y Micro-Interacciones**: Botones de acción de cabecera tipo píldora (`.btn-header-action`), micro-gradientes en `.btn-primary`, elevación al hover (`translateY(-1px)`) y micro-escalado de iconos.
-  - **Modales y Diálogos Estilizados**: Grillas de formulario adaptativas (`.modal-form-grid`), fondos con desenfoque translúcido (`backdrop-filter: blur(8px)`), tarjetas con bordes redondeados (12px) y sombras profundas.
-  - Cumplimiento riguroso de accesibilidad **WCAG 2.2 AA**: escala tipográfica base compacta a 13.5px, soporte para `@media (prefers-reduced-motion: reduce)` y reglas explícitas de foco `:focus-visible`.
+  - **Botones Estilizados y Micro-Interacciones**: Botones de acción de cabecera tipo píldora (`.btn-header-action`), fondo primario sólido y transiciones de color/borde; se retiran elevación de tarjetas y escalado de iconos.
+  - **Modales y Diálogos Estilizados**: Grillas de formulario adaptativas (`.form-row-2col`), superficies y bordes redondeados; se retira el desenfoque de overlays y toasts para reducir trabajo gráfico.
+  - Accesibilidad: tipografía de sistema, soporte para `@media (prefers-reduced-motion: reduce)` y reglas explícitas de foco `:focus-visible`. Los contrastes revisados no certifican cumplimiento WCAG completo sin auditoría de interfaz.
   - **Chat Reactivo y Ergonomía**: Maquetación Flexbox con panel de conversación elástico (`min-height: 0`), scroll independiente de mensajes y anclaje inferior inmutable del compositor (`.chat-composer-wrapper`). Listado de canales optimizado con badges identificadores y acciones rápidas inline (QR, eliminar canal).
   - **Tarjetas de Nodos y Contactos**: Re-arquitectura de cabecera (`.node-card-header`, `.contact-card-header`) con botón de favorito alineado a la esquina superior derecha sin solapamientos, avatares contrastados con indicador de estado (online/offline) y barra de búsqueda de ancho completo.
   - **Analítica de Red y Telemetría SVG**: Grilla adaptable de KPIs (`.analytics-kpi-grid`), timeline histórico interactivo en SVG responsive (`.chart-svg-area`), distribución de paquetes en gráfico donut SVG (`.donut-chart-wrapper`) y barras de actividad horizontal (`.horizontal-bar-chart`).
@@ -138,10 +138,23 @@ La interfaz de usuario (`src/web/static/`) se concibe como una Single Page Appli
   - Tipografía en campos de formulario calibrada a `font-size: 16px` en pantallas `<= 640px` para mitigar el zoom forzado en navegadores móviles (iOS/Safari).
   - Protección perimetral de interfaz respetando márgenes de seguridad mediante `env(safe-area-inset-bottom)`.
 - **Sistema de Notificaciones Toast y Diálogos Modales**:
-  - Contenedor flotante Toast (`#toastContainer`) fijado en capa perimetral (`z-index: 1095`) con soporte para desenfoque translúcido (`backdrop-filter: blur(14px)`), sombras profundas y variantes semánticas automáticas.
+  - Contenedor flotante Toast (`#toastContainer`) fijado en capa perimetral (`z-index: 1095`), con sombras y variantes semánticas automáticas, sin desenfoque del fondo.
   - Diálogos modales y paleta de comandos (`.system-dialog-card`, `.modal-overlay`, `.cmd-palette-modal`) con centrado elástico, animación de entrada, badges halo de severidad y apilamiento vertical adaptativo en pantallas móviles.
 
 ---
+
+### 2.4 Assets minimizados y compresión HTTP
+
+El build de esbuild genera variantes JS/CSS minimizadas y gzip previos; el manifest
+SHA256 permite seleccionarlos manteniendo URLs/imports originales y rechaza
+artefactos obsoletos. No hay minimización ni gzip de estáticos por petición.
+`BridgeCompressionMiddleware`, dentro del perímetro de seguridad, comprime un
+conjunto acotado de métricas JSON con zlib nivel 1 fuera del event loop. Admite
+un worker y regula su consumo medio de CPU al 50% de un núcleo mediante tiempo
+medido y descansos; ante concurrencia sirve el cuerpo original. El apagado retiene
+ese worker hasta que finaliza, dentro del presupuesto existente, y rechaza reinicio
+si sigue activo. No limita instantáneamente el proceso bridge. Construcción,
+fallbacks y alcance: [FRONTEND_DELIVERY.md](FRONTEND_DELIVERY.md).
 
 ## 3. Diagrama de Arquitectura General
 

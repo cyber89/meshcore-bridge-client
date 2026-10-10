@@ -104,9 +104,6 @@ class MeshCoreApp {
     this.chatModule.init();
     this.analyticsModule.init();
 
-    // Renderizar iconos vectoriales en el DOM cargado
-    if (window.initLucideIcons) window.initLucideIcons();
-
     // Exponer helpers globales de diálogos del sistema
     window.showConfirm = (msg, opts) => this.showConfirm(msg, opts);
     window.showAlert = (msg, opts) => this.showAlert(msg, opts);
@@ -139,13 +136,17 @@ class MeshCoreApp {
   _initBootstrapModalBridge() {
     if (!window.bootstrap?.Modal) return;
 
-    // Observe class attribute changes on all modal-overlay / .modal elements
+    const hiddenStates = new WeakMap();
+    // Bootstrap also changes transition/show classes. Only synchronize when
+    // the application's hidden flag actually changes.
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         if (m.type === "attributes" && m.attributeName === "class") {
           const target = m.target;
-          if (!target.classList.contains("modal")) return;
+          if (!target.classList.contains("modal")) continue;
           const isHidden = target.classList.contains("hidden");
+          if (hiddenStates.get(target) === isHidden) continue;
+          hiddenStates.set(target, isHidden);
           const bsModal = bootstrap.Modal.getOrCreateInstance(target, {
             backdrop: target.id === "systemDialogModal" ? "static" : true,
             keyboard: true,
@@ -160,6 +161,7 @@ class MeshCoreApp {
     });
 
     document.querySelectorAll(".modal").forEach((el) => {
+      hiddenStates.set(el, el.classList.contains("hidden"));
       observer.observe(el, { attributes: true, attributeFilter: ["class"] });
       el.addEventListener("hidden.bs.modal", () => {
         if (!el.classList.contains("hidden")) {
@@ -233,17 +235,18 @@ class MeshCoreApp {
 
   _initNavigation() {
     const tabs = Array.from(document.querySelectorAll(".nav-btn"));
+    const panes = Array.from(document.querySelectorAll(".tab-pane"));
     tabs.forEach((btn, index) => {
       btn.addEventListener("click", () => {
         const tabId = btn.getAttribute("data-tab");
         if (!tabId) return;
 
-        document.querySelectorAll(".nav-btn").forEach((b) => {
+        tabs.forEach((b) => {
           b.classList.remove("active");
           b.setAttribute("aria-selected", "false");
           b.tabIndex = -1;
         });
-        document.querySelectorAll(".tab-pane").forEach((pane) => {
+        panes.forEach((pane) => {
           pane.classList.remove("active");
           pane.setAttribute("hidden", "true");
         });
@@ -453,9 +456,6 @@ class MeshCoreApp {
           item.innerHTML = `<i class="bi bi-broadcast me-1" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="app.node_match">${escapeHtml(I18n.t("app.node_match"))}</span>: <strong>${escapeHtml(name)}</strong> [<span data-i18n="${roleKey}">${escapeHtml(I18n.t(roleKey))}</span>]`;
           cmdPaletteResults.appendChild(item);
         });
-        if (window.lucide && typeof window.lucide.createIcons === "function") {
-          window.lucide.createIcons();
-        }
       }
     };
 
@@ -1079,7 +1079,7 @@ class MeshCoreApp {
       setDialogLabel(titleEl, config.title, config.titleKey);
       if (msgEl) msgEl.textContent = config.message;
 
-      if (iconEl && window.getLucideIcon) {
+      if (iconEl) {
         let iconName = config.icon;
         if (!iconName) {
           if (isDanger || dialogType === "danger") iconName = "alert-triangle";
@@ -1088,8 +1088,16 @@ class MeshCoreApp {
           else if (config.mode === "prompt") iconName = "edit-3";
           else iconName = config.mode === "alert" ? "info" : "help-circle";
         }
-        iconEl.innerHTML = window.getLucideIcon(iconName, "", 20);
-        iconEl.className = `modal-title-icon is-${dialogType}${isDanger ? " is-danger" : ""}`;
+        const iconClass = {
+          "alert-triangle": "exclamation-triangle",
+          "shield-alert": "shield-exclamation",
+          "check": "check-lg",
+          "edit-3": "pencil-square",
+          "info": "info-circle",
+          "help-circle": "question-circle",
+        }[iconName] || "question-circle";
+        iconEl.textContent = "";
+        iconEl.className = `bi bi-${iconClass} modal-title-icon is-${dialogType}${isDanger ? " is-danger" : ""}`;
       }
 
       if (btnConfirm) {

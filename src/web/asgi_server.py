@@ -26,6 +26,7 @@ from src.web.access_policy import (
     WS_MAX_PAYLOAD_BYTES,
 )
 from src.web.asgi_assets import install_asset_routes
+from src.web.asgi_compression import BridgeCompressionMiddleware
 from src.web.asgi_docs import install_documentation_routes
 from src.web.asgi_errors import install_error_handlers
 from src.web.asgi_http import BridgeH11Protocol
@@ -50,7 +51,9 @@ class _SecuredFastAPI(FastAPI):
     """
 
     def build_middleware_stack(self) -> ASGIApp:
-        return BridgeSecurityMiddleware(super().build_middleware_stack())
+        compression = BridgeCompressionMiddleware(super().build_middleware_stack())
+        self.state.compression_middleware = compression
+        return BridgeSecurityMiddleware(compression)
 
 
 def create_asgi_app(
@@ -263,7 +266,8 @@ class AsgiWebServer:
             error = task.exception()
             if error is not None:
                 logger.error(
-                    "ASGI map lifecycle failed: %s", type(error).__name__,
+                    "ASGI map lifecycle failed: %s",
+                    type(error).__name__,
                     extra={"skip_broadcast": True},
                 )
 
@@ -325,7 +329,8 @@ class AsgiWebServer:
             self.failure = failure
             self._force_close()
             logger.error(
-                "Embedded ASGI server failed with %s", type(failure).__name__,
+                "Embedded ASGI server failed with %s",
+                type(failure).__name__,
                 extra={"skip_broadcast": True},
             )
             if self._on_failure is not None:
@@ -360,9 +365,7 @@ class AsgiWebServer:
         async with self._start_lock:
             if self.running:
                 return
-            if any(
-                not task.done() for task in self._pending_tasks | self._server_tasks()
-            ):
+            if any(not task.done() for task in self._pending_tasks | self._server_tasks()):
                 raise RuntimeError("Previous ASGI lifecycle has not finished")
             self._stopping = False
             self.failure = None
@@ -455,6 +458,7 @@ class AsgiWebServer:
         tasks: set[asyncio.Task[Any]] = self.websocket_hub.owned_tasks()
         tasks.update(self.router.owned_notification_tasks())
         tasks.update(self._tile_tasks)
+        tasks.update(self._compression_tasks())
         if self._serve_task is not None:
             tasks.add(self._serve_task)
         if self._server is not None:
@@ -466,6 +470,12 @@ class AsgiWebServer:
         if isinstance(lifespan_task, asyncio.Task):
             tasks.add(lifespan_task)
         return tasks
+
+    def _compression_tasks(self) -> set[asyncio.Task[Any]]:
+        compression = getattr(self.app.state, "compression_middleware", None)
+        if isinstance(compression, BridgeCompressionMiddleware):
+            return set(compression.owned_tasks())
+        return set()
 
     def _force_close(self) -> None:
         """Close resources synchronously even if the caller cancels stop()."""
@@ -487,12 +497,14 @@ class AsgiWebServer:
                         transport.abort()
                 except Exception as close_error:
                     logger.debug(
-                        "ASGI forced closure failed with %s", type(close_error).__name__,
+                        "ASGI forced closure failed with %s",
+                        type(close_error).__name__,
                         extra={"skip_broadcast": True},
                     )
         current = asyncio.current_task()
+        worker_tasks = self._tile_tasks | self._compression_tasks()
         for task in self._server_tasks():
-            if task is not current and task not in self._tile_tasks and not task.done():
+            if task is not current and task not in worker_tasks and not task.done():
                 self._retain_task(task)
                 task.cancel()
         # Retain an off-loop closer even when the caller has no remaining
@@ -519,15 +531,14 @@ class AsgiWebServer:
             self._force_close()
         remaining = {owned for owned in self._server_tasks() if not owned.done()}
         if remaining:
-            _, pending = await asyncio.wait(
-                remaining, timeout=max(0.0, deadline - loop.time())
-            )
+            _, pending = await asyncio.wait(remaining, timeout=max(0.0, deadline - loop.time()))
             if pending:
                 # Retained tasks already have cancellation requested and result
                 # callbacks; refuse restart until they finish. Never extend the
                 # owner's deadline waiting for cancellation-resistant handlers.
                 logger.warning(
-                    "ASGI tasks exceeded shutdown budget: %s", len(pending),
+                    "ASGI tasks exceeded shutdown budget: %s",
+                    len(pending),
                     extra={"skip_broadcast": True},
                 )
 

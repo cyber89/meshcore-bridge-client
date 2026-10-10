@@ -1,15 +1,15 @@
 """Compatibility static/SPA and public tile semantics for the ASGI application.
 
 The router owns the borrowed tile service. This adapter neither opens nor closes
-its storage. Filesystem work and compression run outside the event loop; this
-does not establish timing, memory use, or runtime parity with the native server.
+its storage. Filesystem work runs outside the event loop. Minification and gzip
+are build-time artifacts selected only when their manifest digests match.
 """
 
 from __future__ import annotations
 
 import asyncio
-import gzip
 import hashlib
+import json
 import mimetypes
 import threading
 from dataclasses import dataclass
@@ -24,6 +24,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Match, NoMatchFound
 from starlette.types import Receive, Scope, Send
 
+from src.web.asgi_compression import accepts_gzip
 from src.web.asgi_security import _raw_request_target
 
 if TYPE_CHECKING:
@@ -34,7 +35,6 @@ _SPA_PATHS = frozenset(
     ("", "chat", "map", "nodes", "contacts", "settings", "telemetry", "logs", "analytics")
 )
 _RESERVED_DOCS_PATHS = frozenset(("/docs", "/redoc", "/openapi.json"))
-_TEXT_SUFFIXES = frozenset((".html", ".css", ".js", ".json", ".svg", ".txt", ".map", ".md"))
 _INITIALIZING = b"<h1>MeshCore Web Client</h1><p>Archivos estaticos inicializandose...</p>"
 
 mimetypes.add_type("font/woff2", ".woff2")
@@ -43,10 +43,12 @@ mimetypes.add_type("font/woff", ".woff")
 
 @dataclass(frozen=True, slots=True)
 class _CachedAsset:
-    mtime: float
+    signature: tuple[int, int]
+    gzip_signature: tuple[int, int] | None
     raw: bytes
     compressed: bytes | None
-    etag: str
+    digest: str
+    compressed_digest: str | None
     content_type: str
 
 
@@ -57,23 +59,7 @@ class _AssetResult:
     headers: dict[str, str]
 
 
-def _accepts_gzip(accept_encoding: str) -> bool:
-    """Retain native substring, wildcard and q-value selection exactly."""
-    if not accept_encoding or "gzip" not in accept_encoding:
-        return False
-    for part in accept_encoding.split(","):
-        subparts = [value.strip() for value in part.split(";")]
-        if subparts[0].lower() in ("gzip", "*"):
-            quality = 1.0
-            for value in subparts[1:]:
-                if value.lower().startswith("q="):
-                    try:
-                        quality = float(value[2:].strip())
-                    except ValueError:
-                        quality = 0.0
-            if quality > 0.0:
-                return True
-    return False
+_accepts_gzip = accepts_gzip
 
 
 def _traversal_attempt(path: str) -> bool:
@@ -106,11 +92,11 @@ class AssetsAdapter:
     def __init__(self, router: WebAPIRouter, static_dir: Path | None = None) -> None:
         self.tile_service = router.map_tile_service
         # Do not stat/resolve here: application construction performs no file I/O.
-        self.static_dir = (
-            static_dir if static_dir is not None else Path(__file__).parent / "static"
-        )
+        self.static_dir = static_dir if static_dir is not None else Path(__file__).parent / "static"
         self._cache: dict[str, _CachedAsset] = {}
         self._cache_lock = threading.RLock()
+        self._manifest_signature: tuple[str, int, int] | None = None
+        self._manifest: dict[str, dict[str, str]] = {}
 
     async def dispatch(self, request: Request) -> Response:
         target = _raw_request_target(request.scope)
@@ -146,7 +132,7 @@ class AssetsAdapter:
                     {"Content-Type": "application/json"},
                 )
             )
-        subpath = target[len("/api/map/tiles/"):].split("?")[0].strip("/")
+        subpath = target[len("/api/map/tiles/") :].split("?")[0].strip("/")
         parts = subpath.split("/")
         if len(parts) >= 3:
             try:
@@ -178,8 +164,104 @@ class AssetsAdapter:
         except (ValueError, OSError, RuntimeError):
             return False
 
+    def _load_manifest(self, root: Path) -> dict[str, dict[str, str]]:
+        """Read trusted build metadata off-loop, invalidating it when replaced."""
+        manifest_path = root / "asset-manifest.json"
+        if not self._contained(manifest_path, root):
+            return {}
+        try:
+            stat = manifest_path.stat()
+            signature = (str(root), stat.st_mtime_ns, stat.st_size)
+            if signature != self._manifest_signature:
+                self._manifest = {}
+                self._manifest_signature = signature
+                if stat.st_size > 1024 * 1024:
+                    return {}
+                data = json.loads(manifest_path.read_bytes())
+                if not isinstance(data, dict) or data.get("version") != 1:
+                    return {}
+                assets = data.get("assets")
+                if not isinstance(assets, dict):
+                    return {}
+                for source, entry in assets.items():
+                    if isinstance(source, str) and isinstance(entry, dict):
+                        fields = ("file", "source_sha256", "sha256", "gzip_sha256")
+                        if all(isinstance(entry.get(field), str) for field in fields):
+                            self._manifest[source] = {field: entry[field] for field in fields}
+            return self._manifest
+        except (OSError, ValueError, RuntimeError):
+            self._manifest_signature = None
+            self._manifest = {}
+            return {}
+
+    def _asset(self, target: Path, root: Path) -> _CachedAsset:
+        """Cache raw bytes and gzip sidecars; manifest digests establish freshness."""
+        stat = target.stat()
+        signature = (stat.st_mtime_ns, stat.st_size)
+        gzip_path = target.with_name(target.name + ".gz")
+        gzip_signature = None
+        if self._contained(gzip_path, root):
+            try:
+                gzip_stat = gzip_path.stat()
+                if gzip_path.is_file():
+                    gzip_signature = (gzip_stat.st_mtime_ns, gzip_stat.st_size)
+            except OSError:
+                pass
+        cached = self._cache.get(str(target))
+        if (
+            cached is None
+            or cached.signature != signature
+            or cached.gzip_signature != gzip_signature
+        ):
+            raw = target.read_bytes()
+            compressed = None
+            if gzip_signature is not None:
+                try:
+                    sidecar = gzip_path.read_bytes()
+                    if sidecar.startswith(b"\x1f\x8b") and len(sidecar) < len(raw):
+                        compressed = sidecar
+                except OSError:
+                    pass
+            content_type, _ = mimetypes.guess_type(str(target))
+            cached = _CachedAsset(
+                signature,
+                gzip_signature,
+                raw,
+                compressed,
+                hashlib.sha256(raw).hexdigest(),
+                hashlib.sha256(compressed).hexdigest() if compressed is not None else None,
+                content_type or "application/octet-stream",
+            )
+            self._cache[str(target)] = cached
+        return cached
+
+    def _select_asset(self, target: Path, root: Path) -> tuple[Path, _CachedAsset, bool]:
+        original = self._asset(target, root)
+        entry = self._load_manifest(root).get(target.relative_to(root).as_posix())
+        if entry is None:
+            # Sidecars without a validated build receipt are not selected: their
+            # modification time alone cannot establish that they match the file.
+            return target, original, False
+        mapped_name = entry["file"]
+        mapped = root / mapped_name
+        if (
+            original.digest != entry["source_sha256"]
+            or Path(mapped_name).is_absolute()
+            or _traversal_attempt(mapped_name)
+            or not self._contained(mapped, root)
+            or mapped.suffix != target.suffix
+        ):
+            return target, original, False
+        try:
+            selected = original if mapped == target else self._asset(mapped, root)
+        except OSError:
+            return target, original, False
+        if selected.digest != entry["sha256"]:
+            return target, original, False
+        return mapped, selected, selected.compressed_digest == entry["gzip_sha256"]
+
     def _static(self, path: str, if_none_match: str, accept_encoding: str) -> _AssetResult:
-        # The worker owns all resolution/stat/read/compression operations. The
+        # The worker owns all resolution/stat/read/hash operations. The
         # lock protects this local cache across to_thread calls, never the loop.
         with self._cache_lock:
             clean_path = path.strip("/")
@@ -206,34 +288,16 @@ class AssetsAdapter:
                     return _AssetResult(
                         200, _INITIALIZING, {"Content-Type": "text/html; charset=utf-8"}
                     )
-                mtime = target.stat().st_mtime
             except (OSError, ValueError, RuntimeError):
                 return _AssetResult(404, b"404 Not Found", {})
-            file_key = str(target)
-            cached = self._cache.get(file_key)
-            if cached is None or cached.mtime != mtime:
-                try:
-                    raw = target.read_bytes()
-                except OSError:
-                    return _AssetResult(500, b"Error reading static file", {})
-                content_type, _ = mimetypes.guess_type(str(target))
-                content_type = content_type or (
-                    "text/html" if target.suffix == ".html" else "application/octet-stream"
-                )
-                textual = target.suffix in _TEXT_SUFFIXES or content_type.startswith(
-                    ("text/", "application/javascript", "application/json", "image/svg+xml")
-                )
-                compressed = (
-                    gzip.compress(raw, compresslevel=6) if textual and len(raw) > 256 else None
-                )
-                cached = _CachedAsset(
-                    mtime,
-                    raw,
-                    compressed,
-                    f'"{hashlib.sha256(raw).hexdigest()[:16]}"',
-                    content_type,
-                )
-                self._cache[file_key] = cached
+            try:
+                target, cached, gzip_verified = self._select_asset(target, root)
+            except (OSError, ValueError, RuntimeError):
+                return _AssetResult(500, b"Error reading static file", {})
+            compressed = cached.compressed
+            use_gzip = _accepts_gzip(accept_encoding) and gzip_verified and compressed is not None
+            digest = (cached.compressed_digest or cached.digest) if use_gzip else cached.digest
+            etag = '"' + digest[:16] + '"'
             headers = {
                 "Content-Type": (
                     cached.content_type
@@ -251,23 +315,15 @@ class AssetsAdapter:
                     if target.suffix == ".html"
                     else "public, max-age=300"
                 ),
-                "ETag": cached.etag,
+                "ETag": etag,
                 "Vary": "Accept-Encoding",
             }
-            client_etag = if_none_match.strip()
-            if client_etag and (
-                client_etag == cached.etag
-                or client_etag == "W/" + cached.etag
-                or cached.etag in client_etag
-            ):
-                return _AssetResult(304, b"", headers)
-            compressed = cached.compressed
-            if (
-                _accepts_gzip(accept_encoding)
-                and compressed is not None
-                and len(compressed) < len(cached.raw)
-            ):
+            if use_gzip:
                 headers["Content-Encoding"] = "gzip"
+            client_etags = [value.strip().removeprefix("W/") for value in if_none_match.split(",")]
+            if "*" in client_etags or etag in client_etags:
+                return _AssetResult(304, b"", headers)
+            if use_gzip and compressed is not None:
                 return _AssetResult(200, compressed, headers)
             return _AssetResult(200, cached.raw, headers)
 

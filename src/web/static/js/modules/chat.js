@@ -418,9 +418,6 @@ export class ChatModule {
     if (this.dom.shareContactSearch) this.dom.shareContactSearch.value = "";
     this._populateShareContactList("");
     this.dom.modalShareContact.classList.remove("hidden");
-    if (window.initLucideIcons) {
-      window.initLucideIcons(this.dom.modalShareContact);
-    }
   }
 
   closeShareContactModal() {
@@ -543,9 +540,6 @@ export class ChatModule {
     if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = true;
     this._populateShareChannelList();
     this.dom.modalShareChannel.classList.remove("hidden");
-    if (window.initLucideIcons) {
-      window.initLucideIcons(this.dom.modalShareChannel);
-    }
   }
 
   closeShareChannelModal() {
@@ -1401,9 +1395,6 @@ export class ChatModule {
       }
     }
 
-    if (window.initLucideIcons) {
-      window.initLucideIcons(row);
-    }
 
     return row;
   }

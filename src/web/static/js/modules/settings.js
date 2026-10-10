@@ -960,7 +960,7 @@ export class SettingsModule {
     // Acciones Rápidas de Hardware
     const refreshHardware = async () => {
       const btn = this.dom.btnRefreshLocalConfig || this.dom.btnRefreshLocalTelem;
-      const icon = btn ? btn.querySelector("i, [data-lucide]") : null;
+      const icon = btn ? btn.querySelector("i") : null;
       if (icon) icon.classList.add("spin-animation");
       try {
         await this.fetchLocalNodeConfig(true);
@@ -1381,9 +1381,6 @@ export class SettingsModule {
       listEl.appendChild(li);
     });
 
-    if (window.initLucideIcons) {
-      window.initLucideIcons(listEl);
-    }
   }
 
   async processImportPayload(raw, closeCallback) {
@@ -2125,9 +2122,6 @@ export class SettingsModule {
     }
 
     this.dom.qrShareModal.classList.remove("hidden");
-    if (window.initLucideIcons) {
-      window.initLucideIcons(this.dom.qrShareModal);
-    }
   }
 
   appendLocalTerminalLine(text, cssClass = "term-info") {

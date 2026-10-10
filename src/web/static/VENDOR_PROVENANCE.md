@@ -30,8 +30,19 @@ hashear; `.gitattributes` mantiene LF para CSS, bundle y licencias al hacer chec
 en cualquier plataforma. Esta comprobación de integridad y procedencia no acredita compatibilidad
 visual; la verificación de navegador se registra en el informe QA del proyecto.
 
-La SPA también solicita Inter y Fira Code mediante Google Fonts sin una versión
-semántica fijada. Los mapas remotos usan teselas OpenStreetMap y Esri; son servicios,
+La SPA utiliza fuentes de sistema y ya no solicita Inter/Fira Code desde el HTML.
+El build genera `css/bootstrap-zephyr.local.min.css` eliminando únicamente el
+`@import` de Google Fonts del tema Zephyr; conserva el archivo oficial, su licencia
+y los hashes de `vendor-manifest.json`. `asset-manifest.json` registra los hashes
+de origen, variante servida y gzip. El servidor selecciona esta variante cuando
+coinciden los hashes; sin build válido sirve el original oficial (que conserva su
+import de fuentes). Los mapas remotos usan teselas OpenStreetMap y Esri; son servicios,
 no bibliotecas versionadas. El generador QR local declara implementación propia y
 no un paquete npm con versión. Los assets de skills de terceros y snapshots de
 `reference/` quedan fuera de esta actualización.
+
+La comprobación del 2026-10-10 detectó que el SHA256 registrado para
+`licenses/bootswatch.txt` duplicaba el de la licencia Bootstrap. Se corrigió el
+hash observado del archivo local en el manifest, conservando sus bytes. Esta
+corrección acredita integridad del checkout; no se volvió a descargar ni a
+validar el origen declarado de esa licencia.

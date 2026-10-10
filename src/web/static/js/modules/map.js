@@ -31,7 +31,6 @@ export class MapModule {
     this._subscribeBus();
     this.initLeafletMap();
     this.initMapOverlayToggle();
-    this.initAirtimeMonitoring();
     this.initTraceroute();
 
     if (this.ctx) {
@@ -70,7 +69,6 @@ export class MapModule {
       traceStatusPill: document.getElementById("traceStatusPill"),
       traceVisualGraph: document.getElementById("traceVisualGraph"),
       traceBreakdownTableBody: document.getElementById("traceBreakdownTableBody"),
-      headerDutyCycle: document.getElementById("headerDutyCycle"),
     };
   }
 
@@ -361,10 +359,6 @@ export class MapModule {
     }
   }
 
-  async toggleRfHeatmap() {
-    await this.setRfHeatmap(!this.rfHeatmapActive);
-  }
-
   updateRfHeatmapToggleState() {
     if (this.dom.chkMapHeatmap) {
       this.dom.chkMapHeatmap.checked = this.rfHeatmapActive;
@@ -466,28 +460,6 @@ export class MapModule {
         this.ctx.showToast(I18n.t('toast.heatmap_err').replace('{err}', err.message), "error");
       }
     }
-  }
-
-  initAirtimeMonitoring() {
-    // Airtime se sincroniza de forma reactiva y centralizada mediante WebSocket en app.js y analytics.js
-  }
-
-  async fetchAirtimeStats() {
-    try {
-      const res = await fetch("/api/airtime/stats", {
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
-      });
-      const data = await res.json();
-      if (data.status === "ok" && data.data) {
-        const stats = data.data;
-        if (this.ctx.updateAirtimeBadge) {
-          this.ctx.updateAirtimeBadge(stats);
-        } else if (this.dom.headerDutyCycle) {
-          const pct = stats.hourly_duty_cycle_pct || 0.0;
-          this.dom.headerDutyCycle.textContent = `${pct.toFixed(1)}%`;
-        }
-      }
-    } catch (_) {}
   }
 
   initTraceroute() {

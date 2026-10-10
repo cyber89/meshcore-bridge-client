@@ -57,6 +57,7 @@ SHA256SUMS
 # Local tooling & search indices
 .tgrep/
 .agents/bin/
+node_modules/
 
 tests/artifacts/
 artifacts/

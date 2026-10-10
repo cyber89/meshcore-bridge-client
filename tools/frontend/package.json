@@ -1,0 +1,11 @@
+{
+  "name": "meshcore-frontend-build",
+  "private": true,
+  "scripts": {
+    "build": "node ../../scripts/build_frontend.cjs",
+    "check": "node ../../scripts/build_frontend.cjs --check"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}

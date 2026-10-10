@@ -42,6 +42,22 @@ export class NodesModule {
   }
 
   _bindEvents() {
+    // Route buttons are replaced during telemetry updates; one grid listener
+    // handles both initial and refreshed cards without rebinding every button.
+    const copyHashes = async (event) => {
+      const button = event.target.closest?.(".btn-copy-hashes");
+      if (!button || !event.currentTarget.contains(button)) return;
+      event.stopPropagation();
+      const hashes = button.getAttribute("data-hashes");
+      if (!hashes) return;
+      try {
+        await navigator.clipboard.writeText(hashes);
+        this.ctx.showToast?.(I18n.t('nodes.hashes_copied'), "info");
+      } catch (_) {}
+    };
+    this.dom.contactsGridUi?.addEventListener("click", copyHashes);
+    this.dom.nodesUnifiedGridUi?.addEventListener("click", copyHashes);
+
     if (this.dom.btnRefreshContacts) {
       this.dom.btnRefreshContacts.addEventListener("click", () => {
         this.fetchNodes();
@@ -763,21 +779,6 @@ export class NodesModule {
         </div>
       `;
 
-      card.querySelectorAll(".btn-copy-hashes").forEach((btn) => {
-        btn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          const hashes = btn.getAttribute("data-hashes");
-          if (hashes) {
-            try {
-              await navigator.clipboard.writeText(hashes);
-              if (this.ctx.showToast) {
-                this.ctx.showToast(I18n.t('nodes.hashes_copied'), "info");
-              }
-            } catch (_) {}
-          }
-        });
-      });
-
       if (isRepeater) {
         card.querySelector(".btn-manage-repeater")?.addEventListener("click", () => {
           if (this.ctx.openRepeaterAdminModal) this.ctx.openRepeaterAdminModal(node.public_key, cleanName);
@@ -938,11 +939,6 @@ export class NodesModule {
     if (contactsGrid) contactsGrid.appendChild(contactsFrag);
     if (unifiedNodesGrid) unifiedNodesGrid.appendChild(nodesFrag);
 
-    if (window.initLucideIcons) {
-      if (contactsGrid) window.initLucideIcons(contactsGrid);
-      if (unifiedNodesGrid) window.initLucideIcons(unifiedNodesGrid);
-    }
-
     // Re-aplicar filtros activos
     const qC = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
     this.filterContactsGrid(qC);
@@ -952,16 +948,6 @@ export class NodesModule {
 
     // Notificar al bus para actualizar mapa con la lista completa de nodos
     this.ctx.eventBus.emit(EVENTS.NODE_UPDATED, deduplicatedNodes);
-  }
-
-  updateNodePresenceRealtime(canonicalSender, payload) {
-    if (!canonicalSender) return;
-    const node = this.knownNodes.get(canonicalSender);
-    if (node) {
-      node.last_seen = Math.floor(Date.now() / 1000);
-      if (payload.rssi != null) node.last_rssi = payload.rssi;
-      if (payload.snr != null) node.last_snr = payload.snr;
-    }
   }
 
   initPresenceTicker() {
@@ -1269,23 +1255,6 @@ export class NodesModule {
           accordionContainer.replaceWith(newAccordion);
         } else if (!accordionContainer && newAccordion && newMetrics) {
           newMetrics.insertAdjacentElement("afterend", newAccordion);
-        }
-        card.querySelectorAll(".btn-copy-hashes").forEach((btn) => {
-          btn.addEventListener("click", async (e) => {
-            e.stopPropagation();
-            const hashes = btn.getAttribute("data-hashes");
-            if (hashes) {
-              try {
-                await navigator.clipboard.writeText(hashes);
-                if (this.ctx.showToast) {
-                  this.ctx.showToast(I18n.t('nodes.hashes_copied'), "info");
-                }
-              } catch (_) {}
-            }
-          });
-        });
-        if (window.initLucideIcons) {
-          window.initLucideIcons(card);
         }
       }
     });

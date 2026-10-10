@@ -1,2 +1,12 @@
 # Shell entrypoints must remain executable by Bash after Windows checkouts.
 *.sh text eol=lf
+# Build receipts hash exact bytes, consistently on Windows and POSIX.
+src/web/static/**/*.js text eol=lf
+src/web/static/**/*.css text eol=lf
+src/web/static/*.html text eol=lf
+src/web/static/*.json text eol=lf
+src/web/static/licenses/*.txt text eol=lf
+src/web/static/**/*.gz -text
+src/web/static/*.gz -text
+scripts/*.cjs text eol=lf
+tools/frontend/*.json text eol=lf

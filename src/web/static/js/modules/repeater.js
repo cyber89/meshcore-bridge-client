@@ -1724,7 +1724,6 @@ export class RepeaterModule {
         btn.innerHTML = `<i class="bi bi-wifi me-1" style="font-size: 14px;" aria-hidden="true"></i> ${I18n.t('repeater.discover_neighbors')}`;
         I18n.setText(btn, 'repeater.discover_neighbors');
       }
-      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
     }
   }
 

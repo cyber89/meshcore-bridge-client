@@ -41,9 +41,6 @@ export class AnalyticsModule {
     this._bindElements();
     this._bindEvents();
     this._subscribeBus();
-    if (window.initLucideIcons) {
-      window.initLucideIcons(document.getElementById("tab-analytics"));
-    }
     this.fetchAnalytics();
   }
 
