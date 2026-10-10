@@ -737,7 +737,7 @@ export class NodesModule {
               <i class="bi bi-sliders me-1" aria-hidden="true"></i>${I18n.t('nodes.manage_btn')}
             </button>
           ` : ""}
-          ${!isLocal && !isRepeater ? `
+          ${!isLocal && !isRepeater && !isSensor ? `
             <button type="button" class="btn btn-primary btn-sm btn-dm-node" title="${I18n.t('nodes.title_dm')}">
               <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>${I18n.t('nodes.chat_btn')} DM
             </button>
@@ -783,7 +783,7 @@ export class NodesModule {
           if (this.ctx.openRepeaterAdminModal) this.ctx.openRepeaterAdminModal(node.public_key, cleanName);
         });
       }
-      if (!isLocal && !isRepeater) {
+      if (!isLocal && !isRepeater && !isSensor) {
         card.querySelector(".btn-dm-node")?.addEventListener("click", () => {
           if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
         });

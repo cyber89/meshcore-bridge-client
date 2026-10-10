@@ -54,26 +54,38 @@ async def inspect_all_views() -> None:
             await page.goto(base_url, wait_until="domcontentloaded")
             await page.wait_for_timeout(1000)
 
+            # Captura Desktop (1920x1080)
             tabs = [
                 ("01_chat", "tab-chat"),
                 ("02_contacts", "tab-contacts"),
                 ("03_nodes", "tab-nodes"),
                 ("04_map", "tab-map"),
-                ("05_sniffer", "tab-sniffer"),
-                ("06_analytics", "tab-analytics"),
-                ("07_ha", "tab-ha"),
-                ("08_logs", "tab-logs"),
-                ("09_settings", "tab-settings"),
+                ("05_analytics", "tab-analytics"),
+                ("06_logs", "tab-logs"),
+                ("07_settings", "tab-settings"),
             ]
 
             for prefix, tab_id in tabs:
                 btn = page.locator(f'.nav-btn[data-tab="{tab_id}"]')
                 if await btn.count() > 0:
                     await btn.click()
-                    await page.wait_for_timeout(600)
+                    await page.wait_for_timeout(800)
                     screenshot_path = output_dir / f"{prefix}_{tab_id}.png"
                     await page.screenshot(path=str(screenshot_path), full_page=True)
-                    print(f"✓ Capturada vista: {screenshot_path}")
+                    print(f"✓ Capturada vista Desktop: {screenshot_path}")
+
+            # Capturar subpestaña Sniffer dentro de Logs
+            btn_logs = page.locator('.nav-btn[data-tab="tab-logs"]')
+            if await btn_logs.count() > 0:
+                await btn_logs.click()
+                await page.wait_for_timeout(400)
+                btn_sniffer = page.locator("#btnSubtabSniffer")
+                if await btn_sniffer.count() > 0:
+                    await btn_sniffer.click()
+                    await page.wait_for_timeout(600)
+                    sniffer_path = output_dir / "06_sub_sniffer.png"
+                    await page.screenshot(path=str(sniffer_path), full_page=True)
+                    print(f"✓ Capturada subpestaña Sniffer: {sniffer_path}")
 
             # Capturar subpestañas de Ajustes
             btn_settings = page.locator('.nav-btn[data-tab="tab-settings"]')
@@ -86,19 +98,53 @@ async def inspect_all_views() -> None:
                     "local-radio",
                     "local-owner-pos",
                     "local-console",
-                    "local-actions",
                     "local-storage-maps",
+                    "local-security",
+                    "local-services",
                 ]
 
                 for sub in subtabs:
                     s_btn = page.locator(f'.local-subtab-btn[data-subtab="{sub}"]')
                     if await s_btn.count() > 0:
                         await s_btn.click()
-                        await page.wait_for_timeout(400)
-                        sub_path = output_dir / f"09_sub_{sub}.png"
+                        await page.wait_for_timeout(500)
+                        sub_path = output_dir / f"07_sub_{sub}.png"
                         await page.screenshot(path=str(sub_path), full_page=True)
                         print(f"✓ Capturada subpestaña: {sub_path}")
 
+            # Captura Móvil (390x844 - iPhone / Smartphone estándar)
+            mobile_page = await browser.new_page(
+                viewport={"width": 390, "height": 844}, is_mobile=True
+            )
+            await mobile_page.goto(base_url, wait_until="domcontentloaded")
+            await mobile_page.wait_for_timeout(1000)
+
+            mobile_tabs = [
+                ("01_mobile_chat", "tab-chat"),
+                ("02_mobile_contacts", "tab-contacts"),
+                ("03_mobile_nodes", "tab-nodes"),
+                ("04_mobile_map", "tab-map"),
+                ("05_mobile_analytics", "tab-analytics"),
+                ("06_mobile_logs", "tab-logs"),
+                ("07_mobile_settings", "tab-settings"),
+            ]
+
+            for prefix, tab_id in mobile_tabs:
+                await mobile_page.evaluate(f"""
+                    const btn = document.querySelector('.nav-btn[data-tab="{tab_id}"]');
+                    if (btn) btn.click();
+                    const offcanvas = document.getElementById("appSidebar");
+                    if (offcanvas && typeof bootstrap !== "undefined" && bootstrap.Offcanvas) {{
+                        const inst = bootstrap.Offcanvas.getInstance(offcanvas);
+                        if (inst) inst.hide();
+                    }}
+                """)
+                await mobile_page.wait_for_timeout(800)
+                m_path = output_dir / f"{prefix}_{tab_id}.png"
+                await mobile_page.screenshot(path=str(m_path), full_page=True)
+                print(f"✓ Capturada vista Móvil: {m_path}")
+
+            await mobile_page.close()
             await browser.close()
 
     finally:

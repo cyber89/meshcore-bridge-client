@@ -808,6 +808,20 @@ class MeshCoreApp {
     el.classList.toggle("radio-status--connected", connected);
     el.classList.toggle("radio-status--disconnected", !connected);
 
+    if (connected) {
+      el.classList.remove("bg-danger-subtle", "text-danger-emphasis", "border-danger-subtle");
+      el.classList.add("bg-success-subtle", "text-success-emphasis", "border-success-subtle");
+    } else {
+      el.classList.remove("bg-success-subtle", "text-success-emphasis", "border-success-subtle");
+      el.classList.add("bg-danger-subtle", "text-danger-emphasis", "border-danger-subtle");
+    }
+
+    const dot = el.querySelector(".status-indicator-dot");
+    if (dot) {
+      dot.classList.toggle("bg-success", connected);
+      dot.classList.toggle("bg-danger", !connected);
+    }
+
     const txtEl = el.querySelector(".status-text");
     const portClean = portName ? String(portName).trim() : "";
 
