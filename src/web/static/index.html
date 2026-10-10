@@ -1461,7 +1461,7 @@
 
                     <!-- Gestor de Presets -->
                     <div class="form-group" style="background: var(--color-bg-secondary, rgba(255,255,255,0.03)); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
-                      <label style="font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+                      <label for="selExtMqttPreset" style="font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
                         <span><span data-lucide="bookmark" data-size="14" style="vertical-align: middle;"></span> <span data-i18n="services.preset_label">Perfil de Conexión (Preset):</span></span>
                         <span id="presetTypeBadge" class="badge-pill badge-primary text-xs" style="font-size: 10px;">Personalizado</span>
                       </label>
@@ -1500,7 +1500,7 @@
                           </select>
                         </div>
                         <div class="form-group">
-                          <label data-i18n="services.tls_security">Seguridad TLS / SSL:</label>
+                          <label for="chkExtMqttTls" data-i18n="services.tls_security">Seguridad TLS / SSL:</label>
                           <div style="display: flex; gap: 16px; align-items: center; margin-top: 8px;">
                             <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                               <input type="checkbox" id="chkExtMqttTls" />
@@ -2055,7 +2055,7 @@
             <div class="auth-strip-left">
               <span class="auth-icon" data-lucide="unlock" data-size="18"></span>
               <div class="auth-label-group">
-                <label class="auth-label" data-i18n="ui.static_413">Sesión de Administración Activa</label>
+                <span class="auth-label" data-i18n="ui.static_413">Sesión de Administración Activa</span>
                 <span class="auth-hint" data-i18n="ui.static_414">Credenciales verificadas y guardadas para este repetidor</span>
               </div>
             </div>
