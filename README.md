@@ -2,7 +2,7 @@
 
 Puente asíncrono bidireccional para conectar transceptores LoRa **MeshCore Companion (USB / TCP)** con **FastAPI ASGI**, **MQTT**, automatizaciones **n8n / Home Assistant** y una **SPA Web en HTML5, Vanilla CSS y JavaScript**.
 
-El servidor web seleccionado por el core es FastAPI/Uvicorn ASGI; el servidor HTTP nativo fue retirado y no existe conmutación automática hacia él. El servicio incorpora un proxy TCP Companion para aplicaciones móviles oficiales. La auditoría del 2026-10-09 revisa código y documentación sin ejecutar suites: la selección del backend no acredita paridad operativa, rendimiento ni compatibilidad de cada plataforma.
+El servidor web seleccionado por el core es FastAPI/Uvicorn ASGI; el servidor HTTP nativo fue retirado y no existe conmutación automática hacia él. El servicio incorpora un proxy TCP Companion para aplicaciones móviles oficiales. La base de ejecución acordada es **CPython 3.14.8 o superior**, según [ADR 0015](docs/adr/0015-python-3-14-8-baseline.md). La auditoría inicial del 2026-10-09 fue estática; el usuario autorizó después QA aislado. Sus resultados deben registrarse por separado y no acreditan compatibilidad con cada plataforma o hardware.
 
 ---
 
@@ -135,15 +135,19 @@ sudo bash install.sh --update
 
 ### En Windows (PowerShell)
 
+Para ejecutar en Windows, `install.ps1` detecta e inicializa automáticamente el entorno virtual con CPython 3.14.8 o superior:
+
 ```powershell
 .\install.ps1 -InstallDeps -Run
 ```
 
 ### Manualmente con Entorno Virtual de Python:
 
+Instala CPython 3.14.8 o superior y verifica que el intérprete elegido cumple ese requisito. Un entorno antiguo debe recrearse con ese intérprete; activar una venv no actualiza su Python. En Linux/macOS puede usarse `python3.14`; en Windows, `py -3.14` cuando el launcher lo ofrezca.
+
 ```bash
-# Crear entorno virtual
-python -m venv .venv
+# Crear entorno con el intérprete seleccionado
+python3.14 -m venv .venv
 source .venv/bin/activate  # En Windows: .venv\Scripts\Activate.ps1
 
 # Instalar dependencias de producción

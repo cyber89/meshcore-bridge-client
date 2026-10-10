@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any
@@ -15,6 +16,7 @@ from src.admin_handler import AdminCommandHandler, AdminContext
 from src.contact_manager import NodeRegistry
 from src.protocol_types import redact_sensitive_dict
 from src.web.api_router import WebAPIRouter
+from src.web.controllers.base import BaseController
 
 
 def station() -> tuple[WebAPIRouter, AdminCommandHandler, Any, Any, dict[str, Any]]:
@@ -197,6 +199,49 @@ async def test_missing_tuning_baseline_rejects_before_other_writes() -> None:
     assert code == 422 and "airtime_factor" in result["detail"]
     mc.commands.set_name.assert_not_awaited()
     mc.commands.set_tuning.assert_not_awaited()
+
+
+@pytest.mark.parametrize("field", ["hop_limit", "unrecognized-fixture-secret"])
+async def test_invalid_fields_do_not_reflect_request_values_or_unknown_names(field: str) -> None:
+    router, _admin, mc, _adapter, _physical = station()
+    code, result = await router.handle_request("POST", "/api/node/config", {
+        "name": "After", field: "fixture-private-value",
+    })
+    assert code == 422
+    serialized = json.dumps(result)
+    assert "fixture-private-value" not in serialized
+    assert "unrecognized-fixture-secret" not in serialized
+    if field == "hop_limit":
+        assert field in result["detail"]
+    mc.commands.set_name.assert_not_awaited()
+
+
+async def test_sdk_exception_text_is_not_a_public_validation_diagnostic() -> None:
+    router, _admin, mc, _adapter, _physical = station()
+    mc.commands.set_name.side_effect = ValueError("fixture-sdk-private-value")
+    code, result = await router.handle_request("POST", "/api/node/config", {"name": "After"})
+    assert code >= 400
+    assert "fixture-sdk-private-value" not in json.dumps(result)
+    assert "validation_fields" not in result
+    assert result["applied"] == {}
+
+
+@pytest.mark.parametrize("reason", ["unsupported_local_fields", "unknown-fixture-secret"])
+def test_validation_metadata_cannot_echo_unknown_fields_or_sdk_text(reason: str) -> None:
+    failure = BaseController.command_failure({
+        "status": "error", "code": 422, "applied": {},
+        "message": "fixture-sdk-private-value", "validation_reason": reason,
+        "validation_fields": ["hop_limit", "token=fixture-private-value"],
+    })
+    assert failure is not None and failure[0] == 422
+    serialized = json.dumps(failure[1])
+    assert "fixture-sdk-private-value" not in serialized
+    assert "fixture-private-value" not in serialized
+    assert "unknown-fixture-secret" not in serialized
+    if reason == "unsupported_local_fields":
+        assert failure[1]["validation_fields"] == ["hop_limit"]
+    else:
+        assert "validation_fields" not in failure[1]
 
 
 @pytest.mark.parametrize("pin", [0, 123456])

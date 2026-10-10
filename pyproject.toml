@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "meshcore-bridge"
 version = "3.0.0"
@@ -12,7 +16,7 @@ dependencies = [
     "fastapi==0.143.0",
     "uvicorn==0.54.0",
     "pydantic==2.14.0",
-    "websockets==17.2.0",
+    "websockets==17.2",
     "starlette==1.7.0",
     "h11==0.16.0",
 ]
@@ -23,7 +27,7 @@ web = [
     "fastapi==0.143.0",
     "uvicorn==0.54.0",
     "pydantic==2.14.0",
-    "websockets==17.2.0",
+    "websockets==17.2",
     "starlette==1.7.0",
     "h11==0.16.0",
 ]
@@ -36,7 +40,19 @@ dev = [
     "bandit==1.9.4",
     "playwright==1.63.0",
     "httpx==0.28.1",
+    "cryptography==50.0.2",
 ]
+
+[tool.setuptools]
+py-modules = ["config", "meshcore_bridge", "runtime_requirements", "run_interactive_demo"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "src.*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+"src.web" = ["static/**/*", "docs_ui/**/*", "templates/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -105,6 +121,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "scripts/*" = ["E402"]
 "tests/*" = ["E402"]
+# Fail clearly on an unsupported runtime before Python 3.14.8 PEP 562 lazy exports execute.
+"src/__init__.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"

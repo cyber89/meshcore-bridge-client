@@ -1,6 +1,6 @@
 # Herramientas de desarrollo, QA, auditoría de seguridad y E2E (NO requeridas en producción)
 # Instalar con: pip install -r requirements-dev.txt
-# Incluye producción para heredar dependencias en Python >= 3.14.8.
+# Incluye producción para heredar dependencias en CPython >= 3.14.8 estable.
 -r requirements.txt
 pytest==9.1.1
 pytest-asyncio==1.4.0
@@ -10,3 +10,5 @@ ruff==0.17.0
 bandit==1.9.4
 playwright==1.63.0
 httpx==0.28.1
+# Certificados temporales de las regresiones TLS; no se usa en producción.
+cryptography==50.0.2

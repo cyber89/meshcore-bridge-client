@@ -3,7 +3,13 @@
 Servidor stdio local para la estación autorizada `192.168.0.242`, usuario `root`.
 No se registra automáticamente en Codex, no cambia configuración global y no abre
 conexiones al importarlo o listar herramientas. Sus dependencias están separadas
-de las del bridge y requieren Python >=3.10.
+de las del bridge y requieren CPython >=3.14.8 estable. Se fijan el SDK oficial
+`mcp==2.3.0` y `paramiko==5.0.0`; MCP usa `httpx2` y se verifica en una venv propia,
+sin mezclarla con HTTPX 0.28 de las pruebas del bridge.
+Al importarlo o arrancarlo, el servidor rechaza versiones anteriores a 3.14.8,
+prereleases y otros intérpretes antes de importar Paramiko/MCP o construir
+`MCPServer`. La guarda usa sólo la biblioteca estándar y no carga la configuración
+ni el `.env` de la aplicación. La QA registrada corresponde a CPython 3.14.8.
 
 Instalar exclusivamente en un entorno local de mantenimiento y ejecutar con ese
 intérprete:
@@ -50,8 +56,23 @@ timers de radio ni cambios del servicio al arrancar el MCP. La cancelación del
 cliente no detiene instantáneamente un thread ya iniciado; los límites de red y
 comando siguen aplicándose.
 
-Fuentes primarias: [SDK MCP v1 y FastMCP](https://py.sdk.modelcontextprotocol.io/v1/),
+Fuentes primarias: [Migración del SDK MCP v2](https://py.sdk.modelcontextprotocol.io/migration/),
 [Transport Paramiko](https://docs.paramiko.org/en/stable/api/transport.html),
-[SFTP Paramiko](https://docs.paramiko.org/en/stable/api/sftp.html).
-La dependencia `mcp<2` conserva la API FastMCP de la línea v1; no usa el paquete
-FastMCP de terceros ni instala CLI extras.
+[SFTP Paramiko](https://docs.paramiko.org/en/stable/api/sftp.html) y
+[cambios de Paramiko 5](https://www.paramiko.org/changelog.html).
+El servidor usa `MCPServer` de `mcp.server.mcpserver`, decoradores `tool()` y
+transporte stdio del SDK oficial. No usa FastMCP de terceros ni instala CLI extras.
+Paramiko 5 retira algoritmos SHA1 y GSS; no se reactivan para servidores antiguos.
+La interoperabilidad con una estación concreta requiere una comprobación autorizada.
+
+Las regresiones propias se ejecutan en el entorno separado de mantenimiento:
+
+```text
+python -m pytest -c tools/ssh_mcp/tests/pytest.ini tools/ssh_mcp/tests
+python -m pip check
+```
+
+Son pruebas con sockets bloqueados por defecto y dobles de Paramiko; no ejecutan
+el servidor stdio ni conexiones SSH reales. Comprueban registro MCP, salida
+estructurada, pinning previo a autenticación, cierre de transport y validación
+de archivos staging. No acreditan interoperabilidad SSH en producción.

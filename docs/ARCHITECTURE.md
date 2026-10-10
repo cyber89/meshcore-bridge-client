@@ -1,9 +1,9 @@
 # Arquitectura de MeshCore Bridge v3.0
 
 ## 1. Resumen Ejecutivo
-MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante Python 3.10+ y `asyncio`. El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa una pila de producción basada en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) para REST, WebSocket, teselas MBTiles y SPA.
+MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante CPython 3.14.8+ y `asyncio`, conforme a [ADR 0015](adr/0015-python-3-14-8-baseline.md). El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa una pila de producción basada en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) para REST, WebSocket, teselas MBTiles y SPA.
 
-Documento vigente revisado el 2026-10-09 por inspección de código. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
+Documento revisado por inspección de código el 2026-10-09 y actualizado para la decisión de runtime del 2026-10-10. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
 
 Actualización de arquitectura (Octubre 2026): El bridge opera con un servidor de producción
 basado en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`). Las fases de migración
@@ -11,7 +11,7 @@ basado en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`). La
 [DTO/errores de fase 2](fastapi/PHASE_2_REPORT.md), [rutas REST de fase 3](fastapi/PHASE_3_REPORT.md),
 [WS/SPA/mapas de fase 4](fastapi/PHASE_4_REPORT.md), [OpenAPI/docs de fase 5](fastapi/PHASE_5_REPORT.md)
 y [release de fase 6](fastapi/PHASE_6_REPORT.md)) consolidan los adaptadores REST, WebSocket Hub,
-servicio de teselas MBTiles y visor propio OpenAPI 3.1.0 (`/docs`, alias `/redoc`, `/openapi.json`). El core selecciona ASGI; el servidor HTTP nativo está retirado y no existe fallback hacia él. Las suites siguen suspendidas por instrucción del usuario; esta selección no acredita aceptación operativa.
+servicio de teselas MBTiles y visor propio OpenAPI 3.1.0 (`/docs`, alias `/redoc`, `/openapi.json`). El core selecciona ASGI; el servidor HTTP nativo está retirado y no existe fallback hacia él. La suspensión de suites correspondía a la auditoría inicial; el usuario autorizó posteriormente pytest/cobertura, mypy, Ruff y navegador en entornos aislados. Esta selección no acredita aceptación operativa.
 
 Las rutas REST reciben `Request` y delegan en `WebAPIRouter.handle_request()`; los controladores devuelven `tuple[int, dict[str, Any]]`. Los DTO Pydantic describen campos abiertos para documentación, sin `model_validate` ni filtrado de entradas en ejecución. El visor utiliza recursos propios locales y no incluye los paquetes Swagger UI o ReDoc.
 

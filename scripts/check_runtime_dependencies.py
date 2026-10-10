@@ -21,7 +21,7 @@ WEB_DEPENDENCIES = (
     ("fastapi", "fastapi", (0, 143, 0)),
     ("uvicorn", "uvicorn", (0, 54, 0)),
     ("pydantic", "pydantic", (2, 14, 0)),
-    ("websockets", "websockets", (17, 2, 0)),
+    ("websockets", "websockets", (17, 2)),
     ("starlette", "starlette", (1, 7, 0)),
     ("h11", "h11", (0, 16, 0)),
 )
@@ -38,6 +38,18 @@ PROFILES: dict[str, tuple[tuple[str, str, tuple[int, ...]], ...]] = {
     "web": DEPENDENCIES + WEB_DEPENDENCIES,
 }
 
+MIN_PYTHON_VERSION = (3, 14, 8)
+
+
+def _stable_release(version: str) -> tuple[int, ...] | None:
+    """Normalize final numeric releases without accepting pre/post/local suffixes."""
+    if re.fullmatch(r"[0-9]+(?:\.[0-9]+)*", version) is None:
+        return None
+    parts = tuple(int(part) for part in version.split("."))
+    while len(parts) > 1 and parts[-1] == 0:
+        parts = parts[:-1]
+    return parts
+
 
 def check_dependencies(
     importer: Callable[[str], object] = importlib.import_module,
@@ -47,8 +59,8 @@ def check_dependencies(
 ) -> list[str]:
     """Return all failures; importing one package never certifies another."""
     failures = []
-    if sys.version_info < (3, 14, 8):
-        failures.append("Python requiere >=3.14.8")
+    if sys.version_info[:3] < MIN_PYTHON_VERSION or sys.version_info.releaselevel != "final":
+        return ["Python requiere >=3.14.8 estable"]
     if dependencies is None:
         selected_profile = (
             profile if profile is not None else os.getenv("MESHCORE_PROFILE", "web")
@@ -63,7 +75,7 @@ def check_dependencies(
             version = version_reader(distribution)
             pinned = WEB_PINNED_VERSIONS.get(distribution)
             if pinned is not None:
-                if version != pinned:
+                if _stable_release(version) != _stable_release(pinned):
                     failures.append(f"{distribution}: {version}, requiere == {pinned}")
                 continue
             match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?", version)

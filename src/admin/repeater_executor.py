@@ -278,7 +278,12 @@ class RepeaterAdminExecutor:
 
         for p_key in params:
             if p_key not in allowed_keys:
-                return {"status": "error", "message": f"Parámetro de configuración remota desconocido: '{p_key}'"}
+                if p_key in {"hop_limit", "hops"}:
+                    return {
+                        "status": "error", "message": "Parámetro remoto no soportado",
+                        "validation_reason": "unsupported_remote_fields", "validation_fields": [p_key],
+                    }
+                return {"status": "error", "message": "Parámetro de configuración remota desconocido"}
 
         # Consolidación atómica de parámetros de radio si se recibieron configuraciones de RF (B11)
         radio_keys = {"freq", "frequency", "bw", "bandwidth", "sf", "spreading_factor", "cr", "coding_rate"}

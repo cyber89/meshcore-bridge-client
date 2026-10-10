@@ -1,6 +1,6 @@
 # Explicación técnica del código de MeshCore Bridge
 
-Guía del checkout actual, conciliada el 2026-10-09 mediante lectura del código. No acredita medidas de rendimiento ni resultados de QA. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
+Guía conciliada el 2026-10-09 mediante lectura del código y actualizada el 2026-10-10 para el baseline CPython 3.14.8+ de [ADR 0015](adr/0015-python-3-14-8-baseline.md). No acredita medidas de rendimiento ni resultados de QA. Las decisiones de runtime y las verificaciones ejecutadas se registran por separado. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
 
 ## 1. Entrada, configuración y composición
 
@@ -76,6 +76,14 @@ El core selecciona ASGI y el servidor HTTP nativo está retirado; no hay selecto
 `asgi_docs.py` publica un visor propio offline en `/docs` y su alias `/redoc`, además de `/openapi.json`. No incorpora Swagger UI/ReDoc ni ejecuta acciones del catálogo. El esquema usa autenticación por `X-Api-Key` cuando hay clave configurada; el visor conserva esa clave sólo en memoria. La política Origin REST/WS de compatibilidad admite también loopback y LAN privada.
 
 Las proyecciones REST de configuración de servicios enmascaran password/token en ambas listas de presets. Los logs y errores de los controladores revisados evitan valores de excepciones; el mapa escapa SNR/RSSI/RTT antes de insertar HTML. Son correcciones acotadas, no una certificación global de seguridad.
+
+Los rechazos de configuración local por campos no soportados o baselines incompletos
+conservan HTTP 422 antes de escribir; el rechazo remoto de `hop_limit`/`hops` conserva
+HTTP 400 antes de login o comandos. Los ejecutores identifican esos casos con
+`validation_reason` y `validation_fields`; `BaseController` reconstruye el detalle
+usando motivos y nombres del esquema en listas cerradas. Los valores de la solicitud,
+los nombres desconocidos y el texto de excepciones SDK no se reflejan en ese detalle.
+Las respuestas parciales siguen informando sólo los cambios confirmados.
 
 `BRIDGE_API_KEY` protege operaciones sensibles y handshake WebSocket cuando está configurada. Companion TCP tiene controles independientes (`COMPANION_ALLOWED_IPS`, `COMPANION_TOKEN`, límite de clientes). La política HTTP no autentica las conexiones MQTT; éstas dependen del broker.
 

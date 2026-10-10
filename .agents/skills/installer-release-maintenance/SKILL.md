@@ -15,7 +15,9 @@ y entrega Git. Leer [AGENTS.md](../../../AGENTS.md),
   documental permite lectura y análisis, no ejecutar un instalador en producción.
   No recrear deploy/ o scripts/sync_deploy.py.
 - Acreditar intérprete y entorno usados por pip, launcher y servicio. Mantener
-  Python >=3.10 y separar dependencias de producción/QA. Usar herramientas locales;
+  CPython >=3.14.8 y separar dependencias de producción/QA. Una venv antigua debe
+  recrearse con el intérprete seleccionado; activar o actualizar pip no cambia
+  su Python. Usar herramientas locales;
   no actualizar paquetes/globales por conveniencia de la auditoría.
 - Resolver rutas origen/destino antes de borrar, mover o copiar recursivamente.
   El update debe conservar .env y datos y funcionar cuando origen coincide con

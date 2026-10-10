@@ -1,19 +1,22 @@
 ---
 name: python-patterns-typing
-description: Mantener Python 3.10 compatible, tipos estrictos y modelos de dominio de MeshCore Bridge; usar al modificar Python del proyecto.
+description: Mantener CPython 3.14.8+, tipos estrictos y modelos de dominio de MeshCore Bridge; usar al modificar Python del proyecto.
 ---
 
 # Python del bridge
 
 Respetar [AGENTS.md](../../../AGENTS.md), [CONTEXT.md](../../../CONTEXT.md) y
-[pyproject.toml](../../../pyproject.toml). El mínimo soportado es Python 3.10.
+[pyproject.toml](../../../pyproject.toml). El mínimo acordado es CPython 3.14.8,
+según [ADR 0015](../../../docs/adr/0015-python-3-14-8-baseline.md). Verificar el
+intérprete real; los resultados de runtimes anteriores son históricos.
 
 - Anotar interfaces públicas y funciones nuevas; usar Protocol para adaptadores y
   reservar Any para límites externos que todavía no tienen esquema validado.
 - Los enums de protocolo son IntEnum; usar dataclasses frozen para valores inmutables
   y slots cuando corresponda. No congelar indiscriminadamente estado operativo mutable.
-- `typing.Self` y `assert_never` son de Python 3.11. En 3.10 usar TypeVar/patrones
-  compatibles; un backport requiere dependencia explícita y justificación.
+- `typing.Self`, `assert_never` y los alias PEP 695 están disponibles de forma nativa.
+  Usarlos cuando expresen el contrato; no introducir backports para versiones
+  anteriores ni modernizar anotaciones sin revisar sus consumidores.
 - Mantener cancelación, referencias a tareas propias y limpieza de recursos.
   Ver [async-concurrency-engineering](../async-concurrency-engineering/SKILL.md).
 - Pruebas autorizadas: fixtures temporales, mocks del SDK y adaptadores virtuales;

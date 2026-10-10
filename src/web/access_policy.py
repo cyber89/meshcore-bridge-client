@@ -55,8 +55,8 @@ CONTENT_SECURITY_POLICY = (
     "frame-ancestors 'none'"
 )
 
-RawHeader = tuple[bytes, bytes]
-RouteKind = Literal["api", "tile", "preflight", "static", "websocket"]
+type RawHeader = tuple[bytes, bytes]
+type RouteKind = Literal["api", "tile", "preflight", "static", "websocket"]
 logger = logging.getLogger(__name__)
 
 

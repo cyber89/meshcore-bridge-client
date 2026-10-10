@@ -70,9 +70,10 @@ class MqttInboundDispatcher:
     def handle_incoming(self, topic: str, payload_str: str) -> None:
         """Punto de entrada sincrónico que programa el procesamiento asíncrono."""
         max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
-        if len(payload_str.encode("utf-8")) > max_payload_size:
+        payload_size = len(payload_str.encode("utf-8"))
+        if payload_size > max_payload_size:
             logging.warning(
-                f"Payload MQTT entrante en dispatcher excede el límite permitido ({len(payload_str.encode('utf-8'))} > {max_payload_size} B). Descartando en {topic}."
+                f"Payload MQTT entrante en dispatcher excede el límite permitido ({payload_size} > {max_payload_size} B). Descartando en {topic}."
             )
             return
 

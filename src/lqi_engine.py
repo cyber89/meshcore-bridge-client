@@ -5,8 +5,6 @@ Calcula métricas combinadas de SNR, RSSI, penalización de saltos (Hop Penalty)
 suavizado mediante Media Móvil Exponencial (EMA) y decaimiento por inactividad temporal.
 """
 
-from __future__ import annotations
-
 import math
 import time
 from enum import StrEnum

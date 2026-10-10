@@ -50,6 +50,15 @@ OTHER_PARAM_FIELDS = (
     "multi_acks", "adv_loc_policy", "manual_add_contacts",
 )
 
+
+class LocalConfigValidationError(ValueError):
+    """Carry schema field names separately from untrusted SDK exception text."""
+
+    def __init__(self, reason: str, fields: tuple[str, ...]) -> None:
+        super().__init__("Configuración local rechazada antes de aplicar cambios")
+        self.reason = reason
+        self.fields = fields
+
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
 
@@ -129,7 +138,7 @@ class LocalConfigExecutor:
                 continue
             value = self._get_device_baseline(key, ())
             if value is None:
-                raise ValueError(f"Baseline del dispositivo no disponible para {key}; actualice desde el dispositivo antes de guardar")
+                raise LocalConfigValidationError("missing_device_baseline", (key,))
             infos[key] = value
         return infos
 
@@ -569,10 +578,7 @@ class LocalConfigExecutor:
 
         unsupported = sorted(UNSUPPORTED_LOCAL_FIELDS.intersection(params))
         if unsupported:
-            raise ValueError(
-                "Parámetros no soportados por el nodo local: " + ", ".join(unsupported)
-                + ". El firmware Companion no expone estos ajustes; no se aplicó ningún cambio."
-            )
+            raise LocalConfigValidationError("unsupported_local_fields", tuple(unsupported))
 
         allowed_local_keys = frozenset({
             # Identidad y ubicación
@@ -713,7 +719,7 @@ class LocalConfigExecutor:
         if any(key in params for key in ("rx_delay", "rx_dly", "airtime_factor", "af")):
             for field, alias in (("rx_delay", "rx_dly"), ("airtime_factor", "af")):
                 if field not in params and alias not in params and self._get_device_baseline(field, (alias,)) is None:
-                    raise ValueError(f"Baseline de tuning no disponible para {field}; actualice desde el dispositivo o especifique ambos ajustes")
+                    raise LocalConfigValidationError("missing_tuning_baseline", (field,))
 
         # Prevalidación de custom_vars
         if "custom_vars" in params and not isinstance(params["custom_vars"], dict):
@@ -744,9 +750,12 @@ class LocalConfigExecutor:
                 "code": 422 if not applied and isinstance(error, ValueError) else (400 if applied else 422),
                 "action": "set_local_config",
                 "applied": redact_sensitive_dict(applied),
-                "message": str(error),
+                "message": "Configuración local rechazada" if not applied else "Configuración local aplicada parcialmente",
                 "config": redact_sensitive_dict(self.get_local_config()),
             })
+            if not applied and isinstance(error, LocalConfigValidationError):
+                res["validation_reason"] = error.reason
+                res["validation_fields"] = list(error.fields)
             pub_res = redact_sensitive_dict(dict(res))
             self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(pub_res), 1)
             return res

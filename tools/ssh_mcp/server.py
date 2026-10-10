@@ -10,6 +10,7 @@ import os
 import re
 import shlex
 import socket
+import sys
 import tarfile
 import time
 from collections.abc import Iterator
@@ -17,8 +18,15 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO
 
-import paramiko
-from mcp.server.fastmcp import FastMCP
+if (
+    sys.implementation.name != "cpython"
+    or sys.version_info[:3] < (3, 14, 8)
+    or sys.version_info.releaselevel != "final"
+):
+    raise RuntimeError("CPython 3.14.8 or newer stable is required for SSH maintenance")
+
+import paramiko  # noqa: E402 - validate the runtime before loading third-party SDKs
+from mcp.server.mcpserver import MCPServer  # noqa: E402
 
 HOST = "192.168.0.242"
 USER = "root"
@@ -33,7 +41,7 @@ PRIVATE_KEY = re.compile(
     r"-----BEGIN [^-\n]*PRIVATE KEY-----.*?(?:-----END [^-\n]*PRIVATE KEY-----|\Z)",
     re.DOTALL,
 )
-mcp = FastMCP("MeshCore station SSH maintenance")
+mcp = MCPServer("MeshCore station SSH maintenance")
 
 
 def redact(text: str) -> str:
@@ -217,11 +225,8 @@ def _upload(local_path: str, remote_path: str, expected_host_key: str) -> dict[s
 
 
 def _hash_file(source: BinaryIO) -> str:
-    """Streaming digest compatible with Python 3.10."""
-    digest = hashlib.sha256()
-    while chunk := source.read(65536):
-        digest.update(chunk)
-    return digest.hexdigest()
+    """Compute a streaming digest using the native CPython file helper."""
+    return hashlib.file_digest(source, "sha256").hexdigest()
 
 
 @mcp.tool()

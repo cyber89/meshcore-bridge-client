@@ -19,7 +19,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, cast
+from typing import Any, Self, cast
 
 
 class TxPriority(IntEnum):
@@ -176,7 +176,7 @@ class AirtimeRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> AirtimeRecord:
+    def from_dict(cls, data: dict[str, Any]) -> Self:
         return cls(
             timestamp=float(data.get("timestamp", 0.0)),
             airtime_ms=float(data.get("airtime_ms", 0.0)),

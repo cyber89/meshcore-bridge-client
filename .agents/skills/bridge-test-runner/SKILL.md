@@ -9,6 +9,10 @@ Leer [AGENTS.md](../../../AGENTS.md) y [TESTING.md](../../../docs/TESTING.md).
 Ejecutar suites únicamente cuando el usuario lo solicite; una autorización se mantiene
 durante la tarea. Las verificaciones usan radio virtual, loopback y datos temporales.
 
+El baseline es CPython 3.14.8+, conforme al [ADR 0015](../../../docs/adr/0015-python-3-14-8-baseline.md).
+Registrar intérprete, plataforma, arquitectura, pins y pip check de un entorno
+aislado. Los resultados obtenidos con versiones anteriores no acreditan este baseline.
+
 El ejecutor canónico es [run_quality_checks.py](../../../scripts/run_quality_checks.py).
 [run_checks.py](scripts/run_checks.py) conserva el punto de entrada de esta skill.
 

@@ -2,13 +2,13 @@
 
 > **Audiencia**: Ingenieros de software, desarrolladores de sistemas embebidos, arquitectos de integración y técnicos de soporte que requieran comprender en profundidad el diseño modular, contratos de interfaz, clases, métodos y flujos de datos de **MeshCore Bridge**.
 
-Conciliado con el código el 2026-10-09 mediante lectura estática. Las capas organizan responsabilidades; no acreditan aislamiento absoluto, medidas de recursos o paridad operativa. Las suites permanecen suspendidas por instrucción del usuario.
+Conciliado con el código el 2026-10-09 mediante lectura estática y actualizado para la decisión de runtime del 2026-10-10. Las capas organizan responsabilidades; no acreditan aislamiento absoluto, medidas de recursos o paridad operativa. El usuario autorizó posteriormente QA aislado; sus resultados se reportan por separado.
 
 ---
 
 ## 1. Fundamentos y Filosofía de Diseño
 
-**MeshCore Bridge** es una pasarela asíncrona desarrollada en **Python 3.10+ (`asyncio`)** que interconecta bidireccionalmente redes de malla LoRa (basadas en el protocolo y firmware oficial de MeshCore) con plataformas IP (WebSockets, REST API y mensajería MQTT para automatización con n8n/Node-RED).
+**MeshCore Bridge** es una pasarela asíncrona con baseline **CPython 3.14.8+ (`asyncio`)**, según [ADR 0015](adr/0015-python-3-14-8-baseline.md), que interconecta bidireccionalmente redes de malla LoRa (basadas en el protocolo y firmware oficial de MeshCore) con plataformas IP (WebSockets, REST API y mensajería MQTT para automatización con n8n/Node-RED).
 
 El sistema sigue tres principios arquitectónicos fundamentales:
 
@@ -170,6 +170,10 @@ Punto de despacho unificado para operaciones administrativas generadas desde RES
 
 #### Ejecutores Especializados (`src/admin/`)
 - **`LocalConfigExecutor` (`local_config_executor.py`)**: Aplica cambios de frecuencia, ancho de banda (BW), spreading factor (SF), potencia de transmisión (TX power) y sincroniza el reloj RTC del microcontrolador con la hora del host.
+  Antes de guardar, rechaza campos no soportados y baselines incompletos sin aplicar
+  otras escrituras del lote. Los motivos y campos de validación se transmiten como
+  metadatos estructurados; REST admite sólo nombres de una lista cerrada para generar
+  detalles útiles sin publicar valores de entrada o excepciones SDK.
 - **`RepeaterAdminExecutor` (`repeater_executor.py`)**: Gestiona la autenticación administrativa con repetidores remotos (`login`/`logout`), asegurando que ninguna contraseña se envíe en texto plano por chat si falla el método binario del SDK, y ejecuta comandos remotos en el repetidor.
 - **`TracerouteExecutor` (`traceroute_executor.py`)**: Dispara tramas `send_trace` y espera asíncronamente el evento `TRACE_DATA` correlacionado para reportar la cadena de repetidores por los que viaja el paquete.
 - **`CliCommandExecutor` (`cli_command_executor.py`)**: Interfaz para ejecutar comandos directos de depuración en la consola CLI de la radio (`ver`, `bat`, `stats`).

@@ -34,6 +34,10 @@ Los ADRs documentan las decisiones arquitectónicas fundamentales tomadas a lo l
 - **[ADR 0009: Capas del Protocolo Companion Oficial](adr/0009-official-companion-protocol-layers.md)**
 - **[ADR 0010: Presupuesto Configurable de Duty Cycle](adr/0010-duty-cycle-configurable-budget.md)**
 - **[ADR 0011: Migración Escalonada a FastAPI/Uvicorn ASGI](adr/0011-staged-asgi-migration.md)**
+- **[ADR 0012: Frontend Bootstrap 5](adr/0012-bootstrap-5-frontend-architecture.md)**
+- **[ADR 0013: Propuesta histórica de Python 3.14, sustituida](adr/0013-python-3-14-modernization.md)**
+- **[ADR 0014: Decisión histórica CPython 3.15.0, sustituida](adr/0014-python-3-15-baseline.md)**
+- **[ADR 0015: Baseline CPython 3.14.8 y estabilización de dependencias](adr/0015-python-3-14-8-baseline.md)**
 
 ---
 

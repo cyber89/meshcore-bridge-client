@@ -1,0 +1,72 @@
+{
+  "review_date": "2026-10-10",
+  "packages": [
+    {
+      "package": "bootstrap",
+      "version": "5.3.8",
+      "registry": "https://registry.npmjs.org/bootstrap/5.3.8",
+      "tarball": "https://registry.npmjs.org/bootstrap/-/bootstrap-5.3.8.tgz",
+      "npm_integrity": "sha512-HP1SZDqaLDPwsNiqRqi5NcP0SSXciX2s9E+RyqJIIqGo+vJeN5AJVM98CXmW/Wux0nQ5L7jeWUdplCEf0Ee+tg==",
+      "tarball_sha256": "8b02d4a7482e0f0a2b1da58f1c9c86830e96cc2f77f094f89e4681b19886bc38",
+      "files": [
+        {
+          "source": "package/dist/css/bootstrap.min.css",
+          "path": "src/web/static/css/bootstrap.min.css",
+          "sha256": "d85327d99c7a3ee1f9b5d0500d1370acea3ad2db39c163c2f51f232baedbdede",
+          "bytes": 232111
+        },
+        {
+          "source": "package/dist/js/bootstrap.bundle.min.js",
+          "path": "src/web/static/js/bootstrap.bundle.min.js",
+          "sha256": "e4fd49181388c48ec5040bd3fe66f57c29c8e67fcd8502b3354b96ec7ab47cc7",
+          "bytes": 80496
+        },
+        {
+          "source": "package/LICENSE",
+          "path": "src/web/static/licenses/bootstrap.txt",
+          "sha256": "4620c84ad5ce8602ff65640ed6b7c8b78ebb9e036584f0ebc1ccc88206a4bb51",
+          "bytes": 1093
+        }
+      ]
+    },
+    {
+      "package": "bootstrap-icons",
+      "version": "1.13.2",
+      "registry": "https://registry.npmjs.org/bootstrap-icons/1.13.2",
+      "tarball": "https://registry.npmjs.org/bootstrap-icons/-/bootstrap-icons-1.13.2.tgz",
+      "npm_integrity": "sha512-fAU1Ly3dH7hwRg+CB8EZ0Vl0fF80zgXHeUVJyfUOKzoURr+TbwISbCW5tKUoQLERaWYG2emTCybcPbD96hdD1A==",
+      "tarball_sha256": "7b5960145e1ab14a49a117f96a9e5a54a94fdf07f21e302d9e4f88d73dd19f9c",
+      "files": [
+        {
+          "source": "package/font/bootstrap-icons.min.css",
+          "path": "src/web/static/css/bootstrap-icons.min.css",
+          "sha256": "79c99c1a1e0e937f808a58165728b7ed00800f02ef5efcfcd10dfe71464e675d",
+          "bytes": 87008
+        },
+        {
+          "source": "package/font/fonts/bootstrap-icons.woff",
+          "path": "src/web/static/css/fonts/bootstrap-icons.woff",
+          "sha256": "24929e8a44da027588f833d4e82240ee734bd65bf962b08b0545af58a9ce80fa",
+          "bytes": 180288
+        },
+        {
+          "source": "package/font/fonts/bootstrap-icons.woff2",
+          "path": "src/web/static/css/fonts/bootstrap-icons.woff2",
+          "sha256": "2b7689746f87e0beeae25338bc021dd2515c2f6f003f3d3d064d878d380b2150",
+          "bytes": 134012
+        },
+        {
+          "source": "package/LICENSE",
+          "path": "src/web/static/licenses/bootstrap-icons.txt",
+          "sha256": "0fb3e11bd57e896c5a512afd64864d28a37de45d19835016c87ca1ad19ead969",
+          "bytes": 1093
+        }
+      ]
+    }
+  ],
+  "leaflet": {
+    "version": "1.9.4",
+    "distribution": "unpkg CDN with existing SRI",
+    "stable_source": "https://registry.npmjs.org/leaflet/latest"
+  }
+}

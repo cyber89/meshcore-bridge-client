@@ -31,7 +31,11 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         self.bridge.serial_adapter.send_message = AsyncMock(return_value={"status": "SENT"})
 
     def tearDown(self):
-        self.loop.close()
+        try:
+            self.loop.run_until_complete(self.bridge.rate_limiter.stop())
+            self.loop.run_until_complete(self.loop.shutdown_default_executor())
+        finally:
+            self.loop.close()
 
     def test_concurrent_deduplicator_multithreaded(self):
         """Prueba 10 hilos concurrentes verificando hashes de paquetes en RAM sin condiciones de carrera."""
@@ -74,7 +78,25 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         self.assertTrue(len(status_publishes) > 0)
         status_data = json.loads(status_publishes[-1])
         self.assertEqual(status_data["status"], "error")
-        self.assertTrue("USB Device Disconnected" in status_data.get("error", ""))
+        # SDK exception strings are private; MQTT exposes the fixed failure.
+        self.assertEqual(status_data["error"], "No se confirmó la transmisión por radio")
+        self.assertNotIn("USB Device Disconnected", json.dumps(status_data))
+
+        # A subsequent transmission must still finish after the adapter failed.
+        self.bridge.serial_adapter.send_message.side_effect = None
+        self.bridge.serial_adapter.send_message.return_value = {"status": "SENT"}
+        recovery = self.loop.run_until_complete(
+            self.bridge._execute_tx({**tx_data, "request_id": "test_after_failure"})
+        )
+        self.assertEqual(recovery["status"], "sent")
+        self.assertEqual(self.bridge.tx_count, 2)
+        self.assertEqual(self.bridge.tx_error_count, 1)
+        self.assertEqual(self.bridge.serial_adapter.send_message.await_count, 2)
+        latest_status = json.loads([
+            p for t, p in self.published if t == "meshcore/tx/status"
+        ][-1])
+        self.assertEqual(latest_status["request_id"], "test_after_failure")
+        self.assertEqual(latest_status["status"], "sent")
 
 
 if __name__ == "__main__":

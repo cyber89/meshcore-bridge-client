@@ -11,6 +11,25 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+_CONFIG_VALIDATION_FIELDS = {
+    "unsupported_local_fields": frozenset({
+        "telemetry_interval", "beacon_interval", "advert_interval", "hop_limit", "hops",
+        "owner_info", "owner", "altitude", "alt", "altitude_m", "fixed_position", "pos_fixed",
+    }),
+    "unsupported_remote_fields": frozenset({"hop_limit", "hops"}),
+    "missing_device_baseline": frozenset({
+        "telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env",
+        "multi_acks", "adv_loc_policy", "manual_add_contacts",
+    }),
+    "missing_tuning_baseline": frozenset({"rx_delay", "airtime_factor"}),
+}
+_CONFIG_VALIDATION_LABELS = {
+    "unsupported_local_fields": "Parámetros no soportados por el nodo local",
+    "unsupported_remote_fields": "Parámetros no soportados por el repetidor",
+    "missing_device_baseline": "Baseline del dispositivo no disponible para",
+    "missing_tuning_baseline": "Baseline de tuning no disponible para",
+}
+
 
 @dataclass(slots=True)
 class ApiContext:
@@ -75,6 +94,16 @@ class BaseController:
                     else "El transceptor rechazó la operación"
                 )
                 extra: dict[str, Any] = {}
+                # Only schema names from a closed vocabulary may explain prevalidation.
+                # Never reflect producer message/error strings or supplied field values.
+                reason = result.get("validation_reason")
+                fields = result.get("validation_fields")
+                if status in {"ERROR", "FAILED"} and not result.get("applied") and isinstance(reason, str) and isinstance(fields, list):
+                    allowed_fields = _CONFIG_VALIDATION_FIELDS.get(reason, frozenset())
+                    safe_fields = sorted({field for field in fields if isinstance(field, str) and field in allowed_fields})
+                    if safe_fields:
+                        msg = _CONFIG_VALIDATION_LABELS[reason] + ": " + ", ".join(safe_fields)
+                        extra["validation_fields"] = safe_fields
                 for k in ("applied", "config", "action", "dispatched_commands", "target_node"):
                     if k in result:
                         extra[k] = result[k]

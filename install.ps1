@@ -31,6 +31,43 @@ function Test-RuntimeDependencies {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Test-PythonRuntime {
+    param([string]$PythonPath)
+    & $PythonPath -c 'import sys, venv, ensurepip; raise SystemExit(0 if sys.version_info >= (3, 14, 8) and sys.version_info.releaselevel == "final" else 1)' 2>$null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Find-PythonRuntime {
+    if ($env:MESHCORE_PYTHON) {
+        if (-not (Test-PythonRuntime -PythonPath $env:MESHCORE_PYTHON)) {
+            throw "MESHCORE_PYTHON debe señalar CPython >=3.14.8 estable con venv/ensurepip."
+        }
+        return $env:MESHCORE_PYTHON
+    }
+    $Candidates = @()
+    foreach ($Name in @('python3.14', 'python')) {
+        $Command = Get-Command $Name -ErrorAction SilentlyContinue
+        if ($Command) { $Candidates += $Command.Source }
+    }
+    $Launcher = Get-Command py -ErrorAction SilentlyContinue
+    if ($Launcher) {
+        # Listing installed interpreters cannot trigger the install manager's
+        # automatic download, unlike requesting an absent version with py -3.14.
+        $Installed = & $Launcher.Source -0p 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            foreach ($Line in $Installed) {
+                if ($Line -match '^\s*-(?:V:)?3\.14(?:-\d+)?\s+\*?\s*(.+?)\s*$') {
+                    $Candidates += $Matches[1]
+                }
+            }
+        }
+    }
+    foreach ($Candidate in $Candidates) {
+        if (Test-PythonRuntime -PythonPath $Candidate) { return $Candidate }
+    }
+    throw "CPython >=3.14.8 estable no está disponible. Instálalo desde python.org o indica MESHCORE_PYTHON; no se usará un intérprete anterior."
+}
+
 Write-Host "==================================================================" -ForegroundColor Cyan
 Write-Host "    🚀 GESTOR DE MESHCORE BRIDGE PARA WINDOWS (v3.0.0)" -ForegroundColor Green
 Write-Host "    Heltec / LilyGO / RAKwireless / Seeed / RP2040 <-> MQTT <-> n8n" -ForegroundColor Yellow
@@ -47,20 +84,17 @@ if (Test-Path $VenvPython) {
     $PythonPath = $VenvPython
     Write-Host "[OK] Entorno virtual existente detectado: $PythonPath" -ForegroundColor Green
 } else {
-    $SystemPython = (Get-Command python -ErrorAction SilentlyContinue).Source
-    if (-not $SystemPython) {
-        $SystemPython = (Get-Command py -ErrorAction SilentlyContinue).Source
-    }
-
-    if (-not $SystemPython) {
-        Write-Host "[ERROR] Python no fue encontrado en el PATH. Por favor instala Python 3.14.8+ desde python.org." -ForegroundColor Red
-        exit 1
-    }
+    $SystemPython = Find-PythonRuntime
 
     Write-Host "[*] Creando entorno virtual aislado en $ScriptDir\.venv..." -ForegroundColor Cyan
     Invoke-NativeCommand { & $SystemPython -m venv "$ScriptDir\.venv" } "Fallo al crear el entorno virtual."
     $PythonPath = $VenvPython
     Write-Host "[OK] Entorno virtual creado: $PythonPath" -ForegroundColor Green
+}
+
+if (-not (Test-PythonRuntime -PythonPath $PythonPath)) {
+    Write-Host "[ERROR] El entorno requiere CPython >=3.14.8 estable. Conserva sus datos y recrea .venv con el intérprete indicado antes de instalar paquetes." -ForegroundColor Red
+    exit 1
 }
 
 # 2. Instalar dependencias de producción
@@ -75,7 +109,7 @@ if ($InstallDeps -or -not (Test-RuntimeDependencies -PythonPath $PythonPath -Scr
 
 # 2.1 Instalar tooling de desarrollo / QA / auditoría
 if ($InstallDev) {
-    Write-Host "[3/4] Instalando herramientas de desarrollo (pytest, mypy, ruff, bandit, playwright, amqtt)..." -ForegroundColor Blue
+    Write-Host "[3/4] Instalando herramientas de desarrollo (pytest, mypy, ruff, bandit, playwright, httpx)..." -ForegroundColor Blue
     Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements-dev.txt" -q } "Fallo al instalar requirements-dev.txt."
     Invoke-NativeCommand { & $PythonPath -m pip install -e "$ScriptDir" -q } "Fallo al instalar el paquete en modo editable."
     $PlaywrightExe = "$ScriptDir\.venv\Scripts\playwright.exe"

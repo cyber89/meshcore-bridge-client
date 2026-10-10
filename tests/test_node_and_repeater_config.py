@@ -285,6 +285,22 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.mock_mc.commands.send_cmd.assert_not_awaited()
         self.assertEqual(self.dispatched_txs, [])
 
+    async def test_remote_invalid_fields_never_echo_private_values_or_unknown_names(self) -> None:
+        for field in ("hop_limit", "unrecognized-fixture-secret"):
+            with self.subTest(field=field):
+                code, resp = await self.router.handle_request("POST", "/api/repeater/remote/config", {
+                    "target_node": "a1b2c3d4e5f6", "password": "repeater_secret",
+                    "params": {"name": "After", field: "fixture-private-value"},
+                })
+                self.assertEqual(code, 400)
+                self.assertNotIn("fixture-private-value", str(resp))
+                self.assertNotIn("unrecognized-fixture-secret", str(resp))
+                if field == "hop_limit":
+                    self.assertIn(field, resp["detail"])
+        self.mock_mc.commands.send_login_sync.assert_not_awaited()
+        self.mock_mc.commands.send_cmd.assert_not_awaited()
+        self.assertEqual(self.dispatched_txs, [])
+
     def test_record_incoming_telemetry_with_known_and_unknown_nodes(self) -> None:
         """Verifica que la telemetría identifique al repetidor por nombre o prefijo y registre todas las métricas."""
         # 1. Caso con repetidor registrado en NodeRegistry

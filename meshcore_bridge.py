@@ -10,6 +10,7 @@ Delega transparentemente en la arquitectura modular de /src/.
 import logging
 import sys
 
+from runtime_requirements import require_stable_python
 from src.bridge_core import MeshCoreBridge
 from src.deduplicator import PacketDeduplicator
 from src.mqtt_client import AsyncBridgeMQTTClient
@@ -29,6 +30,8 @@ from src.serial_driver import (
     RawSerialFramingAdapter,
     SerialWatchdog,
 )
+
+require_stable_python()
 
 __all__ = [
     "MeshCoreBridge",

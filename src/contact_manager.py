@@ -16,7 +16,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from src.lqi_engine import LinkQualityEngine, LQIStatus
 from src.protocol_types import (
@@ -815,7 +815,7 @@ class NodeContactUpdate:
     position_updated_at: float | None = None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], **overrides: Any) -> NodeContactUpdate:
+    def from_dict(cls, data: dict[str, Any], **overrides: Any) -> Self:
         """Construye un NodeContactUpdate filtrando campos válidos de data y aplicando overrides."""
         slots = set(getattr(cls, "__slots__", ()))
         kwargs: dict[str, Any] = {}

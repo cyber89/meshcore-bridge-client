@@ -33,12 +33,9 @@ class Target:
 
 
 TARGETS = (
-    Target("win-cp310", "3.10", "Windows", "AMD64"),
-    Target("win-cp312", "3.12", "Windows", "AMD64"),
-    Target("linux-x64-cp310", "3.10", "Linux", "x86_64"),
-    Target("linux-x64-cp312", "3.12", "Linux", "x86_64"),
-    Target("linux-arm64-cp310", "3.10", "Linux", "aarch64"),
-    Target("linux-arm64-cp312", "3.12", "Linux", "aarch64"),
+    Target("win-cp314", "3.14", "Windows", "AMD64"),
+    Target("linux-x64-cp314", "3.14", "Linux", "x86_64"),
+    Target("linux-arm64-cp314", "3.14", "Linux", "aarch64"),
 )
 
 

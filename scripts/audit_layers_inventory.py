@@ -54,7 +54,7 @@ def inventory() -> dict[str, Any]:
         relative = path.relative_to(ROOT).as_posix()
         source = path.read_text(encoding="utf-8-sig")
         try:
-            tree = ast.parse(source, filename=relative, feature_version=(3, 10))
+            tree = ast.parse(source, filename=relative, feature_version=(3, 14))
         except SyntaxError as error:
             parse_errors.append({"file": relative, "error": str(error)})
             continue
@@ -100,7 +100,7 @@ def inventory() -> dict[str, Any]:
     for path in sorted((ROOT / "src/web/static").rglob("*")):
         if path.suffix in (".js", ".css", ".html"):
             assets.append({"file": path.relative_to(ROOT).as_posix(), "lines": len(path.read_text(encoding="utf-8-sig").splitlines()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
-    return {"methodology": {"scope": "recursive src Python plus three root entry/config files; all static JS/CSS/HTML", "python_syntax_target": "3.10", "complexity": "AST decision-count proxy excluding nested scopes and with statements; not formal McCabe", "unused": "untyped name/string reference heuristic in production only; zero mentions is a candidate, never proof of unused code", "imports_executed": False, "limits": "No runtime timing/optimality claim; dynamic callbacks, reflection, public APIs and inheritance require manual inspection."}, "summary": {"python_files": len(modules), "classes": len(classes), "functions_methods_nested": len(functions), "static_assets": len(assets), "parse_errors": len(parse_errors)}, "modules": modules, "classes": classes, "functions": functions, "assets": assets, "parse_errors": parse_errors}
+    return {"methodology": {"scope": "recursive src Python plus three root entry/config files; all static JS/CSS/HTML", "python_syntax_target": "3.14", "complexity": "AST decision-count proxy excluding nested scopes and with statements; not formal McCabe", "unused": "untyped name/string reference heuristic in production only; zero mentions is a candidate, never proof of unused code", "imports_executed": False, "limits": "No runtime timing/optimality claim; dynamic callbacks, reflection, public APIs and inheritance require manual inspection."}, "summary": {"python_files": len(modules), "classes": len(classes), "functions_methods_nested": len(functions), "static_assets": len(assets), "parse_errors": len(parse_errors)}, "modules": modules, "classes": classes, "functions": functions, "assets": assets, "parse_errors": parse_errors}
 
 
 def main() -> int:

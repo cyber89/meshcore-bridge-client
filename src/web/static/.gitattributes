@@ -1,0 +1,8 @@
+# Preserve official vendor bytes and their recorded SHA256 across platforms.
+css/bootstrap.min.css text eol=lf
+css/bootstrap-icons.min.css text eol=lf
+js/bootstrap.bundle.min.js text eol=lf
+css/fonts/bootstrap-icons.woff -text
+css/fonts/bootstrap-icons.woff2 -text
+licenses/bootstrap.txt text eol=lf
+licenses/bootstrap-icons.txt text eol=lf

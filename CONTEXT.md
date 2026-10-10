@@ -6,7 +6,7 @@ Este documento define el **Lenguaje Ubicuo (Ubiquitous Language)** y el **Modelo
 
 ## 1. Propósito y Arquitectura General del Sistema
 
-- **MeshCore Bridge**: Aplicación asíncrona en Python 3.10+ que actúa como pasarela bidireccional determinista entre una red de malla LoRa (basada en el protocolo y firmware oficial de MeshCore) y redes IP (WebSockets, REST API y MQTT para automatización con n8n/Node-RED).
+- **MeshCore Bridge**: Aplicación asíncrona cuya base de ejecución es CPython 3.14.8 o superior, que actúa como pasarela bidireccional determinista entre una red de malla LoRa (basada en el protocolo y firmware oficial de MeshCore) y redes IP (WebSockets, REST API y MQTT para automatización con n8n/Node-RED). La decisión vigente está en [ADR 0015](docs/adr/0015-python-3-14-8-baseline.md); los intérpretes anteriores quedan como contexto histórico.
 - **Base Station (Estación Base / Nodo Local)**: Transceptor MeshCore Companion conectado al host por USB/UART o mediante TCP al Companion remoto. Su identidad es la clave pública local.
 - **Enrutamiento de Eventos**: `RxEventRouter` distribuye eventos SDK o tramas raw propias entre handlers; MQTT/WebSocket reciben eventos normalizados. El frontend tiene su propio `EventBus` JavaScript. La cola TX usa `asyncio.PriorityQueue`.
 
@@ -68,7 +68,7 @@ El sistema sigue la filosofía de **Deep Modules** (John Ousterhout, *A Philosop
 - **`AsyncBridgeMQTTClient`**: Conector asíncrono MQTT con soporte LWT (*Last Will and Testament*) y reconexión automática.
 - **`AsgiWebServer`**: Servidor web asíncrono de producción basado en FastAPI y Uvicorn (ASGI) con REST, WebSockets, servicio de teselas cartográficas, documentación interactiva OpenAPI 3.1 y difusión de eventos.
 
-El core selecciona `AsgiWebServer` cuando `WEB_ENABLED` está activo; el servidor HTTP nativo fue retirado. Los contratos REST mantienen los controladores y sus validaciones: los DTO web describen campos para OpenAPI y no sustituyen los tipos de dominio ni aplican validación Pydantic en ejecución. `/docs` y `/redoc` muestran el mismo visor local propio de consulta, con esquema en `/openapi.json`. La selección del backend no certifica paridad o rendimiento; en la auditoría del 2026-10-09 las suites continúan suspendidas por instrucción del usuario.
+El core selecciona `AsgiWebServer` cuando `WEB_ENABLED` está activo; el servidor HTTP nativo fue retirado. Los contratos REST mantienen los controladores y sus validaciones: los DTO web describen campos para OpenAPI y no sustituyen los tipos de dominio ni aplican validación Pydantic en ejecución. `/docs` y `/redoc` muestran el mismo visor local propio de consulta, con esquema en `/openapi.json`. La selección del backend no certifica paridad o rendimiento. La auditoría inicial del 2026-10-09 no ejecutó suites; la actualización actual tiene autorización de QA aislado, cuyos resultados se registran por separado.
 
 ---
 

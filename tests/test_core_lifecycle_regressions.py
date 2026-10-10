@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from collections.abc import Callable, Coroutine
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -210,15 +211,39 @@ async def test_cancelled_start_rolls_back_and_preserves_cancellation() -> None:
     assert not obj.running
 
 
-async def test_raw_thread_callback_captures_response_owner_before_scheduling() -> None:
+async def test_raw_thread_callback_captures_response_owner_before_scheduling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     obj = bridge()
     owner = object()
+    delivered = asyncio.Event()
     obj.tcp_server.get_response_owner = MagicMock(return_value=owner)
-    obj.tcp_server.broadcast_companion_frame = AsyncMock()
-    await asyncio.to_thread(obj._on_raw_companion_frame_rx, b"\x04end")
-    obj.tcp_server.get_response_owner.return_value = None
-    await asyncio.sleep(0)
-    obj.tcp_server.broadcast_companion_frame.assert_awaited_once_with(b"\x04end", response_owner=owner)
+
+    async def broadcast(payload: bytes, *, response_owner: object) -> None:
+        delivered.set()
+
+    obj.tcp_server.broadcast_companion_frame = AsyncMock(side_effect=broadcast)
+    schedule = obj._schedule_background
+
+    def release_owner_then_schedule(factory: Callable[[], Coroutine[Any, Any, Any]]) -> None:
+        # Clear the response lease before the real cross-thread scheduler runs.
+        # The callback must retain the owner captured at RX, regardless of ticks.
+        obj.tcp_server.get_response_owner.return_value = None
+        schedule(factory)
+
+    monkeypatch.setattr(obj, "_schedule_background", release_owner_then_schedule)
+    try:
+        await asyncio.to_thread(obj._on_raw_companion_frame_rx, b"\x04end")
+        await asyncio.wait_for(delivered.wait(), timeout=2.0)
+        obj.tcp_server.broadcast_companion_frame.assert_awaited_once_with(
+            b"\x04end", response_owner=owner,
+        )
+    finally:
+        obj.running = False
+        tasks = list(obj._background_tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def test_broadcast_failure_does_not_generate_another_broadcast() -> None:

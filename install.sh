@@ -74,14 +74,34 @@ if [[ "$ACTION" == "--uninstall" ]]; then
     exit 0
 fi
 
+# Require an existing stable interpreter before installing packages or touching
+# services. Distribution python3 packages may still provide an older release.
+select_runtime_python() {
+    local candidate
+    if [[ -n "${MESHCORE_PYTHON:-}" ]]; then
+        candidate="$MESHCORE_PYTHON"
+    elif command -v python3.14 >/dev/null 2>&1; then
+        candidate="python3.14"
+    else
+        candidate="python3"
+    fi
+    if ! command -v "$candidate" >/dev/null 2>&1 || ! "$candidate" -c \
+        'import sys, venv, ensurepip; raise SystemExit(0 if sys.version_info >= (3, 14, 8) and sys.version_info.releaselevel == "final" else 1)'; then
+        echo "[ERROR] CPython >=3.14.8 estable con venv/ensurepip es obligatorio. Instálalo antes de continuar o indica MESHCORE_PYTHON. No se seleccionará un Python anterior." >&2
+        return 1
+    fi
+    PYTHON_RUNTIME="$candidate"
+}
+
 # --dev never falls back to globally installing QA dependencies.
 if [[ "$ACTION" == "--dev" ]]; then
+    select_runtime_python
     QA_VENV="$CURRENT_DIR/.venv"
     if [[ ! -x "$QA_VENV/bin/python" ]]; then
-        python3 -m venv "$QA_VENV"
+        "$PYTHON_RUNTIME" -m venv "$QA_VENV"
     fi
     PYTHON_BIN="$QA_VENV/bin/python"
-    "$PYTHON_BIN" -c 'import sys; assert sys.version_info >= (3, 14, 8), "Python >=3.14.8 requerido"'
+    "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 14, 8) and sys.version_info.releaselevel == "final" else "Python >=3.14.8 estable requerido; recrea el entorno QA")'
     [[ -f "$CURRENT_DIR/requirements-dev.txt" ]]
     [[ -f "$CURRENT_DIR/scripts/run_quality_checks.py" ]]
     echo "[1/3] Instalando dependencias de QA en $QA_VENV"
@@ -127,10 +147,11 @@ render_service() {
 
 # --update stages code and a fresh environment before stopping the service.
 if [[ "$ACTION" == "--update" ]]; then
+    select_runtime_python
     [[ -d "$INSTALL_DIR" ]] || { echo "[ERROR] No existe $INSTALL_DIR" >&2; exit 1; }
     UPDATE_HELPER="$CURRENT_DIR/scripts/staged_update.py"
     [[ -f "$UPDATE_HELPER" ]]
-    STAGE_DIR="$(python3 "$UPDATE_HELPER" prepare "$CURRENT_DIR" "$INSTALL_DIR")"
+    STAGE_DIR="$("$PYTHON_RUNTIME" "$UPDATE_HELPER" prepare "$CURRENT_DIR" "$INSTALL_DIR")"
     STAGE_APPLIED=0
     SERVICE_STOPPED=0
     WAS_ACTIVE=0
@@ -140,7 +161,7 @@ if [[ "$ACTION" == "--update" ]]; then
         trap - ERR INT TERM
         echo "[ERROR] Actualización interrumpida; recuperando instalación anterior" >&2
         if [[ "$STAGE_APPLIED" == "1" ]]; then
-            python3 "$UPDATE_HELPER" rollback "$STAGE_DIR" || {
+            "$PYTHON_RUNTIME" "$UPDATE_HELPER" rollback "$STAGE_DIR" || {
                 echo "[ERROR] Rollback incompleto. Conserva $STAGE_DIR para recuperación manual." >&2
                 exit 1
             }
@@ -156,11 +177,11 @@ if [[ "$ACTION" == "--update" ]]; then
                 systemctl start "$SERVICE_NAME" || echo "[ERROR] Código recuperado; servicio anterior no pudo arrancar" >&2
             fi
         fi
-        python3 "$UPDATE_HELPER" finish "$STAGE_DIR"
+        "$PYTHON_RUNTIME" "$UPDATE_HELPER" finish "$STAGE_DIR"
         exit "$((status == 0 ? 1 : status))"
     }
     trap rollback_update ERR INT TERM
-    python3 -m venv "$STAGE_DIR/release/venv"
+    "$PYTHON_RUNTIME" -m venv "$STAGE_DIR/release/venv"
     STAGED_PYTHON="$STAGE_DIR/release/venv/bin/python"
     "$STAGED_PYTHON" -m pip install -r "$STAGE_DIR/release/requirements.txt"
     "$STAGED_PYTHON" "$STAGE_DIR/release/scripts/check_runtime_dependencies.py" --profile web
@@ -176,8 +197,8 @@ if [[ "$ACTION" == "--update" ]]; then
     systemctl stop "$SERVICE_NAME"
     # Mark before apply: the helper also rolls back internal rename failures.
     STAGE_APPLIED=1
-    python3 "$UPDATE_HELPER" apply "$STAGE_DIR"
-    python3 "$UPDATE_HELPER" relocate "$STAGE_DIR"
+    "$PYTHON_RUNTIME" "$UPDATE_HELPER" apply "$STAGE_DIR"
+    "$PYTHON_RUNTIME" "$UPDATE_HELPER" relocate "$STAGE_DIR"
     "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
     mkdir -p "$INSTALL_DIR/logs" "$INSTALL_DIR/data"
     chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
@@ -186,7 +207,7 @@ if [[ "$ACTION" == "--update" ]]; then
     systemctl restart "$SERVICE_NAME"
     systemctl is-active --quiet "$SERVICE_NAME"
     trap - ERR INT TERM
-    python3 "$UPDATE_HELPER" finish "$STAGE_DIR"
+    "$PYTHON_RUNTIME" "$UPDATE_HELPER" finish "$STAGE_DIR"
     echo "[OK] Actualización verificada; .env, datos, mapas y logs conservados."
     exit 0
 fi
@@ -195,13 +216,10 @@ fi
 # 4. Instalación Completa desde Cero
 # ==============================================================================
 
+select_runtime_python
 echo -e "${BLUE}[1/7] Actualizando repositorios e instalando dependencias del sistema...${NC}"
 apt-get update -qq
 apt-get install -y -qq \
-    python3 \
-    python3-venv \
-    python3-pip \
-    python3-dev \
     build-essential \
     libssl-dev \
     libffi-dev \
@@ -265,6 +283,7 @@ mkdir -p "$INSTALL_DIR"
 
 cp -f "$CURRENT_DIR/config.py" "$INSTALL_DIR/"
 cp -f "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
+cp -f "$CURRENT_DIR/runtime_requirements.py" "$INSTALL_DIR/"
 cp -f "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
 cp -f "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
 cp -f "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
@@ -297,7 +316,7 @@ fi
 
 # Crear entorno virtual Python e instalar dependencias
 echo -e "${BLUE}[6/7] Creando entorno virtual Python e instalando librerías...${NC}"
-python3 -m venv "$INSTALL_DIR/venv"
+"$PYTHON_RUNTIME" -m venv "$INSTALL_DIR/venv"
 "$INSTALL_DIR/venv/bin/python" -m pip install -r "$INSTALL_DIR/requirements.txt"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
 

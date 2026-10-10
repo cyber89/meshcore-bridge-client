@@ -2,13 +2,13 @@
 
 Esta guía describe el procedimiento para desplegar el puente **MeshCore Bridge** en **Armbian (Orange Pi 2W)**, **Raspberry Pi**, **Debian** o **Ubuntu** con arranque automático mediante **systemd**, broker **Mosquitto** y conexión a **n8n**.
 
-Guía vigente revisada por lectura de código el 2026-10-09. Los contratos de instaladores comprobados en temporales y comandos simulados el 2026-10-05 son evidencia anterior; esta auditoría no ejecutó instaladores, servicios ni suites. No acredita una instalación real completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
+Guía revisada por lectura de código el 2026-10-09 y actualizada para el baseline del 2026-10-10. Los contratos de instaladores comprobados en temporales y comandos simulados el 2026-10-05 son evidencia anterior; la auditoría inicial no ejecutó instaladores, servicios ni suites. La actualización actual tiene autorización de QA aislado. No acredita una instalación real completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
 
 ---
 
 ## 📻 Dispositivos de Radio LoRa Compatibles
 
-El adaptador principal utiliza el SDK `meshcore>=2.3.8` con firmware **MeshCore Companion**. La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
+El adaptador principal utiliza el SDK `meshcore==2.3.15` con firmware **MeshCore Companion**. El baseline del host es CPython 3.14.8 o superior, según [ADR 0015](adr/0015-python-3-14-8-baseline.md). La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
 
 | Fabricante / Familia | Modelos Soportados | Chipset USB Típico | Puerto Serial Habitual |
 | :--- | :--- | :--- | :--- |
@@ -24,6 +24,12 @@ El adaptador principal utiliza el SDK `meshcore>=2.3.8` con firmware **MeshCore 
 
 Si ya clonaste o descargaste esta carpeta en tu Orange Pi / servidor Linux, simplemente ejecuta el instalador automatizado:
 
+El instalador exige primero un intérprete estable CPython 3.14.8+ con `venv` y
+`ensurepip`. Selecciona `MESHCORE_PYTHON` si está definido; en otro caso busca
+`python3.14` y después `python3`, comprobando su versión. No descarga ese intérprete
+ni convierte una venv antigua. Si usas una ruta explícita, pásala al proceso con
+privilegios, por ejemplo `sudo env MESHCORE_PYTHON=/ruta/python3.14 bash install.sh`.
+
 ```bash
 cd meshcore-bridge
 # Para instalar desde cero:
@@ -34,7 +40,7 @@ sudo bash install.sh --update
 ```
 
 **El instalador realiza estas tareas si dispone de los permisos, paquetes y servicios necesarios:**
-1. Instala paquetes del sistema (`python3-venv`, `pip`, `mosquitto`, `git`, `udev`).
+1. Instala herramientas de compilación, bibliotecas SSL/ffi y servicios/herramientas del sistema (`mosquitto`, `git`, `curl`, `udev`, `sudo`); el intérprete CPython compatible debe existir previamente.
 2. Configura e inicia **Mosquitto** escuchando en `0.0.0.0:1883` con `allow_anonymous true`. Esto expone el broker a otras interfaces del host; revise el bind, autenticación y firewall para su red.
 3. Utiliza la cuenta invocante `SUDO_USER` sin UID 0; si se invoca directamente como root, crea/usa la cuenta de sistema `meshcore`. Obtiene su grupo primario y añade los grupos serie existentes (`dialout`/`uucp`).
 4. **Detecta automáticamente el puerto de tu placa LoRa** conectada por USB.
@@ -48,10 +54,10 @@ El archivo [`requirements.txt`](../requirements.txt) y las dependencias principa
 
 | Grupo | Distribuciones y política de versión |
 | --- | --- |
-| Core | `paho-mqtt>=2.1.0`, `meshcore>=2.3.8`, `pyserial>=3.5`, `python-dotenv>=1.0.1` |
-| ASGI | `fastapi==0.143.0`, `uvicorn==0.54.0`, `pydantic==2.14.0`, `websockets==16.1.1`, `starlette==1.7.0`, `h11==0.16.0` |
+| Core | `paho-mqtt==2.1.0`, `meshcore==2.3.15`, `pyserial==3.5`, `python-dotenv==1.2.4` |
+| ASGI | `fastapi==0.143.0`, `uvicorn==0.54.0`, `pydantic==2.14.0`, `websockets==17.2`, `starlette==1.7.0`, `h11==0.16.0` |
 
-Los seis pins ASGI corresponden a las interfaces evaluadas de middleware, enrutamiento y protocolo. El comprobador rechaza versiones diferentes, incluidas pre-releases, post-releases y builds locales. Las demás transitivas siguen las restricciones de sus paquetes padres; estos manifests no son un lock completo con hashes. `requirements-web.txt` conserva un punto de entrada compatible mediante `-r requirements.txt`, y el extra `web` conserva los mismos seis pins para comandos existentes.
+Los pins core y ASGI fijan las versiones de esta actualización. La resolución e imports con CPython 3.14.8 se verifican en el entorno aislado; no se deducen del manifiesto. El comprobador aplica mínimos a las cuatro dependencias core y versiones exactas a las seis ASGI; para estas últimas rechaza pre-releases, post-releases y builds locales. Las demás transitivas siguen las restricciones de sus paquetes padres; estos manifests no son un lock completo con hashes. `requirements-web.txt` conserva un punto de entrada compatible mediante `-r requirements.txt`, y el extra `web` conserva los mismos seis pins para comandos existentes.
 
 La verificación con el mismo intérprete del launcher comprueba imports y versiones; no ejecuta endpoints ni acredita el comportamiento de la estación:
 
@@ -60,7 +66,7 @@ La verificación con el mismo intérprete del launcher comprueba imports y versi
   python scripts/check_runtime_dependencies.py                  # Por defecto (perfil web)
   python scripts/check_runtime_dependencies.py --profile web    # Explícito
   ```
-- **Perfil `core`**: Verifica únicamente las cuatro dependencias mínimas y no importa ASGI durante esa comprobación:
+- **Perfil `core`**: Verifica únicamente los cuatro mínimos core y no importa ASGI durante esa comprobación:
   ```bash
   python scripts/check_runtime_dependencies.py --profile core   # Perfil core headless
   ```
@@ -78,7 +84,7 @@ Cuando `WEB_ENABLED=true`, el core crea [`AsgiWebServer`](../src/web/asgi_server
 - Placa LoRa con firmware **MeshCore Companion** compatible con los comandos usados por el SDK.
 - Cable USB con soporte de datos conectado al host Linux.
 - Sistema Operativo Linux (Armbian, Debian 11/12, Ubuntu 22.04/24.04, Raspberry Pi OS).
-- Python 3.10 o superior (`python3 --version`).
+- CPython 3.14.8 o superior; comprobar la versión del intérprete elegido antes de crear el entorno. Las versiones anteriores del host dejan de ser destinos soportados.
 - Broker Mosquitto y Servidor n8n instalados (local o en red).
 
 ---
@@ -108,6 +114,11 @@ Cuando `WEB_ENABLED=true`, el core crea [`AsgiWebServer`](../src/web/asgi_server
 sudo apt update
 sudo apt install -y python3 python3-pip python3-venv mosquitto mosquitto-clients git
 ```
+
+El `python3` incluido por la distribución puede ser anterior al baseline. Ese comando
+APT por sí solo no instala ni acredita CPython 3.14.8. Prepare el intérprete mediante
+un método mantenido para su sistema y compruebe su versión, la creación de venv y
+la disponibilidad de dependencias. No sustituir el Python del sistema operativo.
 
 ---
 
@@ -139,9 +150,9 @@ Para un broker remoto con TLS, configure `MQTT_TLS=true`, `MQTT_BROKER` con el n
    cd /opt/meshcore-bridge
    ```
 
-2. Crea y activa un entorno virtual Python:
+2. Crea y activa un entorno con CPython 3.14.8 o superior ya instalado:
    ```bash
-   python3 -m venv venv
+   python3.14 -m venv venv
    source venv/bin/activate
    pip install --upgrade pip
    pip install -r requirements.txt
@@ -247,9 +258,10 @@ curl -s http://127.0.0.1:8080/api/status | jq .
 ```
 
 ### Instalación en Windows (PowerShell)
-`install.ps1` crea/reutiliza `.venv` con el intérprete `python`/`py` disponible y ejecuta pip mediante el Python de ese entorno. Pasa `--profile web` en la comprobación inicial y después de instalar: valida cuatro mínimos core y seis pins ASGI exactos, con independencia de `MESHCORE_PROFILE`. Una carpeta `paho` por sí sola no acredita el entorno. Un fallo de instalación/verificación termina con código distinto de cero:
+
+Para ejecutar en Windows, `install.ps1` crea o reutiliza `.venv` y ejecuta pip mediante el Python de ese entorno. Exige CPython 3.14.8 o superior estable y comprueba mínimos core/pins ASGI mediante `--profile web`, con independencia de `MESHCORE_PROFILE`. Para una venv nueva admite una ruta en `$env:MESHCORE_PYTHON`; sin ella inspecciona `python3.14`, `python` y los intérpretes 3.14 ya instalados que enumera `py -0p`. Una venv antigua no cambia de intérprete al activar o actualizar paquetes; crear otra con Python 3.14.8:
 ```powershell
-python -m venv .venv
+py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 # Instalación completa
 .\install.ps1

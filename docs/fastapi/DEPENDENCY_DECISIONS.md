@@ -1,5 +1,9 @@
 # Fase 0: dependencias, instalación y compatibilidad
 
+**Evolución 2026-10-10:** el baseline actual es Python estable >=3.14.8 y
+websockets 17.2. Los destinos 3.10/3.12 siguientes son históricos, ya no soportados.
+Consulte el [informe de modernización](../PYTHON_314_MODERNIZATION_REPORT.md).
+
 Este documento conserva las decisiones y seis resoluciones de fase 0 como
 evidencia histórica. El estado de adopción e instalación vigente se describe en
 la evolución de auditoría al final y en [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md).

@@ -18,12 +18,12 @@ from pathlib import Path
 from typing import TypedDict, cast
 
 COMPONENTS = (
-    "src", "scripts", "docs", "config.py", "meshcore_bridge.py", "requirements.txt",
+    "src", "scripts", "docs", "config.py", "runtime_requirements.py", "meshcore_bridge.py", "requirements.txt",
     "requirements-web.txt", "pyproject.toml", "meshcore-bridge.service", ".env.example",
     "run_interactive_demo.py", "install.sh", "install.ps1", "venv",
 )
 REQUIRED = ("src/__init__.py", "src/__main__.py", "src/bridge_core.py", "config.py",
-            "meshcore_bridge.py", "requirements.txt", "meshcore-bridge.service")
+            "runtime_requirements.py", "meshcore_bridge.py", "requirements.txt", "meshcore-bridge.service")
 MARKER = "update-state.json"
 
 

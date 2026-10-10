@@ -1,9 +1,16 @@
 # ADR 0013: Migración Arquitectónica a Python 3.14.8 y Ruptura de Retrocompatibilidad
 
-- **Estado**: Aprobado / En Planificación
+- **Estado**: Sustituido por [ADR 0014](0014-python-3-15-baseline.md); propuesta histórica, no especificación vigente.
 - **Fecha**: 2026-10-10
 - **Autores**: Consejo Multi-Agente (Lead Orchestrator, Bridge Architect, Firmware Investigator, Security Auditor, Installer Agent), Usuario
 - **Base**: `930823f` (Web SPA en Bootstrap 5.3 + FastAPI ASGI consolidado)
+
+> **Rectificación del 2026-10-10**: Se conserva el texto original para mantener el
+> historial. Python.org publicó CPython 3.15.0 estable el 2026-10-09 y la decisión
+> vigente está en el ADR 0014. Las promesas de rendimiento, seguridad total y
+> eliminación de fugas que aparecen abajo no fueron demostradas por mediciones o
+> suites. `wait_for`/`gather` siguen siendo APIs válidas; `TaskGroup`, t-strings,
+> JIT o ejecución sin GIL no se adoptan universalmente ni garantizan esos resultados.
 
 ## Contexto y Problema
 

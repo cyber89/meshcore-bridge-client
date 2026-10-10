@@ -18,6 +18,10 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from runtime_requirements import require_stable_python
+
+require_stable_python()
+
 ROOT_DIR = Path(__file__).resolve().parent
 
 

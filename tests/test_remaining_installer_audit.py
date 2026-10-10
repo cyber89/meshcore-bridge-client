@@ -10,6 +10,8 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
+from typing import NamedTuple
 
 import pytest
 
@@ -19,6 +21,14 @@ from scripts import staged_update
 ROOT = Path(__file__).resolve().parents[1]
 BASH = shutil.which('bash') if os.name != 'nt' else r'C:\Program Files\Git\bin\bash.exe'
 POWERSHELL = shutil.which('pwsh')
+
+
+class RuntimeVersion(NamedTuple):
+    major: int
+    minor: int
+    micro: int
+    releaselevel: str
+    serial: int
 
 
 def source(path: str) -> str:
@@ -65,20 +75,46 @@ def test_web_profile_requires_each_asgi_dependency(missing: str) -> None:
 
 
 @pytest.mark.parametrize('distribution', [entry[0] for entry in dependencies.WEB_DEPENDENCIES])
-@pytest.mark.parametrize('variant', ['older', 'newer', 'a1', 'rc1', '.dev1', '.post1', '+local'])
+@pytest.mark.parametrize('variant', [
+    'older', 'newer', 'a0', 'a1', 'rc0', 'rc1', '.dev0', '.dev1', '.post0', '.post1', '+local',
+])
 def test_web_profile_rejects_unevaluated_asgi_versions(distribution: str, variant: str) -> None:
     versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES['web']}
     expected = versions[distribution]
     if variant == 'older':
         versions[distribution] = '0.0.1'
     elif variant == 'newer':
-        major, minor, patch = map(int, expected.split('.'))
-        versions[distribution] = f'{major}.{minor}.{patch + 1}'
+        parts = list(map(int, expected.split('.')))
+        parts[-1] += 1
+        versions[distribution] = '.'.join(map(str, parts))
     else:
         versions[distribution] = expected + variant
     failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='web')
     assert len(failures) == 1 and distribution in failures[0]
     assert f'requiere == {expected}' in failures[0]
+
+
+def test_web_profile_accepts_equivalent_final_release_zero_padding() -> None:
+    versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES['web']}
+    versions['websockets'] = '17.2.0'
+    assert dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='web') == []
+
+
+@pytest.mark.parametrize('runtime', [
+    RuntimeVersion(3, 10, 0, 'final', 0),
+    RuntimeVersion(3, 14, 7, 'final', 0),
+    RuntimeVersion(3, 14, 8, 'alpha', 1),
+    RuntimeVersion(3, 14, 8, 'beta', 1),
+    RuntimeVersion(3, 14, 8, 'candidate', 1),
+])
+def test_unsupported_runtime_is_rejected_before_package_imports(
+    runtime: RuntimeVersion, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dependencies, 'sys', SimpleNamespace(version_info=runtime))
+    imported: list[str] = []
+    failures = dependencies.check_dependencies(lambda module: imported.append(module), profile='web')
+    assert failures == ['Python requiere >=3.14.8 estable']
+    assert imported == []
 
 
 def test_core_profile_accepts_newer_stable_dependency_versions() -> None:
@@ -282,9 +318,33 @@ def test_relocated_venv_entrypoints_do_not_reference_deleted_staging(tmp_path: P
 
 
 @pytest.mark.skipif(not BASH or not Path(BASH).exists(), reason='Bash unavailable for isolated shell contract')
+def test_linux_runtime_preflight_failure_prevents_install_operations(tmp_path: Path) -> None:
+    text = source('install.sh')
+    definitions = text[text.index('select_runtime_python() {'):text.index('# --dev never')]
+    interpreter = tmp_path / 'unsupported-python'
+    interpreter.write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')
+    interpreter.chmod(0o755)
+    marker = tmp_path / 'mutation-attempted'
+    runner = tmp_path / 'runtime-preflight.sh'
+    runner.write_text(
+        'set -Eeuo pipefail\n' + definitions
+        + '\nselect_runtime_python\nprintf attempted > "$MUTATION_MARKER"\n',
+        encoding='utf-8',
+    )
+    env = dict(os.environ, MESHCORE_PYTHON=interpreter.as_posix(),
+               MUTATION_MARKER=marker.as_posix())
+    result = subprocess.run([str(BASH), str(runner)], env=env, capture_output=True,
+                            text=True, timeout=20)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert '>=3.14.8' in result.stderr
+    assert not marker.exists()
+
+
+@pytest.mark.skipif(not BASH or not Path(BASH).exists(), reason='Bash unavailable for isolated shell contract')
 @pytest.mark.parametrize('phase', ['pip', 'chromium', 'qa'])
 def test_dev_propagates_mocked_native_failures(tmp_path: Path, phase: str) -> None:
     text = source('install.sh')
+    runtime_definitions = text[text.index('select_runtime_python() {'):text.index('# --dev never')]
     block = text[text.index('if [[ "$ACTION" == "--dev" ]]'):text.index('# Render service identity')]
     project = tmp_path / 'project'
     installed = tmp_path / 'installed'
@@ -302,8 +362,9 @@ exit 0
         path.write_text(mock, encoding='utf-8')
         path.chmod(0o755)
     runner = tmp_path / 'dev-contract.sh'
-    runner.write_text('set -Eeuo pipefail\nACTION=--dev\n' + block, encoding='utf-8')
-    env = dict(os.environ, CURRENT_DIR=project.as_posix(), INSTALL_DIR=installed.as_posix(), FAIL_PHASE=phase)
+    runner.write_text('set -Eeuo pipefail\nACTION=--dev\n' + runtime_definitions + block, encoding='utf-8')
+    env = dict(os.environ, CURRENT_DIR=project.as_posix(), INSTALL_DIR=installed.as_posix(), FAIL_PHASE=phase,
+               MESHCORE_PYTHON=(project / '.venv/bin/python').as_posix())
     result = subprocess.run([str(BASH), str(runner)], env=env, capture_output=True, text=True, timeout=20)
     assert result.returncode == 17, result.stdout + result.stderr
     assert '[OK] Verificaciones ejecutadas' not in result.stdout
@@ -329,6 +390,7 @@ def test_complete_install_configures_identity_before_ownership_and_service(
 ) -> None:
     """Run only the fresh-install body on fixtures, replacing all system operations."""
     text = source('install.sh')
+    runtime_definitions = text[text.index('select_runtime_python() {'):text.index('# --dev never')]
     definitions = text[text.index('configure_service_identity() {'):text.index('# --update stages')]
     block = text[text.index('# 4. Instalación Completa'):]
     project, installed = tmp_path / 'project', tmp_path / 'installed'
@@ -351,7 +413,6 @@ def test_complete_install_configures_identity_before_ownership_and_service(
 ACCOUNT_CREATED=0
 apt-get() { :; }
 systemctl() { :; }
-python3() { :; }
 sleep() { :; }
 hostname() { echo 127.0.0.1; }
 compgen() { return 1; }
@@ -372,11 +433,12 @@ chown() {
 }
 '''
     runner = tmp_path / 'fresh-contract.sh'
-    runner.write_text('set -Eeuo pipefail\nRED=""; GREEN=""; YELLOW=""; BLUE=""; CYAN=""; NC=""\nSERVICE_GROUP=""\n' + mocks + definitions + block, encoding='utf-8')
+    runner.write_text('set -Eeuo pipefail\nRED=""; GREEN=""; YELLOW=""; BLUE=""; CYAN=""; NC=""\nSERVICE_GROUP=""\n' + mocks + runtime_definitions + definitions + block, encoding='utf-8')
     service_user = 'meshcore' if invoker == 'root' else invoker
     env = dict(os.environ, CURRENT_DIR=project.as_posix(), INSTALL_DIR=installed.as_posix(),
                TARGET_USER=invoker, SERVICE_USER=service_user, SYSTEMD_DIR=systemd.as_posix(),
-               SERVICE_NAME='meshcore-bridge.service', CALL_LOG=(tmp_path / 'calls.log').as_posix())
+               SERVICE_NAME='meshcore-bridge.service', CALL_LOG=(tmp_path / 'calls.log').as_posix(),
+               MESHCORE_PYTHON=interpreter.as_posix())
     result = subprocess.run([str(BASH), str(runner)], env=env, capture_output=True, encoding='utf-8', errors='replace', timeout=20)
     assert result.returncode == 0, result.stdout + result.stderr
     unit = (systemd / 'meshcore-bridge.service').read_text()

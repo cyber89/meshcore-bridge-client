@@ -9,15 +9,18 @@ they are neither Companion UART framing nor MeshCore over-the-air packets.
 Companion UART framing is managed by the official SDK.
 """
 
-from __future__ import annotations
-
 import re
 import struct
+from binascii import crc_hqx
 from dataclasses import asdict, dataclass
 from enum import IntEnum
 from typing import Any, Protocol, Self
 
-# ================= Constantes de Protocolo =================
+# ================= Constantes y Alias de Tipos (PEP 695) =================
+
+type RawPayload = bytes | bytearray | memoryview
+type TelemetryDict = dict[str, Any]
+type ConfigDict = dict[str, Any]
 
 SOF_BYTE: int = 0xAA
 EOF_BYTE: int = 0x55
@@ -242,7 +245,14 @@ def normalize_tx_power(value: object) -> int | None:
 
 
 def compute_crc16_ccitt(data: bytes, init: int = 0xFFFF, poly: int = 0x1021) -> int:
-    """Calcula el checksum CRC-16-CCITT de forma determinista."""
+    """Use the native CCITT routine without changing custom raw-frame CRCs.
+
+    The stdlib implements polynomial 0x1021 in C. Keep the historical bitwise
+    path for nonstandard polynomials/seeds and preserve empty-input seeds.
+    This checksum belongs to the bridge's raw format, not Companion UART.
+    """
+    if data and isinstance(data, (bytes, bytearray)) and poly == 0x1021 and 0 <= init <= 0xFFFF:
+        return crc_hqx(data, init)
     crc = init
     for byte in data:
         crc ^= (byte << 8)
@@ -420,7 +430,7 @@ class TelemetryPayload:
         )
 
     @classmethod
-    def unpack(cls, data: bytes) -> TelemetryPayload:
+    def unpack(cls, data: bytes) -> Self:
         if len(data) != 16:
             raise ValueError(f"Longitud de telemetría raw inválida: {len(data)}B != 16B")
         bat_mv, sol_mv, t_cdeg, h_pct, p_pa, snr, rssi, bat_pct = struct.unpack("<HHhhIbhB", data[:16])
@@ -511,7 +521,7 @@ class NodeAdvertisement:
         )
 
     @classmethod
-    def unpack(cls, data: bytes) -> NodeAdvertisement:
+    def unpack(cls, data: bytes) -> Self:
         if len(data) != 39:
             raise ValueError(f"Longitud de anuncio raw inválida: {len(data)}B != 39B")
         node_id, sname_raw, lname_raw, hw, fw, lat_e7, lon_e7, alt = struct.unpack("<H4s20sBHiih", data[:39])

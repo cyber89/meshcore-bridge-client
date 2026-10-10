@@ -1,6 +1,6 @@
 # Conocimiento y verificación del proyecto
 
-Mapa de implementación conciliado el 2026-10-09; procedencia e inventario conservan
+Mapa de implementación conciliado el 2026-10-09 y decisión de runtime actualizada el 2026-10-10; procedencia e inventario conservan
 su revisión histórica del 2026-09-30. Este documento reúne el mapa de información,
 la procedencia de las referencias y las divergencias comprobadas. No constituye
 una certificación de interoperabilidad, seguridad, rendimiento o funcionamiento
@@ -39,7 +39,10 @@ Las decisiones numeradas son: [contactos](adr/0001-strict-repeater-contact-exclu
 y [reloj RTC](adr/0008-automatic-rtc-clock-synchronization.md). Las decisiones
 posteriores incluyen [capas Companion](adr/0009-official-companion-protocol-layers.md),
 [duty cycle configurable](adr/0010-duty-cycle-configurable-budget.md) y
-[migración ASGI](adr/0011-staged-asgi-migration.md).
+[migración ASGI](adr/0011-staged-asgi-migration.md),
+[Bootstrap](adr/0012-bootstrap-5-frontend-architecture.md) y
+[baseline Python 3.14.8](adr/0015-python-3-14-8-baseline.md). Los [ADR 0013](adr/0013-python-3-14-modernization.md)
+y [ADR 0014](adr/0014-python-3-15-baseline.md) se conservan como decisiones históricas sustituidas.
 
 ## Mapa de implementación
 
@@ -60,10 +63,11 @@ posteriores incluyen [capas Companion](adr/0009-official-companion-protocol-laye
 | Persistencia/cartografía | registros/canales/airtime JSON, `src/web/map_tile_service.py` | JSON atómico, buffers RAM y lectura SQLite MBTiles; no backend SQLite de chat/nodos. |
 | QA | `tests/`, `pyproject.toml`, `scripts/run_quality_checks.py` | Suites sólo por petición explícita; temporal, virtual y loopback. No ejecutar scripts históricos por su nombre. |
 
-Runtime declarado: Python >=3.10; versión del proyecto 3.0.0; dependencias directas
-Paho MQTT >=2.1.0, MeshCore SDK >=2.3.8, pyserial >=3.5 y python-dotenv >=1.0.1.
-La pila web añade FastAPI 0.143.0, Uvicorn 0.54.0, Pydantic 2.14.0, websockets
-16.1.1, Starlette 1.7.0 y h11 0.16.0 fijados en los manifiestos de producción.
+Runtime acordado: CPython >=3.14.8; versión del proyecto 3.0.0. El cambio de baseline
+se comprueba en manifiestos, checker, instaladores y CI, y no acredita ejecución por sí solo.
+Dependencias directas fijadas para esta actualización: Paho MQTT 2.1.0, MeshCore SDK 2.3.15,
+pyserial 3.5 y python-dotenv 1.2.4. La pila web añade FastAPI 0.143.0, Uvicorn 0.54.0,
+Pydantic 2.14.0, websockets 17.2, Starlette 1.7.0 y h11 0.16.0.
 El checker distingue `web` y `core` (headless). Esto describe dependencias declaradas,
 no acredita paquetes instalados, funcionamiento o recursos medidos.
 
@@ -118,7 +122,9 @@ La auditoría actual corrigió credenciales sin enmascarar en `custom_presets`, 
 de excepciones en logs/eventos de controladores y seis sinks HTML de métricas del mapa.
 `all_presets` y `custom_presets` comparten la proyección pública sanitizada sin cambiar
 credenciales operativas. Origin conserva la admisión amplia de LAN privada; no es
-una política estricta de mismo origen. Las suites siguen suspendidas por el usuario.
+una política estricta de mismo origen. Esa revisión fue estática; posteriormente
+el usuario autorizó QA aislado para la actualización actual. Sus resultados se
+registran por herramienta y no se atribuyen a la revisión histórica.
 
 Se corrigieron las afirmaciones documentales localizadas sobre LQI, salud, trace,
 heatmap, configuración, resultado TX, errores Companion, rango SF, cifrado,

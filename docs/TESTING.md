@@ -3,28 +3,58 @@
 Esta guía describe la suite mantenida y cómo obtener evidencia reproducible. Las
 pruebas se ejecutan bajo petición explícita del usuario, según [AGENTS.md](../AGENTS.md).
 La autorización del 2026-09-29 corresponde a la revisión histórica descrita más abajo;
-no autoriza tareas posteriores. Para la migración y auditoría del 2026-10-09 rige la
-instrucción del usuario: **continuar sin ejecutar suites**. Tampoco se ejecutan mypy,
-Ruff ni navegador durante esta auditoría. Los comandos de esta guía requieren una
-petición vigente aplicable; nunca autorizan radio física ni consultas a producción.
+no autoriza tareas posteriores. La auditoría inicial del 2026-10-09 se realizó sin
+suites. Para la actualización actual el usuario autorizó pytest/cobertura, mypy,
+Ruff y navegador en entornos aislados. Esa autorización se mantiene durante esta
+tarea; nunca autoriza radio física, SSH operativo ni consultas a producción.
 
 ## Entorno de QA
 
-Python 3.10 es el mínimo del proyecto. La revisión local usa Python 3.12.14 y el
-entorno `.venv`; su launcher fue reparado porque apuntaba a un Python eliminado,
-conservando los paquetes instalados. En una instalación nueva:
+Los resultados de esta actualización y los límites por plataforma están en el
+[informe Python 3.14.8](PYTHON_314_MODERNIZATION_REPORT.md).
+
+El baseline vigente es CPython 3.14.8 o superior, según [ADR 0015](adr/0015-python-3-14-8-baseline.md).
+No atribuirle resultados obtenidos con intérpretes anteriores. Crear un entorno
+de QA nuevo con el intérprete elegido, sin modificar la venv de una estación operativa:
 
 ```bash
-python -m venv .venv
+python3.14 -m venv .venv
+# Windows con launcher: py -3.14 -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt -r requirements-dev.txt
 python -m playwright install chromium
 ```
 
-Pytest, pytest-asyncio, pytest-cov, mypy, ruff, Bandit y Playwright son herramientas
+Pytest, pytest-asyncio, pytest-cov, mypy, ruff, Bandit, Playwright, HTTPX y cryptography son herramientas
 de desarrollo. No son dependencias necesarias del bridge operativo. Chromium se
-utiliza en modo headless. La CI instala también sus dependencias de sistema.
+utiliza en modo headless. La CI instala también sus dependencias de sistema. Registrar
+`python --version`, plataforma, arquitectura, pins instalados y `python -m pip check`
+en cada ejecución. La disponibilidad de wheels y navegadores se comprueba por destino;
+el cambio de mínimo no demuestra soporte automático de cada SBC o build sin GIL.
+
+`cryptography==50.0.2` genera certificados temporales para las regresiones TLS de
+MQTT en loopback. Está fijado únicamente en el perfil `dev`; el cliente operativo
+utiliza `ssl` de Python y Paho. Una venv parcial sin esta dependencia omite esas
+regresiones y no acredita TLS.
+
+La auditoría i18n necesita Node.js. Se puede reutilizar el binario incluido con
+Playwright, sin instalar otro runtime global. En Linux, con el entorno QA activado:
+
+```bash
+node_driver_dir=$(python -c 'from pathlib import Path; import playwright; print(Path(playwright.__file__).parent / "driver")')
+export PATH="$node_driver_dir:$PATH"
+node --version
+python -m pytest tests/test_frontend_i18n_audit.py tests/test_remaining_mqtt_tls.py -ra
+```
+
+Registrar la versión real del binario; el incluido en Playwright 1.63.0 durante
+esta revisión es Node.js 24.21.0. Las pruebas de navegador requieren también las
+bibliotecas del sistema de Chromium. En QA WSL se extrajeron paquetes oficiales
+Ubuntu dentro de `artifacts` y se usó `LD_LIBRARY_PATH` del proceso; eso no instala
+dependencias globales ni acredita otro destino. Los temporales de pytest en WSL
+deben estar en su filesystem nativo: la captura sobre DrvFS produjo un fallo
+`tmpfile.truncate()` en esta revisión.
 
 ## Suite mantenida y aislamiento
 
@@ -93,5 +123,6 @@ limitaciones se incorporarán después de integrar las correcciones.
 La evidencia generada se conserva en `tests/artifacts/` (ignorada en Git). El
 resumen final debe incluir conteos, cobertura, skips y resultados separados de
 tipado, lint y navegador; los reportes históricos de agosto no prueban el estado
-actual. La CI ejecuta la suite en Python 3.10 y 3.12; sus resultados remotos deben
-consultarse por separado de la validación local.
+actual. La CI de esa revisión utilizaba Python 3.10 y 3.12; esos resultados son
+históricos y no acreditan el baseline actual. La configuración CI vigente usa Python 3.14.8
+y sus resultados remotos deben consultarse por separado de la validación local.
