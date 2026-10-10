@@ -1,7 +1,10 @@
 # Informe de Modernización y Estabilización: Python 3.14.8
 
 Fecha: 2026-10-10. Responsable de integración: Agente 0 (Lead Orchestrator) junto a Consejo Multi-Agente.  
-Decisión de arquitectura vigente: [ADR 0015](adr/0015-python-3-14-8-baseline.md).
+Informe histórico bajo [ADR 0015](adr/0015-python-3-14-8-baseline.md), sustituido por
+[ADR 0016](adr/0016-python-3-12-baseline.md): mínimo estable 3.12, recomendado 3.13.5, sin máximo.
+El cuerpo conserva las decisiones y afirmaciones de aquella revisión; no describe
+la política vigente ni acredita por sí solo resultados del checkout actual.
 
 ---
 

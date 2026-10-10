@@ -102,10 +102,10 @@ def test_web_profile_accepts_equivalent_final_release_zero_padding() -> None:
 
 @pytest.mark.parametrize('runtime', [
     RuntimeVersion(3, 10, 0, 'final', 0),
-    RuntimeVersion(3, 14, 7, 'final', 0),
-    RuntimeVersion(3, 14, 8, 'alpha', 1),
-    RuntimeVersion(3, 14, 8, 'beta', 1),
-    RuntimeVersion(3, 14, 8, 'candidate', 1),
+    RuntimeVersion(3, 11, 999, 'final', 0),
+    RuntimeVersion(3, 12, 0, 'alpha', 1),
+    RuntimeVersion(3, 12, 0, 'beta', 1),
+    RuntimeVersion(3, 12, 0, 'candidate', 1),
 ])
 def test_unsupported_runtime_is_rejected_before_package_imports(
     runtime: RuntimeVersion, monkeypatch: pytest.MonkeyPatch,
@@ -113,8 +113,21 @@ def test_unsupported_runtime_is_rejected_before_package_imports(
     monkeypatch.setattr(dependencies, 'sys', SimpleNamespace(version_info=runtime))
     imported: list[str] = []
     failures = dependencies.check_dependencies(lambda module: imported.append(module), profile='web')
-    assert failures == ['Python requires >=3.14.8 stable']
+    assert failures == ['Python requires >=3.12 stable']
     assert imported == []
+
+
+@pytest.mark.parametrize('runtime', [
+    RuntimeVersion(3, 12, 0, 'final', 0),
+    RuntimeVersion(3, 13, 5, 'final', 0),
+    RuntimeVersion(3, 14, 8, 'final', 0),
+    RuntimeVersion(3, 15, 0, 'final', 0),
+])
+def test_supported_stable_runtimes_have_no_upper_version_limit(
+    runtime: RuntimeVersion, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dependencies, 'sys', SimpleNamespace(version_info=runtime))
+    assert dependencies.check_dependencies(dependencies=()) == []
 
 
 def test_core_profile_accepts_newer_stable_dependency_versions() -> None:
@@ -336,7 +349,7 @@ def test_linux_runtime_preflight_failure_prevents_install_operations(tmp_path: P
     result = subprocess.run([str(BASH), str(runner)], env=env, capture_output=True,
                             text=True, timeout=20)
     assert result.returncode == 1, result.stdout + result.stderr
-    assert '>=3.14.8' in result.stderr
+    assert '>=3.12' in result.stderr
     assert not marker.exists()
 
 

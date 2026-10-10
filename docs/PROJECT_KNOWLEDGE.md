@@ -41,8 +41,8 @@ posteriores incluyen [capas Companion](adr/0009-official-companion-protocol-laye
 [duty cycle configurable](adr/0010-duty-cycle-configurable-budget.md) y
 [migración ASGI](adr/0011-staged-asgi-migration.md),
 [Bootstrap](adr/0012-bootstrap-5-frontend-architecture.md) y
-[baseline Python 3.14.8](adr/0015-python-3-14-8-baseline.md). Los [ADR 0013](adr/0013-python-3-14-modernization.md)
-y [ADR 0014](adr/0014-python-3-15-baseline.md) se conservan como decisiones históricas sustituidas.
+[mínimo Python 3.12 y recomendación 3.13.5](adr/0016-python-3-12-baseline.md). Los [ADR 0013](adr/0013-python-3-14-modernization.md),
+[ADR 0014](adr/0014-python-3-15-baseline.md) y [ADR 0015](adr/0015-python-3-14-8-baseline.md) se conservan como decisiones históricas sustituidas.
 
 ## Mapa de implementación
 
@@ -63,8 +63,9 @@ y [ADR 0014](adr/0014-python-3-15-baseline.md) se conservan como decisiones hist
 | Persistencia/cartografía | registros/canales/airtime JSON, `src/web/map_tile_service.py` | JSON atómico, buffers RAM y lectura SQLite MBTiles; no backend SQLite de chat/nodos. |
 | QA | `tests/`, `pyproject.toml`, `scripts/run_quality_checks.py` | Suites sólo por petición explícita; temporal, virtual y loopback. No ejecutar scripts históricos por su nombre. |
 
-Runtime acordado: CPython >=3.14.8; versión del proyecto 3.0.0. El cambio de baseline
-se comprueba en manifiestos, checker, instaladores y CI, y no acredita ejecución por sí solo.
+Runtime acordado: CPython estable >=3.12, con 3.13.5 recomendado y sin máximo;
+versión del proyecto 3.0.0. Manifiestos, checker, instaladores y CI deben expresar
+esta política; el cambio de baseline no acredita ejecución por sí solo.
 Dependencias directas fijadas para esta actualización: Paho MQTT 2.1.0, MeshCore SDK 2.3.15,
 pyserial 3.5 y python-dotenv 1.2.4. La pila web añade FastAPI 0.143.0, Uvicorn 0.54.0,
 Pydantic 2.14.0, websockets 17.2, Starlette 1.7.0 y h11 0.16.0.

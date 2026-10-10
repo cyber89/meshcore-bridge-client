@@ -10,7 +10,7 @@ La política operativa está en [AGENTS.md](../AGENTS.md); el dominio en
 |---|---|---|
 | Dominio/documentación | domain-adr-keeper | ADRs, implementación y enlaces; un chequeo estructural no prueba semántica |
 | Protocolo | meshcore-source-inspector, lora-frame-validator | Pila oficial de sólo lectura; separar Companion, LoRa wire y fallback propio |
-| Python/concurrencia | python-patterns-typing, async-concurrency-engineering, asyncio-profiler-leak-detector | Python 3.10 mínimo; profiler sintético, no garantía 24/7 |
+| Python/concurrencia | python-patterns-typing, async-concurrency-engineering, asyncio-profiler-leak-detector | CPython estable 3.12 mínimo, 3.13.5 recomendado, sin máximo; profiler sintético, no garantía 24/7 |
 | Arquitectura/refactor | clean-code-solid, refactoring-clean-architecture, gof-design-patterns-expert, software-architecture-patterns, improve-codebase-architecture | Heurísticas, deep modules y patrones; preservar contratos, evitar cambios por cuotas de líneas |
 | API/web | api-design-testing, contract-openapi-sync, html-css-modern-js, web-ui-design-system, web-browser-inspection | HTTP nativo/Vanilla SPA; paridad léxica no valida payloads/WS |
 | QA/simulación/diagnóstico | bridge-test-runner, lora-packet-simulator, distributed-mesh-simulation, diagnosing-bugs, systematic-debugging, test-driven-development, verification-before-completion | Suites autorizadas, causa raíz sin parches de síntomas, arnés red-green, evidencia antes de afirmar |

@@ -1,13 +1,13 @@
 ---
 name: python-patterns-typing
-description: Mantener CPython 3.14.8+, tipos estrictos y modelos de dominio de MeshCore Bridge; usar al modificar Python del proyecto.
+description: Mantener CPython 3.12+, tipos estrictos y modelos de dominio de MeshCore Bridge; usar al modificar Python del proyecto.
 ---
 
 # Python del bridge
 
 Respetar [AGENTS.md](../../../AGENTS.md), [CONTEXT.md](../../../CONTEXT.md) y
-[pyproject.toml](../../../pyproject.toml). El mínimo acordado es CPython 3.14.8,
-según [ADR 0015](../../../docs/adr/0015-python-3-14-8-baseline.md). Verificar el
+[pyproject.toml](../../../pyproject.toml). El mínimo acordado es CPython 3.12 estable; se recomienda 3.13.5, sin límite superior,
+según [ADR 0016](../../../docs/adr/0016-python-3-12-baseline.md). Verificar el
 intérprete real; los resultados de runtimes anteriores son históricos.
 
 - Anotar interfaces públicas y funciones nuevas; usar Protocol para adaptadores y

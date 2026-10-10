@@ -1,6 +1,6 @@
 # ADR 0015: Baseline CPython 3.14.8, Eliminación de Retrocompatibilidad y Estabilización
 
-- **Estado**: Aceptado por el usuario.
+- **Estado**: Sustituido por [ADR 0016](0016-python-3-12-baseline.md). Se conserva como decisión histórica; su mínimo 3.14.8 y exclusión de versiones anteriores ya no están vigentes.
 - **Fecha**: 2026-10-10
 - **Autores**: Consejo Multi-Agente (Lead Orchestrator, Bridge Architect, Protocol QA, Installer Maintenance, Security Auditor), Usuario
 - **Sustituye**: [ADR 0014](0014-python-3-15-baseline.md) (revocado por experimentalidad e incompatibilidad WinRT) y [ADR 0013](0013-python-3-14-modernization.md) (propuesta histórica).

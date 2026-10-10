@@ -8,7 +8,7 @@ Guía revisada por lectura de código el 2026-10-09 y actualizada para el baseli
 
 ## 📻 Dispositivos de Radio LoRa Compatibles
 
-El adaptador principal utiliza el SDK `meshcore==2.3.15` con firmware **MeshCore Companion**. El baseline del host es CPython 3.14.8 o superior estable, conforme a `AGENTS.md` y ADR 0015. La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
+El adaptador principal utiliza el SDK `meshcore==2.3.15` con firmware **MeshCore Companion**. El baseline del host es CPython estable 3.12 o superior, con 3.13.5 recomendado y sin máximo, conforme a `AGENTS.md` y [ADR 0016](adr/0016-python-3-12-baseline.md). La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
 
 | Fabricante / Familia | Modelos Soportados | Chipset USB Típico | Puerto Serial Habitual |
 | :--- | :--- | :--- | :--- |
@@ -24,15 +24,15 @@ El adaptador principal utiliza el SDK `meshcore==2.3.15` con firmware **MeshCore
 
 Si ya clonaste o descargaste esta carpeta en tu Orange Pi / servidor Linux, simplemente ejecuta el instalador automatizado:
 
-El instalador detecta e instala automáticamente las dependencias del sistema vía APT (python3, python3-venv, build-essential, mosquitto, etc.) y exige un intérprete CPython >= 3.14.8 estable con `venv` y `ensurepip`. Selecciona `MESHCORE_PYTHON` si está definido; en otro caso busca candidatos como `python3.15`, `python3.14` y `python3`, verificando la versión completa. Si usas una ruta explícita, pásala al proceso con privilegios, por ejemplo `sudo env MESHCORE_PYTHON=/ruta/python3 bash install.sh`.
+El instalador detecta e instala automáticamente las dependencias del sistema vía APT (python3, python3-venv, build-essential, mosquitto, etc.) y exige un intérprete CPython >= 3.12 estable con `venv` y `ensurepip`. Selecciona `MESHCORE_PYTHON` si está definido; en otro caso busca candidatos como `python3.13`, `python3.12`, `python3.15`, `python3.14` y `python3`, verificando la versión completa. Si usas una ruta explícita, pásala al proceso con privilegios, por ejemplo `sudo env MESHCORE_PYTHON=/ruta/python3 bash install.sh`.
 
 El README raíz y los instaladores utilizan únicamente texto en inglés desde el
 2026-10-10; la regla persistente está en `AGENTS.md`. Sus banners, pasos, ayuda y
 resúmenes respetan `NO_COLOR` y las salidas no interactivas. Esta revisión se
 comprueba mediante lectura, parsers y verificadores estáticos; no ejecuta una
-instalación, servicios ni radio. `runtime_requirements.py` y los metadatos del
-paquete todavía aceptan Python >=3.11: es una discrepancia del guard/metadata
-con el baseline soportado, no una acreditación de soporte para versiones antiguas.
+instalación, servicios ni radio. La política vigente admite CPython estable
+>=3.12, recomienda 3.13.5 y no fija un máximo. Los requisitos de paquetes y
+módulos se comprueban por separado de la versión del intérprete.
 
 ```bash
 cd meshcore-bridge
@@ -61,7 +61,7 @@ El archivo [`requirements.txt`](../requirements.txt) y las dependencias principa
 | Core | `paho-mqtt==2.1.0`, `meshcore==2.3.15`, `pyserial==3.5`, `python-dotenv==1.2.4` |
 | ASGI | `fastapi==0.143.0`, `uvicorn==0.54.0`, `pydantic==2.14.0`, `websockets==17.2`, `starlette==1.7.0`, `h11==0.16.0` |
 
-Los pins core y ASGI fijan las versiones de esta actualización. La resolución e imports con CPython 3.14.8 se verifican en el entorno aislado; no se deducen del manifiesto. El comprobador aplica mínimos a las cuatro dependencias core y versiones exactas a las seis ASGI; para estas últimas rechaza pre-releases, post-releases y builds locales. Las demás transitivas siguen las restricciones de sus paquetes padres; estos manifests no son un lock completo con hashes. `requirements-web.txt` conserva un punto de entrada compatible mediante `-r requirements.txt`, y el extra `web` conserva los mismos seis pins para comandos existentes.
+Los pins core y ASGI fijan las versiones de esta actualización. La resolución e imports deben comprobarse con el intérprete y plataforma elegidos en un entorno aislado; no se deducen del manifiesto ni se acreditan por el cambio de baseline. El comprobador aplica mínimos a las cuatro dependencias core y versiones exactas a las seis ASGI; para estas últimas rechaza pre-releases, post-releases y builds locales. Las demás transitivas siguen las restricciones de sus paquetes padres; estos manifests no son un lock completo con hashes. `requirements-web.txt` conserva un punto de entrada compatible mediante `-r requirements.txt`, y el extra `web` conserva los mismos seis pins para comandos existentes.
 
 La verificación con el mismo intérprete del launcher comprueba imports y versiones; no ejecuta endpoints ni acredita el comportamiento de la estación:
 
@@ -88,7 +88,7 @@ Cuando `WEB_ENABLED=true`, el core crea [`AsgiWebServer`](../src/web/asgi_server
 - Placa LoRa con firmware **MeshCore Companion** compatible con los comandos usados por el SDK.
 - Cable USB con soporte de datos conectado al host Linux.
 - Sistema Operativo Linux (Armbian, Debian 11/12, Ubuntu 22.04/24.04, Raspberry Pi OS).
-- CPython 3.14.8 o superior; comprobar la versión del intérprete elegido antes de crear el entorno. Las versiones anteriores del host dejan de ser destinos soportados.
+- CPython estable 3.12 o superior; 3.13.5 recomendado, sin máximo. Comprobar la versión del intérprete elegido antes de crear el entorno.
 - Broker Mosquitto y Servidor n8n instalados (local o en red).
 
 ---
@@ -120,7 +120,7 @@ sudo apt install -y python3 python3-pip python3-venv mosquitto mosquitto-clients
 ```
 
 El `python3` incluido por la distribución puede ser anterior al baseline. Ese comando
-APT por sí solo no instala ni acredita CPython 3.14.8. Prepare el intérprete mediante
+APT por sí solo no instala ni acredita CPython 3.12 o superior estable. Prepare el intérprete mediante
 un método mantenido para su sistema y compruebe su versión, la creación de venv y
 la disponibilidad de dependencias. No sustituir el Python del sistema operativo.
 
@@ -154,9 +154,9 @@ Para un broker remoto con TLS, configure `MQTT_TLS=true`, `MQTT_BROKER` con el n
    cd /opt/meshcore-bridge
    ```
 
-2. Crea y activa un entorno con CPython 3.14.8 o superior ya instalado:
+2. Crea y activa un entorno con CPython estable 3.12 o superior ya instalado (3.13.5 recomendado):
    ```bash
-   python3.14 -m venv venv
+   python3.13 -m venv venv
    source venv/bin/activate
    pip install --upgrade pip
    pip install -r requirements.txt
@@ -263,9 +263,9 @@ curl -s http://127.0.0.1:8080/api/status | jq .
 
 ### Instalación en Windows (PowerShell)
 
-Para ejecutar en Windows, `install.ps1` crea o reutiliza `.venv` y ejecuta pip mediante el Python de ese entorno. Exige CPython 3.14.8 o superior estable y comprueba mínimos core/pins ASGI mediante `--profile web`, con independencia de `MESHCORE_PROFILE`. Para una venv nueva admite una ruta en `$env:MESHCORE_PYTHON`; sin ella inspecciona `python3.15`, `python3.14`, `python3`, `python` y los intérpretes instalados que enumera `py -0p`, comprobando su versión completa. Una venv antigua no cambia de intérprete al activar o actualizar paquetes; crear otra con Python 3.14.8:
+Para ejecutar en Windows, `install.ps1` crea o reutiliza `.venv` y ejecuta pip mediante el Python de ese entorno. Exige CPython estable 3.12 o superior (3.13.5 recomendado, sin máximo) y comprueba mínimos core/pins ASGI mediante `--profile web`, con independencia de `MESHCORE_PROFILE`. Para una venv nueva admite una ruta en `$env:MESHCORE_PYTHON`; sin ella inspecciona `python3.13`, `python3.12`, `python3.15`, `python3.14`, `python3`, `python` y los intérpretes instalados que enumera `py -0p`, comprobando su versión completa. Una venv antigua no cambia de intérprete al activar o actualizar paquetes; crear otra con un intérprete compatible, por ejemplo la rama 3.13 recomendada:
 ```powershell
-py -3.14 -m venv .venv
+py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 # Instalación completa
 .\install.ps1

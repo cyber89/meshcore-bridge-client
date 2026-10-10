@@ -1,7 +1,7 @@
 # Arquitectura de MeshCore Bridge v3.0
 
 ## 1. Resumen Ejecutivo
-MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante CPython 3.14.8+ y `asyncio`, conforme a [ADR 0015](adr/0015-python-3-14-8-baseline.md). El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa una pila de producción basada en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) para REST, WebSocket, teselas MBTiles y SPA.
+MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante CPython estable 3.12+ (3.13.5 recomendado, sin máximo) y `asyncio`, conforme a [ADR 0016](adr/0016-python-3-12-baseline.md). El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa una pila de producción basada en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) para REST, WebSocket, teselas MBTiles y SPA.
 
 Documento revisado por inspección de código el 2026-10-09 y actualizado para la decisión de runtime del 2026-10-10. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
 

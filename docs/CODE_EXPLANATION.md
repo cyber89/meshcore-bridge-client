@@ -1,6 +1,6 @@
 # Explicación técnica del código de MeshCore Bridge
 
-Guía conciliada el 2026-10-09 mediante lectura del código y actualizada el 2026-10-10 para el baseline CPython 3.14.8+ de [ADR 0015](adr/0015-python-3-14-8-baseline.md). No acredita medidas de rendimiento ni resultados de QA. Las decisiones de runtime y las verificaciones ejecutadas se registran por separado. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
+Guía conciliada el 2026-10-09 mediante lectura del código y actualizada el 2026-10-10 para el baseline CPython estable 3.12+ (3.13.5 recomendado, sin máximo) de [ADR 0016](adr/0016-python-3-12-baseline.md). No acredita medidas de rendimiento ni resultados de QA. Las decisiones de runtime y las verificaciones ejecutadas se registran por separado. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
 
 ## 1. Entrada, configuración y composición
 

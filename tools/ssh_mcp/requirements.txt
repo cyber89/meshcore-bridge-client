@@ -1,4 +1,4 @@
 # Maintenance MCP only; never install these in the bridge production venv.
-# CPython >=3.14.8; evaluated independently of the bridge HTTPX environment.
+# Stable CPython >=3.12 (3.13.5 recommended); independent of the bridge HTTPX environment.
 mcp==2.3.0
 paramiko==5.0.0

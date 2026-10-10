@@ -4,22 +4,24 @@ Esta guía describe la suite mantenida y cómo obtener evidencia reproducible. L
 pruebas se ejecutan bajo petición explícita del usuario, según [AGENTS.md](../AGENTS.md).
 La autorización del 2026-09-29 corresponde a la revisión histórica descrita más abajo;
 no autoriza tareas posteriores. La auditoría inicial del 2026-10-09 se realizó sin
-suites. Para la actualización actual el usuario autorizó pytest/cobertura, mypy,
-Ruff y navegador en entornos aislados. Esa autorización se mantiene durante esta
-tarea; nunca autoriza radio física, SSH operativo ni consultas a producción.
+suites. La revisión histórica de modernización registró autorización para
+pytest/cobertura, mypy, Ruff y navegador en entornos aislados; no autoriza suites
+en tareas posteriores. El cambio de baseline descrito en ADR 0016 no ejecuta
+suites ni autoriza radio física, SSH operativo o consultas a producción.
 
 ## Entorno de QA
 
-Los resultados de esta actualización y los límites por plataforma están en el
-[informe Python 3.14.8](PYTHON_314_MODERNIZATION_REPORT.md).
+Las afirmaciones de la revisión anterior y sus límites por plataforma se conservan
+en el [informe histórico Python 3.14.8](PYTHON_314_MODERNIZATION_REPORT.md).
 
-El baseline vigente es CPython 3.14.8 o superior, según [ADR 0015](adr/0015-python-3-14-8-baseline.md).
-No atribuirle resultados obtenidos con intérpretes anteriores. Crear un entorno
+El baseline vigente es CPython estable 3.12 o superior, con 3.13.5 recomendado y
+sin máximo, según [ADR 0016](adr/0016-python-3-12-baseline.md).
+Registrar la versión real de cada ejecución sin extrapolar resultados. Crear un entorno
 de QA nuevo con el intérprete elegido, sin modificar la venv de una estación operativa:
 
 ```bash
-python3.14 -m venv .venv
-# Windows con launcher: py -3.14 -m venv .venv
+python3.13 -m venv .venv
+# Windows con launcher: py -3.13 -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt -r requirements-dev.txt
@@ -124,5 +126,7 @@ La evidencia generada se conserva en `tests/artifacts/` (ignorada en Git). El
 resumen final debe incluir conteos, cobertura, skips y resultados separados de
 tipado, lint y navegador; los reportes históricos de agosto no prueban el estado
 actual. La CI de esa revisión utilizaba Python 3.10 y 3.12; esos resultados son
-históricos y no acreditan el baseline actual. La configuración CI vigente usa Python 3.14.8
-y sus resultados remotos deben consultarse por separado de la validación local.
+históricos y no acreditan el checkout actual. La configuración CI vigente usa
+3.13.5 para lint y una matriz de pruebas 3.12/3.13.5; sus resultados remotos
+deben consultarse por separado de la validación local. Esta configuración no
+acredita ejecución exitosa en ninguna de esas versiones.

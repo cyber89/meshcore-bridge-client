@@ -2,7 +2,8 @@
 # ==============================================================================
 # MeshCore Bridge - Installation, Update and Deployment
 # Version: 3.0.0 (Production)
-# Architecture: CPython >= 3.14.8 | FastAPI ASGI | LoRa MeshCore Companion
+# Recommended runtime: CPython 3.13.5; stable versions >= 3.12 are supported.
+# Architecture: CPython >= 3.12 | FastAPI ASGI | LoRa MeshCore Companion
 # For Armbian (Orange Pi), Debian, Ubuntu, Raspberry Pi OS and derivatives
 # ==============================================================================
 
@@ -134,15 +135,15 @@ if [[ "$ACTION" == "--uninstall" ]]; then
     exit 0
 fi
 
-# 3. Select stable CPython >= 3.14.8 with virtual environment support
+# 3. Select stable CPython >= 3.12 with virtual environment support
 select_runtime_python() {
     local candidate=""
     if [[ -n "${MESHCORE_PYTHON:-}" ]]; then
         candidate="$MESHCORE_PYTHON"
     else
-        for py in python3.15 python3.14 python3; do
+        for py in python3.13 python3.12 python3.15 python3.14 python3; do
             if command -v "$py" >/dev/null 2>&1; then
-                if "$py" -c 'import sys, venv, ensurepip; raise SystemExit(0 if sys.implementation.name == "cpython" and sys.version_info[:3] >= (3, 14, 8) and sys.version_info.releaselevel == "final" else 1)' 2>/dev/null; then
+                if "$py" -c 'import sys, venv, ensurepip; raise SystemExit(0 if sys.implementation.name == "cpython" and sys.version_info[:3] >= (3, 12, 0) and sys.version_info.releaselevel == "final" else 1)' 2>/dev/null; then
                     candidate="$py"
                     break
                 fi
@@ -150,9 +151,9 @@ select_runtime_python() {
         done
     fi
 
-    if [[ -z "$candidate" ]] || ! "$candidate" -c 'import sys, venv, ensurepip; raise SystemExit(0 if sys.implementation.name == "cpython" and sys.version_info[:3] >= (3, 14, 8) and sys.version_info.releaselevel == "final" else 1)' 2>/dev/null; then
-        print_fail "No stable CPython >= 3.14.8 with venv and ensurepip was found."
-        echo "Candidates: python3.15, python3.14, python3." >&2
+    if [[ -z "$candidate" ]] || ! "$candidate" -c 'import sys, venv, ensurepip; raise SystemExit(0 if sys.implementation.name == "cpython" and sys.version_info[:3] >= (3, 12, 0) and sys.version_info.releaselevel == "final" else 1)' 2>/dev/null; then
+        print_fail "No stable CPython >= 3.12 with venv and ensurepip was found."
+        echo "Candidates: python3.13, python3.12, python3.15, python3.14, python3." >&2
         echo "Install venv/ensurepip support for your Python or set MESHCORE_PYTHON to its executable path." >&2
         return 1
     fi
@@ -204,8 +205,8 @@ if [[ "$ACTION" == "--dev" ]]; then
         "$PYTHON_RUNTIME" -m venv "$QA_VENV"
     fi
     PYTHON_BIN="$QA_VENV/bin/python"
-    "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.implementation.name == "cpython" and sys.version_info[:3] >= (3, 14, 8) and sys.version_info.releaselevel == "final" else 1)' || {
-        print_fail "The existing .venv is unsupported. Recreate it with stable CPython >= 3.14.8, then rerun --dev."
+    "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if sys.implementation.name == "cpython" and sys.version_info[:3] >= (3, 12, 0) and sys.version_info.releaselevel == "final" else 1)' || {
+        print_fail "The existing .venv is unsupported. Recreate it with stable CPython >= 3.12, then rerun --dev."
         exit 1
     }
 
@@ -334,7 +335,7 @@ apt-get install -y -qq \
 print_ok "System packages and build tools installed."
 
 # Step 2: Python runtime
-print_step "2/7" "Select stable CPython runtime (>= 3.14.8)"
+print_step "2/7" "Select stable CPython runtime (>= 3.12)"
 select_runtime_python
 
 # Step 3: Local MQTT broker

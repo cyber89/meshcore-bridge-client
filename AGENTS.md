@@ -239,7 +239,7 @@ Ejecutar obligatoriamente cuando la feature a implementar involucre:
 
 ## 5. Estándares de Calidad de Código y Sincronización
 
-- **Python Version**: `>= 3.14.8`; baseline CPython 3.14.8. Las versiones anteriores pertenecen al historial y ya no son destinos de soporte.
+- **Python Version**: CPython estable `>= 3.12`; versión recomendada `3.13.5`, sin máximo de versión. Se admiten versiones estables posteriores. La recomendación no es una versión obligatoria ni un límite superior; Python <3.12 queda fuera de soporte.
 - **Linter & Formatter**: `ruff` (conformidad PEP 8 y buenas prácticas)
 - **Type Checker**: `mypy --strict`
 - **Pruebas Automatizadas**: **Suspendidas hasta petición explícita del usuario**.
@@ -252,7 +252,7 @@ Ejecutar obligatoriamente cuando la feature a implementar involucre:
 - No recrear `deploy/` ni `scripts/sync_deploy.py`: se retiraron el 2026-09-25. Los instaladores vigentes están en la raíz.
 - Skills propias: `.agents/README.md`; los paquetes de terceros `archify` y `ui-ux-pro-max` conservan su procedencia. No actualizar paquetes, herramientas globales o referencias oficiales indiscriminadamente.
 - Reutilizar primero herramientas instaladas en el entorno del proyecto. Instalar dependencias necesarias de QA de forma local; registrar versión y propósito. No introducir dependencias de producción para una tarea documental.
-- Arquitectura asíncrona basada en Python 3.14.8+. `TaskGroup`, `asyncio.timeout`, `typing.Self` y sintaxis PEP 695 están disponibles; seleccionar cada patrón según propiedad, cancelación y contratos, sin sustituciones mecánicas universales. La disponibilidad del intérprete y de dependencias en cada SBC requiere comprobación. Véase [ADR 0015](docs/adr/0015-python-3-14-8-baseline.md).
+- Arquitectura asíncrona basada en CPython estable 3.12+, con 3.13.5 recomendado y sin máximo. `TaskGroup`, `asyncio.timeout`, `typing.Self` y sintaxis PEP 695 están disponibles desde el mínimo; no introducir APIs exclusivas de versiones posteriores sin mantener compatibilidad con 3.12. Seleccionar cada patrón según propiedad, cancelación y contratos, sin sustituciones mecánicas universales. La disponibilidad del intérprete y de dependencias en cada SBC requiere comprobación. Véase [ADR 0016](docs/adr/0016-python-3-12-baseline.md).
 
 ## 7. Contrato de pruebas cuando están autorizadas
 

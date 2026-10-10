@@ -1,6 +1,6 @@
 ---
 name: async-concurrency-engineering
-description: Revisar tareas, locks, backpressure y apagado de MeshCore Bridge sin bloquear asyncio; usar CPython 3.14.8+.
+description: Revisar tareas, locks, backpressure y apagado de MeshCore Bridge sin bloquear asyncio; usar CPython 3.12+.
 ---
 
 # Concurrencia del bridge
@@ -19,7 +19,7 @@ y [watchdog.py](../../../src/serial/watchdog.py).
 - Definir propietario único de reconexión y comprobar desconexión durante TX,
   fallos de ping y excepción de reconexión con mocks del SDK.
 - Acotar colas, manejar QueueFull y resolver futures pendientes en apagado/fallo.
-- El baseline es CPython 3.14.8+; TaskGroup y asyncio.timeout están disponibles.
+- El baseline es CPython 3.12+; TaskGroup y asyncio.timeout están disponibles.
   Elegirlos según propiedad y semántica de cancelación. wait_for/gather siguen
   siendo válidos; no convertir tareas independientes o workers retenidos en
   grupos que cancelen hermanos sin revisar el contrato de apagado.
@@ -32,3 +32,5 @@ python .agents/skills/async-concurrency-engineering/scripts/audit_async_concurre
 
 El auditor AST señala patrones; no prueba ausencia de carreras. Ejecutar regresiones
 concurrentes sólo bajo la autorización de pruebas establecida en AGENTS.md.
+
+Versión recomendada: CPython 3.13.5. Se aceptan versiones estables >=3.12 sin límite superior.

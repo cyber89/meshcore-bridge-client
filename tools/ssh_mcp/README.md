@@ -3,11 +3,12 @@
 Servidor stdio local para la estación autorizada `192.168.0.242`, usuario `root`.
 No se registra automáticamente en Codex, no cambia configuración global y no abre
 conexiones al importarlo o listar herramientas. Sus dependencias están separadas
-de las del bridge y requieren CPython >=3.11 estable. Se fijan el SDK oficial
+de las del bridge y requieren CPython >=3.12 estable; se recomienda 3.13.5 y se
+aceptan versiones estables posteriores sin un máximo fijado. Se fijan el SDK oficial
 `mcp==2.3.0` y `paramiko==5.0.0`; MCP usa `httpx2` y se verifica en una venv propia,
 sin mezclarla con HTTPX 0.28 de las pruebas del bridge.
-Al importarlo o arrancarlo, el servidor rechaza versiones anteriores a 3.11
-y otros intérpretes antes de importar Paramiko/MCP o construir
+Al importarlo o arrancarlo, el servidor rechaza versiones anteriores a 3.12,
+prereleases y otros intérpretes antes de importar Paramiko/MCP o construir
 `MCPServer`. La guarda usa sólo la biblioteca estándar y no carga la configuración
 ni el `.env` de la aplicación.
 

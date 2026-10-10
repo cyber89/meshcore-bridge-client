@@ -6,7 +6,7 @@ Este documento define el **Lenguaje Ubicuo (Ubiquitous Language)** y el **Modelo
 
 ## 1. Propósito y Arquitectura General del Sistema
 
-- **MeshCore Bridge**: Aplicación asíncrona cuya base de ejecución es CPython 3.14.8 o superior, que actúa como pasarela bidireccional determinista entre una red de malla LoRa (basada en el protocolo y firmware oficial de MeshCore) y redes IP (WebSockets, REST API y MQTT para automatización con n8n/Node-RED). La decisión vigente está en [ADR 0015](docs/adr/0015-python-3-14-8-baseline.md); los intérpretes anteriores quedan como contexto histórico.
+- **MeshCore Bridge**: Aplicación asíncrona cuya base de ejecución es CPython estable 3.12 o superior, con 3.13.5 recomendado y sin máximo de versión, que actúa como pasarela bidireccional determinista entre una red de malla LoRa (basada en el protocolo y firmware oficial de MeshCore) y redes IP (WebSockets, REST API y MQTT para automatización con n8n/Node-RED). La decisión vigente está en [ADR 0016](docs/adr/0016-python-3-12-baseline.md); las decisiones anteriores se conservan como contexto histórico.
 - **Base Station (Estación Base / Nodo Local)**: Transceptor MeshCore Companion conectado al host por USB/UART o mediante TCP al Companion remoto. Su identidad es la clave pública local.
 - **Enrutamiento de Eventos**: `RxEventRouter` distribuye eventos SDK o tramas raw propias entre handlers; MQTT/WebSocket reciben eventos normalizados. El frontend tiene su propio `EventBus` JavaScript. La cola TX usa `asyncio.PriorityQueue`.
 

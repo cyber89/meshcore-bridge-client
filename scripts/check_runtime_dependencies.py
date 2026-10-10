@@ -38,7 +38,7 @@ PROFILES: dict[str, tuple[tuple[str, str, tuple[int, ...]], ...]] = {
     "web": DEPENDENCIES + WEB_DEPENDENCIES,
 }
 
-MIN_PYTHON_VERSION = (3, 14, 8)
+MIN_PYTHON_VERSION = (3, 12, 0)
 
 
 def _stable_release(version: str) -> tuple[int, ...] | None:
@@ -60,7 +60,7 @@ def check_dependencies(
     """Return all failures; importing one package never certifies another."""
     failures = []
     if sys.version_info[:3] < MIN_PYTHON_VERSION or sys.version_info.releaselevel != "final":
-        return [f"Python requires >={'.'.join(map(str, MIN_PYTHON_VERSION))} stable"]
+        return [f"Python requires >={'.'.join(map(str, MIN_PYTHON_VERSION[:2]))} stable"]
     if dependencies is None:
         selected_profile = (
             profile if profile is not None else os.getenv("MESHCORE_PROFILE", "web")

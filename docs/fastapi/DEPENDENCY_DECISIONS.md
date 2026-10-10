@@ -1,8 +1,10 @@
 # Fase 0: dependencias, instalación y compatibilidad
 
-**Evolución 2026-10-10:** el baseline actual es Python estable >=3.14.8 y
-websockets 17.2. Los destinos 3.10/3.12 siguientes son históricos, ya no soportados.
-Consulte el [informe de modernización](../PYTHON_314_MODERNIZATION_REPORT.md).
+**Evolución 2026-10-10:** el baseline actual es CPython estable >=3.12, con
+3.13.5 recomendado y sin máximo, según [ADR 0016](../adr/0016-python-3-12-baseline.md).
+El pin declarado de websockets es 17.2. Los destinos y resoluciones siguientes
+son evidencia histórica: Python 3.10 queda fuera de soporte; los resultados
+previos de 3.12 no acreditan los paquetes ni el checkout actuales.
 
 Este documento conserva las decisiones y seis resoluciones de fase 0 como
 evidencia histórica. El estado de adopción e instalación vigente se describe en

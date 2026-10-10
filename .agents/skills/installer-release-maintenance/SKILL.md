@@ -15,7 +15,7 @@ y entrega Git. Leer [AGENTS.md](../../../AGENTS.md),
   documental permite lectura y análisis, no ejecutar un instalador en producción.
   No recrear deploy/ o scripts/sync_deploy.py.
 - Acreditar intérprete y entorno usados por pip, launcher y servicio. Mantener
-  CPython >=3.14.8 y separar dependencias de producción/QA. Una venv antigua debe
+  CPython >=3.12 y separar dependencias de producción/QA. Una venv antigua debe
   recrearse con el intérprete seleccionado; activar o actualizar pip no cambia
   su Python. Usar herramientas locales;
   no actualizar paquetes/globales por conveniencia de la auditoría.
@@ -35,3 +35,5 @@ y entrega Git. Leer [AGENTS.md](../../../AGENTS.md),
 - No asumir despliegue exitoso por un push. Distinguir revisión, commit, push e
   instalación ejecutada. Registrar resultados y límites en el ledger mediante el
   principal; radio/timers/MQTT nuevos requieren el checklist RF y límites acordados.
+
+Versión recomendada: CPython 3.13.5. Se aceptan versiones estables >=3.12 sin límite superior.

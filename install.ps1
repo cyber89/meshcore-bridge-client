@@ -1,14 +1,15 @@
 # ==============================================================================
 # MeshCore Bridge - Installation and Launch for Windows PowerShell
 # Version: 3.0.0 (Production)
-# Architecture: CPython >= 3.14.8 | FastAPI ASGI | LoRa MeshCore Companion
+# Architecture: CPython >= 3.12 | FastAPI ASGI | LoRa MeshCore Companion
 # ==============================================================================
 
 <#
 .SYNOPSIS
 Set up MeshCore Bridge in a local Python virtual environment.
 .DESCRIPTION
-Requires stable CPython 3.14.8 or newer. Creates or reuses .venv, installs
+Requires stable CPython 3.12 or newer; CPython 3.13.5 is recommended.
+There is no upper version limit. Creates or reuses .venv, installs
 production dependencies when missing, and preserves an existing .env.
 Windows setup does not install a service or an MQTT broker. NO_COLOR disables
 terminal colors; redirected output uses plain text.
@@ -123,7 +124,7 @@ function Test-PythonRuntime {
     $prevEAP = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        & $PythonPath -c "import sys, venv, ensurepip; raise SystemExit(0 if sys.implementation.name == 'cpython' and sys.version_info[:3] >= (3, 14, 8) and sys.version_info.releaselevel == 'final' else 1)" 2>$null
+        & $PythonPath -c "import sys, venv, ensurepip; raise SystemExit(0 if sys.implementation.name == 'cpython' and sys.version_info[:3] >= (3, 12, 0) and sys.version_info.releaselevel == 'final' else 1)" 2>$null
         return ($LASTEXITCODE -eq 0)
     } catch {
         return $false
@@ -144,13 +145,13 @@ function Get-PythonVersionString {
 function Find-PythonRuntime {
     if ($env:MESHCORE_PYTHON) {
         if (-not (Test-PythonRuntime -PythonPath $env:MESHCORE_PYTHON)) {
-            throw "MESHCORE_PYTHON ($env:MESHCORE_PYTHON) is unsupported. Stable CPython >= 3.14.8 with venv/ensurepip is required."
+            throw "MESHCORE_PYTHON ($env:MESHCORE_PYTHON) is unsupported. Stable CPython >= 3.12 with venv/ensurepip is required."
         }
         return $env:MESHCORE_PYTHON
     }
 
     $Candidates = @()
-    foreach ($Name in @('python3.15', 'python3.14', 'python3', 'python')) {
+    foreach ($Name in @('python3.13', 'python3.12', 'python3.15', 'python3.14', 'python3', 'python')) {
         $Command = Get-Command $Name -ErrorAction SilentlyContinue
         if ($Command) { $Candidates += $Command.Source }
     }
@@ -171,7 +172,7 @@ function Find-PythonRuntime {
         if (Test-PythonRuntime -PythonPath $Candidate) { return $Candidate }
     }
 
-    throw "No supported stable CPython >= 3.14.8 was found. Install it from https://python.org or set MESHCORE_PYTHON to its executable path."
+    throw "No supported stable CPython >= 3.12 was found. Install it from https://python.org or set MESHCORE_PYTHON to its executable path."
 }
 
 # ==============================================================================
@@ -198,7 +199,7 @@ if (Test-Path $VenvPython) {
         Write-Success "Existing environment: Python $vStr ($PythonPath)"
         $NeedNewVenv = $false
     } else {
-        Write-Warn "The existing .venv requires stable CPython >= 3.14.8. Recreating it."
+        Write-Warn "The existing .venv requires stable CPython >= 3.12. Recreating it."
         # Locate a supported replacement before removing the old environment.
         $SystemPython = Find-PythonRuntime
         $VenvDirectory = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir '.venv'))
@@ -215,7 +216,7 @@ if (Test-Path $VenvPython) {
 }
 
 if ($NeedNewVenv) {
-    Write-Info "Find stable CPython >= 3.14.8"
+    Write-Info "Find stable CPython >= 3.12"
     if (-not $SystemPython) { $SystemPython = Find-PythonRuntime }
     $sysVer = Get-PythonVersionString -PythonPath $SystemPython
     Write-Success "Base runtime: Python $sysVer ($SystemPython)"

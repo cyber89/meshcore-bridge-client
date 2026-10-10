@@ -8,7 +8,7 @@ Conciliado con el código el 2026-10-09 mediante lectura estática y actualizado
 
 ## 1. Fundamentos y Filosofía de Diseño
 
-**MeshCore Bridge** es una pasarela asíncrona con baseline **CPython 3.14.8+ (`asyncio`)**, según [ADR 0015](adr/0015-python-3-14-8-baseline.md), que interconecta bidireccionalmente redes de malla LoRa (basadas en el protocolo y firmware oficial de MeshCore) con plataformas IP (WebSockets, REST API y mensajería MQTT para automatización con n8n/Node-RED).
+**MeshCore Bridge** es una pasarela asíncrona con baseline **CPython estable 3.12+ (3.13.5 recomendado, sin máximo) (`asyncio`)**, según [ADR 0016](adr/0016-python-3-12-baseline.md), que interconecta bidireccionalmente redes de malla LoRa (basadas en el protocolo y firmware oficial de MeshCore) con plataformas IP (WebSockets, REST API y mensajería MQTT para automatización con n8n/Node-RED).
 
 El sistema sigue tres principios arquitectónicos fundamentales:
 

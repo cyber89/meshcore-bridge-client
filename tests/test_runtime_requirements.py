@@ -9,16 +9,16 @@ from scripts import staged_update
 
 
 @pytest.mark.parametrize("version", [
-    (3, 10, 99, "final", 0), (3, 14, 7, "final", 0),
-    (3, 14, 8, "alpha", 1), (3, 14, 8, "candidate", 2),
+    (3, 10, 99, "final", 0), (3, 11, 99, "final", 0),
+    (3, 12, 0, "alpha", 1), (3, 13, 5, "candidate", 2),
     (3, 15, 0, "beta", 1),
 ])
 def test_rejects_older_and_prerelease_python(version: tuple[int, int, int, str, int]) -> None:
-    with pytest.raises(SystemExit, match="stable Python >= 3.14.8"):
+    with pytest.raises(SystemExit, match="stable Python >= 3.12"):
         require_stable_python(version)
 
 
-@pytest.mark.parametrize("version", [(3, 14, 8, "final", 0), (3, 14, 9, "final", 0), (3, 15, 0, "final", 0)])
+@pytest.mark.parametrize("version", [(3, 12, 0, "final", 0), (3, 13, 5, "final", 0), (3, 14, 8, "final", 0), (3, 15, 0, "final", 0)])
 def test_accepts_stable_supported_python(version: tuple[int, int, int, str, int]) -> None:
     require_stable_python(version)
 

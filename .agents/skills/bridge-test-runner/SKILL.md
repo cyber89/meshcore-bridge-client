@@ -9,7 +9,7 @@ Leer [AGENTS.md](../../../AGENTS.md) y [TESTING.md](../../../docs/TESTING.md).
 Ejecutar suites únicamente cuando el usuario lo solicite; una autorización se mantiene
 durante la tarea. Las verificaciones usan radio virtual, loopback y datos temporales.
 
-El baseline es CPython 3.14.8+, conforme al [ADR 0015](../../../docs/adr/0015-python-3-14-8-baseline.md).
+El baseline es CPython 3.12+, conforme al [ADR 0016](../../../docs/adr/0016-python-3-12-baseline.md).
 Registrar intérprete, plataforma, arquitectura, pins y pip check de un entorno
 aislado. Los resultados obtenidos con versiones anteriores no acreditan este baseline.
 
@@ -30,3 +30,5 @@ son resultados fallidos; no sustituir pytest por unittest ni anunciar éxito de 
 suite distinta. El timeout es por herramienta; conservar stdout/stderr parciales.
 Informar conteos, cobertura, skips y limitaciones de navegador o hardware por separado.
 No repetir comprobaciones aprobadas salvo cambios posteriores o dudas concretas.
+
+Versión recomendada: CPython 3.13.5. Se aceptan versiones estables >=3.12 sin límite superior.

@@ -35,7 +35,7 @@ Transmission pacing, priority queues, duplicate detection, reconnect handling, a
 You will need:
 
 - A radio running MeshCore Companion firmware, connected with a USB data cable or reachable through a Companion TCP endpoint.
-- **CPython 3.14.8 or newer**, with virtual environment and pip support. Check the selected interpreter's full version before installing; the host distribution's default Python may be older.
+- **Stable CPython 3.12 or newer**, with virtual environment and pip support. **3.13.5 is recommended**; later stable versions are allowed, with no upper version limit. Check the selected interpreter's full version before installing; the host distribution's default Python may be older.
 - A Linux host with APT and systemd for the automated Linux installer, or Windows with PowerShell for the Windows launcher.
 - An MQTT broker for MQTT workflows. The Linux installer provisions Mosquitto; Windows and manual setups use a broker you provide.
 
@@ -58,7 +58,7 @@ The initial installation also configures and starts Mosquitto with an anonymous 
 If your supported interpreter has a custom location, pass it explicitly:
 
 ```bash
-sudo env MESHCORE_PYTHON=/path/to/python3.14 bash install.sh
+sudo env MESHCORE_PYTHON=/path/to/python3.13 bash install.sh
 ```
 
 Review the deployed configuration and restart after editing:
@@ -97,8 +97,8 @@ The launcher creates a local `.venv`, installs production dependencies, detects 
 From the repository root on Linux, with a supported interpreter already installed:
 
 ```bash
-python3.14 --version
-python3.14 -m venv .venv
+python3.13 --version
+python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 if [ ! -f .env ]; then cp .env.example .env; fi
@@ -200,6 +200,6 @@ npm --prefix tools/frontend run check
 
 Node.js 18 or newer is a development build requirement. Edit the original JS/CSS sources, then rebuild their minified and gzip variants; do not edit generated files directly.
 
-The project support baseline is CPython 3.14.8+. Some older package metadata and runtime guards still declare a lower minimum; those declarations do not establish support for older interpreters. Follow the baseline in [AGENTS.md](AGENTS.md) when preparing an environment.
+The project support baseline is stable CPython 3.12+. CPython 3.13.5 is recommended, and later stable versions are allowed without an upper version limit. A version policy does not prove dependency availability or runtime behavior on every platform; record the actual interpreter and checks used. See [ADR 0016](docs/adr/0016-python-3-12-baseline.md) and [AGENTS.md](AGENTS.md).
 
 Automated suites run only when explicitly requested under the project's [agent instructions](AGENTS.md). See [Testing](docs/TESTING.md) for isolated pytest, browser, coverage, typing, and lint workflows; do not use an operating station as a test fixture.

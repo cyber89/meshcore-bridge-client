@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from src.web.api_router import WebAPIRouter
     from src.web.asgi_server import AsgiWebServer
 
-# PEP 562 module mapping for lazy attribute resolution in Python 3.14.8.
+# PEP 562 module mapping for lazy attribute resolution on supported Python versions.
 # Keeps pure domain imports independent of application configuration and network stacks.
 _MODULE_LOOKUP: dict[str, str] = {
     "MeshCoreBridge": "src.bridge_core",
