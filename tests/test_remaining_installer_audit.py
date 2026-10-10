@@ -86,6 +86,18 @@ def test_core_profile_accepts_newer_stable_dependency_versions() -> None:
     assert dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='core') == []
 
 
+@pytest.mark.parametrize('profile', ['core', 'web'])
+@pytest.mark.parametrize(('distribution', 'version'), [('meshcore', '2.3.8'), ('python-dotenv', '1.2.3')])
+def test_profiles_reject_dependencies_older_than_the_updated_minimum(
+    profile: str, distribution: str, version: str,
+) -> None:
+    versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES[profile]}
+    versions[distribution] = version
+    failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile=profile)
+    assert len(failures) == 1 and distribution in failures[0]
+    assert 'requiere >=' in failures[0]
+
+
 @pytest.mark.parametrize('profile', ['', 'unknown', 'web-extra'])
 def test_invalid_profile_fails_before_importing_packages(profile: str) -> None:
     imported: list[str] = []

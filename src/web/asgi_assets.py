@@ -37,6 +37,9 @@ _RESERVED_DOCS_PATHS = frozenset(("/docs", "/redoc", "/openapi.json"))
 _TEXT_SUFFIXES = frozenset((".html", ".css", ".js", ".json", ".svg", ".txt", ".map", ".md"))
 _INITIALIZING = b"<h1>MeshCore Web Client</h1><p>Archivos estaticos inicializandose...</p>"
 
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
+
 
 @dataclass(frozen=True, slots=True)
 class _CachedAsset:
@@ -235,7 +238,13 @@ class AssetsAdapter:
                 "Content-Type": (
                     cached.content_type
                     if "charset" in cached.content_type
-                    else cached.content_type + "; charset=utf-8"
+                    else (
+                        cached.content_type + "; charset=utf-8"
+                        if cached.content_type.startswith(
+                            ("text/", "application/javascript", "application/json")
+                        )
+                        else cached.content_type
+                    )
                 ),
                 "Cache-Control": (
                     "no-cache, no-store, must-revalidate"

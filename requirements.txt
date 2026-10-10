@@ -1,15 +1,16 @@
 # Dependencias de producción para MeshCore Bridge v3.0
 # Instalar con: pip install -r requirements.txt
-paho-mqtt>=2.1.0
-meshcore>=2.3.8
-pyserial>=3.5
-python-dotenv>=1.0.1
+paho-mqtt==2.1.0
+meshcore==2.3.15
+pyserial==3.5
+python-dotenv==1.2.4
 
 # Servidor Web de Producción (FastAPI / Uvicorn ASGI)
 fastapi==0.143.0
 uvicorn==0.54.0
 pydantic==2.14.0
 websockets==16.1.1
+# websockets 17.2 requiere Python >=3.11; 16.1.1 es la última estable para 3.10.
 # Interfaces de middleware y protocolo usadas directamente por el adaptador ASGI.
 starlette==1.7.0
 h11==0.16.0

@@ -88,6 +88,7 @@ class MeshCoreApp {
     this._initTheme();
     this._initNavigation();
     this._initSidebar();
+    this._initBootstrapModalBridge();
     document.getElementById("btnSelectImportFile")?.addEventListener("click", () => document.getElementById("importFileInput")?.click());
     this._initCommandPalette();
     this._initModalFocus();
@@ -103,7 +104,7 @@ class MeshCoreApp {
     this.chatModule.init();
     this.analyticsModule.init();
 
-    // Renderizar iconos vectoriales Lucide en el DOM cargado
+    // Renderizar iconos vectoriales en el DOM cargado
     if (window.initLucideIcons) window.initLucideIcons();
 
     // Exponer helpers globales de diálogos del sistema
@@ -135,18 +136,58 @@ class MeshCoreApp {
     };
   }
 
+  _initBootstrapModalBridge() {
+    if (!window.bootstrap?.Modal) return;
+
+    // Observe class attribute changes on all modal-overlay / .modal elements
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "attributes" && m.attributeName === "class") {
+          const target = m.target;
+          if (!target.classList.contains("modal")) return;
+          const isHidden = target.classList.contains("hidden");
+          const bsModal = bootstrap.Modal.getOrCreateInstance(target, {
+            backdrop: target.id === "systemDialogModal" ? "static" : true,
+            keyboard: true,
+          });
+          if (isHidden) {
+            bsModal.hide();
+          } else {
+            bsModal.show();
+          }
+        }
+      }
+    });
+
+    document.querySelectorAll(".modal").forEach((el) => {
+      observer.observe(el, { attributes: true, attributeFilter: ["class"] });
+      el.addEventListener("hidden.bs.modal", () => {
+        if (!el.classList.contains("hidden")) {
+          el.classList.add("hidden");
+        }
+      });
+      el.addEventListener("shown.bs.modal", () => {
+        if (el.classList.contains("hidden")) {
+          el.classList.remove("hidden");
+        }
+      });
+    });
+  }
+
   _initTheme() {
     const savedTheme = localStorage.getItem("meshcore_theme") === "light" ? "light" : "dark";
     document.body.classList.remove("dark-theme", "light-theme");
     document.body.classList.add(`${savedTheme}-theme`);
+    document.documentElement.setAttribute("data-bs-theme", savedTheme);
     this._updateThemeIcon(savedTheme);
 
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener("click", () => {
-        const isDark = document.body.classList.contains("dark-theme");
+        const isDark = document.body.classList.contains("dark-theme") || document.documentElement.getAttribute("data-bs-theme") === "dark";
         const next = isDark ? "light" : "dark";
         document.body.classList.remove("dark-theme", "light-theme");
         document.body.classList.add(`${next}-theme`);
+        document.documentElement.setAttribute("data-bs-theme", next);
         localStorage.setItem("meshcore_theme", next);
         this._updateThemeIcon(next);
       });
@@ -210,6 +251,13 @@ class MeshCoreApp {
         if (targetPane) {
           targetPane.classList.add("active");
           targetPane.removeAttribute("hidden");
+        }
+
+        // Cerrar offcanvas de sidebar en dispositivos móviles
+        const sidebarEl = document.getElementById("appSidebar");
+        if (sidebarEl && window.bootstrap?.Offcanvas) {
+          const offcanvas = bootstrap.Offcanvas.getInstance(sidebarEl);
+          if (offcanvas) offcanvas.hide();
         }
 
         this.activeTabId = tabId;
@@ -783,48 +831,45 @@ class MeshCoreApp {
     if (!container) {
       container = document.createElement("div");
       container.id = "toastContainer";
-      container.className = "toast-container";
+      container.className = "toast-container position-fixed bottom-0 end-0 p-3";
       container.setAttribute("aria-live", "polite");
       document.body.appendChild(container);
     }
 
-    const icons = {
-      success: `<svg class="toast-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`,
-      info: `<svg class="toast-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
-      warning: `<svg class="toast-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
-      error: `<svg class="toast-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`,
+    const typeConfig = {
+      success: { bg: "bg-success text-white", icon: "check-circle" },
+      info: { bg: "bg-primary text-white", icon: "info-circle" },
+      warning: { bg: "bg-warning text-dark", icon: "exclamation-triangle" },
+      error: { bg: "bg-danger text-white", icon: "exclamation-octagon" },
     };
-    const icon = icons[type] || icons.info;
+    const cfg = typeConfig[type] || typeConfig.info;
 
     const toast = document.createElement("div");
-    toast.className = `toast toast-item toast-${type}`;
+    toast.className = `toast align-items-center ${cfg.bg} border-0 shadow mb-2`;
     toast.setAttribute("role", type === "error" ? "alert" : "status");
+    toast.setAttribute("aria-live", "assertive");
+    toast.setAttribute("aria-atomic", "true");
     toast.innerHTML = `
-      <span class="toast-icon" aria-hidden="true">${icon}</span>
-      <span class="toast-message">${escapeHtml(message)}</span>
-      <button type="button" class="toast-close" data-i18n-aria-label="app.close_toast" aria-label="${escapeHtml(I18n.t("app.close_toast"))}">&times;</button>
+      <div class="d-flex align-items-center">
+        <div class="toast-body d-flex align-items-center gap-2 py-2 px-3">
+          <i class="bi bi-${cfg.icon} fs-5" aria-hidden="true"></i>
+          <span class="toast-message">${escapeHtml(message)}</span>
+        </div>
+        <button type="button" class="btn-close ${type === 'warning' ? '' : 'btn-close-white'} me-2 m-auto" data-bs-dismiss="toast" aria-label="${escapeHtml(I18n.t("app.close_toast"))}"></button>
+      </div>
     `;
-
-    let dismissed = false;
-    const dismiss = () => {
-      if (dismissed) return;
-      dismissed = true;
-      toast.classList.add("toast-fade-out");
-      setTimeout(() => toast.remove(), 300);
-    };
-
-    const closeBtn = toast.querySelector(".toast-close");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dismiss();
-      });
-    }
 
     container.appendChild(toast);
 
-    if (durationMs > 0) {
-      setTimeout(dismiss, durationMs);
+    if (window.bootstrap?.Toast) {
+      const bsToast = bootstrap.Toast.getOrCreateInstance(toast, {
+        delay: durationMs > 0 ? durationMs : 4000,
+        autohide: durationMs > 0,
+      });
+      toast.addEventListener("hidden.bs.toast", () => toast.remove());
+      bsToast.show();
+    } else {
+      setTimeout(() => toast.remove(), durationMs || 3500);
     }
   }
 

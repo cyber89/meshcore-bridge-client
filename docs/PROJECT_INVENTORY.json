@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-06T00:47:53.204128+00:00",
-  "project_head": "776eed7ce1452a15c96e254fca938809317fb84a",
+  "generated_at_utc": "2026-10-10T04:06:51.123954+00:00",
+  "project_head": "e509da0128d802de288bbd9f2208d98786be9283",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,9 +14,9 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 77,
+    "documents": 52,
     "references": 15,
-    "source_files": 83,
+    "source_files": 103,
     "project_skills": 22,
     "vendor_skills": 8
   },
@@ -82,172 +82,28 @@
       "lines": 45
     },
     {
-      "path": "docs/AGENT_ACTIVITY_REPORT.md",
+      "path": "docs/adr/0011-staged-asgi-migration.md",
       "category": "maintained-or-decision",
-      "sha256": "c122f29eb6a64d657ac192be699372ba72f4e700e004e10c02e78de00d74a9cd",
-      "lines": 5723
+      "sha256": "44e9764755a1624d73a600c23020c680f4eef1cdf2edb352767adb540634d5da",
+      "lines": 149
+    },
+    {
+      "path": "docs/adr/0012-bootstrap-5-frontend-architecture.md",
+      "category": "maintained-or-decision",
+      "sha256": "0481b011f7ae5fb389be14311439a2e55d0399840e5c891085fa3cb0c3e1dfa7",
+      "lines": 48
     },
     {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "31c05ad42a6945d6e97ba7683ed53d3a14d0fcdad44af654a0917fe3da9be3d6",
-      "lines": 590
+      "sha256": "a0c6c561fb1764c47dc47da48bc1f56ca04477fc283c6d7f3ef2964091325af2",
+      "lines": 597
     },
     {
-      "path": "docs/AUDIT_REMEDIATION_2026-10-05.md",
+      "path": "docs/audits/2026-10-09-layer-audit.md",
       "category": "maintained-or-decision",
-      "sha256": "3d90929cd1dc2de3bfa2c520040787ee0e73ed417d484b5d94ac9a90e7844d2c",
-      "lines": 310
-    },
-    {
-      "path": "docs/AUDIT_REPORT_2026-08-17.md",
-      "category": "historical-ledger-or-report",
-      "sha256": "5e29b6b47aad16304a16ad0cd0115c8226a5b3950a4f5742e48a6d7f1c24a8c6",
-      "lines": 161
-    },
-    {
-      "path": "docs/AUDIT_REPORT_LAYER_BY_LAYER.md",
-      "category": "maintained-or-decision",
-      "sha256": "f93bbd96ea316550d170ec339e54843025000f071d175d4b8cdf5d6d12f1ff6e",
-      "lines": 1169
-    },
-    {
-      "path": "docs/audits/config-parameters-2026-10-04/frontend-remote.md",
-      "category": "maintained-or-decision",
-      "sha256": "345666edc87da1884253ff10071d93c64238b7ee61a1658a8d9205e0a49eebbe",
-      "lines": 60
-    },
-    {
-      "path": "docs/audits/config-parameters-2026-10-04/protocol-matrix.md",
-      "category": "maintained-or-decision",
-      "sha256": "06e7c8fe18a508168d4b8cd90d088608bdd15940a5718de10e1c8095348a2793",
-      "lines": 104
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/admin-remaining.md",
-      "category": "maintained-or-decision",
-      "sha256": "6283f95932eacc4c5bb4e7706e80961865f11f144a07907259ae2e9907e258db",
-      "lines": 74
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/core-remaining.md",
-      "category": "maintained-or-decision",
-      "sha256": "6e95e3ccb73fb92d25ab019fbb27d94c7d1466baa35c3c951ab51f23f7af8732",
-      "lines": 148
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/installer-remaining.md",
-      "category": "maintained-or-decision",
-      "sha256": "46bdcfd3d75cab7c01e755e2d0e3d9d4fbacf7f59f2c36c39edd3f1d84a6a011",
-      "lines": 55
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/PI-02.md",
-      "category": "maintained-or-decision",
-      "sha256": "8d327c68427006010a0a3be0b28585be6736172aa780faa26afc910aee85336b",
-      "lines": 79
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/policy-remaining.md",
-      "category": "maintained-or-decision",
-      "sha256": "558c344b9000eb5ecd0f020c65f1c8363f3ccc1c99adc94fbcd1cb3bc812626f",
-      "lines": 47
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/quality-remaining.md",
-      "category": "maintained-or-decision",
-      "sha256": "83b31613eca953064096ebdc45d311dde50ea18692235835ddb54c0b45755885",
-      "lines": 85
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/RUNTIME-01.md",
-      "category": "maintained-or-decision",
-      "sha256": "dcef6e6a565039c0a14acc1f407dc84662798725e82149db07230beb3e309c71",
-      "lines": 72
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/RUNTIME-04.md",
-      "category": "maintained-or-decision",
-      "sha256": "3d9c39fe03386040f076a46bebea369b605d413cc4cf7f9cc801d9afa522c4c5",
-      "lines": 57
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/RUNTIME-05.md",
-      "category": "maintained-or-decision",
-      "sha256": "35c9f1732175837000edbf4ea1e8e78930dd31fc83f4ffafe3560f968b313668",
-      "lines": 61
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/RUNTIME-06.md",
-      "category": "maintained-or-decision",
-      "sha256": "fbffe9282ed70d1119cb839630614db5d1fabc0892a8066e9ae8a3765cafc798",
-      "lines": 46
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/WEB-01-auth.md",
-      "category": "maintained-or-decision",
-      "sha256": "2073f2c5dc08fbe4da83b12206633b90ce8eb52198575f3ea142c4b40e387565",
-      "lines": 77
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/WEB-01-capture.md",
-      "category": "maintained-or-decision",
-      "sha256": "2aae049a248e54c970ed8d79488b1bcc1a511539ba0f1f7161f393025e294b7f",
-      "lines": 44
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/WEB-02.md",
-      "category": "maintained-or-decision",
-      "sha256": "4f56f41b2b878c31ae461415260f964d2ec5c4b7dcd0f258bc82d2b3dd6a4b92",
-      "lines": 75
-    },
-    {
-      "path": "docs/audits/fixes-2026-10-05/web-remaining.md",
-      "category": "maintained-or-decision",
-      "sha256": "7712a0d6da4179693ff0f1362dbc944d8b7cc10a3d1796b433e8d88007a4d2b5",
-      "lines": 188
-    },
-    {
-      "path": "docs/audits/frontend-exhaustive-2026-10-03/css-quality.md",
-      "category": "maintained-or-decision",
-      "sha256": "0094439fe05f12063e2d34e023ef60b1dc410880690d7e0efdcd4514b9227b26",
-      "lines": 45
-    },
-    {
-      "path": "docs/audits/frontend-exhaustive-2026-10-03/interaction.md",
-      "category": "maintained-or-decision",
-      "sha256": "f51a7a12235cc808ef5f36024bf7ab498bccfcd904aa23083047df78c2a21ef6",
-      "lines": 111
-    },
-    {
-      "path": "docs/audits/frontend-exhaustive-2026-10-03/visual.md",
-      "category": "maintained-or-decision",
-      "sha256": "abc72e083a80cf608efd10bacd7dd3c58c966f83439f2cccf9295cb11975f111",
-      "lines": 71
-    },
-    {
-      "path": "docs/audits/layers-2026-10-04/protocol-integration.md",
-      "category": "maintained-or-decision",
-      "sha256": "e4c7f220cdbdbf74fb500c10229ba6ebb3205c7c7c4ebdff0a76150662094212",
-      "lines": 240
-    },
-    {
-      "path": "docs/audits/layers-2026-10-04/quality.md",
-      "category": "maintained-or-decision",
-      "sha256": "6cd226884b266ace9f5c9cc7c572b4307620602ce97c6fd960edcd5a1c798d3b",
-      "lines": 94
-    },
-    {
-      "path": "docs/audits/layers-2026-10-04/runtime.md",
-      "category": "maintained-or-decision",
-      "sha256": "0386ac96fc4249e8415e7c6bf89e8a5c8b16d4a46a850abf44c1288efeda9865",
-      "lines": 162
-    },
-    {
-      "path": "docs/audits/layers-2026-10-04/web.md",
-      "category": "maintained-or-decision",
-      "sha256": "9777475d5cc1af58df5896fe774428c790942f96ef083c848fed8ba2b32f8526",
-      "lines": 317
+      "sha256": "bc81669ad49f4e14afc6e671da601c8b22528427e2fe69c960f2ceb182138850",
+      "lines": 105
     },
     {
       "path": "docs/audits/node-config-2026-10-03/backend/README.md",
@@ -298,70 +154,88 @@
       "lines": 131
     },
     {
-      "path": "docs/BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md",
-      "category": "maintained-or-decision",
-      "sha256": "a54a8613bfb86d28e329c163eb6d4522488aa563908025e0a744717990dee604",
-      "lines": 76
-    },
-    {
       "path": "docs/CODE_EXPLANATION.md",
       "category": "maintained-or-decision",
-      "sha256": "586bab4ec8adccd19a279761920eb2f7c3a20c7556b780010fb6b23710abd25b",
-      "lines": 76
-    },
-    {
-      "path": "docs/COMPATIBILITY_AUDIT_2026-09-30.md",
-      "category": "maintained-or-decision",
-      "sha256": "32bbbf8058b098404ae3ae17492ad8be8639cbd99d76342dacd92c287d50871b",
-      "lines": 215
-    },
-    {
-      "path": "docs/CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md",
-      "category": "maintained-or-decision",
-      "sha256": "2ef5018549c202c4714596edeb1933ba058d98ff0d4f8068400b7c63a6da05e2",
-      "lines": 251
+      "sha256": "c7acb08c1baf42c70e750ab411304f124d8b77de361d2dc753c58fa93695e4e3",
+      "lines": 82
     },
     {
       "path": "docs/DEPLOYMENT_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "5c380fea561663528dcaac7c8b4e307a0cbf9ae575bd93f0ea4a35d14c5e3f92",
-      "lines": 254
+      "sha256": "d71bd3f523b36e7e2e42d0f005289486feadc9731c92177e090f2c270e308a7a",
+      "lines": 290
     },
     {
-      "path": "docs/FINAL_PROJECT_REPORT.md",
-      "category": "historical-ledger-or-report",
-      "sha256": "89fbd95b7527612b48c1a291271ed2d4d8c5bb7dbf2a672fb6d3b9599ff8b0d4",
-      "lines": 235
-    },
-    {
-      "path": "docs/FRONTEND_EXHAUSTIVE_AUDIT_2026-10-03.md",
+      "path": "docs/fastapi/DEPENDENCY_DECISIONS.md",
       "category": "maintained-or-decision",
-      "sha256": "ae5171988c6659af187aa2cd4a3b6e6bab10687412b6be11150ebc20e2487261",
-      "lines": 111
+      "sha256": "1af3f10fb305e6792338fe075f9a3be11f0cc00fd9f633f75b19701d1467eea7",
+      "lines": 313
     },
     {
-      "path": "docs/FRONTEND_UI_REVIEW_2026-10-03.md",
+      "path": "docs/fastapi/INTERNAL_CONTRACT_BASELINE.md",
       "category": "maintained-or-decision",
-      "sha256": "3b8daac3277aca07024a53b6bcddbc3b49de62fe6d5eb392a22c3ec0ad276b30",
-      "lines": 198
+      "sha256": "7de8b92fa16a5cd4d059def73b7dcaaffb4859f3e7e18eefbc8c804bae6b8ecf",
+      "lines": 386
     },
     {
-      "path": "docs/FRONTEND_VISUAL_REFRESH_2026-10-03.md",
+      "path": "docs/fastapi/PHASE_0_REPORT.md",
       "category": "maintained-or-decision",
-      "sha256": "581f3d46cd7bdaf426a3b703f2747503e19fdbaad45b8f9ee39877567cf09df7",
-      "lines": 54
+      "sha256": "f8e53059b63bfab7e32f5bc16f47efead92c7b4df524b695cef75693fc708645",
+      "lines": 88
     },
     {
-      "path": "docs/LAYERED_SYSTEM_AUDIT_2026-10-04.md",
+      "path": "docs/fastapi/PHASE_1_REPORT.md",
       "category": "maintained-or-decision",
-      "sha256": "e460fc5f6f0ab6e51dd4b64aff1ac682e8307458738a40fb3be3f07bf04b7bd3",
-      "lines": 394
+      "sha256": "06bd3fcbe4a9ec0a88aa3108b7b03ccde7e2cac83776183b5f83d27200286c9a",
+      "lines": 112
     },
     {
-      "path": "docs/LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md",
+      "path": "docs/fastapi/PHASE_1_SECURITY_REPORT.md",
       "category": "maintained-or-decision",
-      "sha256": "c8db4fb0e29f6021a29eeca8a1ee81d659acd904a2136144f3ec7d4a20345fef",
-      "lines": 167
+      "sha256": "8c8f1361675219c16442155441a29e99ab7f28e8d99377fe752105502830419b",
+      "lines": 141
+    },
+    {
+      "path": "docs/fastapi/PHASE_2_REPORT.md",
+      "category": "maintained-or-decision",
+      "sha256": "68ed5fa84736132ddacfc17997e32f9cb85cb28bceb3fa3c6e76068339301504",
+      "lines": 140
+    },
+    {
+      "path": "docs/fastapi/PHASE_3_REPORT.md",
+      "category": "maintained-or-decision",
+      "sha256": "02c894518bac812b76b172a41acb706e470e9d68b664d0aa7bc07c7ec6acf758",
+      "lines": 159
+    },
+    {
+      "path": "docs/fastapi/PHASE_4_REPORT.md",
+      "category": "maintained-or-decision",
+      "sha256": "724e1cb22e11534007f3d173017b8e75dfdfc023aa7fbe2b00347de4765e362a",
+      "lines": 248
+    },
+    {
+      "path": "docs/fastapi/PHASE_5_REPORT.md",
+      "category": "maintained-or-decision",
+      "sha256": "0069b3930a14abed52312f5f7a81482a2a6e7eff0e7d184b3c1cc7755b4396aa",
+      "lines": 136
+    },
+    {
+      "path": "docs/fastapi/PHASE_6_REPORT.md",
+      "category": "maintained-or-decision",
+      "sha256": "3be835c3326bcf1707778651dc911f76c40eddba00018c3fd7a4e83896daf4cf",
+      "lines": 115
+    },
+    {
+      "path": "docs/fastapi/REST_CONTRACT_BASELINE.md",
+      "category": "maintained-or-decision",
+      "sha256": "a0ce2cd1b4bb55ce4f1168ca1a6fa38d0f9ba7e8a52910f1aa6366cda18621e8",
+      "lines": 333
+    },
+    {
+      "path": "docs/fastapi/WEB_CONTRACT_BASELINE.md",
+      "category": "maintained-or-decision",
+      "sha256": "8ac5eea0845079a1156652189b7a6e55cc3fc88e95f6d12858c4078c1d583fde",
+      "lines": 410
     },
     {
       "path": "docs/N8N_WORKFLOW_GUIDE.md",
@@ -370,46 +244,22 @@
       "lines": 85
     },
     {
-      "path": "docs/NODE_CONFIGURATION_AUDIT_2026-10-03.md",
-      "category": "maintained-or-decision",
-      "sha256": "2f48fe684892b3d0cce546bdbf96d54388d6c6ffea90eb6c16e6b0ef42aeddc9",
-      "lines": 332
-    },
-    {
-      "path": "docs/NODE_CONFIGURATION_VERIFICATION_2026-10-03.md",
-      "category": "maintained-or-decision",
-      "sha256": "db7cde5fd89737d0134e01fa698a1fb1d43abb91d85bea97c2292e83602e9951",
-      "lines": 287
-    },
-    {
-      "path": "docs/NODES_TELEMETRY_AUDIT_2026-10-03.md",
-      "category": "maintained-or-decision",
-      "sha256": "d79f0474273702fd7acbeb902f260fa0a7b38e49ee46cab390d55f3daeb897ba",
-      "lines": 233
-    },
-    {
       "path": "docs/PROJECT_KNOWLEDGE.md",
       "category": "maintained-or-decision",
-      "sha256": "0ec4968f8db1d893b610d13f0970f3af02d9e7fb207e50a7a0c73823d7a70bfd",
-      "lines": 175
-    },
-    {
-      "path": "docs/PROTOCOL_AUDIT_2026-09-29.md",
-      "category": "maintained-or-decision",
-      "sha256": "a89e24295d3dc8d0e9389f55d1991209e193cc6b412725d262723d934d32e326",
-      "lines": 120
+      "sha256": "198f212b1f6aca7da5717a06b2a0dcdb3d1a0c193baee27967b961225d5b31b9",
+      "lines": 196
     },
     {
       "path": "docs/PROTOCOL_SPEC.md",
       "category": "maintained-or-decision",
-      "sha256": "89851491904376f35f0a8504f581c61e8c88d8c3121fc78a95b9fdcbdeeaf421",
-      "lines": 508
+      "sha256": "f78e5048f47497593c391e5dc827e8f1c4fc5d38333ce9e7d0c12d89ab793ef5",
+      "lines": 507
     },
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "8d79e8d982d4d89c406c9b8cd888d27f306f498ca4023f81c620676237eba933",
-      "lines": 57
+      "sha256": "0f0b0bc3daa411291ff5f35dbe6fa1ec2448db0c0f1a5061ee58ce69624d13ee",
+      "lines": 73
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",
@@ -438,26 +288,26 @@
     {
       "path": "docs/SYSTEM_LAYERS_MANUAL.md",
       "category": "maintained-or-decision",
-      "sha256": "6de95a217eccb96d786ed2ecdd74805cd40a2a9d2266b8dfc053d18698877924",
-      "lines": 452
+      "sha256": "2880843156056b4e8910123cba228a985f0643ed3c61a435483686a3d14cadb8",
+      "lines": 454
     },
     {
       "path": "docs/TEST_INVENTORY.md",
       "category": "maintained-or-decision",
-      "sha256": "4f10597a9e63cedb791462140f9b8adbe3ab58fdb8c75db7bf3cd00c3174c012",
-      "lines": 92
+      "sha256": "4ec8f714db0dbd7eaf5932f4d22988c9873d9ac062422ccf5f86b17f4522fbe5",
+      "lines": 90
     },
     {
       "path": "docs/TESTING.md",
       "category": "maintained-or-decision",
-      "sha256": "82bf2fff0ed6c6a94dba30035696bfe02574194678bb2b9b1b1a46e53c8660df",
-      "lines": 94
+      "sha256": "d7a6e5933ee7f93be4775f349c64bcca729745557c139fca2de2fd3008f7538f",
+      "lines": 97
     },
     {
       "path": "README.md",
       "category": "maintained-or-decision",
-      "sha256": "a45ae94aa2a78ac54caab669d26790d84c9048c2f2ea1b73129ab5c5903496ac",
-      "lines": 307
+      "sha256": "d52b40ba1d5ddf84929764a9d32bfa0b44148e746f96fe56b0bd5169a9538c10",
+      "lines": 235
     },
     {
       "path": "AGENTS.md",
@@ -468,8 +318,8 @@
     {
       "path": "CONTEXT.md",
       "category": "maintained-or-decision",
-      "sha256": "c8d12c9cdb09d72a5aa4cfca70c98953cf97d78eccde2caf0e17054221e725b0",
-      "lines": 89
+      "sha256": "cd7fba5ac5a780f1a1ef31f0e68bd67fc2fd20894353d1fbdaabc011c89a9d00",
+      "lines": 91
     },
     {
       "path": "data/maps/README.md",
@@ -1325,7 +1175,7 @@
       "name": "api-design-testing",
       "path": ".agents/skills/api-design-testing/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Diseño, especificación OpenAPI/Swagger, estándares RESTful (RFC 7807 Problem Details),\n  manejo estricto de códigos HTTP (200, 201, 204, 400, 401, 403, 404, 413, 422, 429),\n  idempotencia, CORS, OpenAPI 3.1, rate limiting y pruebas automatizadas de contratos.",
+      "description": ">-\n  DiseÃ±o, especificaciÃ³n OpenAPI/Swagger, estÃ¡ndares RESTful (RFC 7807 Problem Details),\n  manejo estricto de cÃ³digos HTTP (200, 201, 204, 400, 401, 403, 404, 413, 422, 429),\n  idempotencia, CORS, OpenAPI 3.1, rate limiting y pruebas automatizadas de contratos.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/api-design-testing/scripts/validate_api_contract.py"
@@ -1353,7 +1203,7 @@
       "name": "asyncio-profiler-leak-detector",
       "path": ".agents/skills/asyncio-profiler-leak-detector/SKILL.md",
       "ownership": "project",
-      "description": "Medir event-loop lag y asignaciones con tracemalloc en escenarios aislados; distinguir el benchmark sintético del perfilado del servicio real.",
+      "description": "Medir event-loop lag y asignaciones con tracemalloc en escenarios aislados; distinguir el benchmark sintÃ©tico del perfilado del servicio real.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/asyncio-profiler-leak-detector/scripts/profile_async_health.py"
@@ -1373,7 +1223,7 @@
       "name": "clean-code-solid",
       "path": ".agents/skills/clean-code-solid/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Auditoría y aplicación de principios SOLID, patrones de diseño GoF, reducción de complejidad\n  ciclomática y detección de Code Smells (God Classes, Long Methods, Feature Envy, Primitive Obsession).",
+      "description": ">-\n  AuditorÃ­a y aplicaciÃ³n de principios SOLID, patrones de diseÃ±o GoF, reducciÃ³n de complejidad\n  ciclomÃ¡tica y detecciÃ³n de Code Smells (God Classes, Long Methods, Feature Envy, Primitive Obsession).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/clean-code-solid/scripts/audit_architecture_contracts.py",
@@ -1392,7 +1242,7 @@
       "name": "contract-openapi-sync",
       "path": ".agents/skills/contract-openapi-sync/SKILL.md",
       "ownership": "project",
-      "description": "Revisar compatibilidad REST y WebSocket entre Python y la SPA de MeshCore Bridge; usar comparación léxica de rutas como señal parcial y pruebas aisladas para contratos reales.",
+      "description": "Revisar compatibilidad REST y WebSocket entre Python y la SPA de MeshCore Bridge; usar comparaciÃ³n lÃ©xica de rutas como seÃ±al parcial y pruebas aisladas para contratos reales.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/contract-openapi-sync/scripts/verify_api_parity.py"
@@ -1410,7 +1260,7 @@
       "name": "distributed-mesh-simulation",
       "path": ".agents/skills/distributed-mesh-simulation/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Simulación avanzada de redes de malla distribuidas e ingeniería del caos para LoRa/MeshCore.\n  Protocolos de pruebas de estrés multi-nodo, particiones de red, latencia por saltos,\n  inyección de tramas binarias corruptas, saturación de colas y análisis automatizado de logs.",
+      "description": ">-\n  SimulaciÃ³n avanzada de redes de malla distribuidas e ingenierÃ­a del caos para LoRa/MeshCore.\n  Protocolos de pruebas de estrÃ©s multi-nodo, particiones de red, latencia por saltos,\n  inyecciÃ³n de tramas binarias corruptas, saturaciÃ³n de colas y anÃ¡lisis automatizado de logs.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1418,7 +1268,7 @@
       "name": "domain-adr-keeper",
       "path": ".agents/skills/domain-adr-keeper/SKILL.md",
       "ownership": "project",
-      "description": "Mantener CONTEXT.md y ADRs coherentes con invariantes y capacidades implementadas; conservar decisiones históricas y registrar discrepancias explícitas.",
+      "description": "Mantener CONTEXT.md y ADRs coherentes con invariantes y capacidades implementadas; conservar decisiones histÃ³ricas y registrar discrepancias explÃ­citas.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/domain-adr-keeper/scripts/audit_domain_adr.py"
@@ -1428,7 +1278,7 @@
       "name": "gof-design-patterns-expert",
       "path": ".agents/skills/gof-design-patterns-expert/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Catálogo y directrices de implementación de patrones de diseño clásicos (GoF) y micro-patrones\n  en Python moderno: Strategy, Factory Method, Adapter, Observer, Command, State Machine,\n  Facade, Builder y Object Pool.",
+      "description": ">-\n  CatÃ¡logo y directrices de implementaciÃ³n de patrones de diseÃ±o clÃ¡sicos (GoF) y micro-patrones\n  en Python moderno: Strategy, Factory Method, Adapter, Observer, Command, State Machine,\n  Facade, Builder y Object Pool.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/gof-design-patterns-expert/scripts/analyze_design_patterns.py"
@@ -1438,7 +1288,7 @@
       "name": "html-css-modern-js",
       "path": ".agents/skills/html-css-modern-js/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Estándares de frontend moderno: HTML5 semántico (header, nav, main, section, aside),\n  CSS moderno (Flexbox, CSS Grid, Custom Properties, clamp()), y JavaScript ES6-ES2024\n  (async/await, AbortController, WebSocket auto-reconnect, CustomEvents, sanitización DOM).",
+      "description": ">-\n  EstÃ¡ndares de frontend moderno: HTML5 semÃ¡ntico (header, nav, main, section, aside),\n  CSS moderno (Flexbox, CSS Grid, Custom Properties, clamp()), y JavaScript ES6-ES2024\n  (async/await, AbortController, WebSocket auto-reconnect, CustomEvents, sanitizaciÃ³n DOM).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/html-css-modern-js/scripts/lint_frontend_standards.py"
@@ -1456,7 +1306,7 @@
       "name": "installer-release-maintenance",
       "path": ".agents/skills/installer-release-maintenance/SKILL.md",
       "ownership": "project",
-      "description": "Revisar o mantener instaladores raíz, servicio systemd y publicación Git de MeshCore Bridge; comprobar rutas, entorno Python y códigos de salida antes de ejecutar cambios autorizados.",
+      "description": "Revisar o mantener instaladores raÃ­z, servicio systemd y publicaciÃ³n Git de MeshCore Bridge; comprobar rutas, entorno Python y cÃ³digos de salida antes de ejecutar cambios autorizados.",
       "ui_metadata": ".agents/skills/installer-release-maintenance/agents/openai.yaml",
       "scripts": []
     },
@@ -1464,7 +1314,7 @@
       "name": "lora-frame-validator",
       "path": ".agents/skills/lora-frame-validator/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Herramienta de análisis, cálculo y verificación de tramas binarias de protocolo LoRa/MeshCore.\n  Permite validar delimitación SOF/EOF, secuencias de escape (byte stuffing) y calcular\n  múltiples algoritmos de CRC (CRC-CCITT, CRC-16-IBM, CRC-32, Fletcher-16, XOR). Usar para\n  validar capturas de tramas UART/LoRa reales o depurar serializadores/deserializadores.",
+      "description": ">-\n  Herramienta de anÃ¡lisis, cÃ¡lculo y verificaciÃ³n de tramas binarias de protocolo LoRa/MeshCore.\n  Permite validar delimitaciÃ³n SOF/EOF, secuencias de escape (byte stuffing) y calcular\n  mÃºltiples algoritmos de CRC (CRC-CCITT, CRC-16-IBM, CRC-32, Fletcher-16, XOR). Usar para\n  validar capturas de tramas UART/LoRa reales o depurar serializadores/deserializadores.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/lora-frame-validator/scripts/validate_frame.py"
@@ -1474,7 +1324,7 @@
       "name": "lora-packet-simulator",
       "path": ".agents/skills/lora-packet-simulator/SKILL.md",
       "ownership": "project",
-      "description": "Reproducir escenarios virtuales y regresiones MeshCore sin hardware; no sustituye la interoperabilidad con radio oficial ni incluye replay PCAP genérico.",
+      "description": "Reproducir escenarios virtuales y regresiones MeshCore sin hardware; no sustituye la interoperabilidad con radio oficial ni incluye replay PCAP genÃ©rico.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/lora-packet-simulator/scripts/simulate_virtual_mesh.py"
@@ -1484,7 +1334,7 @@
       "name": "meshcore-source-inspector",
       "path": ".agents/skills/meshcore-source-inspector/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Herramienta especializada para analizar el código fuente de referencia en C/C++ y Python\n  de MeshCore (/reference/). Extrae structs binarios, enums, constantes de framing (#define)\n  y algoritmos de CRC sin saturar la ventana de contexto. Usar cuando se requiera investigar\n  tipos, formatos de tramas o layouts de memoria del firmware.",
+      "description": ">-\n  Herramienta especializada para analizar el cÃ³digo fuente de referencia en C/C++ y Python\n  de MeshCore (/reference/). Extrae structs binarios, enums, constantes de framing (#define)\n  y algoritmos de CRC sin saturar la ventana de contexto. Usar cuando se requiera investigar\n  tipos, formatos de tramas o layouts de memoria del firmware.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/meshcore-source-inspector/scripts/inspect_meshcore_ast.py"
@@ -1494,7 +1344,7 @@
       "name": "project-reference-audit",
       "path": ".agents/skills/project-reference-audit/SKILL.md",
       "ownership": "project",
-      "description": "Inventariar y verificar documentación y procedencia de referencias de MeshCore Bridge; contrastar afirmaciones con el checkout y parsers oficiales sin arrancar servicios.",
+      "description": "Inventariar y verificar documentaciÃ³n y procedencia de referencias de MeshCore Bridge; contrastar afirmaciones con el checkout y parsers oficiales sin arrancar servicios.",
       "ui_metadata": ".agents/skills/project-reference-audit/agents/openai.yaml",
       "scripts": []
     },
@@ -1512,7 +1362,7 @@
       "name": "refactoring-clean-architecture",
       "path": ".agents/skills/refactoring-clean-architecture/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Catálogo de técnicas de refactorización de Martin Fowler, métricas de calidad de código\n  (complejidad ciclomática de McCabe, longitud de métodos, acoplamiento aferente/eferente)\n  y principios de Clean Architecture.",
+      "description": ">-\n  CatÃ¡logo de tÃ©cnicas de refactorizaciÃ³n de Martin Fowler, mÃ©tricas de calidad de cÃ³digo\n  (complejidad ciclomÃ¡tica de McCabe, longitud de mÃ©todos, acoplamiento aferente/eferente)\n  y principios de Clean Architecture.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/refactoring-clean-architecture/scripts/evaluate_refactoring_metrics.py"
@@ -1522,7 +1372,7 @@
       "name": "security-code-auditor",
       "path": ".agents/skills/security-code-auditor/SKILL.md",
       "ownership": "project",
-      "description": "Auditar entradas, secretos, permisos y límites de MeshCore Bridge con evidencia de código y regresiones aisladas; distinguir heurísticas de pruebas de seguridad.",
+      "description": "Auditar entradas, secretos, permisos y lÃ­mites de MeshCore Bridge con evidencia de cÃ³digo y regresiones aisladas; distinguir heurÃ­sticas de pruebas de seguridad.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/security-code-auditor/scripts/run_security_audit.py"
@@ -1532,7 +1382,7 @@
       "name": "software-architecture-patterns",
       "path": ".agents/skills/software-architecture-patterns/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Estándares y directrices para Arquitectura Hexagonal (Ports & Adapters), Arquitectura Dirigida\n  por Eventos (EDA), Domain-Driven Design (DDD), CQRS, State Machines y Patrones de Resiliencia\n  (Circuit Breaker, Exponential Backoff, Bulkhead, Fallback).",
+      "description": ">-\n  EstÃ¡ndares y directrices para Arquitectura Hexagonal (Ports & Adapters), Arquitectura Dirigida\n  por Eventos (EDA), Domain-Driven Design (DDD), CQRS, State Machines y Patrones de Resiliencia\n  (Circuit Breaker, Exponential Backoff, Bulkhead, Fallback).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/software-architecture-patterns/scripts/audit_architecture.py"
@@ -1558,7 +1408,7 @@
       "name": "tgrep-code-search",
       "path": ".agents/skills/tgrep-code-search/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Motor de búsqueda indexada por trigramas de alto rendimiento (microsoft/tgrep).\n  Permite realizar búsquedas regex ultra-rápidas (según índice y carga) en miles de archivos del\n  repositorio, bases de código C/C++ de referencia (/reference/) y módulos del bridge.",
+      "description": ">-\n  Motor de bÃºsqueda indexada por trigramas de alto rendimiento (microsoft/tgrep).\n  Permite realizar bÃºsquedas regex ultra-rÃ¡pidas (segÃºn Ã­ndice y carga) en miles de archivos del\n  repositorio, bases de cÃ³digo C/C++ de referencia (/reference/) y mÃ³dulos del bridge.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1566,7 +1416,7 @@
       "name": "ui-ux-pro-max",
       "path": ".agents/skills/ui-ux-pro-max/SKILL.md",
       "ownership": "vendor",
-      "description": ">-\n  Inteligencia de diseño UI/UX para web, móvil y escritorio. Sistema integral de diseño con 79 estilos (50 activos),\n  192 paletas de color con perfiles de razonamiento, 74 emparejamientos tipográficos, 119 reglas de experiencia de usuario (UX),\n  105 iconos curados, 17 presets de animación y 25 tipos de gráficos sin dependencias pesadas.",
+      "description": ">-\n  Inteligencia de diseÃ±o UI/UX para web, mÃ³vil y escritorio. Sistema integral de diseÃ±o con 79 estilos (50 activos),\n  192 paletas de color con perfiles de razonamiento, 74 emparejamientos tipogrÃ¡ficos, 119 reglas de experiencia de usuario (UX),\n  105 iconos curados, 17 presets de animaciÃ³n y 25 tipos de grÃ¡ficos sin dependencias pesadas.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1582,7 +1432,7 @@
       "name": "web-browser-inspection",
       "path": ".agents/skills/web-browser-inspection/SKILL.md",
       "ownership": "project",
-      "description": "Inspeccionar la SPA con Playwright autorizado, servidor virtual propio y capturas desktop/mobile; no usar una estación operativa como fixture.",
+      "description": "Inspeccionar la SPA con Playwright autorizado, servidor virtual propio y capturas desktop/mobile; no usar una estaciÃ³n operativa como fixture.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1590,7 +1440,7 @@
       "name": "web-ui-design-system",
       "path": ".agents/skills/web-ui-design-system/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Diseño visual de interfaces de grado profesional: Sistema de tokens de diseño, paletas armónicas HSL,\n  escala tipográfica fluida (clamp), grilla espacial de 8pt, contraste accesible WCAG 2.2 AA (al menos 4.5:1),\n  micro-animaciones y soporte responsivo desktop/mobile.",
+      "description": ">-\n  DiseÃ±o visual de interfaces de grado profesional: Sistema de tokens de diseÃ±o, paletas armÃ³nicas HSL,\n  escala tipogrÃ¡fica fluida (clamp), grilla espacial de 8pt, contraste accesible WCAG 2.2 AA (al menos 4.5:1),\n  micro-animaciones y soporte responsivo desktop/mobile.",
       "ui_metadata": null,
       "scripts": []
     }
@@ -1610,6 +1460,7 @@
     "src/deduplicator.py",
     "src/diagnostics.py",
     "src/event_utils.py",
+    "src/external_mqtt_client.py",
     "src/health_reporter.py",
     "src/lqi_engine.py",
     "src/metrics_aggregator.py",
@@ -1636,12 +1487,29 @@
     "src/serial/serial_base.py",
     "src/serial/watchdog.py",
     "src/serial_driver.py",
+    "src/services_config.py",
+    "src/services_manager.py",
     "src/shared_utils.py",
     "src/target_resolver.py",
     "src/tcp_companion_server.py",
     "src/virtual_mesh_adapter.py",
     "src/web/__init__.py",
+    "src/web/access_policy.py",
+    "src/web/api_error_policy.py",
     "src/web/api_router.py",
+    "src/web/asgi_assets.py",
+    "src/web/asgi_docs.py",
+    "src/web/asgi_errors.py",
+    "src/web/asgi_http.py",
+    "src/web/asgi_logging.py",
+    "src/web/asgi_openapi.py",
+    "src/web/asgi_openapi_catalog.py",
+    "src/web/asgi_route_catalog.py",
+    "src/web/asgi_routes.py",
+    "src/web/asgi_security.py",
+    "src/web/asgi_server.py",
+    "src/web/asgi_websocket.py",
+    "src/web/asgi_ws_hub.py",
     "src/web/controllers/__init__.py",
     "src/web/controllers/base.py",
     "src/web/controllers/channels_controller.py",
@@ -1651,18 +1519,21 @@
     "src/web/controllers/nodes_controller.py",
     "src/web/controllers/packets_controller.py",
     "src/web/controllers/repeater_controller.py",
+    "src/web/controllers/services_controller.py",
     "src/web/controllers/system_controller.py",
     "src/web/controllers/tx_controller.py",
+    "src/web/docs_ui/docs.css",
+    "src/web/docs_ui/docs.js",
+    "src/web/docs_ui/index.html",
     "src/web/map_tile_service.py",
+    "src/web/request_models.py",
     "src/web/security_inspector.py",
-    "src/web/static/css/admin.css",
-    "src/web/static/css/app.css",
-    "src/web/static/css/chat.css",
-    "src/web/static/css/components.css",
-    "src/web/static/css/nodes.css",
-    "src/web/static/css/tokens.css",
+    "src/web/server_protocol.py",
+    "src/web/static/css/bootstrap-icons.min.css",
+    "src/web/static/css/bootstrap.min.css",
     "src/web/static/index.html",
     "src/web/static/js/app.js",
+    "src/web/static/js/bootstrap.bundle.min.js",
     "src/web/static/js/core/chart_engine.js",
     "src/web/static/js/core/eventbus.js",
     "src/web/static/js/core/storage.js",

@@ -12,9 +12,9 @@ from collections.abc import Callable
 
 DEPENDENCIES = (
     ("paho-mqtt", "paho.mqtt.client", (2, 1, 0)),
-    ("meshcore", "meshcore", (2, 3, 8)),
+    ("meshcore", "meshcore", (2, 3, 15)),
     ("pyserial", "serial", (3, 5, 0)),
-    ("python-dotenv", "dotenv", (1, 0, 1)),
+    ("python-dotenv", "dotenv", (1, 2, 4)),
 )
 
 WEB_DEPENDENCIES = (

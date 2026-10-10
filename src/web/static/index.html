@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,111 +7,240 @@
   <meta name="theme-color" content="#070b14">
   <title data-i18n="ui.document_title">MeshCore Web Station — Estación base</title>
   
-  <!-- Preconnect & Fuentes UI/UX Pro Max -->
+  <!-- Preconnect & Fuentes UI/UX -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Favicon SVG Embebido -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📻</text></svg>">
-  <!-- Estilos Modulares & Sistema de Diseño Visual (UI/UX Pro Max) -->
-  <link rel="stylesheet" href="/css/app.css">
-  
+
+  <!-- Bootstrap 5.3 & Bootstrap Icons Locales Offline -->
+  <link rel="stylesheet" href="/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/css/bootstrap-icons.min.css">
+
   <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-</head>
-<body class="dark-theme">
 
-  <div id="app" class="app-layout">
-    <!-- Header Superior -->
-    <header class="app-header" role="banner">
-      <div class="header-left">
-        <div class="logo-badge">
-          <span class="logo-icon" aria-hidden="true" data-lucide="radio" data-size="20"></span>
-          <div class="logo-text-group">
-            <h1 class="logo-title">MeshCore <strong>Station</strong></h1>
-            <span class="logo-version">v3.0 Pro</span>
+  <style>
+    /* MeshCore Bridge SPA - Bootstrap 5.3 Dark Mode Custom Styling */
+    :root {
+      --bs-body-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      --bs-font-monospace: 'Fira Code', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .hidden { display: none !important; }
+    .font-mono { font-family: var(--bs-font-monospace) !important; }
+
+    /* Layout Principal */
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    #app { height: calc(100vh - 56px); }
+
+    /* Scrollbars sobrios */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    /* Visibilidad de Subpaneles internos */
+    .repeater-subpanel:not(.active),
+    .local-settings-subpanel:not(.active),
+    .sniffer-subpanel.hidden,
+    .inspector-panel.hidden { display: none !important; }
+    .repeater-subpanel.active,
+    .local-settings-subpanel.active { display: block; }
+
+    /* Contenedor Leaflet */
+    #liveGpsMap { height: calc(100vh - 160px); min-height: 480px; width: 100%; border-radius: 0.375rem; }
+    .map-container { position: relative; width: 100%; height: 100%; }
+    .map-layer-switcher { position: absolute; top: 12px; right: 12px; z-index: 1000; display: flex; gap: 6px; flex-wrap: wrap; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); padding: 6px; border-radius: 8px; border: 1px solid var(--bs-border-color); }
+    .map-overlay-info { position: absolute; bottom: 12px; left: 12px; z-index: 1000; max-width: 320px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--bs-border-color); font-size: 12px; }
+
+    /* Layout Chat */
+    .chat-layout { display: flex; height: 100%; gap: 1rem; }
+    .chat-channels-panel { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; }
+    .chat-conversation-panel { flex-grow: 1; display: flex; flex-direction: column; height: 100%; }
+    .chat-messages { flex-grow: 1; height: calc(100vh - 230px); min-height: 350px; overflow-y: auto; padding: 1rem; border-radius: 0.5rem; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); }
+    .chat-composer-wrapper { position: relative; margin-top: 0.75rem; }
+    .channel-list { list-style: none; padding: 0; margin: 0; }
+    .channel-item { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-radius: 0.375rem; cursor: pointer; margin-bottom: 2px; }
+    .channel-item:hover { background: var(--bs-tertiary-bg); }
+    .channel-item.active { background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); font-weight: 600; }
+
+    /* Burbujas de Chat */
+    .message-bubble-row { display: flex; margin-bottom: 0.5rem; width: 100%; }
+    .message-bubble-row.outgoing { justify-content: flex-end; }
+    .message-bubble-row.incoming { justify-content: flex-start; }
+    .msg-bubble { max-width: 75%; padding: 0.6rem 0.9rem; word-break: break-word; }
+    .message-bubble-row.outgoing .msg-bubble { background: var(--bs-primary); color: #fff; border-radius: 1rem 1rem 0.25rem 1rem; }
+    .message-bubble-row.incoming .msg-bubble { background: var(--bs-tertiary-bg); color: var(--bs-body-color); border-radius: 1rem 1rem 1rem 0.25rem; border: 1px solid var(--bs-border-color); }
+    .msg-footer { display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem; font-size: 0.75rem; opacity: 0.8; margin-top: 0.25rem; }
+    .msg-sender { font-size: 0.75rem; font-weight: 600; opacity: 0.85; margin-bottom: 0.25rem; display: block; }
+
+    /* Grillas Dinámicas de Nodos y Contactos */
+    #contactsGridUi, #nodesUnifiedGridUi {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 1rem;
+    }
+    .contact-card, .node-card {
+      background: var(--bs-body-bg);
+      border: 1px solid var(--bs-border-color);
+      border-radius: var(--bs-border-radius-lg);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .contact-card:hover, .node-card:hover {
+      border-color: var(--bs-primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+    .contact-card-header, .node-card-header { display: flex; align-items: center; gap: 0.75rem; }
+    .node-card-avatar-wrapper { position: relative; }
+    .contact-avatar, .node-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--bs-tertiary-bg); display: flex; align-items: center; justify-content: center; font-weight: bold; border: 1px solid var(--bs-border-color); }
+    .avatar-status-dot { position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bs-body-bg); }
+    .avatar-status-dot.online { background-color: var(--bs-success); }
+    .avatar-status-dot.offline { background-color: var(--bs-secondary); }
+    .stat-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 11px; background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color); font-family: var(--bs-font-monospace); }
+    .contact-card-chips, .node-card-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .contact-card-actions, .node-card-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--bs-border-color-translucent); }
+
+    /* Terminales y Logs */
+    .system-logs-box, .linux-term-window pre {
+      font-family: var(--bs-font-monospace);
+      font-size: 12px;
+      line-height: 1.5;
+      background: #090d16;
+      border: 1px solid var(--bs-border-color);
+      border-radius: 0.375rem;
+      padding: 0.75rem;
+      overflow-y: auto;
+      max-height: 520px;
+    }
+
+    /* Modales: backdrop y clases de compatibilidad */
+    .modal-overlay.hidden { display: none !important; }
+  </style>
+</head>
+<body class="bg-body text-body d-flex flex-column vh-100 overflow-hidden">
+  <!-- Header Superior Navbar -->
+  <header class="navbar navbar-expand-lg bg-body-tertiary border-bottom sticky-top py-2 px-3 app-header" role="banner">
+    <div class="container-fluid px-0">
+      <div class="d-flex align-items-center gap-2 header-left">
+        <div class="d-flex align-items-center gap-2 logo-badge">
+          <i class="bi bi-broadcast fs-4 text-primary logo-icon" aria-hidden="true"></i>
+          <div class="lh-sm logo-text-group">
+            <h1 class="logo-title fs-6 fw-bold m-0">MeshCore <strong class="text-primary">Station</strong></h1>
+            <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill logo-version" style="font-size: 10px;">v3.0 Pro</span>
           </div>
         </div>
-        <div class="connection-status" role="status" aria-live="polite">
-          <div id="radio-status" class="radio-status-pill radio-status--disconnected" title="Estado del transceptor LoRa conectado por USB" data-i18n-title="ui.static_001">
-            <span class="status-indicator-dot" aria-hidden="true"></span>
-            <span class="status-icon" aria-hidden="true" data-lucide="radio" data-size="13"></span>
-            <span class="status-text" data-i18n="app.radio_offline">Radio: Desconectada</span>
+        <div class="ms-2 d-flex align-items-center connection-status" role="status" aria-live="polite">
+          <div id="radio-status" class="badge rounded-pill bg-danger-subtle text-danger-emphasis border border-danger-subtle d-flex align-items-center gap-1 py-1 px-2 radio-status-pill radio-status--disconnected" title="Estado del transceptor LoRa conectado por USB" data-i18n-title="ui.static_001">
+            <span class="status-indicator-dot p-1 rounded-circle bg-danger" aria-hidden="true"></span>
+            <i class="bi bi-broadcast status-icon" aria-hidden="true"></i>
+            <span class="status-text fw-medium" data-i18n="app.radio_offline">Radio: Desconectada</span>
           </div>
         </div>
       </div>
 
-      <div class="header-center">
-        <!-- Barra de Búsqueda / Atajo Command Palette -->
-        <button id="btnCommandPalette" class="cmd-palette-trigger" title="Abrir paleta de comandos (Ctrl+K / ⌘K)" aria-label="Abrir paleta de comandos" data-i18n-title="ui.static_002" data-i18n-aria-label="ui.static_003">
-          <span class="search-icon" aria-hidden="true" data-lucide="search" data-size="16"></span>
+      <!-- Barra de Búsqueda / Atajo Command Palette -->
+      <div class="mx-auto d-none d-md-block header-center">
+        <button id="btnCommandPalette" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2 rounded-pill px-3 text-secondary cmd-palette-trigger" title="Abrir paleta de comandos (Ctrl+K / ⌘K)" aria-label="Abrir paleta de comandos" data-i18n-title="ui.static_002" data-i18n-aria-label="ui.static_003">
+          <i class="bi bi-search search-icon" aria-hidden="true"></i>
           <span class="search-hint" data-i18n="search.global_placeholder">Buscar nodo, comando o canal...</span>
-          <kbd class="kbd-shortcut">Ctrl+K</kbd>
+          <kbd class="badge bg-body text-body-secondary border px-1 kbd-shortcut">Ctrl+K</kbd>
         </button>
       </div>
 
-      <div class="header-right">
-        <div class="header-metrics" role="region" aria-label="Métricas globales de tráfico" data-i18n-aria-label="ui.static_004">
-          <span class="metric-chip" title="Nodos Activos en Malla" data-i18n-title="header.active_nodes"><span class="chip-icon" data-lucide="users" data-size="14"></span> <strong id="headerNodeCount">0</strong></span>
-          <span class="metric-chip" title="Paquetes Recibidos" data-i18n-title="header.rx_packets"><span class="chip-icon" data-lucide="download" data-size="14"></span> <strong id="headerRxCount">0</strong></span>
-          <span class="metric-chip" title="Paquetes Emitidos" data-i18n-title="header.tx_packets"><span class="chip-icon" data-lucide="upload" data-size="14"></span> <strong id="headerTxCount">0</strong></span>
-          <span class="metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)" data-i18n-title="header.airtime">
-            <span class="chip-icon" data-lucide="clock" data-size="14"></span>
+      <!-- Métricas y Controles de Cabecera -->
+      <div class="d-flex align-items-center gap-2 ms-auto header-right">
+        <div class="d-none d-xl-flex align-items-center gap-2 header-metrics" role="region" aria-label="Métricas globales de tráfico" data-i18n-aria-label="ui.static_004">
+          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Nodos Activos en Malla" data-i18n-title="header.active_nodes">
+            <i class="bi bi-people chip-icon" aria-hidden="true"></i> <strong id="headerNodeCount">0</strong>
+          </span>
+          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Paquetes Recibidos" data-i18n-title="header.rx_packets">
+            <i class="bi bi-download chip-icon" aria-hidden="true"></i> <strong id="headerRxCount">0</strong>
+          </span>
+          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Paquetes Emitidos" data-i18n-title="header.tx_packets">
+            <i class="bi bi-upload chip-icon" aria-hidden="true"></i> <strong id="headerTxCount">0</strong>
+          </span>
+          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)" data-i18n-title="header.airtime">
+            <i class="bi bi-clock chip-icon" aria-hidden="true"></i>
             <span data-i18n="ui.static_005">Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
-            <span class="header-airtime-track" id="headerAirtimeTrack" aria-hidden="true">
-              <span class="header-airtime-fill" id="headerAirtimeFill" style="width: 0%;"></span>
+            <span class="progress d-inline-block ms-1 header-airtime-track" style="width: 36px; height: 6px;" id="headerAirtimeTrack" aria-hidden="true">
+              <span class="progress-bar bg-info header-airtime-fill" id="headerAirtimeFill" style="width: 0%;"></span>
             </span>
           </span>
-          <span class="metric-chip" title="Tasa de Error" data-i18n-title="header.error_rate"><span class="chip-icon" data-lucide="alert-triangle" data-size="14"></span> <strong id="headerErrorRate">0.0%</strong></span>
-          <span class="metric-chip" title="Cola TX / Buffer" data-i18n-title="header.tx_queue"><span class="chip-icon" data-lucide="activity" data-size="14"></span> <strong id="headerQueueDepth">0</strong></span>
+          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Tasa de Error" data-i18n-title="header.error_rate">
+            <i class="bi bi-exclamation-triangle text-warning chip-icon" aria-hidden="true"></i> <strong id="headerErrorRate">0.0%</strong>
+          </span>
+          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Cola TX / Buffer" data-i18n-title="header.tx_queue">
+            <i class="bi bi-activity chip-icon" aria-hidden="true"></i> <strong id="headerQueueDepth">0</strong>
+          </span>
         </div>
-        <button id="themeToggleBtn" class="btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro"><span data-lucide="sun" data-size="16"></span></button>
-        <button id="langToggleBtn" class="btn-icon" title="Switch to English" aria-label="Switch language" style="font-size:12px;padding:0 6px;min-width:36px;" data-i18n-title="lang.title" data-i18n-aria-label="ui.static_008" data-i18n="lang.switch">🌐 EN</button>
-      </div>
-    </header>
 
-    <!-- Cuerpo Principal -->
-    <div class="app-body">
-      <!-- Barra Lateral de Navegación Principal -->
-      <aside class="app-sidebar" id="appSidebar" role="navigation" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
-        <nav class="nav-tabs" role="tablist" aria-orientation="vertical" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
-          <button class="nav-btn active" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat" title="Mensajería (Chat)" data-i18n-title="ui.static_010">
-            <span class="nav-icon" data-lucide="message-square" data-size="18"></span> <span class="nav-label" data-i18n="nav.chat">Mensajería</span>
-            <span class="nav-badge-count hidden" id="globalChatUnreadBadge">0</span>
+        <button id="themeToggleBtn" type="button" class="btn btn-outline-secondary btn-sm rounded-circle p-2 btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">
+          <i class="bi bi-sun" aria-hidden="true"></i>
+        </button>
+
+        <button id="langToggleBtn" type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2 py-1 btn-icon" title="Switch to English" aria-label="Switch language" style="font-size:12px;min-width:36px;" data-i18n-title="lang.title" data-i18n-aria-label="ui.static_008" data-i18n="lang.switch">
+          🌐 EN
+        </button>
+
+        <!-- Botón Toggler Móvil para Menú Lateral -->
+        <button class="btn btn-outline-secondary btn-sm d-lg-none ms-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Abrir menú de navegación">
+          <i class="bi bi-list fs-5"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+  <!-- Contenedor del Cuerpo Principal -->
+  <div id="app" class="app-layout d-flex flex-grow-1 overflow-hidden" style="height: calc(100vh - 56px);">
+    <!-- Barra Lateral de Navegación Principal (Offcanvas en móvil) -->
+    <aside class="app-sidebar offcanvas-lg offcanvas-start bg-body-tertiary border-end d-flex flex-column" id="appSidebar" tabindex="-1" style="width: 240px; flex-shrink: 0;" role="navigation" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
+      <div class="offcanvas-header d-lg-none border-bottom p-3">
+        <h5 class="offcanvas-title fs-6 fw-bold">Menú Principal</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Cerrar"></button>
+      </div>
+      <div class="offcanvas-body p-3 flex-column d-flex justify-content-between h-100">
+        <nav class="nav nav-pills flex-column gap-1 nav-tabs" role="tablist" aria-orientation="vertical" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
+          <button class="nav-link nav-btn active d-flex align-items-center justify-content-between text-start" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat" title="Mensajería (Chat)" data-i18n-title="ui.static_010">
+            <span class="d-flex align-items-center gap-2"><i class="bi bi-chat-dots nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.chat">Mensajería</span></span>
+            <span class="badge bg-primary rounded-pill nav-badge-count hidden" id="globalChatUnreadBadge">0</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts" title="Libreta de Contactos" data-i18n-title="contacts.title">
-            <span class="nav-icon" data-lucide="users" data-size="18"></span> <span class="nav-label" data-i18n="nav.contacts">Contactos</span>
+          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts" title="Libreta de Contactos" data-i18n-title="contacts.title">
+            <span class="d-flex align-items-center gap-2"><i class="bi bi-people nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.contacts">Contactos</span></span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes" title="Nodos & Malla LoRa" data-i18n-title="ui.static_011">
-            <span class="nav-icon" data-lucide="network" data-size="18"></span> <span class="nav-label" data-i18n="nav.nodes">Nodos</span>
+          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes" title="Nodos & Malla LoRa" data-i18n-title="ui.static_011">
+            <span class="d-flex align-items-center gap-2"><i class="bi bi-hdd-network nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.nodes">Nodos</span></span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map" title="Mapa Cartográfico" data-i18n-title="ui.static_012">
-            <span class="nav-icon" data-lucide="map" data-size="18"></span> <span class="nav-label" data-i18n="nav.map">Mapa</span>
+          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map" title="Mapa Cartográfico" data-i18n-title="ui.static_012">
+            <span class="d-flex align-items-center gap-2"><i class="bi bi-map nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.map">Mapa</span></span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics" title="Métricas & Analítica" data-i18n-title="ui.static_013">
-            <span class="nav-icon" data-lucide="activity" data-size="18"></span> <span class="nav-label" data-i18n="nav.analytics">Métricas</span>
+          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics" title="Métricas & Analítica" data-i18n-title="ui.static_013">
+            <span class="d-flex align-items-center gap-2"><i class="bi bi-activity nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.analytics">Métricas</span></span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs" title="Consola de Logs" data-i18n-title="ui.static_014">
-            <span class="nav-icon" data-lucide="file-text" data-size="18"></span> <span class="nav-label" data-i18n="nav.logs">Logs Sistema</span>
+          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs" title="Consola de Logs" data-i18n-title="ui.static_014">
+            <span class="d-flex align-items-center gap-2"><i class="bi bi-file-earmark-text nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.logs">Logs Sistema</span></span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings" title="Ajustes & Parámetros RF" data-i18n-title="ui.static_015">
-            <span class="nav-icon" data-lucide="sliders" data-size="18"></span> <span class="nav-label" data-i18n="nodes.settings_btn">Ajustes</span>
+          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings" title="Ajustes & Parámetros RF" data-i18n-title="ui.static_015">
+            <span class="d-flex align-items-center gap-2"><i class="bi bi-sliders nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nodes.settings_btn">Ajustes</span></span>
           </button>
         </nav>
 
-        <div class="sidebar-footer">
-          <button type="button" class="btn-sidebar-toggle" id="btnToggleSidebar" aria-expanded="true" aria-controls="appSidebar" title="Colapsar o expandir barra lateral (modo iconos)" aria-label="Colapsar o expandir barra lateral" data-i18n-title="ui.static_016" data-i18n-aria-label="ui.static_017">
-            <span class="sidebar-toggle-icon" data-lucide="chevron-left" data-size="16"></span>
+        <div class="sidebar-footer pt-3 border-top mt-auto">
+          <button type="button" class="btn btn-sm btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 btn-sidebar-toggle" id="btnToggleSidebar" aria-expanded="true" aria-controls="appSidebar" title="Colapsar o expandir barra lateral (modo iconos)" aria-label="Colapsar o expandir barra lateral" data-i18n-title="ui.static_016" data-i18n-aria-label="ui.static_017">
+            <i class="bi bi-chevron-left sidebar-toggle-icon" aria-hidden="true"></i>
             <span class="sidebar-toggle-label" data-i18n="nav.collapse">Colapsar</span>
           </button>
         </div>
-      </aside>
+      </div>
+    </aside>
 
-      <!-- Área de Contenido Principal -->
-      <main class="app-main" role="main">
-        <!-- Pestaña 1: Mensajería / Chat -->
+    <!-- Área de Contenido Principal -->
+    <main class="app-main tab-content flex-grow-1 overflow-auto p-3" role="main">
         <section id="tab-chat" class="tab-pane active" role="tabpanel" aria-labelledby="navTabChat">
           <div class="chat-layout">
             <!-- Panel Izquierdo de Mensajería: Canales y Conversaciones Directas -->
@@ -199,7 +328,7 @@
                   <button type="button" class="btn-icon btn-chat-tool" id="btnChatAttach" title="Adjuntar contacto, canal o ubicación" aria-label="Adjuntar contenido" data-i18n-title="ui.static_037" data-i18n-aria-label="ui.static_038"><span data-lucide="paperclip" data-size="18"></span></button>
                   <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir"  data-i18n-placeholder="chat.input_placeholder" data-i18n-aria-label="ui.static_039"/>
                   <span class="chat-char-counter" id="chatCharCounter" title="Presupuesto de transmisión LoRa (160 bytes máx. en UTF-8)" data-i18n-title="ui.static_040">0 / 160 B</span>
-                  <button type="submit" class="btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio" data-i18n-aria-label="ui.static_042">
+                  <button type="submit" class="btn btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio" data-i18n-aria-label="ui.static_042">
                     <span data-i18n="modal.send">Enviar</span> <span aria-hidden="true" data-lucide="send" data-size="14"></span>
                   </button>
                 </form>
@@ -280,9 +409,9 @@
                 <p class="header-subtitle" data-i18n="contacts.subtitle">Directorio de contactos, nodos amigos y gestión de claves públicas de la red.</p>
               </div>
               <div class="header-actions">
-                <button class="btn-secondary" id="btnRefreshContacts" aria-label="Actualizar lista de contactos" data-i18n-aria-label="ui.static_065" data-i18n="contacts.refresh"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar</button>
-                <button class="btn-secondary" id="btnHeaderImportContact" aria-label="Importar contacto" data-i18n-aria-label="ui.static_066" data-i18n="ui.static_067"><span data-lucide="download" data-size="14"></span> Importar</button>
-                <button class="btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto" data-i18n-aria-label="ui.static_068" data-i18n="contacts.add"><span data-lucide="plus" data-size="14"></span> Agregar Contacto</button>
+                <button class="btn btn-secondary" id="btnRefreshContacts" aria-label="Actualizar lista de contactos" data-i18n-aria-label="ui.static_065" data-i18n="contacts.refresh"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar</button>
+                <button class="btn btn-secondary" id="btnHeaderImportContact" aria-label="Importar contacto" data-i18n-aria-label="ui.static_066" data-i18n="ui.static_067"><span data-lucide="download" data-size="14"></span> Importar</button>
+                <button class="btn btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto" data-i18n-aria-label="ui.static_068" data-i18n="contacts.add"><span data-lucide="plus" data-size="14"></span> Agregar Contacto</button>
               </div>
             </div>
 
@@ -481,7 +610,7 @@
                   </div>
                 </div>
                 <div class="table-responsive">
-                  <table class="data-table analytics-table">
+                  <table class="table table-dark table-hover table-striped table-sm align-middle data-table analytics-table">
                     <thead>
                       <tr>
                         <th data-i18n="ui.static_082">Nodo / Alias</th>
@@ -558,8 +687,8 @@
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
-                  <button class="btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)" data-i18n-title="ui.static_111" data-i18n="logs.download_log"><span data-lucide="download" data-size="14"></span> Descargar .log</button>
-                  <button class="btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs" data-i18n-title="ui.static_112" data-i18n="chat.clear"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
+                  <button class="btn btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)" data-i18n-title="ui.static_111" data-i18n="logs.download_log"><span data-lucide="download" data-size="14"></span> Descargar .log</button>
+                  <button class="btn btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs" data-i18n-title="ui.static_112" data-i18n="chat.clear"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
                 </div>
               </div>
 
@@ -574,7 +703,7 @@
               <div class="logs-filter-bar">
                 <div class="filter-group">
                   <label for="logLevelFilter" data-i18n="logs.level_label">Nivel:</label>
-                  <select id="logLevelFilter" class="select-input">
+                  <select id="logLevelFilter" class="form-select form-select-sm select-input">
                     <option value="ALL" data-i18n="ui.static_117">Todos los Niveles</option>
                     <option value="RF" data-i18n="ui.static_118">📡 Tráfico LoRa / RF ([RX] &amp; [TX])</option>
                     <option value="SECURITY" data-i18n="ui.static_119">Tráfico Sospechoso &amp; Seguridad</option>
@@ -631,7 +760,7 @@
               <div class="logs-filter-bar" style="margin-bottom: 12px;">
                 <div class="filter-group">
                   <label for="snifferDirFilter" data-i18n="ui.static_142">Dirección:</label>
-                  <select id="snifferDirFilter" class="select-input">
+                  <select id="snifferDirFilter" class="form-select form-select-sm select-input">
                     <option value="" data-i18n="ui.static_143">Todas (RX &amp; TX)</option>
                     <option value="rx" data-i18n="ui.static_144">Solo RX (Entrantes)</option>
                     <option value="tx" data-i18n="ui.static_145">Solo TX (Salientes)</option>
@@ -639,7 +768,7 @@
                 </div>
                 <div class="filter-group">
                   <label for="snifferTypeFilter" data-i18n="ui.static_146">Tipo:</label>
-                  <select id="snifferTypeFilter" class="select-input">
+                  <select id="snifferTypeFilter" class="form-select form-select-sm select-input">
                     <option value="" data-i18n="ui.static_147">Todos los Tipos</option>
                     <option value="CHAT" data-i18n="ui.static_148">Chat / Mensajería</option>
                     <option value="ADVERT" data-i18n="ui.static_149">Advert / Descubrimiento</option>
@@ -655,7 +784,7 @@
 
               <!-- Tabla de Paquetes Capturados -->
               <div class="table-responsive" style="max-height: 550px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
-                <table class="data-table sniffer-table" style="font-size: 13px;">
+                <table class="table table-dark table-hover table-striped table-sm align-middle data-table sniffer-table" style="font-size: 13px;">
                   <thead>
                     <tr>
                       <th style="width: 50px;">#</th>
@@ -822,7 +951,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localRegion" data-i18n="ui.static_195">Región / Banda:</label>
-                    <select id="localRegion" class="select-input">
+                    <select id="localRegion" class="form-select form-select-sm select-input">
                       <option value="US915" selected data-i18n="ui.static_196">US915 (América - 915 MHz)</option>
                       <option value="EU868" data-i18n="ui.static_197">EU868 (Europa - 868 MHz)</option>
                       <option value="AU915" data-i18n="ui.static_198">AU915 (Australia - 915 MHz)</option>
@@ -841,7 +970,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localSf" data-i18n="ui.static_204">Spreading Factor (SF):</label>
-                    <select id="localSf" class="select-input">
+                    <select id="localSf" class="form-select form-select-sm select-input">
                       <option value="5">SF5</option>
                       <option value="6">SF6</option>
                       <option value="7" data-i18n="ui.static_205">SF7 (Alta velocidad / Corto alcance)</option>
@@ -854,7 +983,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localBw" data-i18n="ui.static_211">Ancho de Banda (BW):</label>
-                    <select id="localBw" class="select-input">
+                    <select id="localBw" class="form-select form-select-sm select-input">
                       <option value="7.8">7.8 kHz</option>
                       <option value="10.4">10.4 kHz</option>
                       <option value="15.6">15.6 kHz</option>
@@ -869,7 +998,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localCr" data-i18n="ui.static_216">Coding Rate (CR):</label>
-                    <select id="localCr" class="select-input">
+                    <select id="localCr" class="form-select form-select-sm select-input">
                       <option value="4/5" selected data-i18n="ui.static_217">4/5 (Estándar)</option>
                       <option value="4/6">4/6</option>
                       <option value="4/7">4/7</option>
@@ -947,7 +1076,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localPathHashMode" data-i18n="ui.static_239">Modo Path Hash:</label>
-                    <select id="localPathHashMode" class="select-input">
+                    <select id="localPathHashMode" class="form-select form-select-sm select-input">
                       <option value="0" data-i18n="ui.static_240">0 - Desactivado (Ruta Completa)</option>
                       <option value="1" data-i18n="ui.static_241">1 - Hash de 1 Byte (Compacto)</option>
                       <option value="2" data-i18n="ui.static_242">2 - Hash de 2 Bytes (Recomendado)</option>
@@ -963,7 +1092,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localTelemBase" data-i18n="ui.static_245">Modo Telemetría Base:</label>
-                    <select id="localTelemBase" class="select-input">
+                    <select id="localTelemBase" class="form-select form-select-sm select-input">
                       <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
                       <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
                       <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
@@ -971,7 +1100,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localTelemLoc" data-i18n="ui.static_249">Modo Telemetría Ubicación:</label>
-                    <select id="localTelemLoc" class="select-input">
+                    <select id="localTelemLoc" class="form-select form-select-sm select-input">
                       <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
                       <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
                       <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
@@ -979,7 +1108,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localTelemEnv" data-i18n="ui.static_250">Modo Telemetría Ambiental:</label>
-                    <select id="localTelemEnv" class="select-input">
+                    <select id="localTelemEnv" class="form-select form-select-sm select-input">
                       <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
                       <option value="1" selected data-i18n="ui.static_251">1 - Solo Contactos</option>
                       <option value="2" data-i18n="ui.static_252">2 - Todos los Nodos</option>
@@ -1031,7 +1160,7 @@
                     </div>
                   </div>
                   <div class="form-actions-full">
-                    <button type="submit" class="btn-primary" id="btnSaveLocalRadio" data-i18n="modal.save"><span class="btn-icon" data-lucide="save" data-size="16"></span> Guardar</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveLocalRadio" data-i18n="modal.save"><span class="btn-icon" data-lucide="save" data-size="16"></span> Guardar</button>
                   </div>
                 </form>
               </div>
@@ -1047,7 +1176,7 @@
                 </div>
                 
                 <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
-                  <table class="data-table" id="localCustomVarsTable">
+                  <table class="table table-dark table-hover table-striped table-sm align-middle data-table" id="localCustomVarsTable">
                     <thead>
                       <tr>
                         <th style="width: 35%;" data-i18n="ui.static_267">Clave (Key)</th>
@@ -1128,10 +1257,10 @@
                     </div>
                   </div>
                   <div class="form-group flex-row-align">
-                    <button type="button" class="btn-secondary" id="btnGetBrowserGps" data-i18n="ui.static_294"><span data-lucide="compass" data-size="14"></span> Obtener GPS del Navegador</button>
+                    <button type="button" class="btn btn-secondary" id="btnGetBrowserGps" data-i18n="ui.static_294"><span data-lucide="compass" data-size="14"></span> Obtener GPS del Navegador</button>
                   </div>
                   <div class="form-actions-full">
-                    <button type="submit" class="btn-primary" id="btnSaveLocalIdentityPos" data-i18n="ui.static_295"><span data-lucide="save" data-size="14"></span> Guardar Identidad & Posición</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveLocalIdentityPos" data-i18n="ui.static_295"><span data-lucide="save" data-size="14"></span> Guardar Identidad & Posición</button>
                   </div>
                 </form>
               </div>
@@ -1637,7 +1766,7 @@
 
                       <!-- Botón Probar Conexión -->
                       <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px;">
-                        <button type="button" class="btn-secondary" id="btnTestExternalMqtt">
+                        <button type="button" class="btn btn-secondary" id="btnTestExternalMqtt">
                           <span data-lucide="zap" data-size="14"></span> <span data-i18n="services.btn_test_conn">Probar Conexión</span>
                         </button>
                         <span id="extMqttTestStatus" class="text-xs" style="font-weight: 500;"></span>
@@ -1740,7 +1869,7 @@
 
                   <!-- Botón Principal Guardar y Aplicar -->
                   <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
-                    <button type="button" class="btn-primary" id="btnSaveServicesConfig" style="padding: 10px 24px; font-size: 14px;">
+                    <button type="button" class="btn btn-primary" id="btnSaveServicesConfig" style="padding: 10px 24px; font-size: 14px;">
                       <span data-lucide="save" data-size="16"></span> <span data-i18n="services.btn_save_all">Guardar y Aplicar Servicios</span>
                     </button>
                   </div>
@@ -1751,16 +1880,18 @@
           </div>
         </section>
       </main>
-    </div>
+    </main>
+  </div>
 
     <!-- Modal: Guardar Preset Personalizado -->
-    <div id="modalSavePreset" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalSavePresetTitle">
-      <div class="modal-card" style="max-width: 480px;">
+    <div id="modalSavePreset" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalSavePresetTitle">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-card bg-body-tertiary border-secondary" style="max-width: 480px;">
         <div class="modal-header">
           <h3 id="modalSavePresetTitle" style="display: flex; align-items: center; gap: 8px;">
             <span data-lucide="bookmark-plus" data-size="18"></span> <span data-i18n="services.modal_save_title">Guardar como Preset</span>
           </h3>
-          <button type="button" class="modal-close-btn" id="btnCloseSavePresetModal">&times;</button>
+          <button type="button" class="btn-close modal-close-btn" data-bs-dismiss="modal" id="btnCloseSavePresetModal">&times;</button>
         </div>
         <div class="modal-body" style="padding: 16px;">
           <div class="form-group">
@@ -1778,10 +1909,12 @@
         </div>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Paleta de Comandos (Ctrl+K / Cmd+K) -->
-    <div id="commandPaletteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cmdPaletteTitle">
-      <div class="modal-card cmd-palette-modal">
+    <div id="commandPaletteModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="cmdPaletteTitle">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-card cmd-palette-modal bg-body-tertiary border-secondary">
         <h2 id="cmdPaletteTitle" class="sr-only" data-i18n="cmd.palette_title">Paleta de Comandos</h2>
         <div class="cmd-palette-header">
           <span class="search-icon" data-lucide="search" data-size="16"></span>
@@ -1802,13 +1935,15 @@
         </div>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Crear / Unirse a Canal LoRa -->
-    <div id="createChannelModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="createChannelTitle">
-      <div class="modal-card">
+    <div id="createChannelModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="createChannelTitle">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="createChannelTitle" data-i18n="modal.channel_title"><span class="modal-title-icon" data-lucide="radio" data-size="18"></span> Configurar Canal LoRa</h3>
-          <button class="btn-icon modal-close" id="btnCloseCreateChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
         </div>
         <form id="createChannelForm" class="modal-body" aria-labelledby="createChannelTitle">
           <div class="form-group">
@@ -1862,13 +1997,15 @@
         </form>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Agregar Contacto / Cliente Manualmente -->
-    <div id="createContactModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="createContactTitle">
-      <div class="modal-card">
+    <div id="createContactModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="createContactTitle">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="createContactTitle" data-i18n="modal.contact_title"><span class="modal-title-icon" data-lucide="user" data-size="18"></span> Agregar Nuevo Contacto</h3>
-          <button class="btn-icon modal-close" id="btnCloseCreateContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
         </div>
         <form id="createContactForm" class="modal-body" aria-labelledby="createContactTitle">
           <div class="form-group">
@@ -1916,13 +2053,15 @@
         </form>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Compartir Contacto en el Chat -->
-    <div id="modalShareContact" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalShareContactTitle">
-      <div class="modal-card">
+    <div id="modalShareContact" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalShareContactTitle">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="modalShareContactTitle" data-i18n="chat.share_contact"><span class="modal-title-icon" data-lucide="user-check" data-size="18"></span> Compartir Contacto</h3>
-          <button class="btn-icon modal-close" id="btnCloseShareContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareContactModalInstruction" data-i18n="ui.static_403">Selecciona un contacto de tu libreta para compartir su enlace oficial en esta conversación:</p>
@@ -1937,13 +2076,15 @@
         </div>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Compartir Canal en el Chat -->
-    <div id="modalShareChannel" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalShareChannelTitle">
-      <div class="modal-card">
+    <div id="modalShareChannel" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalShareChannelTitle">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="modalShareChannelTitle" data-i18n="chat.share_channel"><span class="modal-title-icon" data-lucide="radio" data-size="18"></span> Compartir Canal</h3>
-          <button class="btn-icon modal-close" id="btnCloseShareChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareChannelModalInstruction" data-i18n="ui.static_407">Selecciona un canal para compartir sus parámetros de conexión y clave en esta conversación:</p>
@@ -1961,13 +2102,15 @@
         </div>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Compartir Canal / Contacto por Código QR -->
-    <div id="qrShareModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
-      <div class="modal-card qr-modal-card">
+    <div id="qrShareModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content modal-card qr-modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="qrModalTitle"><span class="modal-title-icon" data-lucide="qr-code" data-size="18"></span> Compartir por Código QR</h3>
-          <button class="btn-icon modal-close" id="btnCloseQrShareModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseQrShareModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
         </div>
         <div class="modal-body qr-modal-body">
           <div class="qr-modal-layout">
@@ -2003,10 +2146,12 @@
         </div>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Centro de Control y Administración de Repetidor Remoto -->
-    <div id="repeaterAdminModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="repeaterAdminTitle">
-      <div class="modal-card repeater-admin-modal-card locked" id="repeaterAdminModalCard">
+    <div id="repeaterAdminModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="repeaterAdminTitle">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content modal-card repeater-admin-modal-card locked bg-body-tertiary border-secondary" id="repeaterAdminModalCard">
         <div class="modal-header repeater-admin-modal-header">
           <div class="header-node-info">
             <h3 id="repeaterAdminTitle" data-i18n="ui.static_411"><span class="modal-title-icon" data-lucide="sliders" data-size="18"></span> Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
@@ -2014,7 +2159,7 @@
               <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
             </div>
           </div>
-          <button class="btn-icon modal-close" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
         </div>
 
         <!-- Tarjeta de Bloqueo / Gate de Autenticación Requerida -->
@@ -2427,7 +2572,7 @@
                 </div>
               </div>
               <div class="table-responsive modal-table-scroll">
-                <table class="data-table" id="neighborsTable">
+                <table class="table table-dark table-hover table-striped table-sm align-middle data-table" id="neighborsTable">
                   <thead>
                     <tr>
                       <th data-i18n="ui.static_504">Nodo Vecino</th>
@@ -2556,15 +2701,17 @@
         </div>
       </div>
     </div>
+    </div>
     <!-- Modal: Traceroute Multi-Salto Visual -->
-    <div id="tracerouteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tracerouteModalTitle">
-      <div class="modal-card traceroute-modal-card">
+    <div id="tracerouteModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="tracerouteModalTitle">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content modal-card traceroute-modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <div class="header-node-info">
             <h3 id="tracerouteModalTitle" data-i18n="ui.static_537"><span class="modal-title-icon" data-lucide="activity" data-size="18"></span> Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
             <span class="modal-pubkey-badge font-mono" id="traceTargetPkDisplay">--</span>
           </div>
-          <button class="btn-icon modal-close" id="btnCloseTracerouteModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseTracerouteModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
         </div>
         <div class="modal-body traceroute-modal-body">
           <div class="traceroute-controls">
@@ -2582,7 +2729,7 @@
 
           <!-- Tabla de Desglose de Saltos -->
           <div class="table-responsive" style="margin-top: 14px;">
-            <table class="data-table trace-breakdown-table">
+            <table class="table table-dark table-hover table-striped table-sm align-middle data-table trace-breakdown-table">
               <thead>
                 <tr>
                   <th data-i18n="ui.static_542">Salto</th>
@@ -2601,13 +2748,15 @@
         </div>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Importar Canal o Contacto -->
-    <div id="importModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
-      <div class="modal-card">
+    <div id="importModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="importModalTitle" data-i18n="ui.static_549"><span class="modal-title-icon" data-lucide="download" data-size="18"></span> Importar Canal o Contacto</h3>
-          <button class="btn-icon modal-close" id="btnCloseImportModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseImportModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370">✕</button>
         </div>
         <form id="importForm" class="modal-body" aria-labelledby="importModalTitle">
           <div class="form-group">
@@ -2629,17 +2778,19 @@
         </form>
       </div>
     </div>
+    </div>
 
     <!-- Modal: Inspector de Trama LoRa (Wireshark / Decodificador Semántico) -->
-    <div id="packetInspectorModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="packetInspectorTitle">
-      <div class="modal-card packet-inspector-card" style="max-width: 820px; width: 95%;">
+    <div id="packetInspectorModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="packetInspectorTitle">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content modal-card packet-inspector-card bg-body-tertiary border-secondary" style="max-width: 820px; width: 95%;">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <h3 id="packetInspectorTitle" style="margin: 0;" data-i18n="ui.static_555"><span class="modal-title-icon" data-lucide="scan" data-size="18"></span> Trama LoRa <span id="inspectorPktIdDisplay" class="badge-pill badge-primary font-mono">#0</span></h3>
             <span id="inspectorDirBadge" class="badge-pill badge-info">RX</span>
             <span id="inspectorTypeBadge" class="badge-pill badge-secondary">CHAT</span>
           </div>
-          <button class="btn-icon modal-close" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557">✕</button>
+          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557">✕</button>
         </div>
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 75vh; overflow-y: auto;">
           <!-- Barra de Pestañas del Inspector -->
@@ -2658,7 +2809,7 @@
           <!-- Panel 1: Estructura Semántica -->
           <div id="inspectorPanelSemantic" class="inspector-panel">
             <div class="table-responsive">
-              <table class="data-table" style="font-size: 13px;">
+              <table class="table table-dark table-hover table-striped table-sm align-middle data-table" style="font-size: 13px;">
                 <tbody>
                   <tr><th style="width: 160px;" data-i18n="ui.static_561">Timestamp ISO</th><td id="inspFieldTime" class="font-mono">--</td></tr>
                   <tr><th data-i18n="ui.static_562">Dirección / Flujo</th><td id="inspFieldDir">--</td></tr>
@@ -2696,8 +2847,9 @@
   </div>
 
   <!-- Modal: Diálogo del Sistema (Confirm / Alert / Prompt) -->
-  <div id="systemDialogModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="systemDialogTitleText" aria-describedby="systemDialogMessage">
-    <div class="modal-card system-dialog-card" id="systemDialogCard">
+  <div id="systemDialogModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="systemDialogTitleText" aria-describedby="systemDialogMessage">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-card system-dialog-card bg-body-tertiary border-secondary" id="systemDialogCard">
       <div class="modal-header system-dialog-header">
         <div class="system-dialog-title-group">
           <div class="system-dialog-icon-badge" id="systemDialogIconBadge">
@@ -2707,7 +2859,7 @@
             <span id="systemDialogTitleText" data-i18n="modal.confirm">Confirmar</span>
           </h3>
         </div>
-        <button type="button" class="btn-icon modal-close" id="btnCloseSystemDialog" aria-label="Cerrar modal" data-i18n-aria-label="modal.close">✕</button>
+        <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseSystemDialog" aria-label="Cerrar modal" data-i18n-aria-label="modal.close">✕</button>
       </div>
       <div class="modal-body system-dialog-body">
         <p id="systemDialogMessage" class="system-dialog-message"></p>
@@ -2722,10 +2874,12 @@
       </div>
     </div>
   </div>
+    </div>
 
   <!-- Contenedor Global de Notificaciones Toast -->
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
+  <script src="/js/bootstrap.bundle.min.js"></script>
   <script src="/js/qrcode.js"></script>
   <script src="/js/icons.js"></script>
   <script src="/js/i18n.js"></script>
