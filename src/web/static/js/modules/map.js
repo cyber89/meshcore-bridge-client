@@ -19,7 +19,7 @@ export class MapModule {
     this.selectedTraceName = null;
     this.localTileUrl = localStorage.getItem("meshcore_local_tile_url") || "/api/map/tiles/{z}/{x}/{y}.png";
     const savedLayer = localStorage.getItem("meshcore_map_layer_mode");
-    this.mapLayerMode = (savedLayer === "cartodb" || savedLayer === "tactical_radar" || !savedLayer) ? "dark" : savedLayer;
+    this.mapLayerMode = (!savedLayer || savedLayer === "dark" || savedLayer === "osm" || savedLayer === "cartodb" || savedLayer === "tactical_radar") ? "auto" : savedLayer;
     this.dom = {};
     this._hasInitiallyCentered = false;
     this._userInteractedWithMap = false;
@@ -75,7 +75,7 @@ export class MapModule {
   }
 
   _bindEvents() {
-    document.querySelectorAll(".map-layer-switcher .map-layer-btn").forEach((btn) => {
+    document.querySelectorAll(".map-layer-switcher .map-layer-btn[data-layer]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const mode = btn.getAttribute("data-layer");
         if (mode) this.setMapLayer(mode);
@@ -92,6 +92,44 @@ export class MapModule {
     if (this.dom.chkMapHeatmap) {
       this.dom.chkMapHeatmap.addEventListener("change", (e) => this.setRfHeatmap(e.target.checked));
     }
+
+    window.addEventListener("meshcore:theme-changed", (e) => {
+      this.onThemeChanged(e.detail?.theme);
+    });
+  }
+
+  _getCurrentTheme() {
+    const htmlTheme = document.documentElement.getAttribute("data-bs-theme");
+    if (htmlTheme) return htmlTheme;
+    const saved = localStorage.getItem("meshcore_theme");
+    if (saved === "light" || saved === "dark") return saved;
+    return document.body.classList.contains("light-theme") ? "light" : "dark";
+  }
+
+  _isBaseLayerMode(mode = this.mapLayerMode) {
+    return !mode || mode === "auto" || mode === "standard" || mode === "map" || mode === "dark" || mode === "osm";
+  }
+
+  onThemeChanged(theme) {
+    if (!this.map || !this.tileLayers) return;
+    if (this._isBaseLayerMode()) {
+      const targetTheme = theme || this._getCurrentTheme();
+      const targetLayer = targetTheme === "light" ? this.tileLayers.osm : this.tileLayers.dark;
+      const oldLayer = targetTheme === "light" ? this.tileLayers.dark : this.tileLayers.osm;
+
+      if (oldLayer && this.map.hasLayer(oldLayer)) {
+        this.map.removeLayer(oldLayer);
+      }
+      if (targetLayer && !this.map.hasLayer(targetLayer)) {
+        targetLayer.addTo(this.map);
+      }
+    }
+  }
+
+  _syncThemeLayer() {
+    if (this._isBaseLayerMode()) {
+      this.onThemeChanged(this._getCurrentTheme());
+    }
   }
 
   _subscribeBus() {
@@ -99,6 +137,7 @@ export class MapModule {
 
     this.ctx.eventBus.on(EVENTS.TAB_CHANGED, async (tabId) => {
       if (tabId === "tab-map" && this.map) {
+        this._syncThemeLayer();
         if ((!this.ctx.knownNodes || this.ctx.knownNodes.size <= 1) && this.ctx.fetchNodes) {
           try {
             await this.ctx.fetchNodes();
@@ -208,7 +247,7 @@ export class MapModule {
         this._userInteractedWithMap = true;
       });
 
-      this.setMapLayer(this.mapLayerMode || "dark");
+      this.setMapLayer(this.mapLayerMode || "auto");
 
       if (this.ctx.knownNodes && this.ctx.knownNodes.size > 0) {
         this.updateMapMarkers(Array.from(this.ctx.knownNodes.values()));
@@ -223,23 +262,37 @@ export class MapModule {
   setMapLayer(mode) {
     if (!this.map || !this.tileLayers) return;
 
-    if (mode === "tactical_radar" || !this.tileLayers[mode]) {
-      mode = "dark";
+    if (this._isBaseLayerMode(mode)) {
+      mode = "auto";
+    } else if (!this.tileLayers[mode]) {
+      mode = "auto";
     }
 
-    Object.values(this.tileLayers).forEach((layer) => {
-      if (this.map.hasLayer(layer)) {
+    [this.tileLayers.dark, this.tileLayers.osm, this.tileLayers.satellite, this.tileLayers.local].forEach((layer) => {
+      if (layer && this.map.hasLayer(layer)) {
         this.map.removeLayer(layer);
       }
     });
 
-    const selected = this.tileLayers[mode] || this.tileLayers.dark;
-    selected.addTo(this.map);
+    let selectedLayer;
+    if (mode === "auto") {
+      const theme = this._getCurrentTheme();
+      selectedLayer = theme === "light" ? this.tileLayers.osm : this.tileLayers.dark;
+    } else {
+      selectedLayer = this.tileLayers[mode] || this.tileLayers.dark;
+    }
+
+    if (selectedLayer) {
+      selectedLayer.addTo(this.map);
+    }
+
     this.mapLayerMode = mode;
     localStorage.setItem("meshcore_map_layer_mode", mode);
 
-    document.querySelectorAll(".map-layer-switcher .map-layer-btn").forEach((btn) => {
-      btn.classList.toggle("active", btn.getAttribute("data-layer") === mode);
+    document.querySelectorAll(".map-layer-switcher .map-layer-btn[data-layer]").forEach((btn) => {
+      const btnMode = btn.getAttribute("data-layer");
+      const isActive = (mode === "auto" && (btnMode === "auto" || btnMode === "standard" || btnMode === "map")) || btnMode === mode;
+      btn.classList.toggle("active", isActive);
     });
   }
 

@@ -1000,6 +1000,8 @@
       'contacts.accept_all':       'Aceptar Todos',
 
       // Map section
+      'map.standard':   'Mapa',
+      'map.base_title': 'Mapa Base (Adaptativo según tema)',
       'map.dark':       'Oscuro',
       'map.streets':    'Calles',
       'map.satellite':  'Satelital',
@@ -2502,6 +2504,8 @@
       'contacts.accept_all':       'Accept All',
 
       // Map section
+      'map.standard':   'Map',
+      'map.base_title': 'Base Map (Adaptive to theme)',
       'map.dark':       'Dark',
       'map.streets':    'Streets',
       'map.satellite':  'Satellite',
@@ -3089,8 +3093,7 @@
     { s: '.contacts-filter-pills .filter-pill[data-contact-filter="gps"]', k: 'contacts.filter_gps', last: true },
 
     // Map layers
-    { s: '.map-layer-btn[data-layer="dark"]',         k: 'map.dark',      last: true },
-    { s: '.map-layer-btn[data-layer="osm"]',          k: 'map.streets',   last: true },
+    { s: '.map-layer-btn[data-layer="auto"]',         k: 'map.standard',  last: true },
     { s: '.map-layer-btn[data-layer="satellite"]',    k: 'map.satellite', last: true },
     { s: '.map-layer-btn[data-layer="local"]',        k: 'map.local',     last: true },
     { s: '.map-toggle-inline .toggle-field-label',     k: 'map.heatmap',   last: true },
