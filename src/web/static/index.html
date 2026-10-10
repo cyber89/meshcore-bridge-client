@@ -1578,8 +1578,8 @@
                       </div>
                       <div style="display: flex; align-items: center; gap: 10px;">
                         <span id="badgeExtMqttStatus" class="badge-pill badge-secondary" data-i18n="services.status_disconnected">Desconectado</span>
-                        <label class="switch-toggle" style="margin: 0;">
-                          <input type="checkbox" id="chkExternalMqttEnabled" />
+                        <label class="switch-toggle" style="margin: 0;" for="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo">
+                          <input type="checkbox" id="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo" />
                           <span class="slider round"></span>
                         </label>
                       </div>
@@ -1629,13 +1629,13 @@
                           </select>
                         </div>
                         <div class="form-group">
-                          <label for="chkExtMqttTls" data-i18n="services.tls_security">Seguridad TLS / SSL:</label>
+                          <span class="form-label d-block mb-1" data-i18n="services.tls_security">Seguridad TLS / SSL:</span>
                           <div style="display: flex; gap: 16px; align-items: center; margin-top: 8px;">
-                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <label for="chkExtMqttTls" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                               <input type="checkbox" id="chkExtMqttTls" />
                               <span data-i18n="services.enable_tls">Habilitar TLS</span>
                             </label>
-                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <label for="chkExtMqttTlsVerify" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                               <input type="checkbox" id="chkExtMqttTlsVerify" checked />
                               <span data-i18n="services.verify_cert">Verificar CA</span>
                             </label>
@@ -1720,33 +1720,33 @@
                       <div style="background: var(--color-bg-secondary, rgba(255,255,255,0.02)); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin: 12px 0;">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                           <strong data-i18n="services.filters_title"><span data-lucide="filter" data-size="14"></span> Filtros de Reenvío LoRa &rarr; MQTT</strong>
-                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--color-warning, #f59e0b);">
+                          <label for="chkExtObserverMode" style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--color-warning, #f59e0b);">
                             <input type="checkbox" id="chkExtObserverMode" />
                             <strong data-i18n="services.observer_mode">Modo Observer (Sin chats)</strong>
                           </label>
                         </div>
                         <div class="checkbox-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
-                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterPublic" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                             <input type="checkbox" id="chkExtFilterPublic" checked />
                             <span data-i18n="services.filter_public">Canal 0 (Público)</span>
                           </label>
-                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterChannels" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                             <input type="checkbox" id="chkExtFilterChannels" checked />
                             <span data-i18n="services.filter_channels">Canales Secundarios</span>
                           </label>
-                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterDirect" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                             <input type="checkbox" id="chkExtFilterDirect" />
                             <span data-i18n="services.filter_direct">Mensajes Directos (DM)</span>
                           </label>
-                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterTelemetry" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                             <input type="checkbox" id="chkExtFilterTelemetry" checked />
                             <span data-i18n="services.filter_telemetry">Telemetría y Sensores</span>
                           </label>
-                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterNodes" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                             <input type="checkbox" id="chkExtFilterNodes" checked />
                             <span data-i18n="services.filter_nodes">Anuncios de Nodos</span>
                           </label>
-                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterRaw" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                             <input type="checkbox" id="chkExtFilterRaw" />
                             <span data-i18n="services.filter_raw">Tramas RF Crudas (Hex)</span>
                           </label>
@@ -1755,7 +1755,7 @@
 
                       <!-- Downlink Toggle con Advertencia -->
                       <div style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid var(--color-warning, #f59e0b); padding: 10px 14px; border-radius: 4px; margin: 12px 0;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600;">
+                        <label for="chkExtDownlink" style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600;">
                           <input type="checkbox" id="chkExtDownlink" />
                           <span data-i18n="services.enable_downlink">Permitir retransmisión desde Internet hacia la Radio (Downlink)</span>
                         </label>
@@ -1781,8 +1781,8 @@
                         <span class="section-icon" data-lucide="cpu" data-size="18"></span>
                         <h3 data-i18n="services.local_mqtt_title">Servidor MQTT Local / Domótica (n8n & Home Assistant)</h3>
                       </div>
-                      <label class="switch-toggle" style="margin: 0;">
-                        <input type="checkbox" id="chkLocalMqttEnabled" checked />
+                      <label class="switch-toggle" style="margin: 0;" for="chkLocalMqttEnabled" aria-label="Habilitar Servidor MQTT Local">
+                        <input type="checkbox" id="chkLocalMqttEnabled" checked aria-label="Habilitar Servidor MQTT Local" />
                         <span class="slider round"></span>
                       </label>
                     </div>
@@ -1806,7 +1806,7 @@
                           <input type="text" id="inputLocalMqttPrefix" class="form-control font-mono" value="meshcore" />
                         </div>
                         <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 8px;">
-                          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                          <label for="chkLocalMqttAuth" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                             <input type="checkbox" id="chkLocalMqttAuth" />
                             <span data-i18n="services.local_auth_toggle">Requiere Autenticación</span>
                           </label>
@@ -1832,8 +1832,8 @@
                         <span class="section-icon" data-lucide="smartphone" data-size="18"></span>
                         <h3 data-i18n="services.tcp_title">Servidor TCP Companion (App Móvil Oficial & CLI)</h3>
                       </div>
-                      <label class="switch-toggle" style="margin: 0;">
-                        <input type="checkbox" id="chkTcpServerEnabled" checked />
+                      <label class="switch-toggle" style="margin: 0;" for="chkTcpServerEnabled" aria-label="Habilitar Servidor TCP Companion">
+                        <input type="checkbox" id="chkTcpServerEnabled" checked aria-label="Habilitar Servidor TCP Companion" />
                         <span class="slider round"></span>
                       </label>
                     </div>

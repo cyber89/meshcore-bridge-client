@@ -189,12 +189,15 @@ async def run_browser_audit() -> int:
                 await btn_sub_pos.click()
                 await page.wait_for_timeout(200)
                 chk_pos = page.locator('label[for="localPosFixed"]')
-                if await chk_pos.count() > 0:
+                inp_pos = page.locator('#localPosFixed')
+                if await chk_pos.count() > 0 and not await inp_pos.is_disabled():
                     print("    📍 Probando toggle Posición GPS Fija Local...")
                     await chk_pos.click()
                     await page.wait_for_timeout(150)
                     await chk_pos.click()
                     await page.wait_for_timeout(150)
+                else:
+                    print("    📍 Posición GPS Fija deshabilitada por capabilities (política Companion verificada)")
 
             # 4. Probar Modales y sus Toggle Switches
             print("  📦 Probando Modales y Toggles Internos...")

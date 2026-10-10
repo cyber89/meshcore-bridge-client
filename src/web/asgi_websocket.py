@@ -64,6 +64,12 @@ class BridgeWebSocketProtocol(WebSocketsSansIOProtocol):
         self.stop_keepalive()
         self.transport.abort()
 
+    def connection_lost(self, exc: Exception | None) -> None:
+        try:
+            super().connection_lost(exc)
+        except (KeyError, ValueError):
+            pass
+
     def start_keepalive(self) -> None:
         """Reuse native idle interval; do not enable upstream pong-timeout policy."""
         self._idle_enabled = True

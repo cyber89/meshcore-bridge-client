@@ -238,7 +238,7 @@ class MeshCoreApp {
           b.setAttribute("aria-selected", "false");
           b.tabIndex = -1;
         });
-        document.querySelectorAll(".tab-pane, .tab-content").forEach((pane) => {
+        document.querySelectorAll(".tab-pane").forEach((pane) => {
           pane.classList.remove("active");
           pane.setAttribute("hidden", "true");
         });
