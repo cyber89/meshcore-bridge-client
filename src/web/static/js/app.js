@@ -295,8 +295,13 @@ class MeshCoreApp {
 
   _initSidebar() {
     if (this.dom.btnToggleSidebar && this.dom.appSidebar) {
+      const savedCollapsed = localStorage.getItem("meshcore_sidebar_collapsed") === "true";
+      if (savedCollapsed) {
+        this.dom.appSidebar.classList.add("collapsed");
+      }
       this.dom.btnToggleSidebar.addEventListener("click", () => {
-        this.dom.appSidebar.classList.toggle("collapsed");
+        const isCollapsed = this.dom.appSidebar.classList.toggle("collapsed");
+        localStorage.setItem("meshcore_sidebar_collapsed", String(isCollapsed));
         this._updateSidebarState();
       });
       this._updateSidebarState();
@@ -367,6 +372,10 @@ class MeshCoreApp {
     btn.setAttribute("aria-label", label);
     const text = btn.querySelector(".sidebar-toggle-label");
     if (text) text.textContent = label;
+    const icon = btn.querySelector(".sidebar-toggle-icon");
+    if (icon) {
+      icon.className = `bi bi-chevron-${collapsed ? "right" : "left"} sidebar-toggle-icon`;
+    }
   }
 
   _initCommandPalette() {

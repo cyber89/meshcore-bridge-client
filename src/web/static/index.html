@@ -29,12 +29,8 @@
   <header class="navbar navbar-expand-lg bg-body-tertiary border-bottom sticky-top py-2 px-3 app-header" role="banner">
     <div class="container-fluid px-0">
       <div class="d-flex align-items-center gap-2 header-left">
-        <div class="d-flex align-items-center gap-2 logo-badge">
-          <i class="bi bi-broadcast fs-4 text-primary logo-icon" aria-hidden="true"></i>
-          <div class="lh-sm logo-text-group">
-            <h1 class="logo-title fs-6 fw-bold m-0">MeshCore <strong class="text-primary">Station</strong></h1>
-            <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill logo-version" style="font-size: 10px;">v3.0 Pro</span>
-          </div>
+        <div class="d-flex align-items-center logo-badge">
+          <span class="logo-title fs-6 fw-bold m-0 brand-title text-primary">Meshcore-Bridge</span>
         </div>
         <div class="ms-2 d-flex align-items-center connection-status" role="status" aria-live="polite">
           <div id="radio-status" class="badge rounded-pill bg-danger-subtle text-danger-emphasis border border-danger-subtle d-flex align-items-center gap-1 py-1 px-2 radio-status-pill radio-status--disconnected" title="Estado del transceptor LoRa conectado por USB" data-i18n-title="ui.static_001">
@@ -81,12 +77,12 @@
           </span>
         </div>
 
-        <button id="themeToggleBtn" type="button" class="btn btn-outline-secondary btn-sm rounded-circle p-2 btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">
+        <button id="themeToggleBtn" type="button" class="btn btn-header-action rounded-circle btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">
           <i class="bi bi-sun" aria-hidden="true"></i>
         </button>
 
-        <button id="langToggleBtn" type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-2 py-1 btn-icon" title="Switch to English" aria-label="Switch language" style="font-size:12px;min-width:36px;" data-i18n-title="lang.title" data-i18n-aria-label="ui.static_008" data-i18n="lang.switch">
-          🌐 EN
+        <button id="langToggleBtn" type="button" class="btn btn-header-action btn-lang-toggle rounded-pill px-2 py-1" title="Switch to English" aria-label="Switch language" data-i18n-title="lang.title" data-i18n-aria-label="ui.static_008">
+          <i class="bi bi-translate me-1" aria-hidden="true"></i><span class="lang-code-text">EN</span>
         </button>
 
         <!-- Botón Toggler Móvil para Menú Lateral -->
@@ -99,7 +95,7 @@
   <!-- Contenedor del Cuerpo Principal -->
   <div id="app" class="app-layout d-flex flex-grow-1 overflow-hidden" style="height: calc(100vh - 56px);">
     <!-- Barra Lateral de Navegación Principal (Offcanvas en móvil) -->
-    <aside class="app-sidebar offcanvas-lg offcanvas-start bg-body-tertiary border-end d-flex flex-column" id="appSidebar" tabindex="-1" style="width: 240px; flex-shrink: 0;" role="navigation" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
+    <aside class="app-sidebar offcanvas-lg offcanvas-start bg-body-tertiary border-end d-flex flex-column" id="appSidebar" tabindex="-1" role="navigation" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
       <div class="offcanvas-header d-lg-none border-bottom p-3">
         <h5 class="offcanvas-title fs-6 fw-bold">Menú Principal</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Cerrar"></button>

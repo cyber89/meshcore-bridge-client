@@ -3180,7 +3180,6 @@
     { s: '#btnRepeaterGateCancel',       k: 'modal.cancel' },
 
     // Lang toggle button
-    { s: '#langToggleBtn',               k: 'lang.switch' },
     { s: '#langToggleBtn',               k: 'lang.title', a: 'title' },
   ];
 
@@ -3302,7 +3301,7 @@
     // Update lang button text + title
     const btn = document.getElementById('langToggleBtn');
     if (btn) {
-      btn.textContent = t('lang.switch');
+      btn.innerHTML = `<i class="bi bi-translate me-1" aria-hidden="true"></i><span class="lang-code-text">${_lang === 'es' ? 'EN' : 'ES'}</span>`;
       btn.title = t('lang.title');
     }
   }
