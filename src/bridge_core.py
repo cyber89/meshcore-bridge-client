@@ -379,22 +379,28 @@ class MeshCoreBridge:
             return cast(WebServerProtocol, mock_srv)
 
         backend = getattr(config, "WEB_SERVER_BACKEND", "asgi").lower()
-        if backend in ("legacy", "native"):
-            return MeshCoreWebServer(
-                bridge=self,
-                host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
-                port=getattr(config, "WEB_PORT", 8080),
-            )
+        if backend not in ("legacy", "native"):
+            try:
+                from src.web.api_router import WebAPIRouter
+                from src.web.asgi_server import AsgiWebServer
 
-        from src.web.api_router import WebAPIRouter
-        from src.web.asgi_server import AsgiWebServer
+                router = WebAPIRouter(bridge=self)
+                return AsgiWebServer(
+                    router=router,
+                    host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
+                    port=getattr(config, "WEB_PORT", 8080),
+                    shutdown_budget_s=getattr(config, "SHUTDOWN_TIMEOUT", 1.5),
+                )
+            except (ImportError, ModuleNotFoundError) as err:
+                logging.warning(
+                    f"FastAPI/Uvicorn no está disponible en este entorno ({err}). "
+                    "Recurriendo automáticamente al servidor web nativo MeshCoreWebServer."
+                )
 
-        router = WebAPIRouter(bridge=self)
-        return AsgiWebServer(
-            router=router,
+        return MeshCoreWebServer(
+            bridge=self,
             host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
             port=getattr(config, "WEB_PORT", 8080),
-            shutdown_budget_s=getattr(config, "SHUTDOWN_TIMEOUT", 1.5),
         )
 
     def _create_tcp_server(self) -> MeshCoreCompanionServer | None:
