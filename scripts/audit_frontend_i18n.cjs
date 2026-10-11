@@ -204,7 +204,7 @@ const dynamic = [];
 const candidates = [];
 const reviewedExclusions = [];
 for (const suffix of ['client', 'repeater', 'sensor', 'room', 'local', 'unknown']) references.add('node.role_' + suffix);
-for (const filename of files(jsRoot).filter(file => file.endsWith('.js') && !file.endsWith('i18n.js'))) {
+for (const filename of files(jsRoot).filter(file => file.endsWith('.js') && !file.endsWith('.min.js') && !file.endsWith('i18n.js'))) {
   const content = fs.readFileSync(filename, 'utf8');
   for (const match of content.matchAll(/\b(?:I18n|window\.I18n)\.t\(\s*(['"])([^'"]+)\1/g)) references.add(match[2]);
   for (const match of content.matchAll(/\bI18n\.setText\([^,\n]+,\s*(['"])([^'"]+)\1/g)) references.add(match[2]);
@@ -214,7 +214,7 @@ for (const filename of files(jsRoot).filter(file => file.endsWith('.js') && !fil
     for (const literal of match[1].matchAll(/['"]([a-z]+\.[a-z_]+)['"]/g)) references.add(literal[1]);
   }
   content.split('\n').forEach((line, index) => {
-    if (/I18n\.setText\([^;]+\)\.replace\(/.test(line)) findings.push(`Invalid setText chaining: ${path.relative(root, filename)}:${index + 1}`);
+    if (/I18n\.setText\([^)]+\)\.replace\(/.test(line)) findings.push(`Invalid setText chaining: ${path.relative(root, filename)}:${index + 1}`);
   });
   const uiReport = scanUiLiterals(content, DICT.es, path.relative(root, filename));
   candidates.push(...uiReport.untranslatedCandidates);

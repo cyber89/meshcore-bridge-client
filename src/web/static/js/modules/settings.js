@@ -2541,7 +2541,7 @@ export class SettingsModule {
     if (this.dom.chkExtObserverMode) {
       this.dom.chkExtObserverMode.addEventListener("change", (e) => {
         if (e.target.checked && this.ctx.showToast) {
-          this.ctx.showToast(I18n.t("services.observer_mode") || "Modo Observer activo: chats no reenviados", "info");
+          this.ctx.showToast(I18n.t("services.observer_toast") || "Modo Observer activo: chats no reenviados", "info");
         }
       });
     }
@@ -2667,10 +2667,10 @@ export class SettingsModule {
 
     if (!selectedId || selectedId === "custom") {
       if (badge) {
-        badge.textContent = "Personalizado";
+        badge.textContent = I18n.t("services.preset_custom") || "Personalizado";
         badge.className = "badge-pill badge-primary text-xs";
       }
-      if (desc) desc.textContent = "Configuración libre de servidor MQTT";
+      if (desc) desc.textContent = I18n.t("services.preset_custom_desc") || "Configuración libre de servidor MQTT";
       if (btnDel) btnDel.disabled = true;
       return;
     }
@@ -2682,7 +2682,9 @@ export class SettingsModule {
     }
 
     if (badge) {
-      badge.textContent = p.is_system ? "Sistema" : "Personalizado";
+      badge.textContent = p.is_system
+        ? (I18n.t("services.preset_system") || "Sistema")
+        : (I18n.t("services.preset_custom") || "Personalizado");
       badge.className = p.is_system ? "badge-pill badge-secondary text-xs" : "badge-pill badge-primary text-xs";
     }
     if (desc) desc.textContent = p.description || "";
@@ -2878,15 +2880,15 @@ export class SettingsModule {
       const body = await res.json().catch(() => ({}));
       if (res.ok && body.status === "ok") {
         if (this.ctx.showToast) {
-          this.ctx.showToast(I18n.t("services.saved_success") || "Configuración guardada y aplicada correctamente", "success");
+          this.ctx.showToast(I18n.t("services.saved_success"), "success");
         }
         await this.loadServicesConfig();
       } else {
-        const errDetail = body.detail || body.message || body.error || "Error al guardar servicios";
-        this._notify(`Error: ${errDetail}`, "error");
+        const errDetail = body.detail || body.message || body.error || I18n.t("common.unknown_error") || "Error";
+        this._notify(I18n.t("services.save_error", { detail: errDetail }), "error");
       }
     } catch (err) {
-      this._notify(`Error de red al guardar servicios: ${err.message}`, "error");
+      this._notify(I18n.t("services.save_network_error", { error: err.message }), "error");
     } finally {
       this._isSavingServices = false;
       if (btn) btn.disabled = false;
@@ -2901,7 +2903,7 @@ export class SettingsModule {
     this._isTestingExtMqtt = true;
 
     if (statusEl) {
-      statusEl.textContent = "⏳ Probando conexión...";
+      statusEl.textContent = `⏳ ${I18n.t("services.testing_connection")}`;
       statusEl.style.color = "var(--color-text-secondary)";
     }
 
@@ -2952,7 +2954,7 @@ export class SettingsModule {
     const description = (descInput?.value || "").trim();
 
     if (!name) {
-      this._notify("Por favor ingrese un nombre para el perfil", "warning");
+      this._notify(I18n.t("services.preset_name_required") || "Por favor ingrese un nombre para el perfil", "warning");
       nameInput?.focus();
       return;
     }
@@ -2982,11 +2984,11 @@ export class SettingsModule {
           this._updatePresetBadgeAndButtons(created.id);
         }
       } else {
-        const errDetail = body.detail || body.message || "Error al crear preset";
-        this._notify(`Error: ${errDetail}`, "error");
+        const errDetail = body.detail || body.message || I18n.t("common.unknown_error") || "Error";
+        this._notify(I18n.t("services.create_preset_error", { detail: errDetail }), "error");
       }
     } catch (err) {
-      this._notify(`Error de red: ${err.message}`, "error");
+      this._notify(I18n.t("settings.network_error", { error: err.message, p0: err.message }), "error");
     }
   }
 
@@ -2997,17 +2999,17 @@ export class SettingsModule {
 
     const preset = (this.servicesPresets || []).find((p) => p.id === presetId);
     if (!preset || preset.is_system) {
-      this._notify("No se pueden eliminar presets del sistema", "warning");
+      this._notify(I18n.t("services.cannot_delete_system_preset") || "No se pueden eliminar presets del sistema", "warning");
       return;
     }
 
-    const confirmMsg = `¿Eliminar el perfil "${preset.name}"?`;
+    const confirmMsg = I18n.t("services.confirm_delete_preset", { name: preset.name });
     const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
     const confirmed = confirmFn
       ? await confirmFn(confirmMsg, {
-          title: "Eliminar Preset",
+          title: I18n.t("services.delete_preset_title"),
           isDanger: true,
-          confirmText: "Eliminar",
+          confirmText: I18n.t("services.delete_preset_btn"),
         })
       : confirm(confirmMsg);
 
@@ -3030,11 +3032,11 @@ export class SettingsModule {
           this._updatePresetBadgeAndButtons("custom");
         }
       } else {
-        const errDetail = body.detail || body.message || "Error al eliminar preset";
-        this._notify(`Error: ${errDetail}`, "error");
+        const errDetail = body.detail || body.message || I18n.t("common.unknown_error") || "Error";
+        this._notify(I18n.t("services.delete_preset_error", { detail: errDetail }), "error");
       }
     } catch (err) {
-      this._notify(`Error de red: ${err.message}`, "error");
+      this._notify(I18n.t("settings.network_error", { error: err.message, p0: err.message }), "error");
     }
   }
 }

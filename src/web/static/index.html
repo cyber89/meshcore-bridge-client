@@ -2689,7 +2689,7 @@
     <!-- Modal: Inspector de Trama LoRa (Wireshark / Decodificador Semántico) -->
     <div id="packetInspectorModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="packetInspectorTitle">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content modal-card packet-inspector-card bg-body-tertiary border-secondary" style="max-width: 820px; width: 95%;">
+      <div class="modal-content modal-card packet-inspector-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <h3 id="packetInspectorTitle" style="margin: 0;" data-i18n="ui.static_555"><i class="bi bi-qr-code-scan modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Trama LoRa <span id="inspectorPktIdDisplay" class="badge-pill badge-primary font-mono">#0</span></h3>
@@ -2698,7 +2698,7 @@
           </div>
           <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557"></button>
         </div>
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 75vh; overflow-y: auto;">
+        <div class="modal-body packet-inspector-body">
           <!-- Barra de Pestañas del Inspector -->
           <div class="subtabs-nav-bar" aria-labelledby="packetInspectorTitle" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
             <button type="button" class="subtab-btn active" id="inspectorTabSemantic" data-panel="inspectorPanelSemantic" data-i18n="ui.static_558">

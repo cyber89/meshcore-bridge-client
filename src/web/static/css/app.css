@@ -1328,6 +1328,37 @@ body {
 .msg-time { font-size: 0.75rem; line-height: 1.4; }
 .message-bubble-row.outgoing .msg-footer { color: var(--chat-time-outgoing); }
 
+/* Indicadores de Entrega / ACK de Mensajes estilo WhatsApp */
+.ack-indicator {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  line-height: 1;
+  letter-spacing: -1.5px;
+  font-weight: 700;
+  margin-left: 3px;
+  user-select: none;
+  vertical-align: middle;
+}
+
+.ack-indicator.ack-queued {
+  color: var(--text-muted, rgba(148, 163, 184, 0.6));
+}
+
+.ack-indicator.ack-sent {
+  color: var(--bs-secondary-color, #94a3b8);
+}
+
+.ack-indicator.ack-delivered {
+  color: #38bdf8;
+  text-shadow: 0 0 6px rgba(56, 189, 248, 0.35);
+}
+
+.ack-indicator.ack-failed {
+  color: var(--accent-danger, #f43f5e);
+  font-weight: 800;
+}
+
 .msg-sender {
   font-size: 0.75rem;
   font-weight: 600;
@@ -2011,6 +2042,53 @@ body {
   box-shadow: none;
 }
 
+.btn-outline-term {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-family: var(--bs-font-monospace);
+  font-weight: 500;
+  background: transparent;
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: var(--control-transition);
+}
+
+.btn-outline-term:hover:not(:disabled) {
+  background: var(--bs-tertiary-bg);
+  border-color: var(--bs-secondary-color);
+  color: var(--bs-body-color);
+}
+
+.btn-outline-term:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 1px;
+}
+
+.code-textarea {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--radius-md, 8px);
+  padding: 8px 10px;
+  width: 100%;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.code-textarea:focus-visible {
+  border-color: var(--accent-primary, #6366f1);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
 /* Hex Dump y JSON Crudo en Wireshark Inspector */
 .hex-dump-view, .json-dump-view {
   font-family: var(--bs-font-monospace);
@@ -2130,6 +2208,223 @@ body {
   cursor: default;
 }
 
+/* ==========================================================================
+   Gate de Autenticación de Repetidor (PIN Gate) y Barra de Sesión
+   ========================================================================== */
+.repeater-auth-gate {
+  padding: 24px 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.auth-gate-card {
+  max-width: 440px;
+  width: 100%;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px 20px;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.auth-gate-shield {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent-primary, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-gate-card h4 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--bs-body-color);
+}
+
+.auth-gate-card p {
+  font-size: 0.85rem;
+  color: var(--bs-secondary-color);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.auth-gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+
+.auth-gate-label {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+  margin-bottom: 6px;
+  display: block;
+}
+
+.auth-gate-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.auth-gate-input-row {
+  display: flex;
+  position: relative;
+  width: 100%;
+}
+
+.auth-gate-input-row input {
+  flex: 1;
+  padding-right: 40px;
+  border-radius: var(--radius-md, 8px);
+}
+
+.auth-gate-input-row .btn-toggle-pwd {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-gate-status {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.auth-gate-status.error {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  color: var(--accent-danger, #f43f5e);
+}
+
+.auth-gate-status.loading {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: var(--accent-info, #38bdf8);
+}
+
+.auth-gate-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-gate-actions .btn-block {
+  width: 100%;
+}
+
+.rep-quick-feedback {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.75rem;
+  font-family: var(--bs-font-monospace);
+  margin-top: 6px;
+  display: block;
+}
+
+.rep-quick-feedback.success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--accent-success, #10b981);
+}
+
+.rep-quick-feedback.error {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  color: var(--accent-danger, #f43f5e);
+}
+
+.rep-quick-feedback.pending {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--accent-warning, #f59e0b);
+}
+
+.repeater-auth-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.auth-strip-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-strip-left .auth-icon {
+  color: var(--accent-success, #10b981);
+}
+
+.auth-label-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+.auth-hint {
+  font-size: 0.725rem;
+  color: var(--bs-secondary-color);
+}
+
+.auth-strip-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-status-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 50rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.auth-status-chip.authenticated {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-success, #10b981);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
 /* Badge Pills Auxiliares */
 .badge-pill {
   display: inline-flex;
@@ -2142,10 +2437,15 @@ body {
 }
 .badge-primary { background-color: var(--primary-fill); color: #fff; }
 .badge.bg-primary { background-color: var(--primary-fill) !important; }
+.badge-secondary { background-color: var(--bs-secondary-bg, rgba(148, 163, 184, 0.16)); color: var(--bs-secondary-color, #94a3b8); border: 1px solid rgba(148, 163, 184, 0.28); }
+.badge-outline { background-color: transparent; color: var(--bs-secondary-color, #94a3b8); border: 1px dashed rgba(148, 163, 184, 0.45); }
+.badge-active { background-color: rgba(16, 185, 129, 0.2) !important; color: var(--accent-success, #10b981) !important; border-color: rgba(16, 185, 129, 0.45) !important; }
 .badge-info { background-color: var(--bs-info); color: #000; }
 .badge-success { background-color: var(--bs-success); color: #fff; }
 .badge-warning { background-color: var(--bs-warning); color: #000; }
 .badge-danger { background-color: var(--bs-danger); color: #fff; }
+.text-xs { font-size: 0.75rem !important; }
+.text-sm { font-size: 0.825rem !important; }
 
 /* ==========================================================================
    Vista Métricas & Analítica (tab-analytics)
@@ -3195,6 +3495,21 @@ body {
   transition: var(--control-transition);
 }
 
+@keyframes spinAnimation {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin,
+.spin-animation {
+  animation: spinAnimation 0.8s linear infinite;
+  display: inline-block;
+}
+
 @keyframes systemDialogZoomIn {
   from {
     opacity: 0;
@@ -3367,6 +3682,174 @@ body {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+/* ==========================================================================
+   Modal de Traceroute Multi-Salto
+   ========================================================================== */
+.traceroute-modal-card {
+  max-width: 820px;
+  width: 95%;
+}
+
+.traceroute-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.traceroute-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.traceroute-controls .input-with-action {
+  flex: 1;
+  min-width: min(100%, 320px);
+}
+
+.trace-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 50rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+.trace-status-pill.running {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent-info, #38bdf8);
+}
+
+.trace-status-pill.success {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: var(--accent-success, #10b981);
+}
+
+.trace-status-pill.error {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.4);
+  color: var(--accent-danger, #f43f5e);
+}
+
+.trace-visual-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--radius-md, 8px);
+  overflow-x: auto;
+  min-height: 104px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.trace-empty-hint {
+  width: 100%;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--bs-secondary-color);
+  font-style: italic;
+  padding: 16px 8px;
+}
+
+.trace-node-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 76px;
+}
+
+.trace-node-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  background: var(--bs-tertiary-bg);
+  border: 2px solid var(--bs-border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: var(--control-transition);
+}
+
+.trace-node-circle.start {
+  border-color: var(--accent-primary, #6366f1);
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.trace-node-circle.repeater {
+  border-color: var(--accent-warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.trace-node-circle.target {
+  border-color: var(--accent-success, #10b981);
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.trace-node-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+  text-align: center;
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace-node-snr {
+  font-size: 0.7rem;
+  font-family: var(--bs-font-monospace);
+  color: var(--bs-secondary-color);
+  font-weight: 500;
+  min-height: 1rem;
+}
+
+.trace-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bs-secondary-color);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: -20px;
+  opacity: 0.7;
+}
+
+.trace-breakdown-table th,
+.trace-breakdown-table td {
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Modal de Inspector de Paquetes
+   ========================================================================== */
+.packet-inspector-card {
+  max-width: 820px;
+  width: 95%;
+}
+
+.packet-inspector-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 /* ==========================================================================
