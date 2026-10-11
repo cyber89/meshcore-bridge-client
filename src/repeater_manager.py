@@ -24,6 +24,7 @@ from src.shared_utils import (
     clean_numeric_value,
     normalize_battery,
 )
+from src.station_database import StationDatabase
 
 
 class RepeaterManager:
@@ -39,6 +40,8 @@ class RepeaterManager:
         min_neighbours_interval_s: float = 30.0,
         is_cutoff_active_callback: Callable[[], bool] | None = None,
         storage_path: str | Path | None = None,
+        *,
+        database: StationDatabase | None = None,
     ) -> None:
         if transmit_callback is not None:
             warnings.warn(
@@ -61,6 +64,7 @@ class RepeaterManager:
         self._last_traceroute_ts: dict[str, float] = {}
         self._last_neighbours_ts: dict[str, float] = {}
         self._storage_path = Path(storage_path) if storage_path is not None else None
+        self.database = database
         self._state_loaded = False
         self._load_lock = asyncio.Lock()
         self._flush_lock = asyncio.Lock()
@@ -79,8 +83,8 @@ class RepeaterManager:
         async with self._load_lock:
             if self._state_loaded:
                 return
-            if self._storage_path is not None:
-                saved = await asyncio.to_thread(self._read_state, self._storage_path)
+            if self.database is not None or self._storage_path is not None:
+                saved = await asyncio.to_thread(self._load_document)
                 now_wall, now_mono = time.time(), time.monotonic()
                 for category, values in saved.items():
                     monotonic_map = self._cooldown_maps()[category]
@@ -92,12 +96,26 @@ class RepeaterManager:
                         self._wall_timestamps[category][key] = epoch
             self._state_loaded = True
 
+    def _load_document(self) -> dict[str, dict[str, float]]:
+        if self.database is not None:
+            document = self.database.read_document("repeater_cooldowns", self._storage_path, validator=self._validate_state)
+            return {} if document is None else self._decode_state(document)
+        return {} if self._storage_path is None else self._read_state(self._storage_path)
+
     @staticmethod
     def _read_state(path: Path) -> dict[str, dict[str, float]]:
         try:
             document = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return {}
+        return RepeaterManager._decode_state(document)
+
+    @staticmethod
+    def _validate_state(document: Any) -> None:
+        RepeaterManager._decode_state(document)
+
+    @staticmethod
+    def _decode_state(document: Any) -> dict[str, dict[str, float]]:
         if not isinstance(document, dict) or document.get("schema") != 1:
             raise ValueError("Cooldown state schema invalid")
         maps = document.get("timestamps")
@@ -131,7 +149,9 @@ class RepeaterManager:
                 os.unlink(temporary)
 
     async def _persist_snapshot(self, document: dict[str, Any], generation: int) -> None:
-        if self._storage_path is not None:
+        if self.database is not None:
+            await asyncio.to_thread(self.database.write_document, "repeater_cooldowns", document)
+        elif self._storage_path is not None:
             await asyncio.to_thread(self._write_state, self._storage_path, document)
         self._persisted_generation = generation
 

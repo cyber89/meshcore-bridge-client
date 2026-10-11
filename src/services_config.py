@@ -14,9 +14,10 @@ import os
 import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, get_type_hints
 
 import config
+from src.station_database import StationDatabase
 
 logger = logging.getLogger("meshcore.services_config")
 
@@ -300,9 +301,16 @@ def _atomic_write_json(file_path: Path, data: dict[str, Any]) -> None:
         raise
 
 
-def load_services_config(file_path: Path | None = None) -> ServicesConfig:
+def load_services_config(file_path: Path | None = None, *, database: StationDatabase | None = None) -> ServicesConfig:
     """Carga la configuración desde JSON con migración automática y fallback a .env."""
     path = file_path or DEFAULT_CONFIG_PATH
+    if database is not None:
+        raw = database.read_document("services", path, validator=_validate_services_document)
+        if raw is None:
+            initial_cfg = _bootstrap_from_env()
+            save_services_config(initial_cfg, database=database)
+            return initial_cfg
+        return _services_from_document(raw)
     if not path.is_file():
         logger.info(f"Archivo de servicios {path} no encontrado. Creando snapshot inicial desde .env...")
         initial_cfg = _bootstrap_from_env()
@@ -315,57 +323,86 @@ def load_services_config(file_path: Path | None = None) -> ServicesConfig:
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
-        if not isinstance(raw, dict):
-            raise ValueError("El archivo JSON no contiene un objeto válido")
-
-        ext_dict = raw.get("external_mqtt", {})
-        loc_dict = raw.get("local_mqtt", {})
-        tcp_dict = raw.get("tcp_server", {})
-        raw_custom = raw.get("custom_presets", [])
-
-        custom_presets: list[MqttPreset] = []
-        if isinstance(raw_custom, list):
-            for p in raw_custom:
-                if isinstance(p, dict) and "id" in p and "name" in p:
-                    # Excluir claves no pertenecientes al dataclass
-                    valid_keys = MqttPreset.__dataclass_fields__.keys()
-                    clean_p = {k: v for k, v in p.items() if k in valid_keys and k != "is_system"}
-                    custom_presets.append(MqttPreset(is_system=False, **clean_p))
-
-        # Reconstruir dataclasses con tolerancia a campos faltantes
-        ext_fields = ExternalMqttConfig.__dataclass_fields__.keys()
-        clean_ext = {k: ext_dict[k] for k in ext_fields if k in ext_dict}
-
-        loc_fields = LocalMqttConfig.__dataclass_fields__.keys()
-        clean_loc = {k: loc_dict[k] for k in loc_fields if k in loc_dict}
-
-        tcp_fields = TcpServerConfig.__dataclass_fields__.keys()
-        clean_tcp = {k: tcp_dict[k] for k in tcp_fields if k in tcp_dict}
-
-        return ServicesConfig(
-            version=int(raw.get("version", 1)),
-            external_mqtt=ExternalMqttConfig(**clean_ext),
-            local_mqtt=LocalMqttConfig(**clean_loc),
-            tcp_server=TcpServerConfig(**clean_tcp),
-            custom_presets=custom_presets,
-        )
+        return _services_from_document(raw)
     except Exception as e:
         logger.error(f"Error cargando {path}: {e}. Usando valores de arranque desde .env...")
         return _bootstrap_from_env()
 
 
-def save_services_config(cfg: ServicesConfig, file_path: Path | None = None) -> None:
-    """Persiste atómicamente la configuración en disco en formato JSON."""
+def _validate_services_document(raw: Any) -> None:
+    if not isinstance(raw, dict) or not any(section in raw for section in ("external_mqtt", "local_mqtt", "tcp_server")):
+        raise ValueError("Services configuration document invalid")
+    for name, section_type in (("external_mqtt", ExternalMqttConfig), ("local_mqtt", LocalMqttConfig), ("tcp_server", TcpServerConfig)):
+        if not isinstance(raw.get(name, {}), dict):
+            raise ValueError("Services configuration section invalid")
+        _validate_service_fields(raw.get(name, {}), section_type)
+    presets = raw.get("custom_presets", [])
+    if not isinstance(presets, list):
+        raise ValueError("Services configuration presets invalid")
+    for preset in presets:
+        if not isinstance(preset, dict) or not isinstance(preset.get("id"), str) or not isinstance(preset.get("name"), str):
+            raise ValueError("Services configuration preset invalid")
+        _validate_service_fields(preset, MqttPreset)
+    _services_from_document(raw)
+
+
+def _validate_service_fields(data: dict[str, Any], section_type: type[Any]) -> None:
+    for key, expected_type in get_type_hints(section_type).items():
+        if key in data and (not isinstance(data[key], expected_type) or (expected_type is int and isinstance(data[key], bool))):
+            raise ValueError("Services configuration field invalid")
+
+
+def _services_from_document(raw: Any) -> ServicesConfig:
+    if not isinstance(raw, dict):
+        raise ValueError("Services configuration document invalid")
+
+    ext_dict = raw.get("external_mqtt", {})
+    loc_dict = raw.get("local_mqtt", {})
+    tcp_dict = raw.get("tcp_server", {})
+    raw_custom = raw.get("custom_presets", [])
+
+    custom_presets: list[MqttPreset] = []
+    if isinstance(raw_custom, list):
+        for p in raw_custom:
+            if isinstance(p, dict) and "id" in p and "name" in p:
+                # Excluir claves no pertenecientes al dataclass
+                valid_keys = MqttPreset.__dataclass_fields__.keys()
+                clean_p = {k: v for k, v in p.items() if k in valid_keys and k != "is_system"}
+                custom_presets.append(MqttPreset(is_system=False, **clean_p))
+
+    # Reconstruir dataclasses con tolerancia a campos faltantes
+    ext_fields = ExternalMqttConfig.__dataclass_fields__.keys()
+    clean_ext = {k: ext_dict[k] for k in ext_fields if k in ext_dict}
+
+    loc_fields = LocalMqttConfig.__dataclass_fields__.keys()
+    clean_loc = {k: loc_dict[k] for k in loc_fields if k in loc_dict}
+
+    tcp_fields = TcpServerConfig.__dataclass_fields__.keys()
+    clean_tcp = {k: tcp_dict[k] for k in tcp_fields if k in tcp_dict}
+
+    return ServicesConfig(
+        version=int(raw.get("version", 1)),
+        external_mqtt=ExternalMqttConfig(**clean_ext),
+        local_mqtt=LocalMqttConfig(**clean_loc),
+        tcp_server=TcpServerConfig(**clean_tcp),
+        custom_presets=custom_presets,
+    )
+
+def save_services_config(cfg: ServicesConfig, file_path: Path | None = None, *, database: StationDatabase | None = None) -> None:
+    """Persist a state snapshot in SQLite, or the explicit legacy JSON adapter."""
     path = file_path or DEFAULT_CONFIG_PATH
     data = asdict(cfg)
-    _atomic_write_json(path, data)
-    logger.info(f"Configuración de servicios persistida atómicamente en {path}")
+    if database is not None:
+        database.write_document("services", data)
+    else:
+        _atomic_write_json(path, data)
+    logger.info("Service configuration persisted in %s", database.path if database is not None else path)
 
 
-async def save_services_config_async(cfg: ServicesConfig, file_path: Path | None = None) -> None:
+async def save_services_config_async(cfg: ServicesConfig, file_path: Path | None = None, *, database: StationDatabase | None = None) -> None:
     """Versión asíncrona no bloqueante de guardado atómico usando asyncio.to_thread."""
     path = file_path or DEFAULT_CONFIG_PATH
-    await asyncio.to_thread(save_services_config, cfg, path)
+    await asyncio.to_thread(save_services_config, cfg, path, database=database)
 
 
 def to_redacted_dict(cfg: ServicesConfig) -> dict[str, Any]:

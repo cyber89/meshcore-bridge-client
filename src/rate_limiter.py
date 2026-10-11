@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Self, cast
 
+from src.station_database import StationDatabase
+
 
 class TxPriority(IntEnum):
     """Niveles de prioridad de transmisión."""
@@ -202,10 +204,13 @@ class AirtimeTracker:
         cutoff_resume_pct: float = 30.0,
         cutoff_enabled: bool = True,
         on_cutoff_change_callback: Callable[[bool, float], None] | None = None,
+        *,
+        database: StationDatabase | None = None,
     ) -> None:
         self.duty_cycle_limit_pct = duty_cycle_limit_pct
         self.warn_threshold_pct = warn_threshold_pct
         self.history_file = history_file
+        self.database = database
         self.on_alert_callback = on_alert_callback
         self.cutoff_threshold_pct = cutoff_threshold_pct
         self.cutoff_resume_pct = cutoff_resume_pct
@@ -227,16 +232,22 @@ class AirtimeTracker:
         self._channel_utilization_pct: float = 0.0
         self._cutoff_active: bool = False
 
-        if self.history_file:
+        if self.history_file or self.database is not None:
             self.load_history()
 
     def load_history(self) -> None:
         """Carga y rehidrata el historial de transmisiones desde el archivo persistente en disco."""
-        if not self.history_file or not os.path.isfile(self.history_file):
+        if self.database is None and (not self.history_file or not os.path.isfile(self.history_file)):
             return
         try:
-            with open(self.history_file, encoding="utf-8") as f:
-                data = json.load(f)
+            if self.database is not None:
+                data = self.database.read_document("airtime", self.history_file, validator=self._validate_history_document)
+                if data is None:
+                    return
+            else:
+                assert self.history_file is not None
+                with open(self.history_file, encoding="utf-8") as f:
+                    data = json.load(f)
 
             now = time.time()
             cutoff_24h = now - 86400.0
@@ -317,10 +328,35 @@ class AirtimeTracker:
             )
         except Exception as e:
             logging.warning(f"AirtimeTracker: No se pudo cargar historial previo de {self.history_file}: {e}")
+            if self.database is not None:
+                raise
+
+    @staticmethod
+    def _validate_history_document(data: Any) -> None:
+        if not isinstance(data, dict) or not isinstance(data.get("records"), list):
+            raise ValueError("Airtime history document invalid")
+        for field_name in ("total_airtime_ms", "total_packets", "channel_utilization_pct",
+                           "duty_cycle_limit_pct", "warn_threshold_pct", "cutoff_threshold_pct", "cutoff_resume_pct"):
+            value = data.get(field_name, 0)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+                raise ValueError("Airtime history counter invalid")
+        for record in data.get("records", []):
+            if not isinstance(record, dict):
+                raise ValueError("Airtime history record invalid")
+            for field_name in ("timestamp", "airtime_ms"):
+                value = record.get(field_name)
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+                    raise ValueError("Airtime history record invalid")
+            channel = record.get("channel_idx", 0)
+            if isinstance(channel, bool) or not isinstance(channel, int) or channel < 0:
+                raise ValueError("Airtime history channel invalid")
+        for flag in ("cutoff_enabled", "cutoff_active"):
+            if flag in data and not isinstance(data[flag], bool):
+                raise ValueError("Airtime history flag invalid")
 
     def save_history(self, sync: bool = False) -> None:
         """Guarda atómicamente el historial activo (ventana 24h) en disco."""
-        if not self.history_file:
+        if not self.history_file and self.database is None:
             return
 
         now = time.time()
@@ -358,13 +394,23 @@ class AirtimeTracker:
         self._pending_save = payload
         if self._save_task is None or self._save_task.done():
             self._save_task = loop.create_task(self._drain_history(), name="AirtimePersistence")
+            self._save_task.add_done_callback(self._observe_history_writer)
+
+    @staticmethod
+    def _observe_history_writer(task: asyncio.Task[None]) -> None:
+        if not task.cancelled() and task.exception() is not None:
+            logging.error("Airtime history persistence failed: %s", type(task.exception()).__name__)
 
     def _write_history(self, payload: dict[str, Any]) -> None:
         """Write an immutable snapshot; serialize writers sharing the atomic temp path."""
-        if not self.history_file:
+        if not self.history_file and self.database is None:
             return
         with self._save_lock:
+            if self.database is not None:
+                self.database.write_document("airtime", payload)
+                return
             try:
+                assert self.history_file is not None
                 target_dir = os.path.dirname(os.path.abspath(self.history_file))
                 os.makedirs(target_dir, exist_ok=True)
                 temp_path = f"{self.history_file}.tmp"
@@ -582,6 +628,8 @@ class TxRateLimiter:
         cutoff_resume_pct: float = 30.0,
         cutoff_enabled: bool = True,
         on_cutoff_change_callback: Callable[[bool, float], None] | None = None,
+        *,
+        database: StationDatabase | None = None,
     ) -> None:
         self.tx_interval_sec = tx_interval_sec
         self.radio_config = radio_config or LoRaRadioConfig()
@@ -612,6 +660,7 @@ class TxRateLimiter:
             cutoff_resume_pct=cutoff_resume_pct,
             cutoff_enabled=cutoff_enabled,
             on_cutoff_change_callback=on_cutoff_change_callback,
+            database=database,
         )
         self._seq_counter = 0
         self._worker_task: asyncio.Task[None] | None = None

@@ -48,7 +48,7 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
                                   v
 +---------------------------------+---------------------------------+
 |                       Adaptadores Secundarios                     |
-|  [pyserial-asyncio]  [VirtualMeshAdapter]  [JSON Storage]  [MQTT] |
+|  [pyserial-asyncio]  [VirtualMeshAdapter]  [SQLite Storage]  [MQTT] |
 +-------------------------------------------------------------------+
 ```
 
@@ -65,7 +65,7 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
 2. **Eventos Inmutables**: Todos los eventos del dominio se modelan como `@dataclass(frozen=True, slots=True)`.
 3. **Múltiples Suscriptores Asíncronos**:
    * Evento `RxPacketReceived` $\to$ Consumido simultáneamente por:
-     * `NodeRegistry` (actualización en memoria y persistencia JSON).
+     * `NodeRegistry` (actualización en memoria y persistencia SQLite).
      * `MqttBridge` (publicación hacia Home Assistant / n8n).
      * `WebSocketHub` (actualización reactiva de la SPA).
      * `TCPCompanionServer` (reenvío a apps móviles conectadas).
@@ -83,7 +83,7 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
 3. **Bulkhead (Aislamiento de Recursos)**:
    * Aislar colas de procesamiento para que la congestión de un canal (ej. broadcast masivo) no bloquee los mensajes directos prioritarios ni las respuestas administrativas.
 4. **Graceful Degradation / Memoria & IndexedDB**:
-   * Si la red se desconecta, los mensajes se retienen en el cliente mediante IndexedDB y se reintentan al restaurar el enlace.
+   * Si la red se desconecta, IndexedDB permite leer mensajes descargados por estación; no reintentar ni reenviar mensajes históricos automáticamente.
 
 ---
 
@@ -110,4 +110,4 @@ python .agents/skills/software-architecture-patterns/scripts/audit_architecture.
 
 Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
 
-Diagramas SQL relacionales de ejemplo no representan esta aplicación. El proyecto usa FastAPI/Uvicorn (ASGI) para la capa web y JSON atómico para estado de nodos/canales; SQLite sólo se utiliza para lectura de mapas MBTiles en MapTileService. Revisar código antes de proponer migraciones o componentes nuevos.
+El proyecto usa FastAPI/Uvicorn (ASGI), SQLite autoritativo para chat y estado de estación (ADR 0017), IndexedDB para caché por estación y LocalStorage para preferencias. MBTiles permanece independiente. JSON legado se importa una vez sin eliminar originales; .env y formatos wire mantienen su rol. No existe cola MQTT/TX durable ni replay histórico. Revisar código antes de proponer componentes nuevos.

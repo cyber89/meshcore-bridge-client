@@ -14,6 +14,7 @@ import time
 import urllib.parse
 from typing import Any
 
+from src.storage_validation import validate_channels_document
 from src.web.controllers.base import (
     ApiContext,
     BaseController,
@@ -38,11 +39,19 @@ class ChannelsController(BaseController):
         self._dirty: bool = False
         self._mutation_lock = asyncio.Lock()
         self._save_lock = threading.Lock()
+        self._write_task: asyncio.Task[None] | None = None
+        self.database = getattr(ctx.bridge, "database", None)
         self._load_channels()
 
     def _load_channels(self) -> None:
         """Carga la tabla de canales desde disco o inicializa el canal público."""
-        if os.path.exists(self.channels_file):
+        if self.database is not None:
+            data = self.database.read_document("channels", self.channels_file, validator=self._validate_channels_document)
+            if isinstance(data, list):
+                self.channels = {int(c.get("index", i)): c for i, c in enumerate(data)}
+            elif isinstance(data, dict):
+                self.channels = {int(k): v for k, v in data.items() if str(k).isdigit()}
+        elif os.path.exists(self.channels_file):
             try:
                 with open(self.channels_file, encoding="utf-8") as f:
                     data = json.load(f)
@@ -61,6 +70,10 @@ class ChannelsController(BaseController):
                 "is_public": True,
             }
 
+    @staticmethod
+    def _validate_channels_document(data: Any) -> None:
+        validate_channels_document(data)
+
     def _save_channels(self, force: bool = False) -> None:
         """Persiste la tabla de canales a disco de forma atómica si hubo cambios."""
         with self._save_lock:
@@ -68,6 +81,10 @@ class ChannelsController(BaseController):
                 logging.debug("Tabla de canales sin cambios pendientes (omitiendo escritura en disco)")
                 return
 
+            if self.database is not None:
+                self.database.write_document("channels", list(self.channels.values()))
+                self._dirty = False
+                return
             target_dir = os.path.dirname(self.channels_file) or "."
             os.makedirs(target_dir, exist_ok=True)
             tmp_path = f"{self.channels_file}_{os.getpid()}_{time.time_ns()}.tmp"
@@ -89,12 +106,23 @@ class ChannelsController(BaseController):
 
     async def _save_channels_async(self, force: bool = False) -> None:
         """Persiste la tabla de canales a disco de forma atómica y no bloqueante en thread pool."""
-        await asyncio.to_thread(self._save_channels, force)
+        if self._write_task is not None:
+            await asyncio.shield(self._write_task)
+        self._write_task = asyncio.create_task(asyncio.to_thread(self._save_channels, force), name="ChannelsPersistence")
+        self._write_task.add_done_callback(self._observe_write)
+        await asyncio.shield(self._write_task)
+
+    @staticmethod
+    def _observe_write(task: asyncio.Task[None]) -> None:
+        if not task.cancelled() and task.exception() is not None:
+            logging.error("Channel persistence failed: %s", type(task.exception()).__name__)
 
     async def handle_channels_route(
         self, path: str, method: str, req_body: dict[str, Any]
     ) -> tuple[int, dict[str, Any]]:
         async with self._mutation_lock:
+            if self._write_task is not None:
+                await asyncio.shield(self._write_task)
             return await self._handle_channels_route(path, method, req_body)
 
     async def _handle_channels_route(

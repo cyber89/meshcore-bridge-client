@@ -6,7 +6,7 @@
 import { eventBus, EVENTS } from "./core/eventbus.js";
 import { MeshCoreStorage } from "./core/storage.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
-import { escapeHtml, buildMeshCoreContactUri } from "./core/utils.js";
+import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders } from "./core/utils.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -111,6 +111,7 @@ class MeshCoreApp {
 
     // Conectar WebSocket
     this.wsClient.connect();
+    window.addEventListener("meshcore:credentials_changed", () => this.wsClient.connect());
   }
 
   _bindElements() {
@@ -902,12 +903,7 @@ class MeshCoreApp {
   }
 
   getAuthHeaders(customHeaders = {}) {
-    const headers = { "Content-Type": "application/json", ...customHeaders };
-    const apiKey = (localStorage.getItem("meshcore_bridge_api_key") || "").trim();
-    if (apiKey) {
-      headers["X-Api-Key"] = apiKey;
-    }
-    return headers;
+    return getAuthHeaders(customHeaders);
   }
 
   resolveCanonicalPubkey(pubkey) {

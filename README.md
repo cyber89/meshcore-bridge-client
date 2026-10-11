@@ -13,6 +13,7 @@ Run it on a Linux gateway or a Windows computer, open the dashboard from your br
 | Area | Capabilities |
 | --- | --- |
 | **Chat** | Public and configured private channels, direct messages, message history, and delivery status where the protocol provides acknowledgements. |
+| **Persistent station data** | SQLite keeps chat and station state across restarts; IndexedDB caches downloaded conversations for fast access and offline reading, while LocalStorage keeps interface preferences. |
 | **Contacts and nodes** | A contact book for user devices and a unified mesh view for infrastructure, rooms, sensors, and nearby nodes, with link information and telemetry. |
 | **Radio administration** | Local station settings and remote repeater administration, including supported radio parameters, identity, telemetry, neighbors, and command consoles. |
 | **Maps and analytics** | Node positions, link quality, RF activity, airtime estimates, health metrics, logs, and packet inspection. Local MBTiles and XYZ tile storage support map use without downloading each tile. |
@@ -128,7 +129,9 @@ Configuration loads from `.env` in the repository or installation root; existing
 | `DATA_DIR` / `LOG_DIR` | `data` / `logs` | Persistent data and rotating log directories. |
 | `LOG_LEVEL` | `INFO` | Logging detail. |
 
-Storage paths for channels, the node registry, and airtime history can be configured separately. When moving `DATA_DIR`, review those explicit paths in `.env` as well. Keep `.env` and your data backed up when changing deployment paths.
+SQLite stores station chat, conversations, delivery states, nodes, channels, service presets, airtime history and repeater cooldowns in `DATA_DIR/meshcore.sqlite3`. Set `DATABASE_PATH` to choose a different local location. Existing state JSON files are imported once and preserved; their configured paths remain migration sources. See [storage and migration](docs/STORAGE.md) for backup, restore and rollback details.
+
+The browser keeps theme, language and panel preferences in LocalStorage, and downloaded messages in an IndexedDB cache separated by station. SQLite retains chat when no browser is open. Settings offers an explicit import of old browser history; importing never retransmits messages. Clearing the cache does not delete station history. API credentials use tab-scoped SessionStorage. Offline reading covers downloaded messages in an already loaded interface; local map tiles alone do not guarantee a full offline launch.
 
 After startup, open **`http://localhost:8080`** on the host, or **`http://<host-ip>:8080`** from a device on your network. Select a channel or contact for chat, use Nodes for mesh and repeater operations, and use Settings to review station and integration configuration.
 

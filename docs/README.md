@@ -29,6 +29,9 @@ Los ADRs documentan las decisiones arquitectónicas fundamentales tomadas a lo l
 - **[ADR 0003: Resiliencia del Driver Serie con AsyncIO](adr/0003-asyncio-serial-resilience.md)**
 - **[ADR 0004: Alertas de Duty Cycle y Persistencia de Airtime](adr/0004-airtime-duty-cycle-alerting-and-persistence.md)**
 - **[ADR 0005: Persistencia Atómica JSON frente a SQLite](adr/0005-json-atomic-persistence-over-sqlite.md)**
+- **[ADR 0017: SQLite y caché de navegador](adr/0017-sqlite-station-browser-cache.md)** — sustituye ADR 0005.
+- **[Storage and migration](STORAGE.md)** — fuentes de verdad, importación, API y copias de seguridad.
+- **[Storage integration plan](STORAGE_INTEGRATION_PLAN.md)** — plan de implementación y alcance.
 - **[ADR 0006: Servidor Proxy TCP Companion](adr/0006-tcp-companion-server-proxy.md)**
 - **[ADR 0007: Desacoplamiento de Beacon Local y Telemetría](adr/0007-decoupling-local-beacon-telemetry.md)**
 - **[ADR 0008: Sincronización Automática de Reloj RTC](adr/0008-automatic-rtc-clock-synchronization.md)**

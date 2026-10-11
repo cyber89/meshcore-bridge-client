@@ -24,7 +24,7 @@ SECRET = "synthetic-capture-private-credential"
 
 @pytest_asyncio.fixture
 async def capture_bridge(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[MeshCoreBridge]:
-    bridge = MeshCoreBridge(loop=asyncio.get_running_loop())
+    bridge = await MeshCoreBridge.create()
     bridge.running = True
     bridge.node_registry.add_or_update(REMOTE, NodeContactUpdate(name="Privacy repeater", role="REPEATER"))
     bridge.mqtt.publish_safe = MagicMock(return_value=True)

@@ -74,7 +74,7 @@ flowchart TB
         SDKAdapter["MeshcoreSDKAdapter (SDK Oficial Companion)"]
         RawAdapter["RawSerialFramingAdapter (Parser en memoria)"]
         Drivers["SerialWatchdog & TCPCompanionServer"]
-        Storage["Persistencia JSON Atómica (data/*.json)"]
+        Storage["SQLite: estado e historial de estación"]
     end
 
     L1 --> L2
@@ -93,7 +93,7 @@ flowchart TB
 | **Capa 2** | **Aplicación y Orquestación** | Orquestación de casos de uso de alto nivel, coordinación de ciclo de vida, apagado ordenado y despacho de comandos administrativos. | [`src/bridge_core.py`](../src/bridge_core.py) (`MeshCoreBridge`), [`src/admin_handler.py`](../src/admin_handler.py), [`src/admin/`](../src/admin/) (`local_config`, `repeater`, `traceroute`, `cli`), [`src/preflight.py`](../src/preflight.py), [`src/health_reporter.py`](../src/health_reporter.py) |
 | **Capa 3** | **Dominio de Malla y Enrutamiento** | Lógica de red LoRa: enrutamiento de eventos entrantes, priorización TX, estimación de airtime, deduplicación de ecos, LQI y gestión de nodos. | [`src/rx_router.py`](../src/rx_router.py), [`src/routers/`](../src/routers/), [`src/rate_limiter.py`](../src/rate_limiter.py) (`TxRateLimiter`, `AirtimeTracker`), [`src/contact_manager.py`](../src/contact_manager.py) (`NodeRegistry`), [`src/repeater_manager.py`](../src/repeater_manager.py), [`src/lqi_engine.py`](../src/lqi_engine.py), [`src/deduplicator.py`](../src/deduplicator.py), [`src/sensor_decoder.py`](../src/sensor_decoder.py) |
 | **Capa 4** | **Dominio Puro y Protocolo Canónico** | Definiciones fundamentales del protocolo y tipos estrictos alineados con el firmware C/C++ oficial. Invariantes inmutables de dominio de [`CONTEXT.md`](../CONTEXT.md). Libre de dependencias externas. | [`src/protocol_types.py`](../src/protocol_types.py) (`FirmwareAdvertType`, roles, opcodes, eventos `@dataclass(frozen=True)`), invariantes canónicas de [`CONTEXT.md`](../CONTEXT.md) |
-| **Capa 5** | **Infraestructura y Transporte** | Abstracción de hardware (*Seams*), drivers de comunicación serie (UART/USB), sockets TCP, parser binario raw y persistencia atómica en disco. | [`src/serial/`](../src/serial/) (`BaseSerialAdapter`, `MeshcoreSDKAdapter`, `RawSerialFramingAdapter`, `watchdog.py`), [`src/serial_driver.py`](../src/serial_driver.py), [`src/tcp_companion_server.py`](../src/tcp_companion_server.py), [`src/virtual_mesh_adapter.py`](../src/virtual_mesh_adapter.py), repositorios JSON en disco |
+| **Capa 5** | **Infraestructura y Transporte** | Abstracción de hardware (*Seams*), drivers serie (UART/USB), sockets TCP, parser raw y persistencia transaccional. | [`src/serial/`](../src/serial/), [`src/serial_driver.py`](../src/serial_driver.py), [`src/tcp_companion_server.py`](../src/tcp_companion_server.py), [`src/virtual_mesh_adapter.py`](../src/virtual_mesh_adapter.py), [`src/station_database.py`](../src/station_database.py) |
 
 ### 2.2 Invariantes de Dependencia entre Capas
 
@@ -408,7 +408,7 @@ sequenceDiagram
 | `TxRateLimiter` | `rate_limiter.py` | Controla la tasa de envío (Duty Cycle) a la red de radio. | Rate Limiter | `protocol_types` |
 | `CustomTxQueue` | `rate_limiter.py` | Cola de prioridad asíncrona para la transmisión de paquetes. | Priority Queue | Ninguna |
 | `AirtimeTracker` | `rate_limiter.py` | Rastrea el tiempo en el aire para limitar transmisiones. | Tracker | Ninguna |
-| `NodeRegistry` | `contact_manager.py` | Directorio en RAM con persistencia JSON atómica. | Repository | `lqi_engine` |
+| `NodeRegistry` | `contact_manager.py` | Directorio en RAM con persistencia SQLite inyectada. | Repository | `lqi_engine` |
 | `NodeContactInfo` | `contact_manager.py` | Estructura que almacena la información y métricas de un contacto en la malla. | DTO | Ninguna |
 | `RepeaterManager` | `repeater_manager.py` | Controla repetidores, rutas, jerarquías y tablas de salto de la red. | Manager | Ninguna |
 | `AsyncBridgeMQTTClient` | `mqtt_client.py` | Cliente asíncrono para publicar e interactuar con brokers MQTT. | Proxy / Client | Ninguna |
@@ -532,16 +532,20 @@ sequenceDiagram
 
 | Estado | Almacenamiento actual |
 | --- | --- |
-| Nodos | Registro RAM y JSON atómico (`NODE_REGISTRY_STORAGE_PATH`), serializado desde campos crudos del dominio, preservando None; independiente del DTO visual. |
-| Canales | JSON atómico (`CHANNELS_JSON_PATH`) y sincronización con firmware. |
+| Nodos | Registro RAM y documento SQLite, desde campos crudos del dominio preservando None; JSON anterior como fuente de migración. |
+| Canales | Documento SQLite y sincronización con firmware; JSON anterior como fuente de migración. |
 | Contactos | SDK/memoria de radio y registro local; sólo clientes en la agenda de chat. |
-| Airtime | Estimación con historial JSON (`AIRTIME_HISTORY_FILE`). |
-| Capturas de paquetes, deduplicación, buffers Web y ACKs | RAM; no garantizan supervivencia a reinicios. |
-| Mensajes del navegador | IndexedDB del cliente. |
+| Airtime | Historial y totales en SQLite; conserva ventanas e intervalos existentes. |
+| Servicios y cooldowns | Documentos SQLite; incluye presets, credenciales y timestamps de protección. |
+| Chat y ACKs correlacionados | Tablas SQLite; IDs estables, cursores, estado de entrega monotónico y correlaciones con caducidad existente. |
+| Capturas de paquetes, deduplicación, colas y buffers Web | RAM; no garantizan supervivencia a reinicios. |
+| Navegador | IndexedDB: caché por UUID de estación; LocalStorage: preferencias; SessionStorage: credenciales de pestaña. |
 | Logs | Archivos rotados y buffer de visualización en RAM. |
 | Cartografía | Archivos XYZ o lectura de SQLite MBTiles, independiente de nodos/mensajes. |
 
-No hay base SQLite de nodos/mensajes ni cola MQTT durable en disco. El código separa el parser raw propio del transporte SDK; los diagramas raw no deben leerse como un pipeline obligatorio del Companion. `TxRateLimiter` estima airtime, espacia TX y puede descartar prioridad `LOW` en estado crítico, pero no aplica un bloqueo absoluto a toda transmisión.
+SQLite es autoritativo para el estado de estación; no hay cola MQTT/TX durable ni replay de envíos históricos. La inicialización importa cada JSON una vez sin borrarlo. Las consultas y escrituras asíncronas usan workers; WAL/FULL y esquema versionado conservan transacciones. El código separa el parser raw propio del transporte SDK; los diagramas raw no representan un pipeline obligatorio del Companion. `TxRateLimiter` mantiene sus límites existentes. Véanse [STORAGE.md](STORAGE.md) y [ADR 0017](adr/0017-sqlite-station-browser-cache.md).
+
+`HistoryController` expone GET `/api/messages/history` (feed, limit 1–200, cursor before), GET `/api/messages/conversations` y POST `/api/messages/import` (1–200 mensajes). Requieren la clave configurada; el import no ejecuta RF ni replay MQTT. `/api/messages/recent` conserva su envelope y lee SQLite en producción. El bridge persiste RX/TX/ACK antes de difundirlos, independiente de navegadores abiertos. Borrar caché no elimina historial de estación.
 
 El mapa REST es una selección de rutas: `ROUTE_ALIASES` y los dispatchers de `src/web/api_router.py` son la autoridad de implementación, con métodos/validación en los controladores. El estado `sent` de TX describe el resultado del envío; entrega DM/ACK y recepción en otros nodos son hechos distintos. Configuración de firmware, temporizadores, sondeos y reintentos pueden consumir RF: aplicar el checklist de `AGENTS.md` antes de introducir cambios y acordar umbrales/intervalos con el usuario.
 

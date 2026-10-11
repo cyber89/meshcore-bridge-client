@@ -8,6 +8,8 @@ import {
   REGION_FREQUENCIES,
   parseMeshCoreUri,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
+  getApiKey,
+  setApiKey,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
@@ -721,20 +723,20 @@ export class SettingsModule {
 
     // Gestión de API Key
     if (this.dom.inputBridgeApiKey) {
-      this.dom.inputBridgeApiKey.value = localStorage.getItem("meshcore_bridge_api_key") || "";
+      this.dom.inputBridgeApiKey.value = getApiKey();
     }
     if (this.dom.btnSaveBridgeApiKey && this.dom.inputBridgeApiKey) {
       this.dom.btnSaveBridgeApiKey.addEventListener("click", () => {
         const val = this.dom.inputBridgeApiKey.value.trim();
         if (val) {
-          localStorage.setItem("meshcore_bridge_api_key", val);
+          setApiKey(val);
           if (this.dom.apiKeyStatusHint) {
             this.dom.apiKeyStatusHint.classList.remove("hidden");
             I18n.setText(this.dom.apiKeyStatusHint, "settings.api_saved_hint");
           }
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_saved'), "success");
         } else {
-          localStorage.removeItem("meshcore_bridge_api_key");
+          setApiKey("");
           if (this.dom.apiKeyStatusHint) {
             this.dom.apiKeyStatusHint.classList.remove("hidden");
             I18n.setText(this.dom.apiKeyStatusHint, "settings.api_removed_hint");
@@ -746,7 +748,7 @@ export class SettingsModule {
     if (this.dom.btnClearBridgeApiKey && this.dom.inputBridgeApiKey) {
       this.dom.btnClearBridgeApiKey.addEventListener("click", () => {
         this.dom.inputBridgeApiKey.value = "";
-        localStorage.removeItem("meshcore_bridge_api_key");
+        setApiKey("");
         if (this.dom.apiKeyStatusHint) {
           this.dom.apiKeyStatusHint.classList.remove("hidden");
           I18n.setText(this.dom.apiKeyStatusHint, 'toast.api_key_del');
@@ -947,12 +949,32 @@ export class SettingsModule {
         try {
           if (this.ctx.storage && this.ctx.storage.clearAll) {
             await this.ctx.storage.clearAll();
-          } else {
-            indexedDB.deleteDatabase("MeshCoreStationDB");
           }
+          window.dispatchEvent(new CustomEvent("meshcore:cache_cleared"));
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.storage_cleared"), "info");
         } catch (err) {
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.storage_error", { p0: err.message }), "error");
+        }
+      });
+    }
+
+    const btnImportHistory = document.getElementById("btnImportLocalHistory");
+    if (btnImportHistory) {
+      btnImportHistory.addEventListener("click", async () => {
+        const confirmFn = this.ctx?.showConfirm || window.showConfirm;
+        const confirmed = confirmFn
+          ? await confirmFn(I18n.t("settings.import_history_confirm"), { title: I18n.t("settings.import_history"), confirmText: I18n.t("modal.confirm") })
+          : window.confirm(I18n.t("settings.import_history_confirm"));
+        if (!confirmed) return;
+        btnImportHistory.disabled = true;
+        try {
+          const summary = await this.ctx.storage.importLegacyHistory();
+          this.ctx.showToast?.(I18n.t("settings.history_imported", { count: summary.imported, skipped: summary.skipped }), summary.skipped ? "warning" : "success");
+          window.dispatchEvent(new CustomEvent("meshcore:history_imported"));
+        } catch (error) {
+          this.ctx.showToast?.(I18n.t("settings.storage_error", { p0: error.message }), "error");
+        } finally {
+          btnImportHistory.disabled = false;
         }
       });
     }

@@ -34,6 +34,10 @@ PROTECTED_PREFIXES = (
     "/api/node/config/radio",
 )
 SENSITIVE_READ_PATHS = (
+    "/api/messages",
+    "/api/messages/history",
+    "/api/messages/conversations",
+    "/api/messages/recent",
     "/api/logs/download",
     "/api/logs/raw",
     "/api/system/logs",

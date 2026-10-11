@@ -128,6 +128,7 @@ WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0, min_val=5.0) 
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
 MAX_RECONNECT_ATTEMPTS = _safe_int("MAX_RECONNECT_ATTEMPTS", 0)       # 0 = reintentos ilimitados
 DATA_DIR = os.getenv("DATA_DIR", "data")
+DATABASE_PATH = os.getenv("DATABASE_PATH", os.path.join(DATA_DIR, "meshcore.sqlite3"))
 NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join(DATA_DIR, "node_registry.json"))
 
 # ================= Parámetros de Concurrencia (Nuevos) =================

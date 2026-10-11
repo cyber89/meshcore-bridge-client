@@ -16,6 +16,7 @@ from src.web.request_models import (
     ChannelIndexBodyDTO,
     ChannelsBodyDTO,
     ChannelWriteBodyDTO,
+    ChatHistoryBodyDTO,
     CompatibilityBodyDTO,
     ConfigBodyDTO,
     ContactsBodyDTO,
@@ -103,6 +104,9 @@ ROUTE_CONTRACTS: tuple[RouteContract, ...] = (
     RouteContract("DELETE", "/api/contacts/{public_key}", ContactsBodyDTO, "contacts_channels"),
     # Existing buffers, raw-query diagnostics and map metadata: 10 operations.
     RouteContract("GET", "/api/messages/recent", TxBodyDTO, "history_maps"),
+    RouteContract("GET", "/api/messages/history", ChatHistoryBodyDTO, "history_maps"),
+    RouteContract("GET", "/api/messages/conversations", ChatHistoryBodyDTO, "history_maps"),
+    RouteContract("POST", "/api/messages/import", ChatHistoryBodyDTO, "history_maps"),
     RouteContract("GET", "/api/packets", PacketsBodyDTO, "history_maps"),
     RouteContract("DELETE", "/api/packets", PacketsBodyDTO, "history_maps"),
     RouteContract("GET", "/api/packets/export", PacketsBodyDTO, "history_maps"),

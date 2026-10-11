@@ -80,11 +80,39 @@ export function debounce(fn, waitMs = 150) {
  */
 export function getAuthHeaders(customHeaders = {}) {
   const headers = { "Content-Type": "application/json", ...customHeaders };
-  const apiKey = (localStorage.getItem("meshcore_bridge_api_key") || "").trim();
+  const apiKey = getApiKey();
   if (apiKey) {
     headers["X-Api-Key"] = apiKey;
   }
   return headers;
+}
+
+// Credentials belong to the current browser session, not persistent UI preferences.
+let sessionApiKey = "";
+export function getApiKey() {
+  try {
+    const legacy = localStorage.getItem("meshcore_bridge_api_key") || localStorage.getItem("bridge_api_key") || "";
+    sessionApiKey = (sessionStorage.getItem("meshcore_bridge_api_key") || legacy || sessionApiKey).trim();
+    if (sessionApiKey) sessionStorage.setItem("meshcore_bridge_api_key", sessionApiKey);
+    localStorage.removeItem("meshcore_bridge_api_key");
+    localStorage.removeItem("bridge_api_key");
+  } catch (error) {
+    console.warn("Session credential storage unavailable:", error);
+  }
+  return sessionApiKey;
+}
+
+export function setApiKey(value) {
+  sessionApiKey = String(value || "").trim();
+  try {
+    localStorage.removeItem("meshcore_bridge_api_key");
+    localStorage.removeItem("bridge_api_key");
+    if (sessionApiKey) sessionStorage.setItem("meshcore_bridge_api_key", sessionApiKey);
+    else sessionStorage.removeItem("meshcore_bridge_api_key");
+  } catch (error) {
+    console.warn("Session credential storage unavailable:", error);
+  }
+  window.dispatchEvent(new CustomEvent("meshcore:credentials_changed"));
 }
 
 /**

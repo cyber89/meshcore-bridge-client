@@ -48,7 +48,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Responsabilidades y Reglas Estrictas**:
   1. **Desglose y Asignación**: En tareas de varios subsistemas, desglosa y delega a los roles correspondientes. Define propiedad de archivos para evitar ediciones concurrentes; el principal integra y registra el resultado. Una tarea pequeña puede resolverse por un solo agente.
   2. **Control de Cambios y Contratos**: Verifica directamente en los diffs y el código qué módulos fueron modificados y qué contratos cambiaron.
-  3. **Armonización Cruzada**: Actualiza y refactoriza el código de cualquier subsistema que deba mantenerse compatible con los cambios introducidos (APIs REST, WebSockets, MQTT, persistencia JSON / memoria, frontend).
+  3. **Armonización Cruzada**: Actualiza y refactoriza el código de cualquier subsistema que deba mantenerse compatible con los cambios introducidos (APIs REST, WebSockets, MQTT, persistencia SQLite / memoria, frontend).
   4. **Control de Pruebas**: **NUNCA ejecutar suites de pruebas (pytest/Playwright/fuzzing) automáticamente**, a menos que el usuario lo solicite de manera explícita en su mensaje.
 
 ---
@@ -81,7 +81,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Reglas y Restricciones Estrictas**:
   1. Todo código asíncrono debe usar `asyncio` nativo, sin llamadas bloqueantes en el event loop.
   2. Distinguir el framing Companion oficial (dirección + longitud LE, gestionado por el SDK) del framing propio de `RawSerialFramingAdapter` (SOF/EOF/ESC/CRC). El adaptador raw actual procesa bytes en memoria y no implementa transporte UART físico.
-  3. La persistencia en disco de canales y configuraciones debe ser atómica y no bloqueante mediante archivos JSON.
+  3. La persistencia de estado de estación y chat usa SQLite transaccional (ADR 0017), inyectada en los dominios y fuera del event loop. JSON anterior es fuente de migración única conservada; nunca resetear airtime o cooldowns al importar.
   4. Los mensajes MQTT deben cumplir con el esquema JSON documentado para n8n.
   5. Documentar modificaciones de endpoints y drivers en la arquitectura del sistema (`docs/ARCHITECTURE.md`).
 
@@ -117,7 +117,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 ---
 
 ### Agente 5: Security & Vulnerability Auditor Agent
-- **Objetivo**: Auditar, fortificar y garantizar la seguridad integral del bridge, API REST, WebSockets, persistencia JSON y mitigación de vulnerabilidades OWASP Top 10.
+- **Objetivo**: Auditar, fortificar y garantizar la seguridad integral del bridge, API REST, WebSockets, persistencia SQLite y mitigación de vulnerabilidades OWASP Top 10.
 - **Área de Trabajo**:
   - Lectura: Todo el repositorio (`/src/**`, `/docs/**`, `/tests/**`, `/reference/**`)
   - Escritura: `.agents/skills/security-code-auditor/**`, parches de seguridad en `/src/**`

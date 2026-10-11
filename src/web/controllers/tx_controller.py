@@ -112,8 +112,13 @@ class TxController(BaseController):
         return 200, {"status": "ok", "data": res}
 
     async def get_recent_messages(self) -> tuple[int, dict[str, Any]]:
-        """Devuelve los mensajes de chat recientemente capturados en memoria."""
-        msgs = list(self.ctx.recent_messages)
+        """Keep the recent-message envelope while reading durable station history."""
+        database = getattr(self.ctx.bridge, "database", None)
+        if database is not None:
+            page = await asyncio.to_thread(database.history, None, 200)
+            msgs = page["messages"]
+        else:
+            msgs = list(self.ctx.recent_messages)
         return 200, {
             "status": "ok",
             "data": msgs,

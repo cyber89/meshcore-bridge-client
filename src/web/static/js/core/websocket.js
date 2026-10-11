@@ -4,6 +4,7 @@
  */
 
 import { EVENTS } from "./eventbus.js";
+import { getApiKey } from "./utils.js";
 
 export class MeshCoreWebSocketClient {
   constructor(eventBus, path = "/ws") {
@@ -20,7 +21,7 @@ export class MeshCoreWebSocketClient {
   connect() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     let wsUrl = `${protocol}//${window.location.host}${this.path}`;
-    const apiKey = (localStorage.getItem("meshcore_bridge_api_key") || localStorage.getItem("bridge_api_key") || "").trim();
+    const apiKey = getApiKey();
     if (apiKey) {
       const sep = wsUrl.includes("?") ? "&" : "?";
       wsUrl += `${sep}api_key=${encodeURIComponent(apiKey)}`;

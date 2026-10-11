@@ -38,6 +38,7 @@ def isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
         monkeypatch.setenv(name, "" if value is None else str(value))
     paths = {
         "DATA_DIR": str(tmp_path),
+        "DATABASE_PATH": str(tmp_path / "meshcore.sqlite3"),
         "NODE_REGISTRY_STORAGE_PATH": str(tmp_path / "node_registry.json"),
         "AIRTIME_HISTORY_FILE": str(tmp_path / "airtime_history.json"),
         "CHANNELS_JSON_PATH": str(tmp_path / "channels.json"),
@@ -68,7 +69,7 @@ def isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
 @pytest_asyncio.fixture
 async def virtual_bridge(isolated_state: Path) -> AsyncIterator[MeshCoreBridge]:
     """Run only virtual radio, in-memory MQTT and an OS-assigned loopback HTTP port."""
-    bridge = MeshCoreBridge(loop=asyncio.get_running_loop())
+    bridge = await MeshCoreBridge.create()
     bridge.mqtt.publish_safe = MagicMock(return_value=True)
     bridge.mqtt.is_connected = True
     async with AsyncExitStack() as cleanup:

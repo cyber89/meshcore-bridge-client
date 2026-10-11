@@ -86,6 +86,6 @@ Al diseñar o refactorizar cualquier módulo del bridge, utilizar estos concepto
 
 ## 7. Persistencia y autoridad documental
 
-Registro de nodos, canales e historial de airtime usan JSON. Los contactos también se sincronizan con la radio. `PacketBuffer` y deduplicación viven en RAM; el historial del navegador usa IndexedDB. No hay backend SQLite para estos datos ni cola MQTT durable en disco; el servicio cartográfico puede leer SQLite MBTiles.
+SQLite es la fuente de verdad del historial RX/TX, conversaciones, entregas, nodos, canales, servicios, airtime y cooldowns. Los JSON anteriores se importan una vez y se conservan como instantánea histórica. Los contactos también se sincronizan con la radio. IndexedDB mantiene caché por estación; LocalStorage contiene preferencias visuales e idioma, y SessionStorage las credenciales de la pestaña. `PacketBuffer`, deduplicación y colas MQTT/TX viven en RAM: no hay replay durable de envíos. MBTiles sigue separado. Véanse [almacenamiento](docs/STORAGE.md) y [ADR 0017](docs/adr/0017-sqlite-station-browser-cache.md).
 
 Las reglas anteriores expresan invariantes de dominio, no una certificación de toda la implementación. El [índice documental](docs/README.md) distingue guías vigentes, contratos, ADRs e informes históricos.

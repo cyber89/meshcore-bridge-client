@@ -11,10 +11,11 @@ import json
 import logging
 import signal
 import time
+import uuid
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, Protocol, Self, cast
 
 import config
 from src.admin_handler import AdminCommandHandler, AdminContext
@@ -33,7 +34,7 @@ from src.rate_limiter import (
     estimate_lora_airtime_ms,
 )
 from src.repeater_manager import RepeaterManager
-from src.rx_router import RxEventRouter, RxRouterContext
+from src.rx_router import RxEventRouter, RxRouterContext, is_common_chat_message
 from src.serial_driver import (
     BaseSerialAdapter,
     MeshcoreSDKAdapter,
@@ -41,6 +42,8 @@ from src.serial_driver import (
 )
 from src.services_config import ServicesConfig
 from src.services_manager import ServicesManager
+from src.station_database import StationDatabase
+from src.storage_validation import validate_channels_document
 from src.tcp_companion_server import MeshCoreCompanionServer
 from src.web.server_protocol import WebServerProtocol
 
@@ -91,18 +94,26 @@ class MeshCoreBridge:
         self._init_metrics_and_tasks()
         self._build_sub_components()
 
+    @classmethod
+    async def create(cls, **kwargs: Any) -> Self:
+        """Construct an initialized station outside an already running event loop."""
+        loop = kwargs.pop("loop", asyncio.get_running_loop())
+        return await asyncio.to_thread(cls, loop=loop, **kwargs)
+
     def _init_storage_and_network(self) -> None:
         """Inicializa deduplicador en RAM, registros y rate limiter."""
         self.deduplicator = PacketDeduplicator(
             window_seconds=getattr(config, "DEDUPLICATION_WINDOW_SEC", 60.0),
         )
         self.packet_buffer = PacketBuffer(max_packets=500)
-        self.node_registry = NodeRegistry()
-        try:
-            self.node_registry.load_from_file()
-        except Exception as e:
-            logging.debug("No se pudo cargar NodeRegistry previo: %s", type(e).__name__)
-        self.repeater_manager = RepeaterManager(storage_path=Path(config.DATA_DIR) / "repeater_cooldowns.json")
+        # CLI constructs the bridge before asyncio.run; startup disk access is
+        # explicit here. Runtime persistence always uses owned worker tasks.
+        self.database = StationDatabase(config.DATABASE_PATH)
+        self.database.initialize()
+        self.database.read_document("channels", config.CHANNELS_JSON_PATH, validator=validate_channels_document)
+        self.node_registry = NodeRegistry(database=self.database)
+        self.node_registry.load_from_file(config.NODE_REGISTRY_STORAGE_PATH)
+        self.repeater_manager = RepeaterManager(storage_path=Path(config.DATA_DIR) / "repeater_cooldowns.json", database=self.database)
         self.rate_limiter = TxRateLimiter(
             tx_interval_sec=config.TX_INTERVAL_SEC,
             radio_config=LoRaRadioConfig(
@@ -120,6 +131,7 @@ class MeshCoreBridge:
             cutoff_resume_pct=getattr(config, "AIRTIME_CUTOFF_RESUME_PCT", 30.0),
             cutoff_enabled=getattr(config, "AIRTIME_CUTOFF_ENABLED", True),
             on_cutoff_change_callback=self._on_airtime_cutoff_change,
+            database=self.database,
         )
         self.repeater_manager.is_cutoff_active_callback = self.rate_limiter.is_cutoff_active
         self.services_manager = ServicesManager(
@@ -130,7 +142,65 @@ class MeshCoreBridge:
         self.mqtt = self.services_manager.local_mqtt
         self.external_mqtt = self.services_manager.external_mqtt
         self.preflight = PreflightChecker()
-        self._pending_acks: dict[str, dict[str, Any]] = {}
+        self._pending_acks: dict[str, dict[str, Any]] = self.database.load_pending_acks()
+        for pending in self._pending_acks.values():
+            pending["registered_at"] = time.monotonic() - max(0.0, time.time() - pending["timestamp"])
+        self._persistence_tasks: set[asyncio.Task[Any]] = set()
+
+    async def _persist(self, callback: Callable[..., Any], *args: Any) -> Any:
+        """Keep a worker owned until commit even when its caller is cancelled."""
+        tasks = getattr(self, "_persistence_tasks", None)
+        if tasks is None:
+            tasks = self._persistence_tasks = set()
+        task = asyncio.create_task(asyncio.to_thread(callback, *args), name="StationPersistence")
+        tasks.add(task)
+        task.add_done_callback(self._persistence_done)
+        return await asyncio.shield(task)
+
+    def _persistence_done(self, task: asyncio.Task[Any]) -> None:
+        self._persistence_tasks.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            logging.error("Station persistence failed: %s", type(task.exception()).__name__, extra={"skip_broadcast": True})
+
+    async def publish_chat_event(self, event: dict[str, Any]) -> dict[str, Any] | None:
+        """Commit station chat state before notifying connected browsers."""
+        payload = dict(event)
+        kind = str(payload.get("type", payload.get("event_type", ""))).lower()
+        database = getattr(self, "database", None)
+        if kind in ("public", "channel", "direct"):
+            data = {**payload, **payload.get("data", {})} if isinstance(payload.get("data"), dict) else payload
+            sender = str(data.get("sender", ""))
+            outgoing = bool(data.get("is_outgoing", False))
+            if not outgoing and (self.node_registry.is_local_key(sender) or self.node_registry.is_repeater_key(sender)):
+                return None
+            if not is_common_chat_message(str(data.get("text", "")), txt_type=int(data.get("txt_type", 0) or 0), event_type=kind):
+                return None
+            if database is not None:
+                record = await self._persist(database.record_message, payload)
+                payload.update(record)
+                payload["type"] = payload["event_type"] = kind
+        elif kind in ("message_delivered", "message_status"):
+            if database is not None:
+                records = await self._persist(database.update_delivery, payload)
+                if records:
+                    payload.update(msg_id=records[0]["msg_id"], status=records[0]["status"])
+        else:
+            return None
+        web = getattr(self, "web_server", None)
+        if web is not None and not getattr(self, "_draining_storage", False):
+            try:
+                await web.broadcast_event(payload)
+            except Exception as error:
+                logging.warning("Chat committed but WebSocket notification failed: %s", type(error).__name__, extra={"skip_broadcast": True})
+        return payload
+
+    async def consume_pending_ack(self, ack_code: str, trip_time_ms: float | None = None) -> dict[str, Any] | None:
+        memory = self.resolve_pending_ack(ack_code)
+        database = getattr(self, "database", None)
+        if database is None:
+            return memory
+        durable = await self._persist(database.consume_pending_ack, ack_code, trip_time_ms)
+        return durable or memory
 
     def _prune_pending_acks(self) -> None:
         """Expire delivery correlations using the agreed 3600-second lifetime."""
@@ -669,6 +739,7 @@ class MeshCoreBridge:
         self._started = False
         logging.info("Deteniendo MeshCore Bridge...")
         self.running = False
+        self._draining_storage = True
         dispatcher = getattr(self, "mqtt_dispatcher", None)
         if dispatcher is not None:
             try:
@@ -676,6 +747,10 @@ class MeshCoreBridge:
                     await dispatcher.close()
             except Exception:
                 logging.warning("MQTT ingress shutdown did not complete within existing shutdown bound")
+
+        router = getattr(self, "rx_router", None)
+        if router is not None:
+            await router.drain()
 
         cleanup_task = self._cleanup_task
         if cleanup_task is not None and not cleanup_task.done():
@@ -700,6 +775,10 @@ class MeshCoreBridge:
             except TimeoutError:
                 logging.warning("Timeout al detener tareas background", extra={"skip_broadcast": True})
             self._background_tasks.difference_update(task for task in owned if task.done())
+
+        pending_writes = list(getattr(self, "_persistence_tasks", set()))
+        if pending_writes:
+            await asyncio.gather(*(asyncio.shield(task) for task in pending_writes), return_exceptions=True)
 
         # Detención resiliente: cada subsistema se cierra con timeout individual estricto (1.5s máx)
         stop_tcp = None
@@ -774,9 +853,15 @@ class MeshCoreBridge:
             try:
                 node_channels = await self.serial_adapter.get_channels()
                 if node_channels:
-                    for ch in node_channels:
-                        idx = int(ch.get("index", 0))
-                        self.web_server.router.channels[idx] = ch
+                    controller = self.web_server.router.channels_ctrl
+                    async with controller._mutation_lock:
+                        if controller._write_task is not None:
+                            await asyncio.shield(controller._write_task)
+                        for ch in node_channels:
+                            idx = int(ch.get("index", 0))
+                            controller.channels[idx] = ch
+                        controller._dirty = True
+                        await controller._save_channels_async()
                     logging.info(f"Auto-importados {len(node_channels)} canales desde el transceptor serial.")
             except Exception as e:
                 logging.debug("Error en auto-importación de canales: %s", type(e).__name__)
@@ -913,6 +998,7 @@ class MeshCoreBridge:
     async def _execute_tx(self, item: Any) -> dict[str, Any]:
         """Ejecuta una transmisión directa sobre el transceptor LoRa."""
         req_id, target, ch_idx, text = self._parse_tx_input(item)
+        req_id = str(req_id) if req_id is not None else f"tx_{uuid.uuid4().hex}"
         target_str = str(target).lower().strip()
         is_broadcast = target_str in ("broadcast", "public", "0xffff", "") or target_str.startswith("channel")
 
@@ -923,6 +1009,11 @@ class MeshCoreBridge:
         err_msg = self._validate_tx_target(target_str, text, is_broadcast)
         if err_msg:
             return {"status": "error", "error": err_msg, "request_id": req_id}
+
+        chat_event: dict[str, Any] | None = None
+        if not is_admin_cmd and is_common_chat_message(text):
+            chat_event = self._outgoing_chat(req_id, target_str, ch_idx, text, is_broadcast)
+            await self.publish_chat_event(chat_event)
 
         async with self._tx_metrics_lock:
             self.tx_count += 1
@@ -967,6 +1058,29 @@ class MeshCoreBridge:
             ack_payload["error"] = error_detail
         if status_val == "sent" and expected_ack_hex and req_id:
             ack_payload["delivery_tracking"] = self.register_pending_ack(expected_ack_hex, req_id, str(target))
+            database = getattr(self, "database", None)
+            if database is not None and ack_payload["delivery_tracking"] == "registered":
+                try:
+                    tracking = await self._persist(database.save_pending_ack, expected_ack_hex, req_id, str(target), time.time())
+                except Exception as error:
+                    # Radio already accepted the send; a storage error must
+                    # never invite a caller to retry and duplicate that send.
+                    tracking = "persistence_failed"
+                    ack_payload["storage_error"] = True
+                    logging.error("Radio send confirmed; pending delivery persistence failed: %s", type(error).__name__, extra={"skip_broadcast": True})
+                ack_payload["delivery_tracking"] = tracking
+                if tracking not in ("registered", "persistence_failed"):
+                    self._pending_acks.pop(str(expected_ack_hex).lower().removeprefix("0x"), None)
+
+        if chat_event is not None:
+            chat_event["status"] = "sent" if status_val == "sent" else "failed"
+            if ack_payload.get("delivery_tracking") == "registered":
+                chat_event["expected_ack"] = expected_ack_hex
+            try:
+                await self.publish_chat_event(chat_event)
+            except Exception as error:
+                ack_payload["storage_error"] = True
+                logging.error("Radio outcome recorded in memory; chat persistence failed: %s", type(error).__name__, extra={"skip_broadcast": True})
 
         self.publish_mqtt_safe(config.TOPIC_TX_STATUS, json.dumps(ack_payload), qos=1)
         self._record_tx_packet(str(target), ch_idx, text, is_admin_cmd, ack_payload)
@@ -995,6 +1109,16 @@ class MeshCoreBridge:
             )
 
         return ack_payload
+
+    def _outgoing_chat(self, req_id: str, target: str, ch_idx: int, text: str, broadcast: bool) -> dict[str, Any]:
+        kind = "public" if broadcast and ch_idx == 0 else "channel" if broadcast else "direct"
+        event = {"type": kind, "event_type": kind, "msg_id": req_id,
+                 "sender": self.node_registry.get_local_pubkey() or "local",
+                 "sender_name": "Local station", "text": text, "is_outgoing": True,
+                 "channel_idx": ch_idx, "status": "queued", "timestamp": datetime.now(UTC).isoformat()}
+        if not broadcast:
+            event.update(dm_target=target, is_direct=True)
+        return event
 
     async def handle_admin(self, admin_data: dict[str, Any]) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
@@ -1069,6 +1193,19 @@ class MeshCoreBridge:
         if isinstance(item.payload, bytes):
             if item.future is not None and item.future.cancelled():
                 return {"status": "error", "error": "Solicitud TCP cancelada"}
+            # The accepted Companion chat layout is parsed above in the TCP
+            # ingress path. Retain the same text offsets without resending it.
+            raw = item.payload
+            target = item.target or "broadcast"
+            error = self._validate_tx_target(target, "", item.target is None)
+            if error:
+                return {"status": "error", "error": error}
+            offset = 13 if raw and raw[0] == 2 else 7
+            text = raw[offset:].rstrip(b"\x00").decode("utf-8", errors="replace")
+            req_id = item.request_id or f"tx_{uuid.uuid4().hex}"
+            chat_event = self._outgoing_chat(req_id, target, item.channel_idx, text, item.target is None)
+            if is_common_chat_message(text):
+                await self.publish_chat_event(chat_event)
             success = False
             try:
                 success = bool(await self.serial_adapter.send_raw_companion_frame(item.payload))
@@ -1080,7 +1217,18 @@ class MeshCoreBridge:
                     self.tx_error_count += 1
                     if hasattr(self, "packet_buffer") and getattr(self.packet_buffer, "metrics_aggregator", None):
                         self.packet_buffer.metrics_aggregator.record_error("timeouts")
-            return {"status": "sent" if success else "error", "target": item.target, "channel_idx": item.channel_idx}
+            storage_error = False
+            if is_common_chat_message(text):
+                chat_event["status"] = "sent" if success else "failed"
+                try:
+                    await self.publish_chat_event(chat_event)
+                except Exception as error:
+                    storage_error = True
+                    logging.error("Companion radio outcome confirmed; chat persistence failed: %s", type(error).__name__, extra={"skip_broadcast": True})
+            result = {"status": "sent" if success else "error", "request_id": req_id, "target": item.target, "channel_idx": item.channel_idx}
+            if storage_error:
+                result["storage_error"] = True
+            return result
         return await self._execute_tx(item)
 
     def _on_duty_cycle_alert(self, level: str, stats: dict[str, Any]) -> None:

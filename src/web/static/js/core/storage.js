@@ -1,311 +1,316 @@
-/**
- * MeshCoreStorage - Capa de persistencia asíncrona en el navegador mediante IndexedDB.
- * Permite conservar historial de chat y preferencias tras refrescar la página.
- */
+/** SQLite owns history. IndexedDB caches downloaded messages per validated station. */
+import { getAuthHeaders } from "./utils.js";
+
+const CACHE_STORE = "message_cache";
+const META_STORE = "cache_metadata";
+const LEGACY_STORE = "chat_messages";
+
+export function messageIdentity(message) {
+  return String(message.msg_id || message.server_id || message.id || "");
+}
+
+export function mergeMessage(previous, incoming) {
+  const merged = { ...previous, ...incoming };
+  // A late history response or TX result must never undo a confirmed ACK.
+  if (previous?.status === "delivered" || incoming.status === "delivered") {
+    merged.status = "delivered";
+    merged.delivered = true;
+  }
+  return merged;
+}
+
+function transactionDone(transaction) {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error || new Error("Cache transaction failed"));
+    transaction.onabort = () => reject(transaction.error || new Error("Cache transaction aborted"));
+  });
+}
+
+function requestValue(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
 
 export class MeshCoreStorage {
-  constructor(dbName = "MeshCoreStationDB", version = 1) {
+  constructor(dbName = "MeshCoreStationDB", version = 2) {
     this.dbName = dbName;
-    this.version = version;
+    this.version = Math.max(2, version);
     this.db = null;
+    this.stationId = null;
+    this.validatedOnline = false;
+    this.authGeneration = 0;
+    window.addEventListener("meshcore:credentials_changed", () => {
+      this.authGeneration += 1;
+      this.validatedOnline = false;
+    });
     this.readyPromise = this.init();
   }
 
   async init() {
-    if (!("indexedDB" in window)) {
-      console.warn("IndexedDB no soportado en este entorno.");
-      return null;
-    }
-    return new Promise((resolve) => {
-      try {
-        const request = indexedDB.open(this.dbName, this.version);
-        request.onupgradeneeded = (e) => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains("chat_messages")) {
-            const chatStore = db.createObjectStore("chat_messages", { keyPath: "id", autoIncrement: true });
-            chatStore.createIndex("by_feed", "feed_key", { unique: false });
-            chatStore.createIndex("by_time", "timestamp", { unique: false });
-          }
-          if (!db.objectStoreNames.contains("app_settings")) {
-            db.createObjectStore("app_settings", { keyPath: "key" });
-          }
-        };
-        request.onsuccess = (e) => {
-          this.db = e.target.result;
-          resolve(this.db);
-        };
-        request.onerror = (e) => {
-          console.warn("Error abriendo IndexedDB:", e);
+    if (!("indexedDB" in window)) return null;
+    try {
+      const request = indexedDB.open(this.dbName, this.version);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        // Preserve the former browser archive for explicit, user-selected import.
+        if (!db.objectStoreNames.contains(LEGACY_STORE)) {
+          const legacy = db.createObjectStore(LEGACY_STORE, { keyPath: "id", autoIncrement: true });
+          legacy.createIndex("by_feed", "feed_key");
+        }
+        if (!db.objectStoreNames.contains(CACHE_STORE)) {
+          const cache = db.createObjectStore(CACHE_STORE, { keyPath: ["station_id", "msg_id"] });
+          cache.createIndex("by_feed", ["station_id", "feed_key"]);
+          cache.createIndex("by_station", "station_id");
+          cache.createIndex("by_feed_seq", ["station_id", "feed_key", "seq"]);
+        }
+        if (!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, { keyPath: "key" });
+      };
+      this.db = await new Promise((resolve, reject) => {
+        let blocked = false;
+        request.onblocked = () => {
+          blocked = true;
+          console.warn("Close other MeshCore tabs to upgrade the message cache.");
           resolve(null);
         };
-      } catch (err) {
-        console.warn("Fallo inicializando IndexedDB:", err);
-        resolve(null);
-      }
-    });
-  }
-
-  async saveMessage(feedKey, msg) {
-    await this.readyPromise;
-    if (!this.db) return;
-    try {
-      const tx = this.db.transaction("chat_messages", "readwrite");
-      const store = tx.objectStore("chat_messages");
-      const record = {
-        feed_key: feedKey,
-        msg_id: msg.msg_id || msg.id || null,
-        sender: msg.sender,
-        sender_name: msg.sender_name,
-        text: msg.text,
-        is_outgoing: !!msg.is_outgoing,
-        channel_idx: msg.channel_idx,
-        dm_target: msg.dm_target,
-        dm_target_name: msg.dm_target_name || null,
-        timestamp: msg.timestamp || new Date().toISOString(),
-        metrics: msg.metrics || null,
-        delivered: !!msg.delivered,
-        status: msg.status || (msg.delivered ? "delivered" : (msg.is_outgoing ? "sent" : "received")),
-        expected_ack: msg.expected_ack || null,
-        trip_time_ms: msg.trip_time_ms || 0,
-        quote: msg.quote || null,
-        location: msg.location || null,
-      };
-      if (typeof msg._db_id === "number") {
-        record.id = msg._db_id;
-        store.put(record);
-      } else {
-        const req = store.add(record);
-        req.onsuccess = (e) => {
-          msg._db_id = e.target.result;
+        request.onsuccess = () => {
+          if (blocked) request.result.close();
+          else resolve(request.result);
         };
+        request.onerror = () => reject(request.error);
+      });
+      if (!this.db) return null;
+      this.db.onversionchange = () => { this.db?.close(); this.db = null; };
+      const tx = this.db.transaction(META_STORE, "readonly");
+      const metadata = await requestValue(tx.objectStore(META_STORE).get("last_station"));
+      this.stationId = metadata?.station_id || null;
+      return this.db;
+    } catch (error) {
+      console.warn("Message cache unavailable:", error);
+      return null;
+    }
+  }
+
+  async _request(path, options = {}) {
+    const authGeneration = this.authGeneration;
+    let response;
+    try {
+      response = await fetch(path, { ...options, headers: getAuthHeaders(options.headers) });
+    } catch (cause) {
+      const error = new Error("History server unavailable", { cause });
+      error.offline = true;
+      throw error;
+    }
+    const result = await response.json();
+    if (authGeneration !== this.authGeneration) throw new Error("Credentials changed during history request");
+    if (!response.ok || result.status !== "ok") {
+      throw new Error(result.detail || result.message || result.error || `HTTP ${response.status}`);
+    }
+    const data = result.data;
+    if (!data || typeof data.station_id !== "string" || !data.station_id) {
+      throw new Error("History response has no station identity");
+    }
+    return data;
+  }
+
+  async _accept(data) {
+    await this.readyPromise;
+    if (this.db) {
+      try {
+        const tx = this.db.transaction([CACHE_STORE, META_STORE], "readwrite");
+        const done = transactionDone(tx);
+        const store = tx.objectStore(CACHE_STORE);
+        for (const message of data.messages || []) {
+          const msgId = messageIdentity(message);
+          if (!msgId || !message.feed_key) continue;
+          const get = store.get([data.station_id, msgId]);
+          get.onsuccess = () => store.put({ ...mergeMessage(get.result, message), station_id: data.station_id, msg_id: msgId, id: msgId });
+        }
+        const metadata = tx.objectStore(META_STORE);
+        metadata.put({ key: "last_station", station_id: data.station_id });
+        this._cacheConversations(metadata, data);
+        // Identity and downloaded messages become visible together after commit.
+        await done;
+      } catch (error) {
+        console.warn("History downloaded, but offline cache unavailable:", error);
+        this.db?.close();
+        this.db = null;
       }
-      await new Promise(resolve => {
-        tx.oncomplete = resolve;
-        tx.onerror = resolve;
-        tx.onabort = resolve;
-      });
-    } catch (_) {}
+    }
+    const previousStation = this.stationId;
+    this.stationId = data.station_id;
+    this.validatedOnline = true;
+    if (previousStation !== this.stationId) {
+      window.dispatchEvent(new CustomEvent("meshcore:station_changed", { detail: { station_id: this.stationId } }));
+    }
+    return data;
   }
 
-  async updateMessageExpectedAck(msgId, expectedAck) {
-    await this.readyPromise;
-    if (!this.db || !msgId || !expectedAck) return;
-    try {
-      const tx = this.db.transaction("chat_messages", "readwrite");
-      const store = tx.objectStore("chat_messages");
-      const req = store.openCursor();
-      const normExp = String(expectedAck).toLowerCase().replace(/^0x/, "").trim();
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          const val = cursor.value;
-          if (val && (val.msg_id === msgId || String(val.id) === String(msgId))) {
-            val.expected_ack = normExp;
-            cursor.update(val);
-          } else {
-            cursor.continue();
-          }
-        }
-      };
-    } catch (_) {}
+  _cacheConversations(metadata, data) {
+    const key = `conversations:${data.station_id}`;
+    const request = metadata.get(key);
+    request.onsuccess = () => {
+      const conversations = new Map((request.result?.conversations || []).map(thread => [thread.feed_key, thread]));
+      const downloaded = (data.messages || []).filter(message => Number.isInteger(message.seq) && message.seq > 0)
+        .map(message => ({ feed_key: message.feed_key, last_seq: message.seq, last_message: message, timestamp: message.timestamp }));
+      for (const thread of [...(data.conversations || []), ...downloaded]) {
+        const previous = conversations.get(thread.feed_key);
+        if (!previous || (thread.last_seq || 0) >= (previous.last_seq || 0)) conversations.set(thread.feed_key, thread);
+      }
+      metadata.put({ key, conversations: [...conversations.values()].sort((a, b) => (b.last_seq || 0) - (a.last_seq || 0)) });
+    };
   }
 
-  async updateMessageDelivery(msgId, ackCode, tripTime) {
+  async getHistoryPage(feedKey, { limit = 100, before = null } = {}) {
     await this.readyPromise;
-    if (!this.db) return;
+    const params = new URLSearchParams({ feed_key: feedKey, limit: String(limit) });
+    if (before != null) params.set("before", String(before));
     try {
-      const rawAck = (ackCode || "").toString().toLowerCase().trim();
-      const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
-      const hasValidAck = ackClean && !/^0+$/.test(ackClean);
-      const hasValidMsgId = Boolean(msgId && msgId !== "None" && msgId !== "null");
-      if (!hasValidAck && !hasValidMsgId) return;
-
-      const tx = this.db.transaction("chat_messages", "readwrite");
-      const store = tx.objectStore("chat_messages");
-      const req = store.openCursor();
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          const val = cursor.value;
-          const valExp = (val.expected_ack || "").toString().toLowerCase().trim();
-          const valExpClean = valExp.startsWith("0x") ? valExp.slice(2) : valExp;
-          const ackMatch = hasValidAck && valExpClean && valExpClean === ackClean;
-          const match = (hasValidMsgId && (val.msg_id === msgId || String(val.id) === String(msgId))) || ackMatch;
-          if (match) {
-            val.delivered = true;
-            val.status = "delivered";
-            val.trip_time_ms = tripTime || val.trip_time_ms || 0;
-            cursor.update(val);
-          }
-          cursor.continue();
-        }
-      };
-    } catch (_) {}
-  }
-
-  async updateMessageStatus(msgId, status) {
-    await this.readyPromise;
-    if (!this.db) return;
-    try {
-      const tx = this.db.transaction("chat_messages", "readwrite");
-      const store = tx.objectStore("chat_messages");
-      const req = store.openCursor();
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          const val = cursor.value;
-          if (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) {
-            if (val.delivered || val.status === "delivered") {
-              cursor.continue();
-              return;
-            }
-            val.status = status;
-            if (status === "delivered") val.delivered = true;
-            cursor.update(val);
-          }
-          cursor.continue();
-        }
-      };
-      await new Promise(resolve => {
-        tx.oncomplete = resolve;
-        tx.onerror = resolve;
-        tx.onabort = resolve;
-      });
-    } catch (_) {}
+      const data = await this._request(`/api/messages/history?${params}`);
+      await this._accept(data);
+      return { ...data, offline: false };
+    } catch (error) {
+      if (!error.offline) throw error;
+      const messages = await this._cachedFeed(feedKey, limit, before);
+      return { messages, station_id: this.stationId, next_before: messages[0]?.seq || null, has_more: messages.length === limit, offline: true };
+    }
   }
 
   async getMessagesByFeed(feedKey, limit = 100) {
-    await this.readyPromise;
-    if (!this.db) return [];
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction("chat_messages", "readonly");
-        const store = tx.objectStore("chat_messages");
-        const index = store.index("by_feed");
-        if (!Number.isInteger(limit) || limit <= 0) {
-          const req = index.getAll(IDBKeyRange.only(feedKey));
-          req.onsuccess = () => resolve((req.result || []).slice(-limit));
-          req.onerror = () => resolve([]);
-          return;
-        }
-        // Walk newest records first and stop at the visible history limit.
-        // getAll() allocated the entire conversation before discarding older messages.
-        const msgs = [];
-        const maxMessages = limit;
-        const req = index.openCursor(IDBKeyRange.only(feedKey), "prev");
-        req.onsuccess = () => {
-          const cursor = req.result;
-          if (cursor && msgs.length < maxMessages) {
-            msgs.push(cursor.value);
-            if (msgs.length < maxMessages) {
-              cursor.continue();
-              return;
-            }
-          }
-          resolve(msgs.reverse());
-        };
-        req.onerror = () => resolve([]);
-      } catch (_) {
-        resolve([]);
-      }
+    return (await this.getHistoryPage(feedKey, { limit })).messages;
+  }
+
+  async _cachedFeed(feedKey, limit, before) {
+    if (!this.db || !this.stationId) return [];
+    const stationId = this.stationId;
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(CACHE_STORE, "readonly");
+      const range = IDBKeyRange.bound([stationId, feedKey, 0], [stationId, feedKey, before ?? Number.MAX_SAFE_INTEGER], false, before != null);
+      const request = tx.objectStore(CACHE_STORE).index("by_feed_seq").openCursor(range, "prev");
+      const messages = [];
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (cursor && messages.length < limit) {
+          messages.push(cursor.value);
+          cursor.continue();
+        } else resolve(messages.reverse());
+      };
     });
   }
 
   async getDmConversations(localPubkey = "") {
     await this.readyPromise;
-    if (!this.db) return [];
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction("chat_messages", "readonly");
-        const store = tx.objectStore("chat_messages");
-        const req = store.getAll();
-        req.onsuccess = () => {
-          const allMsgs = req.result || [];
-          const threadsMap = new Map();
-          const localPk = (localPubkey || (typeof document !== "undefined" ? document.getElementById("localNodePubkey")?.value : "") || "").toLowerCase().trim();
-
-          for (const msg of allMsgs) {
-            const feedKey = msg.feed_key || "";
-            if (!feedKey.startsWith("dm_")) continue;
-            const pubkey = feedKey.slice(3).trim();
-            if (!pubkey || pubkey.toLowerCase() === "unknown" || pubkey.toLowerCase() === "local") continue;
-
-            const normPk = pubkey.toLowerCase();
-            if (localPk) {
-              if (normPk === localPk) continue;
-              if ((localPk.length < 16 || normPk.length < 16) && normPk.startsWith(localPk.slice(0, Math.min(localPk.length, normPk.length)))) {
-                continue;
-              }
-            }
-
-            const isOut = Boolean(msg.is_outgoing);
-            const fallbackName = pubkey.slice(0, 8);
-            let initialName = isOut
-              ? (msg.dm_target_name || (msg.dm_target && msg.dm_target !== pubkey ? msg.dm_target : fallbackName))
-              : (msg.sender_name || fallbackName);
-
-            if (initialName && (initialName.includes("Estación Local") || initialName.includes("Local Station"))) {
-              initialName = msg.dm_target_name || fallbackName;
-            }
-
-            if (!threadsMap.has(pubkey)) {
-              threadsMap.set(pubkey, {
-                pubkey: pubkey,
-                name: initialName,
-                lastMessage: msg.text || "",
-                lastTimestamp: msg.timestamp || "",
-                role: "CLIENT",
-                messages: []
-              });
-            }
-            const thread = threadsMap.get(pubkey);
-            thread.messages.push(msg);
-            if (!msg.is_outgoing && msg.sender_name && msg.sender_name.toLowerCase() !== "unknown" && msg.sender_name !== pubkey) {
-              if (!msg.sender_name.includes("Estación Local") && !msg.sender_name.includes("Local Station")) {
-                thread.name = msg.sender_name;
-              }
-            }
-            if (msg.timestamp && (!thread.lastTimestamp || new Date(msg.timestamp) > new Date(thread.lastTimestamp))) {
-              thread.lastTimestamp = msg.timestamp;
-              thread.lastMessage = msg.text || "";
-            }
-          }
-
-          const threads = Array.from(threadsMap.values());
-          threads.sort((a, b) => new Date(b.lastTimestamp || 0) - new Date(a.lastTimestamp || 0));
-          resolve(threads);
-        };
-        req.onerror = () => resolve([]);
-      } catch (_) {
-        resolve([]);
-      }
-    });
+    let conversations;
+    try {
+      const data = await this._request("/api/messages/conversations");
+      await this._accept(data);
+      conversations = data.conversations || [];
+    } catch (error) {
+      if (!error.offline) throw error;
+      if (!this.db || !this.stationId) return [];
+      const tx = this.db.transaction(META_STORE, "readonly");
+      conversations = (await requestValue(tx.objectStore(META_STORE).get(`conversations:${this.stationId}`)))?.conversations || [];
+    }
+    return conversations.filter(thread => String(thread.feed_key || "").startsWith("dm_"))
+      .map(thread => ({ ...thread, pubkey: thread.pubkey || thread.feed_key.slice(3), name: thread.name || thread.peer_name || (thread.last_message?.is_outgoing ? thread.last_message?.dm_target_name : thread.last_message?.sender_name) || thread.feed_key.slice(3, 11) }))
+      .filter(thread => thread.pubkey.toLowerCase() !== String(localPubkey).toLowerCase());
   }
 
-  async clearFeedMessages(feedKey) {
+  async saveMessage(feedKey, message) {
     await this.readyPromise;
-    if (!this.db) return;
-    try {
-      const tx = this.db.transaction("chat_messages", "readwrite");
-      const store = tx.objectStore("chat_messages");
-      const index = store.index("by_feed");
-      const req = index.openCursor(IDBKeyRange.only(feedKey));
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          store.delete(cursor.primaryKey);
-          cursor.continue();
-        }
-      };
-    } catch (_) {}
+    if (!this.db || !this.stationId || !this.validatedOnline || !messageIdentity(message)) return;
+    const tx = this.db.transaction([CACHE_STORE, META_STORE], "readwrite");
+    const done = transactionDone(tx);
+    const store = tx.objectStore(CACHE_STORE);
+    const stationId = this.stationId;
+    const msgId = messageIdentity(message);
+    const get = store.get([stationId, msgId]);
+    get.onsuccess = () => store.put({ ...mergeMessage(get.result, message), station_id: stationId, feed_key: feedKey, msg_id: msgId, id: msgId });
+    this._cacheConversations(tx.objectStore(META_STORE), { station_id: stationId, messages: [{ ...message, feed_key: feedKey }] });
+    await done;
   }
 
-  async clearAll() {
+  async _updateMessages(matches, update) {
     await this.readyPromise;
-    if (!this.db) return;
-    try {
-      const tx = this.db.transaction("chat_messages", "readwrite");
-      tx.objectStore("chat_messages").clear();
-    } catch (_) {}
+    if (!this.db || !this.stationId) return;
+    const tx = this.db.transaction(CACHE_STORE, "readwrite");
+    const done = transactionDone(tx);
+    const request = tx.objectStore(CACHE_STORE).index("by_station").openCursor(IDBKeyRange.only(this.stationId));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      if (matches(cursor.value)) cursor.update(update(cursor.value));
+      cursor.continue();
+    };
+    await done;
+  }
+
+  updateMessageExpectedAck(msgId, expectedAck) {
+    return this._updateMessages(message => message.msg_id === msgId, message => ({ ...message, expected_ack: String(expectedAck || "").toLowerCase().replace(/^0x/, "").trim() }));
+  }
+
+  updateMessageDelivery(msgId, ackCode, tripTime) {
+    const ack = String(ackCode || "").toLowerCase().replace(/^0x/, "").trim();
+    return this._updateMessages(message => (msgId && message.msg_id === msgId) || (ack && !/^0+$/.test(ack) && String(message.expected_ack || "").toLowerCase().replace(/^0x/, "") === ack),
+      message => ({ ...message, delivered: true, status: "delivered", trip_time_ms: tripTime || message.trip_time_ms || 0 }));
+  }
+
+  updateMessageStatus(msgId, status) {
+    return this._updateMessages(message => message.msg_id === msgId,
+      message => mergeMessage(message, { status, delivered: status === "delivered" }));
+  }
+
+  async _clear(feedKey = null) {
+    await this.readyPromise;
+    if (!this.db || !this.stationId) return;
+    const tx = this.db.transaction(CACHE_STORE, "readwrite");
+    const done = transactionDone(tx);
+    const store = tx.objectStore(CACHE_STORE);
+    const index = store.index(feedKey == null ? "by_station" : "by_feed");
+    const request = index.openCursor(IDBKeyRange.only(feedKey == null ? this.stationId : [this.stationId, feedKey]));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      store.delete(cursor.primaryKey);
+      cursor.continue();
+    };
+    await done;
+  }
+
+  clearFeedMessages(feedKey) { return this._clear(feedKey); }
+  clearAll() { return this._clear(); }
+
+  async importLegacyHistory() {
+    await this.readyPromise;
+    if (!this.db) throw new Error("Legacy browser history is unavailable");
+    // Explicit consent targets the currently authenticated station. Never replay TX.
+    const station = await this._request("/api/messages/conversations");
+    await this._accept(station);
+    let imported = 0;
+    let skipped = 0;
+    let after = null;
+    while (true) {
+      const tx = this.db.transaction(LEGACY_STORE, "readonly");
+      const range = after == null ? undefined : IDBKeyRange.lowerBound(after, true);
+      const messages = await requestValue(tx.objectStore(LEGACY_STORE).getAll(range, 100));
+      if (!messages.length) break;
+      after = messages[messages.length - 1].id;
+      const valid = messages.filter(message => typeof message.text === "string" && message.text.trim()
+        && /^(?:ch_[0-9]+|dm_[0-9a-f]{8,64})$/.test(message.feed_key || "")
+        && Number.isFinite(Date.parse(message.timestamp)));
+      skipped += messages.length - valid.length;
+      const batch = valid.map(message => {
+        const { id, _db_id, ...fields } = message;
+        return { ...fields, msg_id: message.msg_id || null };
+      });
+      if (!batch.length) continue;
+      const data = await this._request("/api/messages/import", { method: "POST", body: JSON.stringify({ messages: batch, station_id: station.station_id }) });
+      if (data.station_id !== station.station_id) throw new Error("Station changed during history import");
+      imported += data.imported || data.imported_count || 0;
+    }
+    return { imported, skipped };
   }
 }

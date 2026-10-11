@@ -38,6 +38,16 @@ class CompatibilityBodyDTO(BaseModel):
         return ()
 
 
+class ChatHistoryBodyDTO(CompatibilityBodyDTO):
+    """History query/import fields validated by HistoryController."""
+
+    feed_key: Any = None
+    limit: Any = None
+    before: Any = None
+    messages: Any = None
+    station_id: Any = None
+
+
 class SendTxBodyDTO(CompatibilityBodyDTO):
     """TX checks target aliases, roles and channel coercion in controller order.
 

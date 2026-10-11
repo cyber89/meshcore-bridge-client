@@ -1,6 +1,6 @@
 # ADR 0005: Persistencia Atómica en Archivos JSON sobre Base de Datos Relacional o SQLite
 
-- **Estado**: Aceptado
+- **Estado**: Sustituido por [ADR 0017](0017-sqlite-station-browser-cache.md) el 2026-10-10. Se conserva como decisión histórica; sus estimaciones genéricas de memoria no constituyen mediciones del bridge.
 - **Fecha**: 2026-09-24
 - **Autores**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Bridge Architect)
 - **Contexto**: `CONTEXT.md`, `AGENTS.md` (Sección 1 y 2), `docs/ARCHITECTURE.md`

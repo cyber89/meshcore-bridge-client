@@ -13,6 +13,7 @@ from typing import Any
 import config
 from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
 from src.routers.base import BaseRxHandler, RxMeta
+from src.shared_utils import clean_numeric_value
 
 
 class RepeaterAdminHandler(BaseRxHandler):
@@ -87,10 +88,15 @@ class RepeaterAdminHandler(BaseRxHandler):
 
             ack_msg_id = payload.get("msg_id", payload.get("id", payload.get("request_id")))
             trip_time = payload.get("trip_time_ms", payload.get("trip_time", payload.get("rtt_ms")))
+            parsed_trip = clean_numeric_value(trip_time)
+            trip_time = max(0.0, parsed_trip) if parsed_trip is not None else None
 
             bridge = getattr(router_ctx, "bridge", None) or getattr(router_ctx, "_bridge", None)
             if ack_code and bridge and hasattr(bridge, "resolve_pending_ack"):
-                ack_info = bridge.resolve_pending_ack(ack_code)
+                if hasattr(bridge, "consume_pending_ack"):
+                    ack_info = await bridge.consume_pending_ack(ack_code, trip_time)
+                else:
+                    ack_info = bridge.resolve_pending_ack(ack_code)
                 # Incoming IDs cannot bypass lifetime/capacity/one-shot tracking.
                 ack_msg_id = None
                 if isinstance(ack_info, dict):
@@ -119,8 +125,11 @@ class RepeaterAdminHandler(BaseRxHandler):
                 "sender": meta.sender,
             }
 
-            if router_ctx.web_server and ack_msg_id:
-                await router_ctx.web_server.broadcast_event(ack_evt_data)
+            if ack_msg_id:
+                if bridge is not None and hasattr(bridge, "publish_chat_event"):
+                    await bridge.publish_chat_event(ack_evt_data)
+                elif router_ctx.web_server:
+                    await router_ctx.web_server.broadcast_event(ack_evt_data)
 
             # Actualizar presencia del emisor del ACK si es un nodo remoto
             ack_sender = meta.sender or str(payload.get("sender") or payload.get("from") or "").strip()

@@ -17,6 +17,7 @@ import config
 from src.admin.sdk_commands import require_success, run_sdk_command
 from src.protocol_types import redact_sensitive_mapping
 from src.shared_utils import extract_payload_dict, normalize_battery, redact_sensitive_command
+from src.storage_validation import validate_channels_document
 
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
@@ -387,7 +388,7 @@ class CliCommandExecutor:
             f"  • Cola de Paquetes MCU  : {queue_len} / 256 paquetes en búfer\n"
             f"  • Memoria Proceso Bridge: {rss_text} RAM (RSS del proceso)\n"
             f"  • Tareas Asíncronas     : {active_tasks} corrutinas en Event Loop\n"
-            f"  • Registro NVS / Flash  : data/node_registry.json, data/channels.json (Sincronizado)\n"
+            f"  • Persistencia estación: SQLite (nodos y canales sincronizados)\n"
             f"  • Errores Acumulados    : {errors} fallos registrados"
         )
         return res
@@ -702,6 +703,14 @@ class CliCommandExecutor:
         )
 
         def _read_channels() -> list[dict[str, Any]]:
+            database = getattr(self._ctx.node_registry, "database", None)
+            if database is not None:
+                data = database.read_document("channels", channels_file, validator=validate_channels_document)
+                if isinstance(data, list):
+                    return data
+                if isinstance(data, dict):
+                    return list(data.values())
+                return []
             if os.path.exists(channels_file):
                 try:
                     with open(channels_file, encoding="utf-8") as f:

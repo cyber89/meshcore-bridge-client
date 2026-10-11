@@ -7,6 +7,7 @@ en memoria con soporte de búsqueda O(1), estadísticas de tráfico y análisis 
 from __future__ import annotations
 
 import asyncio
+import copy
 import heapq
 import json
 import logging
@@ -28,6 +29,7 @@ from src.shared_utils import (
     haversine_distance_m,
     normalize_battery,
 )
+from src.station_database import StationDatabase
 
 
 def _safe_int(val: Any) -> int | None:
@@ -888,9 +890,12 @@ def is_valid_node_key(key: Any) -> bool:
 class NodeRegistry:
     """Directorio en memoria para contactos y resolución de nombres de la red MeshCore."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, database: StationDatabase | None = None) -> None:
+        self.database = database
         self._lock = threading.RLock()
         self._nodes_by_key: dict[str, NodeContactInfo] = {}
+        self._stored_node_documents: dict[str, dict[str, Any]] = {}
+        self._stored_document_extras: dict[str, Any] = {}
         self._local_pubkey: str = ""
         self.error_categories: dict[str, int] = {
             "SERIAL_TIMEOUT": 0,
@@ -1750,8 +1755,10 @@ class NodeRegistry:
             generation = self._generation
             # Keep raw domain values, including None; view-only suggestions must
             # never become firmware observations after a save/load roundtrip.
-            nodes_list = [contact.as_flat_dict() for contact in self._snapshot_contacts()]
+            nodes_list = [{**self._stored_node_documents.get(contact.public_key, {}), **contact.as_flat_dict()}
+                          for contact in self._snapshot_contacts()]
             data = {
+                **self._stored_document_extras,
                 "local_pubkey": self._local_pubkey,
                 "saved_at": time.time(),
                 "nodes": nodes_list,
@@ -1761,11 +1768,14 @@ class NodeRegistry:
         target_str = str(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH") or os.path.join("data", "node_registry.json"))
         target_path = Path(target_str)
         try:
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp_path = target_path.with_name(f"{target_path.stem}_{os.getpid()}_{time.time_ns()}.tmp")
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            tmp_path.replace(target_path)
+            if self.database is not None:
+                self.database.write_document("nodes", data)
+            else:
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = target_path.with_name(f"{target_path.stem}_{os.getpid()}_{time.time_ns()}.tmp")
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                tmp_path.replace(target_path)
             with self._lock:
                 if self._generation == generation:
                     self._dirty = False
@@ -1896,16 +1906,23 @@ class NodeRegistry:
         )
 
     def load_from_file(self, filepath: str | Path | None = None) -> int:
-        """Carga la libreta de contactos y estado de nodos desde un archivo JSON."""
+        """Load durable station nodes, importing a legacy document if necessary."""
         target_str = str(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH") or os.path.join("data", "node_registry.json"))
         target_path = Path(target_str)
-        if not target_path.is_file():
+        if self.database is None and not target_path.is_file():
             return 0
         try:
-            with open(target_path, encoding="utf-8") as f:
-                data = json.load(f)
+            if self.database is not None:
+                data = self.database.read_document("nodes", target_path, validator=self._validate_stored_nodes)
+                if data is None:
+                    return 0
+            else:
+                with open(target_path, encoding="utf-8") as f:
+                    data = json.load(f)
             loaded_count = 0
             with self._lock:
+                self._stored_document_extras = {key: copy.deepcopy(value) for key, value in data.items()
+                                               if key not in ("nodes", "local_pubkey", "saved_at", "error_categories")}
                 for nd in data.get("nodes", []):
                     try:
                         contact = self._deserialize_node_contact(nd)
@@ -1915,6 +1932,7 @@ class NodeRegistry:
                     if not contact:
                         continue
                     self._nodes_by_key[contact.public_key] = contact
+                    self._stored_node_documents[contact.public_key] = copy.deepcopy(nd)
                     loaded_count += 1
 
                 if "local_pubkey" in data and data["local_pubkey"]:
@@ -1928,4 +1946,17 @@ class NodeRegistry:
             return loaded_count
         except Exception as e:
             logging.warning(f"Error cargando NodeRegistry desde {target_path}: {e}")
+            if self.database is not None:
+                raise
             return 0
+
+    def _validate_stored_nodes(self, data: Any) -> None:
+        if not isinstance(data, dict) or not isinstance(data.get("nodes"), list):
+            raise ValueError("Node registry document invalid")
+        for node in data["nodes"]:
+            if not isinstance(node, dict) or self._deserialize_node_contact(node) is None:
+                raise ValueError("Node registry entry invalid")
+        if data.get("local_pubkey") and not is_valid_node_key(data["local_pubkey"]):
+            raise ValueError("Node registry local key invalid")
+        if not isinstance(data.get("error_categories", {}), dict):
+            raise ValueError("Node registry error categories invalid")

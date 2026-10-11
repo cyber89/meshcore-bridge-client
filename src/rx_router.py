@@ -481,16 +481,26 @@ class RxEventRouter:
 
     def _spawn_broadcast_task(self, payload: dict[str, Any]) -> None:
         """Emite eventos WebSocket registrando la tarea en background_tasks."""
-        if not self._ctx.web_server:
+        kind = str(payload.get("type", payload.get("event_type", ""))).lower()
+        bridge = self._ctx.bridge
+        persistent_chat = kind in ("public", "channel", "direct") and bridge is not None and hasattr(bridge, "publish_chat_event")
+        if not self._ctx.web_server and not persistent_chat:
             return
         async def broadcast() -> None:
-            coro = self._ctx.web_server.broadcast_event(payload)
+            if not persistent_chat and bridge is not None and getattr(bridge, "_draining_storage", False):
+                return
+            coro = bridge.publish_chat_event(payload) if persistent_chat else self._ctx.web_server.broadcast_event(payload)
             if asyncio.iscoroutine(coro):
                 await coro
 
         contact = payload.get("contact")
         key = f"contact:{contact.get('public_key')}" if payload.get("type") == "contact_updated" and isinstance(contact, dict) and contact.get("public_key") else None
         self._enqueue_work(broadcast, observation_key=key)
+
+    async def drain(self) -> None:
+        """Finish accepted RX jobs before the bridge cancels its owned tasks."""
+        while self._rx_workers:
+            await asyncio.gather(*(asyncio.shield(task) for task in tuple(self._rx_workers)), return_exceptions=True)
 
     def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
         raw_type = getattr(event, "type", getattr(event, "event_type", ""))

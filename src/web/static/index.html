@@ -1320,7 +1320,7 @@
                       <h3 data-i18n="ui.static_333"><i class="bi bi-database section-icon" aria-hidden="true"></i> Persistencia & Alertas de Chat</h3>
                       <span class="badge-pill badge-success" id="indexedDbStatusBadge" data-i18n="ui.static_334">Activo (MeshCoreStationDB)</span>
                     </div>
-                    <p class="card-desc" data-i18n="ui.static_335">Los mensajes de chat y el estado de la estación se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
+                    <p class="card-desc" data-i18n="ui.static_335">SQLite guarda los mensajes y el estado en el servidor. IndexedDB conserva una caché por estación para consultar el historial descargado sin conexión.</p>
                     <div class="settings-form">
                       <div class="form-group toggle-field-group" style="margin-bottom: 14px;">
                         <div class="toggle-field-row">
@@ -1338,7 +1338,8 @@
                         </div>
                       </div>
                       <div class="form-row">
-                        <button type="button" class="btn btn-danger btn-sm" id="btnClearIndexedDbStorage" data-i18n="ui.static_340"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Vaciar Almacenamiento Local IndexedDB</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="btnClearIndexedDbStorage" data-i18n="ui.static_340"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Vaciar caché local</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnImportLocalHistory" data-i18n="settings.import_history">Importar historial local anterior</button>
                       </div>
                     </div>
                   </div>
@@ -1396,7 +1397,8 @@
                           <button type="button" class="btn btn-primary btn-sm" id="btnSaveBridgeApiKey" data-i18n="modal.save">Guardar</button>
                           <button type="button" class="btn btn-secondary btn-sm" id="btnClearBridgeApiKey" data-i18n="chat.clear">Limpiar</button>
                         </div>
-                        <span id="apiKeyStatusHint" class="text-success text-xs hidden" style="margin-top: 8px; display: inline-block;">✓ API Key guardada con éxito en este navegador</span>
+                        <span id="apiKeyStatusHint" class="text-success text-xs hidden" style="margin-top: 8px; display: inline-block;">✓ API Key guardada para esta sesión de pestaña</span>
+                        <p class="card-desc" data-i18n="settings.api_session_note">La clave se conserva al recargar esta pestaña y se elimina al terminar su sesión. LocalStorage sólo guarda preferencias.</p>
                       </div>
                     </form>
                   </div>

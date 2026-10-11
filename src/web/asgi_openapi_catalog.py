@@ -24,6 +24,23 @@ class ObservedOperation:
 
 
 OBSERVED_OPERATIONS: dict[tuple[str, str], ObservedOperation] = {
+    ('GET', '/api/messages/history'): ObservedOperation(
+        ('feed_key', 'limit', 'before'), (200, 422, 503, 500), 'router_merged',
+        'Optional feed_key ch_N/dm_hex; limit 1..200 (default 100); positive integer before cursor.',
+        'status ok; data messages in chronological order, station_id, next_before, has_more.',
+        ('src/web/controllers/history_controller.py:handle',), 'Passive SQLite read; no RF.', False,
+    ),
+    ('GET', '/api/messages/conversations'): ObservedOperation(
+        (), (200, 503, 500), 'router_merged', 'No inputs.',
+        'status ok; data conversations and station_id.',
+        ('src/web/controllers/history_controller.py:handle',), 'Passive SQLite read; no RF.', False,
+    ),
+    ('POST', '/api/messages/import'): ObservedOperation(
+        ('messages', 'station_id'), (200, 409, 422, 503, 500), 'router_merged',
+        'Explicit batch of 1..200 historical message objects; atomically validated and deduplicated. Optional station_id rejects mismatches.',
+        'status ok; data import counts and station_id.',
+        ('src/web/controllers/history_controller.py:handle',), 'SQLite history import only; no RF/MQTT replay.', False,
+    ),
     ('GET', '/api/status'): ObservedOperation(
         (),
         (200,),
@@ -396,10 +413,10 @@ OBSERVED_OPERATIONS: dict[tuple[str, str], ObservedOperation] = {
     ),
     ('GET', '/api/messages/recent'): ObservedOperation(
         (),
-        (200,),
+        (200, 500),
         'router_merged',
         'ninguna; no paginación',
-        '200 OK data[] todos recent_messages,count',
+        '200 OK data[] newest 200 durable station messages,count; legacy injected stubs use recent_messages.',
         ('src/web/api_router.py:_dispatch_tx', 'src/web/controllers/tx_controller.py:get_recent_messages'),
         'pasivo',
         False,

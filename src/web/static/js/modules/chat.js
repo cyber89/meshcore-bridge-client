@@ -21,6 +21,7 @@ import {
   getDateGroupLabel,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
+import { mergeMessage, messageIdentity } from "../core/storage.js";
 
 export class ChatModule {
   constructor(context) {
@@ -34,6 +35,7 @@ export class ChatModule {
     this.activeDmTarget = null;
     this.activeDmName = null;
     this.pendingOutgoingAcks = new Map();
+    this.historyPages = new Map();
     this.chatSoundEnabled = localStorage.getItem("meshcore_chat_sound_enabled") !== "false";
     this._audioCtx = null;
     this.dom = {};
@@ -83,6 +85,23 @@ export class ChatModule {
     this._bindElements();
     this._bindEvents();
     this._subscribeBus();
+    window.addEventListener("meshcore:station_changed", () => {
+      this.channelFeeds.clear();
+      this.historyPages.clear();
+      this.pendingOutgoingAcks.clear();
+      this.conversationsWithMessages.clear();
+      this.unreadCounts.clear();
+      if (this.dom.dmListUi) this.dom.dmListUi.textContent = "";
+      if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
+      if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.textContent = "";
+    });
+    window.addEventListener("meshcore:credentials_changed", () => this.loadInitialHistory());
+    window.addEventListener("meshcore:history_imported", () => this.loadInitialHistory());
+    window.addEventListener("meshcore:cache_cleared", () => {
+      this.channelFeeds.clear();
+      this.historyPages.clear();
+      if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.textContent = "";
+    });
     this.loadInitialHistory();
     this._renderEmojiGrid("smileys");
     this.updateCharCounter();
@@ -322,21 +341,7 @@ export class ChatModule {
 
   async loadInitialHistory() {
     if (!this.ctx.storage) return;
-
-    const initialMsgs = await this.ctx.storage.getMessagesByFeed("ch_0");
-    if (initialMsgs && initialMsgs.length > 0) {
-      const cleanMsgs = initialMsgs.filter((m) => !isCommandOrSystemText(m.text, m.txt_type));
-      this.channelFeeds.set("ch_0", cleanMsgs);
-      cleanMsgs.forEach((m) => {
-        if (m.is_outgoing && !m.delivered && m.expected_ack) {
-          const cleanAck = String(m.expected_ack).toLowerCase().replace(/^0x/, "").trim();
-          if (cleanAck) this.pendingOutgoingAcks.set(cleanAck, m.id || m.msg_id);
-        }
-      });
-      if (this.activeChannelIdx === 0 && !this.activeDmTarget) {
-        await this.renderCurrentConversation();
-      }
-    }
+    await this.renderCurrentConversation();
 
     try {
       const localPk = (this.ctx.localNodePubkey || (typeof document !== "undefined" ? document.getElementById("localNodePubkey")?.value : "") || "").toLowerCase().trim();
@@ -353,7 +358,9 @@ export class ChatModule {
           this.addDmContact(canonicalPk, thread.name || canonicalPk.slice(0, 8));
         }
       }
-    } catch (_) {}
+    } catch (error) {
+      console.warn("Conversation history unavailable:", error);
+    }
   }
 
   _isLocalTarget(pubkey) {
@@ -1082,7 +1089,7 @@ export class ChatModule {
     }
   }
 
-  async renderCurrentConversation() {
+  async renderCurrentConversation({ refresh = true, before = null } = {}) {
     if (!this.dom.chatMessageFeed) return;
     const renderGeneration = ++this._renderGeneration;
     this.dom.chatMessageFeed.textContent = "";
@@ -1091,13 +1098,26 @@ export class ChatModule {
     const feedGeneration = this._feedGenerations.get(feedKey) || 0;
     let msgs = this.channelFeeds.get(feedKey);
 
-    if (!msgs && this.ctx.storage) {
-      msgs = await this.ctx.storage.getMessagesByFeed(feedKey);
-      if (feedGeneration === (this._feedGenerations.get(feedKey) || 0)) {
+    if (refresh && this.ctx.storage) {
+      try {
+        const page = await this.ctx.storage.getHistoryPage(feedKey, { before });
+        if (renderGeneration !== this._renderGeneration || feedGeneration !== (this._feedGenerations.get(feedKey) || 0)) return;
         const existing = this.channelFeeds.get(feedKey) || [];
-        const byId = new Map((msgs || []).map(msg => [msg.msg_id || msg.id, msg]));
-        for (const msg of existing) byId.set(msg.msg_id || msg.id, msg);
-        this.channelFeeds.set(feedKey, [...byId.values()].slice(-MAX_FEED_MESSAGES));
+        const byId = new Map(existing.map(msg => [messageIdentity(msg), msg]));
+        for (const msg of page.messages || []) {
+          if (isCommandOrSystemText(msg.text, msg.txt_type)) continue;
+          const id = messageIdentity(msg);
+          const display = msg.is_outgoing ? msg : { ...msg, text: extractSenderAndText(msg.text, msg.sender_name).cleanText };
+          if (id) byId.set(id, { ...mergeMessage(byId.get(id), display), id });
+        }
+        const merged = [...byId.values()].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || (a.seq || 0) - (b.seq || 0));
+        this.channelFeeds.set(feedKey, before == null ? merged.slice(-MAX_FEED_MESSAGES) : merged);
+        this.historyPages.set(feedKey, page);
+      } catch (error) {
+        console.warn("History unavailable:", error);
+        this.channelFeeds.delete(feedKey);
+        this.historyPages.delete(feedKey);
+        this.ctx.showToast?.(I18n.t("chat.history_error", { error: error.message }), "warning");
       }
       msgs = this.channelFeeds.get(feedKey);
     }
@@ -1116,6 +1136,30 @@ export class ChatModule {
     }
 
     const frag = document.createDocumentFragment();
+    const page = this.historyPages.get(feedKey);
+    if (page?.offline) {
+      const notice = document.createElement("p");
+      notice.className = "text-secondary text-xs";
+      notice.setAttribute("role", "status");
+      notice.textContent = I18n.t("chat.offline_cache");
+      frag.appendChild(notice);
+    }
+    if (page?.has_more && page.next_before) {
+      const older = document.createElement("button");
+      older.type = "button";
+      older.className = "btn btn-secondary btn-sm";
+      older.textContent = I18n.t("chat.load_older");
+      older.addEventListener("click", async () => {
+        older.disabled = true;
+        const oldHeight = this.dom.chatMessageFeed.scrollHeight;
+        const oldTop = this.dom.chatMessageFeed.scrollTop;
+        await this.renderCurrentConversation({ before: page.next_before });
+        if (feedKey === (this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`)) {
+          this.dom.chatMessageFeed.scrollTop = oldTop + this.dom.chatMessageFeed.scrollHeight - oldHeight;
+        }
+      });
+      frag.appendChild(older);
+    }
     let lastDateStr = null;
 
     msgs.forEach((m) => {
@@ -1571,18 +1615,23 @@ export class ChatModule {
   }
 
   async handleIncomingChatMessage(payload) {
+    if (payload.station_id && payload.station_id !== this.ctx.storage?.stationId) return;
     const rawText = payload.text || payload.message || "";
+    const outgoing = Boolean(payload.is_outgoing);
     const senderKey = payload.from || payload.sender || payload.public_key || "unknown";
     const canonicalSender = this.resolveCanonicalPubkey(senderKey);
-    const { senderName, cleanText } = extractSenderAndText(rawText, payload.sender_name || payload.name);
+    const { senderName, cleanText } = outgoing
+      ? { senderName: payload.sender_name, cleanText: rawText }
+      : extractSenderAndText(rawText, payload.sender_name || payload.name);
 
     const isDm = Boolean(
-      payload.is_direct ||
+      payload.is_direct || payload.dm_target ||
       payload.type === "direct" ||
       payload.type === "DIRECT_MSG" ||
       payload.event_type === "direct"
     );
-    const feedKey = isDm ? `dm_${canonicalSender}` : `ch_${payload.channel_idx ?? payload.channel ?? 0}`;
+    const peer = outgoing ? this.resolveCanonicalPubkey(payload.dm_target || payload.target || "") : canonicalSender;
+    const feedKey = payload.feed_key || (isDm ? `dm_${peer}` : `ch_${payload.channel_idx ?? payload.channel ?? 0}`);
 
     let safeIsoTimestamp = new Date().toISOString();
     if (payload.timestamp) {
@@ -1595,33 +1644,47 @@ export class ChatModule {
     }
 
     const newMsg = {
-      id: payload.msg_id || `rx_${Date.now()}`,
+      ...payload,
+      id: payload.msg_id || payload.server_id || `rx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      msg_id: payload.msg_id || payload.server_id,
+      server_id: payload.server_id,
+      seq: payload.seq,
       sender: canonicalSender,
       sender_name: senderName,
       text: cleanText,
-      is_outgoing: false,
+      is_outgoing: outgoing,
       channel_idx: payload.channel_idx ?? 0,
+      dm_target: isDm ? peer : null,
       timestamp: safeIsoTimestamp,
-      delivered: true,
-      status: "received",
+      delivered: payload.delivered ?? !outgoing,
+      status: payload.status || (outgoing ? "sent" : "received"),
     };
 
     if (!this.channelFeeds.has(feedKey)) this.channelFeeds.set(feedKey, []);
     const feed = this.channelFeeds.get(feedKey);
+    const previousIndex = feed.findIndex(message => messageIdentity(message) === messageIdentity(newMsg));
+    if (previousIndex >= 0) {
+      feed[previousIndex] = mergeMessage(feed[previousIndex], newMsg);
+      this.ctx.storage?.saveMessage(feedKey, feed[previousIndex]).catch(error => console.warn("Message cache unavailable:", error));
+      const row = [...(this.dom.chatMessageFeed?.querySelectorAll(".message-bubble-row") || [])]
+        .find(element => element.getAttribute("data-msg-id") === messageIdentity(newMsg));
+      row?.replaceWith(this.createMessageBubble(feed[previousIndex]));
+      return;
+    }
     feed.push(newMsg);
     if (feed.length > MAX_FEED_MESSAGES) feed.shift();
 
     if (this.ctx.storage) {
-      this.ctx.storage.saveMessage(feedKey, newMsg);
+      this.ctx.storage.saveMessage(feedKey, newMsg).catch(error => console.warn("Message cache unavailable:", error));
     }
 
     if (isDm) {
-      this.conversationsWithMessages.add(canonicalSender);
-      if (this.closedDmThreads.has(canonicalSender)) {
-        this.closedDmThreads.delete(canonicalSender);
+      this.conversationsWithMessages.add(peer);
+      if (this.closedDmThreads.has(peer)) {
+        this.closedDmThreads.delete(peer);
         this._saveClosedDmThreads();
       }
-      this.addDmContact(canonicalSender, senderName);
+      this.addDmContact(peer, outgoing ? payload.dm_target_name : senderName);
     }
 
     const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
@@ -1629,13 +1692,14 @@ export class ChatModule {
       this.appendChatMessage(newMsg);
     }
 
-    if (this.chatSoundEnabled) {
+    if (!outgoing && this.chatSoundEnabled) {
       this.playNotificationChime();
     }
   }
 
   handleDeliveryAck(payload) {
     if (!payload || typeof payload !== "object") return;
+    if (payload.station_id && payload.station_id !== this.ctx.storage?.stationId) return;
     const rawAck = (payload.ack_code || payload.code || "").toString().toLowerCase().trim();
     const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
     if (!ackClean || /^0+$/.test(ackClean)) return;
@@ -1677,7 +1741,7 @@ export class ChatModule {
     }
 
     if (this.ctx.storage) {
-      this.ctx.storage.updateMessageDelivery(msgId, ackClean, tripTime);
+      this.ctx.storage.updateMessageDelivery(msgId, ackClean, tripTime).catch(error => console.warn("Message cache unavailable:", error));
     }
   }
 

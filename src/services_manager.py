@@ -49,7 +49,8 @@ class ServicesManager:
         self.on_incoming_mqtt_message = on_incoming_mqtt_message
         self.on_incoming_external_downlink = on_incoming_external_downlink
 
-        self.services_config: ServicesConfig = config_override or load_services_config()
+        self.database = getattr(bridge, "database", None)
+        self.services_config: ServicesConfig = config_override or load_services_config(database=self.database)
         self.is_running = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._lifecycle_lock = asyncio.Lock()
@@ -155,7 +156,7 @@ class ServicesManager:
         await self._await_configuration_write()
         snapshot = copy.deepcopy(self.services_config)
         self._configuration_write_task = asyncio.create_task(
-            save_services_config_async(snapshot), name="ServicesConfigurationPersistence"
+            save_services_config_async(snapshot, database=self.database), name="ServicesConfigurationPersistence"
         )
         self._configuration_write_task.add_done_callback(self._observe_configuration_write)
         await self._await_configuration_write()

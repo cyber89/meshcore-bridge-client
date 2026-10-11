@@ -11,6 +11,12 @@ suites ni autoriza radio física, SSH operativo o consultas a producción.
 
 ## Entorno de QA
 
+La integración SQLite (ADR 0017) añade regresiones en `test_station_database.py`,
+`test_chat_history.py`, `test_sqlite_domain.py` y `test_sqlite_history_api.py`.
+`isolated_state` redirige también `DATABASE_PATH` a un directorio temporal.
+Estas regresiones se prepararon sin ejecutar pytest ni navegador; los checks
+estáticos no acreditan migración real, concurrencia bajo carga ni UI en ejecución.
+
 Las afirmaciones de la revisión anterior y sus límites por plataforma se conservan
 en el [informe histórico Python 3.14.8](PYTHON_314_MODERNIZATION_REPORT.md).
 

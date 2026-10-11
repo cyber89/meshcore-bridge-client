@@ -29,6 +29,7 @@ from src.web.controllers import (
     TxController,
     problem_details,
 )
+from src.web.controllers.history_controller import HistoryController
 from src.web.map_tile_service import MapTileService
 
 # Mapeo canónico de alias y retrocompatibilidad de rutas REST
@@ -141,6 +142,7 @@ class WebAPIRouter:
         self.contacts_ctrl = ContactsController(self.api_ctx)
         self.channels_ctrl = ChannelsController(self.api_ctx)
         self.tx_ctrl = TxController(self.api_ctx)
+        self.history_ctrl = HistoryController(self.api_ctx)
         self.repeater_ctrl = RepeaterController(self.api_ctx)
         self.config_ctrl = ConfigController(self.api_ctx)
         self.packets_ctrl = PacketsController(self.api_ctx)
@@ -361,6 +363,8 @@ class WebAPIRouter:
                 pass
 
         try:
+            if clean_path in ("/api/messages/history", "/api/messages/conversations", "/api/messages/import"):
+                return await self.history_ctrl.handle(method, clean_path, req_body)
             if clean_path in (
                 "/api/status",
                 "/api/health",
