@@ -31,6 +31,29 @@ El tema Zephyr servido es una copia derivada sin su import de Google Fonts:
 `bootstrap-zephyr.local.min.css`. El vendor original y sus licencias/hashes
 permanecen conservados. El HTML y CSS propios usan fuentes del sistema.
 
+## Retoque visual del 2026-10-10
+
+Los tokens reales se mantienen en `css/app.css`: superficies de ambos temas,
+radios de controles/tarjetas/diálogos, bordes interactivos y sombras compartidas.
+Los botones diferencian acciones principales, secundarias y destructivas; los
+iconos usan Bootstrap Icons local y `brand.svg` es un vector propio sin librerías
+adicionales. Las etiquetas de confirmación/cancelación viven en spans traducibles
+para conservar sus iconos al abrir diálogos o cambiar el idioma. Los prompts
+incluyen etiqueta visible. Se mantienen foco, Escape, cola de diálogos y foco
+inicial en Cancelar para confirmaciones destructivas.
+
+Los diálogos pequeños tienen icono de estado, encabezado sin separador y acciones
+al pie; los formularios mantienen divisiones y cuerpo desplazable. En móvil las
+acciones se apilan y los controles táctiles conservan sus áreas mínimas.
+
+Contraste estático calculado con luminancia sRGB: blanco sobre azul `#2457d6`
+6,16:1; blanco sobre rojo `#b4233b` 6,47:1; texto secundario de diálogo oscuro
+`#afbdd1` sobre `#142238` 8,38:1; claro `#526176` sobre blanco 6,31:1. Bordes de
+controles oscuros `#657893` sobre `#1b2c44` 3,13:1 y claros `#75849a` sobre
+`#e2e8f0` 3,08:1. Estas combinaciones no acreditan accesibilidad de toda la SPA.
+Build/check, sintaxis JS y el linter heurístico HTML/CSS/JS se verificaron; no se
+ejecutaron suites ni inspección de navegador durante este retoque.
+
 ## Selección y caché
 
 `AssetsAdapter` mantiene las URLs originales. Selecciona la variante minimizada

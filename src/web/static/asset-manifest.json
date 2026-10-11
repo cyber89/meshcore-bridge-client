@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "fc00f10248143463bf2f793ec99d4e0b1849064d6537f582f39e57562c34524e",
-      "sha256": "d95c60f1568f817f6e2ba0c719e66cdfaeb1b19cc31244cb8808e68964c07224",
-      "gzip_sha256": "b82f314a857e6f7796f768646fa2e91650f1e3ea1ca1b3f870e0651705e585e9",
-      "source_bytes": 56050,
-      "bytes": 42834,
-      "gzip_bytes": 8427
+      "source_sha256": "db71588b4a195289ccac52837e1a2104b40c5e80ed379178344e98628bd2dab0",
+      "sha256": "8d41e69bc482ab881e30dba9948bacc93526e37c8debdfff6162dce3ea9f7b8d",
+      "gzip_sha256": "b6572b54426474dfd98c070a4f30fc70f027eb71c38c1aee6ed4150c3cd16f69",
+      "source_bytes": 59202,
+      "bytes": 45459,
+      "gzip_bytes": 9027
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
@@ -49,21 +49,21 @@
     },
     "index.html": {
       "file": "index.html",
-      "source_sha256": "1ca43ca4b52afc34774144e5b15dbed261853b1ab9667deecf055e7ff491aed3",
-      "sha256": "1ca43ca4b52afc34774144e5b15dbed261853b1ab9667deecf055e7ff491aed3",
-      "gzip_sha256": "bd1b744699f041e837ed89493f8c251dd607c11e5e534025e094bb9fbf4ab6d8",
-      "source_bytes": 219995,
-      "bytes": 219995,
-      "gzip_bytes": 38359
+      "source_sha256": "1c69e6a53bf50f5be3d75f60d06623bc36e0f0beccf825c905ee6e391bd629ca",
+      "sha256": "1c69e6a53bf50f5be3d75f60d06623bc36e0f0beccf825c905ee6e391bd629ca",
+      "gzip_sha256": "ad0e199174624fc19c403cef98e890bba446e1ff11fd1bc8e5b43c56712c5fcf",
+      "source_bytes": 220144,
+      "bytes": 220144,
+      "gzip_bytes": 38345
     },
     "js/app.js": {
       "file": "js/app.min.js",
-      "source_sha256": "e2400f8f6a109a41bb3fa78d11af8fdfab2c6a94c76aa36665d6cb8ca32100fe",
-      "sha256": "b85e9c9ffae22e26986b0800757c959ceb1db10c8874c4e1ff4383ee7ce3ce03",
-      "gzip_sha256": "00794344e189c7d8a52f9f1fe9cac6275d2aca830a78b9b603463a38849cd772",
-      "source_bytes": 51374,
-      "bytes": 30910,
-      "gzip_bytes": 8833
+      "source_sha256": "4644dd63763252d2eca460cabd4c3d553c9ca8da89868ce93d4ffb50914ad58b",
+      "sha256": "eaff7f5974797bf3b4f8ffa02697df9a9e9688a83a5cd8a1acb428da886943ad",
+      "gzip_sha256": "155c7ec0fb1d533acb7a56bdea87238007ac1496d76da92e4ae74f05ff794fd3",
+      "source_bytes": 52018,
+      "bytes": 31369,
+      "gzip_bytes": 8968
     },
     "js/bootstrap.bundle.min.js": {
       "file": "js/bootstrap.bundle.min.js",

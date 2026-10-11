@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" data-i18n-content="ui.document_description" content="MeshCore Web Station - Estación base para mensajería, telemetría LoRa, administración de repetidores y puente asíncrono MQTT.">
-  <meta name="theme-color" content="#070b14">
+  <meta name="theme-color" content="#101b2e">
   <title data-i18n="ui.document_title">MeshCore Web Station — Estación base</title>
   
-  <!-- Favicon SVG Embebido -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📻</text></svg>">
+  <!-- Vector identity shared with the station header. -->
+  <link rel="icon" type="image/svg+xml" href="/brand.svg">
 
   <!-- Bootswatch 5.3 Themes Locales Offline: Slate (Oscuro) y Zephyr (Claro) -->
   <link id="themeStylesheet" rel="stylesheet" href="/css/bootstrap-slate.min.css">
@@ -25,6 +25,7 @@
     <div class="container-fluid px-0">
       <div class="d-flex align-items-center gap-2 header-left">
         <div class="d-flex align-items-center logo-badge">
+          <img class="brand-mark" src="/brand.svg" alt="" aria-hidden="true" width="32" height="32">
           <h1 class="logo-title fs-6 fw-bold m-0 brand-title text-primary">Meshcore-Bridge</h1>
         </div>
         <div class="ms-2 d-flex align-items-center connection-status" role="status" aria-live="polite">
@@ -2745,7 +2746,7 @@
       <div class="modal-header system-dialog-header">
         <div class="system-dialog-title-group">
           <div class="system-dialog-icon-badge" id="systemDialogIconBadge">
-            <i class="bi bi-question-circle modal-title-icon" id="systemDialogIcon" style="font-size: 20px;" aria-hidden="true"></i>
+            <i class="bi bi-question-circle modal-title-icon" id="systemDialogIcon" aria-hidden="true"></i>
           </div>
           <h3 id="systemDialogTitle">
             <span id="systemDialogTitleText" data-i18n="modal.confirm">Confirmar</span>
@@ -2756,13 +2757,13 @@
       <div class="modal-body system-dialog-body">
         <p id="systemDialogMessage" class="system-dialog-message"></p>
         <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden">
-          <label for="systemDialogInput" class="sr-only" data-i18n="modal.input_label">Entrada de texto</label>
+          <label for="systemDialogInput" data-i18n="modal.input_label">Entrada de texto</label>
           <input type="text" id="systemDialogInput" class="system-dialog-input text-input" autocomplete="off" spellcheck="false" />
         </div>
       </div>
       <div class="modal-footer system-dialog-footer">
-        <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSystemDialog" data-i18n="modal.cancel">Cancelar</button>
-        <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSystemDialog" data-i18n="modal.confirm">Confirmar</button>
+        <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSystemDialog"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text" data-i18n="modal.cancel">Cancelar</span></button>
+        <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSystemDialog"><i class="bi bi-check2-circle" aria-hidden="true"></i><span class="btn-text" data-i18n="modal.confirm">Confirmar</span></button>
       </div>
     </div>
   </div>

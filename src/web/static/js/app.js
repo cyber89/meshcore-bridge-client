@@ -231,7 +231,7 @@ class MeshCoreApp {
     const label = I18n.t(isDark ? 'app.dark_theme_title' : 'app.light_theme_title');
     this.dom.themeToggleBtn.title = label;
     this.dom.themeToggleBtn.setAttribute("aria-label", label);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#1c232b" : "#ffffff");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#101b2e" : "#ffffff");
   }
 
   _initNavigation() {
@@ -998,7 +998,7 @@ class MeshCoreApp {
           <div class="modal-header system-dialog-header">
             <div class="system-dialog-title-group">
               <div class="system-dialog-icon-badge" id="systemDialogIconBadge">
-                <i class="bi bi-question-circle modal-title-icon" id="systemDialogIcon" style="font-size: 20px;" aria-hidden="true"></i>
+                <i class="bi bi-question-circle modal-title-icon" id="systemDialogIcon" aria-hidden="true"></i>
               </div>
               <h3 id="systemDialogTitle">
                 <span id="systemDialogTitleText">Confirmar</span>
@@ -1009,13 +1009,13 @@ class MeshCoreApp {
           <div class="modal-body system-dialog-body">
             <p id="systemDialogMessage" class="system-dialog-message"></p>
             <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden">
-              <label for="systemDialogInput" class="sr-only" data-i18n="modal.input_label">${escapeHtml(I18n.t("modal.input_label"))}</label>
+              <label for="systemDialogInput" data-i18n="modal.input_label">${escapeHtml(I18n.t("modal.input_label"))}</label>
               <input type="text" id="systemDialogInput" class="system-dialog-input text-input" autocomplete="off" spellcheck="false" />
             </div>
           </div>
           <div class="modal-footer system-dialog-footer">
-            <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSystemDialog">Cancelar</button>
-            <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSystemDialog">Confirmar</button>
+            <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSystemDialog"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span></button>
+            <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSystemDialog"><i class="bi bi-check2-circle" aria-hidden="true"></i><span class="btn-text">Confirmar</span></button>
           </div>
         </div>
       `;
@@ -1063,13 +1063,15 @@ class MeshCoreApp {
       // Defaults keep live language bindings; explicit action labels remain intact.
       const setDialogLabel = (element, text, key) => {
         if (!element) return;
-        element.removeAttribute("data-i18n-params");
+        const label = element.querySelector(".btn-text") || element;
+        element.removeAttribute("data-i18n");
+        label.removeAttribute("data-i18n-params");
         if (key) {
-          element.setAttribute("data-i18n", key);
-          element.textContent = I18n.t(key);
+          label.setAttribute("data-i18n", key);
+          label.textContent = I18n.t(key);
         } else {
-          element.removeAttribute("data-i18n");
-          element.textContent = text;
+          label.removeAttribute("data-i18n");
+          label.textContent = text;
         }
       };
       setDialogLabel(titleEl, config.title, config.titleKey);
@@ -1091,6 +1093,12 @@ class MeshCoreApp {
           "edit-3": "pencil-square",
           "info": "info-circle",
           "help-circle": "question-circle",
+          "trash-2": "trash3",
+          "refresh-cw": "arrow-clockwise",
+          "download": "download",
+          "upload": "upload",
+          "lock": "lock",
+          "check-circle": "check2-circle",
         }[iconName] || "question-circle";
         iconEl.textContent = "";
         iconEl.className = `bi bi-${iconClass} modal-title-icon is-${dialogType}${isDanger ? " is-danger" : ""}`;
@@ -1099,6 +1107,8 @@ class MeshCoreApp {
       if (btnConfirm) {
         setDialogLabel(btnConfirm, config.confirmText, config.confirmKey);
         btnConfirm.className = `btn ${isDanger ? "btn-danger" : "btn-primary"} system-dialog-btn`;
+        const actionIcon = btnConfirm.querySelector(".bi");
+        if (actionIcon) actionIcon.className = `bi ${isDanger ? "bi-exclamation-triangle" : config.mode === "alert" ? "bi-check2" : "bi-check2-circle"}`;
       }
 
       if (btnCancel) {
