@@ -1376,7 +1376,7 @@ export class SettingsModule {
         <span class="ch-badge font-mono">Ch ${ch.index}</span>
         <span class="ch-name">${escapeHtml(chDisplayName)}</span>
           <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${escapeHtml(lockTitle)}">
-            <i class="bi ${isEnc ? 'bi-lock' : 'bi-unlock'}" style="font-size: 13px;" aria-hidden="true"></i>
+            <i class="bi ${ch.index === 0 ? 'bi-globe2' : (isEnc ? 'bi-lock' : 'bi-unlock')}" style="font-size: 13px;" aria-hidden="true"></i>
           </span>
         </button>
         <div class="ch-actions">

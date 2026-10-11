@@ -12,7 +12,7 @@ Run it on a Linux gateway or a Windows computer, open the dashboard from your br
 
 | Area | Capabilities |
 | --- | --- |
-| **Chat** | Public and configured private channels, direct messages, message history, and delivery status where the protocol provides acknowledgements. |
+| **Chat** | Public and configured private channels, direct messages, message history with day separators and relative timestamps, emoji/sharing menus, and delivery status where the protocol provides acknowledgements. |
 | **Persistent station data** | SQLite keeps chat and station state across restarts; IndexedDB caches downloaded conversations for fast access and offline reading, while LocalStorage keeps interface preferences. |
 | **Contacts and nodes** | A contact book for user devices and a unified mesh view for infrastructure, rooms, sensors, and nearby nodes, with link information and telemetry. |
 | **Radio administration** | Local station settings and remote repeater administration, including supported radio parameters, identity, telemetry, neighbors, and command consoles. |

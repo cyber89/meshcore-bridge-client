@@ -475,7 +475,7 @@ export function estimateLoraAirtimeMs(payloadBytes, sf = 11, bwKhz = 250, cr = 5
 }
 
 /**
- * Formatea una marca de tiempo para mensajes de chat (Hora, Ayer + Hora, o Fecha + Hora).
+ * Formatea la edad relativa del mensaje al renderizarlo, sin temporizadores.
  * @param {string|number|Date} timestamp Marca de tiempo ISO, epoch ms o Date
  * @returns {string} Texto formateado
  */
@@ -484,31 +484,22 @@ export function formatRelativeTime(timestamp) {
   const msgDate = new Date(timestamp);
   if (isNaN(msgDate.getTime())) return "";
 
-  const now = new Date();
-  const isToday = msgDate.toDateString() === now.toDateString();
-
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = msgDate.toDateString() === yesterday.toDateString();
-
   const locale = typeof window !== "undefined" ? window.I18n?.lang : undefined;
-  const timeStr = msgDate.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
-
-  if (isToday) {
-    return timeStr;
-  } else if (isYesterday) {
-    const ayerStr = (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.yesterday') : null) || "Ayer";
-    return `${ayerStr} ${timeStr}`;
-  } else {
-    const dateStr = msgDate.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
-    return `${dateStr} ${timeStr}`;
+  const deltaSeconds = (msgDate.getTime() - Date.now()) / 1000;
+  const units = [["year", 31536000], ["month", 2592000], ["day", 86400], ["hour", 3600], ["minute", 60], ["second", 1]];
+  for (const [unit, seconds] of units) {
+    if (Math.abs(deltaSeconds) >= seconds || unit === "second") {
+      const value = Math.round(deltaSeconds / seconds);
+      return new Intl.RelativeTimeFormat(locale, { numeric: "auto", style: "short" }).format(Object.is(value, -0) ? 0 : value, unit);
+    }
   }
+  return "";
 }
 
 /**
- * Genera la etiqueta del separador de fechas de chat (HOY, AYER o fecha completa).
+ * Genera la etiqueta del separador de fechas de chat (Hoy, Ayer o fecha completa).
  * @param {string|number|Date} timestamp Marca de tiempo ISO o ms
- * @returns {string} Etiqueta en mayúsculas
+ * @returns {string} Etiqueta localizada
  */
 export function getDateGroupLabel(timestamp) {
   if (!timestamp) return "";
@@ -517,17 +508,17 @@ export function getDateGroupLabel(timestamp) {
 
   const now = new Date();
   if (msgDate.toDateString() === now.toDateString()) {
-    return (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.date_today') : null) || "HOY";
+    return (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.date_today') : null) || "Hoy";
   }
 
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   if (msgDate.toDateString() === yesterday.toDateString()) {
-    return (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.date_yesterday') : null) || "AYER";
+    return (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.date_yesterday') : null) || "Ayer";
   }
 
   const locale = typeof window !== "undefined" ? window.I18n?.lang : undefined;
-  return msgDate.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
+  return msgDate.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
 /**

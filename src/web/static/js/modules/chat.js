@@ -87,6 +87,7 @@ export class ChatModule {
   init() {
     this._bindElements();
     this._bindEvents();
+    this._bindComposerPopoverSizing();
     this._subscribeBus();
     window.addEventListener("meshcore:station_changed", () => {
       this.channelFeeds.clear();
@@ -98,7 +99,7 @@ export class ChatModule {
       this.unreadCounts.clear();
       if (this.dom.dmListUi) this.dom.dmListUi.textContent = "";
       if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
-      if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.textContent = "";
+      this._paintConversation(this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`);
     });
     window.addEventListener("meshcore:credentials_changed", () => {
       this._clearProtectedHistory();
@@ -117,7 +118,7 @@ export class ChatModule {
       this.historyPages.clear();
       this._historyStates.clear();
       this._visibleFeedKey = null;
-      if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.textContent = "";
+      this._paintConversation(this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`);
     });
     this.loadInitialHistory();
     this._renderEmojiGrid("smileys");
@@ -152,10 +153,8 @@ export class ChatModule {
       chatCharCounter: document.getElementById("chatCharCounter"),
       btnSendMsg: document.getElementById("btnSendMsg"),
       chatTargetName: document.getElementById("chatActiveTitle"),
-      chatTargetSub: document.getElementById("chatActiveSub"),
       chatTargetAvatar: document.getElementById("chatTargetAvatar"),
       btnBackToChannelsMobile: document.getElementById("btnBackToChannelsMobile"),
-      btnShareLocation: document.getElementById("attachOptionLocation"),
       btnToggleChannelsMobile: document.getElementById("btnBackToChannelsMobile"),
       dmListUi: document.getElementById("dmListUi"),
       btnCloseChat: document.getElementById("btnCloseChat"),
@@ -229,16 +228,11 @@ export class ChatModule {
       this.dom.clearChatBtn.addEventListener("click", () => this.clearCurrentChat());
     }
 
-    if (this.dom.btnShareLocation) {
-      this.dom.btnShareLocation.addEventListener("click", () => this.shareCurrentLocation());
-    }
-
     // Selector de Emojis
     if (this.dom.btnEmojiPicker && this.dom.emojiPickerPopover) {
       this.dom.btnEmojiPicker.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (this.dom.chatAttachMenu) this.dom.chatAttachMenu.classList.add("hidden");
-        this.dom.emojiPickerPopover.classList.toggle("hidden");
+        this._toggleComposerPopover("emoji");
       });
     }
 
@@ -246,10 +240,9 @@ export class ChatModule {
     document.querySelectorAll(".emoji-tab").forEach((tab) => {
       tab.addEventListener("click", (e) => {
         e.stopPropagation();
-        document.querySelectorAll(".emoji-tab").forEach((t) => t.classList.remove("active"));
-        tab.classList.add("active");
         const cat = tab.getAttribute("data-tab") || "smileys";
         this.activeEmojiTab = cat;
+        tab.focus({ preventScroll: true });
         this._renderEmojiGrid(cat);
       });
     });
@@ -258,44 +251,51 @@ export class ChatModule {
     if (this.dom.btnChatAttach && this.dom.chatAttachMenu) {
       this.dom.btnChatAttach.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (this.dom.emojiPickerPopover) this.dom.emojiPickerPopover.classList.add("hidden");
-        this.dom.chatAttachMenu.classList.toggle("hidden");
+        this._toggleComposerPopover("attach");
       });
     }
 
     if (this.dom.attachOptionLocation) {
       this.dom.attachOptionLocation.addEventListener("click", () => {
-        if (this.dom.chatAttachMenu) this.dom.chatAttachMenu.classList.add("hidden");
+        this._closeComposerPopovers({ restoreFocus: true });
         this.shareCurrentLocation();
       });
     }
 
     if (this.dom.attachOptionContact) {
       this.dom.attachOptionContact.addEventListener("click", () => {
-        if (this.dom.chatAttachMenu) this.dom.chatAttachMenu.classList.add("hidden");
+        this._closeComposerPopovers({ restoreFocus: true });
         this.openShareContactModal();
       });
     }
 
     if (this.dom.attachOptionChannel) {
       this.dom.attachOptionChannel.addEventListener("click", () => {
-        if (this.dom.chatAttachMenu) this.dom.chatAttachMenu.classList.add("hidden");
+        this._closeComposerPopovers({ restoreFocus: true });
         this.openShareChannelModal();
       });
     }
 
     // Cerrar menús flotantes al hacer clic en cualquier otra parte
-    document.addEventListener("click", (e) => {
-      if (this.dom.emojiPickerPopover && !this.dom.emojiPickerPopover.classList.contains("hidden")) {
-        if (!this.dom.emojiPickerPopover.contains(e.target) && e.target !== this.dom.btnEmojiPicker) {
-          this.dom.emojiPickerPopover.classList.add("hidden");
-        }
+    document.addEventListener("click", (event) => {
+      const open = this._getOpenComposerPopover();
+      if (open && !open.panel.contains(event.target) && !open.trigger.contains(event.target)) {
+        this._closeComposerPopovers({ restoreFocus: open.panel.contains(document.activeElement) });
       }
-      if (this.dom.chatAttachMenu && !this.dom.chatAttachMenu.classList.contains("hidden")) {
-        if (!this.dom.chatAttachMenu.contains(e.target) && e.target !== this.dom.btnChatAttach) {
-          this.dom.chatAttachMenu.classList.add("hidden");
-        }
+    });
+    document.addEventListener("focusin", (event) => {
+      const open = this._getOpenComposerPopover();
+      if (open && !open.panel.contains(event.target) && !open.trigger.contains(event.target)) {
+        this._closeComposerPopovers();
       }
+    });
+    document.addEventListener("keydown", (event) => {
+      const open = this._getOpenComposerPopover();
+      if (event.key !== "Escape" || event.defaultPrevented || !open) return;
+      if (!open.panel.contains(event.target) && !open.trigger.contains(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this._closeComposerPopovers({ restoreFocus: true });
     });
 
     // Eventos de Modales de Compartir
@@ -418,6 +418,11 @@ export class ChatModule {
 
   _renderEmojiGrid(category) {
     if (!this.dom.emojiPickerGrid) return;
+    this.dom.emojiPickerPopover?.querySelectorAll(".emoji-tab").forEach((tab) => {
+      const selected = tab.dataset.tab === category;
+      tab.classList.toggle("active", selected);
+      tab.setAttribute("aria-pressed", String(selected));
+    });
     this.dom.emojiPickerGrid.innerHTML = "";
     const list = this.emojiCategories[category] || this.emojiCategories.smileys;
     const frag = document.createDocumentFragment();
@@ -438,6 +443,74 @@ export class ChatModule {
     this.dom.emojiPickerGrid.appendChild(frag);
   }
 
+  _composerPopovers() {
+    return [
+      { name: "emoji", panel: this.dom.emojiPickerPopover, trigger: this.dom.btnEmojiPicker },
+      { name: "attach", panel: this.dom.chatAttachMenu, trigger: this.dom.btnChatAttach },
+    ].filter(({ panel, trigger }) => panel && trigger);
+  }
+
+  _getOpenComposerPopover() {
+    return this._composerPopovers().find(({ panel }) => !panel.hidden && !panel.classList.contains("hidden"));
+  }
+
+  _bindComposerPopoverSizing() {
+    const update = () => this._fitComposerPopover();
+    if (typeof ResizeObserver !== "undefined") this._popoverResizeObserver = new ResizeObserver(update);
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+  }
+
+  _fitComposerPopover() {
+    const open = this._getOpenComposerPopover();
+    if (!open || open.panel.inert) return;
+    const wrapper = open.panel.closest(".chat-composer-wrapper");
+    const conversation = wrapper?.closest(".chat-conversation-panel");
+    if (!wrapper || !conversation || conversation.closest("[inert], [hidden]") || !conversation.getClientRects().length) return;
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const conversationRect = conversation.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop || 0;
+    const viewportBottom = viewportTop + (viewport?.height || window.innerHeight);
+    const top = Math.max(conversationRect.top, viewportTop);
+    const bottom = Math.min(wrapperRect.top - 8, viewportBottom - 8);
+    open.panel.style.setProperty("--chat-popover-space", `${Math.max(0, bottom - top)}px`);
+    open.panel.style.setProperty("--chat-popover-lift", `${Math.max(0, wrapperRect.top - viewportBottom)}px`);
+  }
+
+  _closeComposerPopovers({ restoreFocus = false } = {}) {
+    const open = this._getOpenComposerPopover();
+    this._popoverResizeObserver?.disconnect();
+    this._composerPopovers().forEach(({ panel, trigger }) => {
+      panel.classList.add("hidden");
+      panel.hidden = true;
+      panel.inert = true;
+      trigger.setAttribute("aria-expanded", "false");
+    });
+    if (restoreFocus) open?.trigger.focus();
+  }
+
+  _toggleComposerPopover(name) {
+    const current = this._getOpenComposerPopover();
+    this._closeComposerPopovers();
+    if (current?.name === name) return;
+    const next = this._composerPopovers().find((entry) => entry.name === name);
+    if (!next || next.trigger.closest("[inert], [hidden]") || !next.trigger.getClientRects().length) return;
+    next.panel.hidden = false;
+    next.panel.inert = false;
+    next.panel.classList.remove("hidden");
+    this._fitComposerPopover();
+    const wrapper = next.panel.closest(".chat-composer-wrapper");
+    const conversation = wrapper?.closest(".chat-conversation-panel");
+    if (wrapper) this._popoverResizeObserver?.observe(wrapper);
+    if (conversation) this._popoverResizeObserver?.observe(conversation);
+    next.trigger.setAttribute("aria-controls", next.panel.id);
+    next.trigger.setAttribute("aria-expanded", "true");
+    const initialFocus = next.panel.querySelector('.emoji-tab[aria-pressed="true"]') || next.panel.querySelector("button:not(:disabled)");
+    initialFocus?.focus();
+  }
+
   insertEmoji(emoji) {
     if (!this.dom.chatInputText) return;
     const input = this.dom.chatInputText;
@@ -447,6 +520,7 @@ export class ChatModule {
     input.value = val.substring(0, start) + emoji + val.substring(end);
     const newPos = start + emoji.length;
     input.setSelectionRange(newPos, newPos);
+    this._closeComposerPopovers();
     input.focus();
     this.updateCharCounter();
   }
@@ -813,52 +887,6 @@ export class ChatModule {
       if (this.dom.chatTargetName) {
         this.dom.chatTargetName.textContent = `DM: ${displayName}`;
       }
-      if (this.dom.chatTargetSub) {
-
-        let subParts = [];
-        if (node && node.last_seen && Number(node.last_seen) > 0) {
-          let effTs = Number(node.last_seen);
-          if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
-          const diff = Math.max(0, Math.floor(Date.now() / 1000) - effTs);
-          if (diff < 900) {
-            subParts.push(window.I18n ? window.I18n.t('chat.online_now') || '🟢 En línea' : '🟢 En línea');
-          } else if (diff < 7200) {
-            const mins = Math.max(1, Math.floor(diff / 60));
-            const str = window.I18n ? window.I18n.t('chat.last_seen_mins') : null;
-            subParts.push(str ? str.replace('{n}', mins) : `Últ. vez hace ${mins} min`);
-          } else if (diff < 86400) {
-            const hours = Math.floor(diff / 3600);
-            const str = window.I18n ? window.I18n.t('chat.last_seen_hours') : null;
-            subParts.push(str ? str.replace('{n}', hours) : `Últ. vez hace ${hours} h`);
-          } else {
-            const days = Math.max(1, Math.floor(diff / 86400));
-            const str = window.I18n ? window.I18n.t('chat.last_seen_days') : null;
-            subParts.push(str ? str.replace('{n}', days) : `Últ. vez hace ${days} d`);
-          }
-        } else {
-          subParts.push(window.I18n ? window.I18n.t('chat.no_telemetry') || 'Sin telemetría reciente' : 'Sin telemetría reciente');
-        }
-
-        // Batería si está presente
-        if (node?.battery_pct != null && node?.voltage_v != null) {
-          subParts.push(`🔋 ${node.battery_pct}% (${Number(node.voltage_v).toFixed(2)}V)`);
-        } else if (node?.battery_pct != null) {
-          subParts.push(`🔋 ${node.battery_pct}%`);
-        } else if (node?.voltage_v != null) {
-          subParts.push(`🔋 ${Number(node.voltage_v).toFixed(2)}V`);
-        }
-
-        // SNR si está disponible
-        if (node?.last_snr != null) {
-          subParts.push(`📶 SNR ${node.last_snr} dB`);
-        }
-
-        if (subParts.length === 1 && !node) {
-          subParts.push(`ID: ${this.activeDmTarget.slice(0, 10)}…`);
-        }
-
-        this.dom.chatTargetSub.textContent = subParts.join(" • ");
-      }
     } else {
       // Caso Canal
       const chList = this.ctx.settingsModule?.channelsList || [];
@@ -877,22 +905,15 @@ export class ChatModule {
       }
 
       if (this.dom.chatTargetAvatar) {
-        this.dom.chatTargetAvatar.textContent = this.activeChannelIdx === 0 ? "📢" : (isEncrypted ? "🔒" : "📻");
-      }
-
-      if (this.dom.chatTargetSub) {
         if (this.activeChannelIdx === 0) {
-          this.dom.chatTargetSub.textContent = I18n.t('chat.ch_0_sub');
-        } else if (isEncrypted) {
-          this.dom.chatTargetSub.textContent = I18n.t('chat.ch_n_encrypted_sub', { n: this.activeChannelIdx });
-        } else {
-          this.dom.chatTargetSub.textContent = I18n.t('chat.ch_n_open_sub', { n: this.activeChannelIdx });
-        }
+          this.dom.chatTargetAvatar.innerHTML = '<i class="bi bi-globe2" aria-hidden="true"></i>';
+        } else this.dom.chatTargetAvatar.textContent = isEncrypted ? "🔒" : "📻";
       }
     }
   }
 
   switchChannel(idx) {
+    this._closeComposerPopovers();
     this.activeChannelIdx = Number(idx) || 0;
     this.activeDmTarget = null;
     this.activeDmName = null;
@@ -936,6 +957,7 @@ export class ChatModule {
       return;
     }
 
+    this._closeComposerPopovers();
     // Si el hilo estaba cerrado/archivado, reabrirlo
     if (this.closedDmThreads.has(canonicalPk)) {
       this.closedDmThreads.delete(canonicalPk);
@@ -1027,14 +1049,7 @@ export class ChatModule {
 
     const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
     if (renderGeneration === this._renderGeneration && feedKey === currentFeed && this.dom.chatMessageFeed) {
-      this.dom.chatMessageFeed.setAttribute("aria-busy", "false");
-      if (this._historyAccessDenied) this._paintConversation(feedKey);
-      else this.dom.chatMessageFeed.innerHTML = `
-        <div class="chat-empty-state">
-          <p>${window.I18n ? window.I18n.t('chat.cleared') : 'Historial de chat limpiado'}</p>
-          <small>${window.I18n ? window.I18n.t('chat.write_below') : 'Escribe un mensaje abajo para comenzar'}</small>
-        </div>
-      `;
+      this._paintConversation(feedKey);
     }
 
     if (this.ctx.showToast) {
@@ -1214,6 +1229,7 @@ export class ChatModule {
     }
     if (this.dom.chatMessageFeed) {
       this.dom.chatMessageFeed.textContent = "";
+      this.dom.chatMessageFeed.classList.remove("is-empty-conversation");
       this.dom.chatMessageFeed.setAttribute("aria-busy", "false");
     }
   }
@@ -1274,6 +1290,7 @@ export class ChatModule {
     const page = this.historyPages.get(feedKey);
     const state = this._historyStates.get(feedKey) || (this._historyAccessDenied ? "auth" : (page?.offline ? "offline" : "ready"));
     feed.setAttribute("aria-busy", String(state === "loading"));
+    feed.classList.toggle("is-empty-conversation", msgs.length === 0 && state === "ready");
     const frag = document.createDocumentFragment();
     const statusKey = {
       loading: "chat.history_loading",
@@ -1294,11 +1311,9 @@ export class ChatModule {
     if (msgs.length === 0 && state === "ready") {
       const empty = document.createElement("div");
       empty.className = "chat-empty-state";
-      const title = document.createElement("p");
-      title.textContent = I18n.t("chat.no_messages");
-      const help = document.createElement("small");
+      const help = document.createElement("p");
       help.textContent = I18n.t("chat.write_below");
-      empty.append(title, help);
+      empty.appendChild(help);
       frag.appendChild(empty);
     }
 
@@ -1355,6 +1370,10 @@ export class ChatModule {
     }
 
     const timeStr = formatRelativeTime(msg.timestamp);
+    const messageDate = new Date(msg.timestamp);
+    const validDate = Boolean(msg.timestamp) && !Number.isNaN(messageDate.getTime());
+    const absoluteTime = validDate ? messageDate.toLocaleString(window.I18n?.lang) : "";
+    const timeAttributes = validDate ? ` datetime="${escapeHtml(messageDate.toISOString())}" title="${escapeHtml(absoluteTime)}"` : "";
     let sender = msg.is_outgoing ? (window.I18n ? window.I18n.t('common.you') : "Tú") : (msg.sender_name || msg.sender || (window.I18n ? window.I18n.t('common.anonymous') : "Anónimo"));
     if (!msg.is_outgoing && sender) {
       const senderPk = msg.sender ? this.resolveCanonicalPubkey(msg.sender) : null;
@@ -1521,7 +1540,7 @@ export class ChatModule {
         ${richCardHtml}
         ${locationCardHtml}
         <div class="msg-footer">
-          <span class="msg-time">${escapeHtml(timeStr)}</span>
+          <time class="msg-time"${timeAttributes}>${escapeHtml(timeStr)}</time>
           ${ackHtml}
         </div>
         ${msg.status === "failed" ? `<button type="button" class="btn-retry-msg">${escapeHtml(I18n.t('chat.recover_draft'))}</button>` : ""}
@@ -1743,6 +1762,7 @@ export class ChatModule {
     if (!this.dom.chatMessageFeed || this._historyAccessDenied) return;
     const emptyState = this.dom.chatMessageFeed.querySelector(".chat-empty-state");
     if (emptyState) emptyState.remove();
+    this.dom.chatMessageFeed.classList.remove("is-empty-conversation");
 
     // Comprobar si se necesita un nuevo separador de fecha estilo WhatsApp
     if (msg.timestamp) {

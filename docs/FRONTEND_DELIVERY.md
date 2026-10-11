@@ -143,6 +143,31 @@ Build/check verifies 25 assets: 2,016,026 source bytes, 1,729,566 served bytes a
 references, imports/icons and the heuristic linter were verified. No suites,
 browser, service or radio operation was run.
 
+### Chat presentation delivery — 2026-10-11
+
+Chat text uses 14px and relative timestamps 12px at the usual root size.
+Absolute timestamps remain available through `time` metadata/title. Centered
+Today/Hoy and natural date labels have lines extending across the feed in both
+themes. The ready empty conversation contains only the centered input hint and
+removes it on message arrival; loading/auth/error/offline notices stay explicit.
+`Clear` still clears local conversation cache, while server history is preserved.
+The conversation subtitle and its unused translations were removed; public
+channel 0 uses the globe icon in both the header and refreshed sidebar.
+
+Emoji/sharing popovers have headings, labelled categories, sharing descriptions,
+visible focus and touch controls. Expanded state, contextual Escape, focus
+return and mutually exclusive opening share one implementation. A geometry
+helper bounds them to the actual conversation and visible viewport, including
+keyboard occlusion, without timers. A duplicated location listener was removed;
+the existing manually initiated sharing flow runs once per selection.
+
+Build/check verifies 25 assets: 2,025,086 source bytes, 1,737,470 served bytes and
+339,951 gzip bytes. Syntax, ID changes, ARIA/import/icon references, translation
+parity, API references, the heuristic linter and declared color pairs were
+checked. Dividers calculate to 4.00:1 dark and 3.50:1 light; timestamp text pairs
+exceed 5.12:1. Browser/menu/date-boundary acceptance and full accessibility remain
+pending; no suites, service or radio operation were run.
+
 ### Asset selection and cache implementation
 
 `AssetsAdapter` mantiene las URLs originales. Selecciona la variante minimizada

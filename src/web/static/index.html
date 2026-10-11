@@ -149,7 +149,7 @@
                   <button type="button" class="channel-select" aria-pressed="true">
                   <span class="ch-badge" data-i18n="ui.static_021">Ch 0</span>
                   <span class="ch-name" data-i18n="chat.ch_0_default">Public / Broadcast</span>
-                  <span class="ch-lock" title="Canal Público" data-i18n-title="ui.static_022"><i class="bi bi-unlock" style="font-size: 13px;" aria-hidden="true"></i></span>
+                  <span class="ch-lock" title="Canal Público" data-i18n-title="ui.static_022"><i class="bi bi-globe2" style="font-size: 13px;" aria-hidden="true"></i></span>
                   </button>
                 </li>
               </ul>
@@ -173,53 +173,62 @@
                     <button type="button" class="btn-icon btn-back-channels-mobile" id="btnBackToChannelsMobile" title="Volver a canales" aria-label="Volver a la lista de canales" data-i18n-title="ui.static_023" data-i18n-aria-label="ui.static_024">
                       <i class="bi bi-arrow-left" style="font-size: 18px;" aria-hidden="true"></i>
                     </button>
-                    <div class="chat-target-avatar" id="chatTargetAvatar">💬</div>
+                    <div class="chat-target-avatar" id="chatTargetAvatar"><i class="bi bi-globe2" aria-hidden="true"></i></div>
                     <div class="chat-target-text">
                       <h2 id="chatActiveTitle">Canal #0: Public</h2>
-                      <p class="header-subtitle target-sub" id="chatActiveSub">📢 Canal público broadcast • Sin cifrar</p>
                     </div>
                   </div>
                 </div>
                 <div class="chat-header-actions">
                   <button class="btn btn-secondary btn-sm hidden" id="btnCloseChat" title="Cerrar chat activo" aria-label="Cerrar chat" data-i18n-title="ui.static_027" data-i18n-aria-label="chat.close_chat" data-i18n="modal.close"><i class="bi bi-x-lg" style="font-size: 14px;" aria-hidden="true"></i> Cerrar</button>
-                  <button class="btn btn-secondary btn-sm" id="clearChatBtn" aria-label="Limpiar vista de chat" data-i18n-aria-label="ui.static_028" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Limpiar</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="clearChatBtn" title="Limpiar la caché local de esta conversación; el historial del servidor se conserva" aria-label="Limpiar la caché local de esta conversación; el historial del servidor se conserva" data-i18n-title="chat.clear_cache_title" data-i18n-aria-label="chat.clear_cache_title" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Limpiar</button>
                 </div>
               </div>
 
               <!-- Feed de Mensajes Limpio -->
-              <div class="chat-messages" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat" data-i18n-aria-label="ui.static_029"></div>
+              <div class="chat-messages is-empty-conversation" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat" data-i18n-aria-label="ui.static_029">
+                <div class="chat-empty-state"><p data-i18n="chat.write_below">Escribe un mensaje abajo para transmitir por la malla LoRa</p></div>
+              </div>
 
               <!-- Caja de Entrada de Mensaje con Adjuntos y Emojis -->
               <div class="chat-composer-wrapper">
                 <!-- Menú Flotante de Adjuntos -->
-                <div class="chat-attach-menu hidden" id="chatAttachMenu" role="menu" aria-label="Opciones de adjuntos" data-i18n-aria-label="ui.static_030">
-                  <button type="button" class="attach-item" id="attachOptionContact" role="menuitem">
+                <div class="chat-attach-menu hidden" id="chatAttachMenu" role="group" aria-labelledby="chatAttachTitle">
+                  <div class="chat-popover-heading">
+                    <h3 class="chat-popover-title" id="chatAttachTitle"><i class="bi bi-share" aria-hidden="true"></i><span data-i18n="chat.share_heading">Compartir en el chat</span></h3>
+                    <p class="chat-popover-hint" data-i18n="chat.share_hint">Elige qué compartir</p>
+                  </div>
+                  <button type="button" class="attach-item" id="attachOptionContact">
                     <span class="attach-icon attach-icon-contact"><i class="bi bi-person-plus" aria-hidden="true"></i></span>
-                    <span class="attach-label" data-i18n="chat.share_contact">Compartir Contacto</span>
+                    <span class="attach-text"><span class="attach-label" data-i18n="chat.share_contact">Compartir Contacto</span><span class="attach-description" data-i18n="chat.share_contact_description">Selecciona una tarjeta de contacto</span></span>
                   </button>
-                  <button type="button" class="attach-item" id="attachOptionChannel" role="menuitem">
-                    <span class="attach-icon attach-icon-channel"><i class="bi bi-broadcast" aria-hidden="true"></i></span>
-                    <span class="attach-label" data-i18n="chat.share_channel">Compartir Canal</span>
+                  <button type="button" class="attach-item" id="attachOptionChannel">
+                    <span class="attach-icon attach-icon-channel"><i class="bi bi-broadcast-pin" aria-hidden="true"></i></span>
+                    <span class="attach-text"><span class="attach-label" data-i18n="chat.share_channel">Compartir Canal</span><span class="attach-description" data-i18n="chat.share_channel_description">Selecciona un canal y su acceso</span></span>
                   </button>
-                  <button type="button" class="attach-item" id="attachOptionLocation" role="menuitem">
+                  <button type="button" class="attach-item" id="attachOptionLocation">
                     <span class="attach-icon attach-icon-location"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
-                    <span class="attach-label" data-i18n="chat.share_location">Ubicación GPS</span>
+                    <span class="attach-text"><span class="attach-label" data-i18n="chat.share_location">Ubicación GPS</span><span class="attach-description" data-i18n="chat.share_location_description">Comparte tu ubicación GPS</span></span>
                   </button>
                 </div>
 
                 <!-- Popover de Emojis Estandarizados -->
-                <div class="emoji-picker-popover hidden" id="emojiPickerPopover" role="dialog" aria-label="Selector de emoticones" data-i18n-aria-label="ui.static_031">
-                  <div class="emoji-picker-tabs">
-                    <button type="button" class="emoji-tab active" data-tab="smileys" title="Caras y Gestos" data-i18n-title="ui.static_032">😀</button>
-                    <button type="button" class="emoji-tab" data-tab="radio" title="Radio LoRa y Emergencias" data-i18n-title="ui.static_033">📻</button>
-                    <button type="button" class="emoji-tab" data-tab="symbols" title="Símbolos y Navegación" data-i18n-title="ui.static_034">📍</button>
+                <div class="emoji-picker-popover hidden" id="emojiPickerPopover" role="dialog" aria-labelledby="emojiPickerTitle">
+                  <div class="chat-popover-heading">
+                    <h3 class="chat-popover-title" id="emojiPickerTitle"><i class="bi bi-emoji-smile" aria-hidden="true"></i><span data-i18n="ui.static_031">Selector de emoticones</span></h3>
+                    <p class="chat-popover-hint" data-i18n="chat.emoji_hint">Elige una categoría y un emoticón</p>
                   </div>
-                  <div class="emoji-picker-grid" id="emojiPickerGrid"></div>
+                  <div class="emoji-picker-tabs" role="group" aria-label="Categorías de emoticones" data-i18n-aria-label="chat.emoji_categories">
+                    <button type="button" class="emoji-tab active" data-tab="smileys" aria-pressed="true" title="Caras y Gestos" aria-label="Caras y Gestos" data-i18n-title="ui.static_032" data-i18n-aria-label="ui.static_032"><span class="emoji-category-icon" aria-hidden="true">😀</span><span class="emoji-category-label" data-i18n="chat.emoji_faces">Caras</span></button>
+                    <button type="button" class="emoji-tab" data-tab="radio" aria-pressed="false" title="Radio LoRa y Emergencias" aria-label="Radio LoRa y Emergencias" data-i18n-title="ui.static_033" data-i18n-aria-label="ui.static_033"><span class="emoji-category-icon" aria-hidden="true">📻</span><span class="emoji-category-label" data-i18n="chat.emoji_radio">Radio</span></button>
+                    <button type="button" class="emoji-tab" data-tab="symbols" aria-pressed="false" title="Símbolos y Navegación" aria-label="Símbolos y Navegación" data-i18n-title="ui.static_034" data-i18n-aria-label="ui.static_034"><span class="emoji-category-icon" aria-hidden="true">📍</span><span class="emoji-category-label" data-i18n="chat.emoji_symbols">Símbolos</span></button>
+                  </div>
+                  <div class="emoji-picker-grid" id="emojiPickerGrid" role="group" aria-label="Emoticones disponibles" data-i18n-aria-label="chat.emoji_available"></div>
                 </div>
 
                 <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes" data-i18n-aria-label="ui.static_035">
-                  <button type="button" class="btn-icon btn-chat-tool" id="btnEmojiPicker" title="Insertar emoticones" aria-label="Insertar emoticones" data-i18n-title="ui.static_036" data-i18n-aria-label="ui.static_036"><i class="bi bi-emoji-smile" style="font-size: 18px;" aria-hidden="true"></i></button>
-                  <button type="button" class="btn-icon btn-chat-tool" id="btnChatAttach" title="Adjuntar contacto, canal o ubicación" aria-label="Adjuntar contenido" data-i18n-title="ui.static_037" data-i18n-aria-label="ui.static_038"><i class="bi bi-paperclip" style="font-size: 18px;" aria-hidden="true"></i></button>
+                  <button type="button" class="btn-icon btn-chat-tool" id="btnEmojiPicker" aria-controls="emojiPickerPopover" aria-expanded="false" title="Insertar emoticones" aria-label="Insertar emoticones" data-i18n-title="ui.static_036" data-i18n-aria-label="ui.static_036"><i class="bi bi-emoji-smile" style="font-size: 18px;" aria-hidden="true"></i></button>
+                  <button type="button" class="btn-icon btn-chat-tool" id="btnChatAttach" aria-controls="chatAttachMenu" aria-expanded="false" title="Compartir contacto, canal o ubicación" aria-label="Compartir contenido" data-i18n-title="ui.static_037" data-i18n-aria-label="ui.static_038"><i class="bi bi-share" style="font-size: 18px;" aria-hidden="true"></i></button>
                   <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir"  data-i18n-placeholder="chat.input_placeholder" data-i18n-aria-label="ui.static_039"/>
                   <span class="chat-char-counter" id="chatCharCounter" title="Presupuesto de transmisión LoRa (160 bytes máx. en UTF-8)" data-i18n-title="ui.static_040">0 / 160 B</span>
                   <button type="submit" class="btn btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio" data-i18n-aria-label="ui.static_042">
