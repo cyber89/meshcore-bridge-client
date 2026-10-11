@@ -23,7 +23,7 @@ Run it on a Linux gateway or a Windows computer, open the dashboard from your br
 
 The radio remains the source of MeshCore protocol behavior. Available commands depend on its firmware and capabilities. Repeater devices belong to the node and administration views; they never appear as chat contacts or receive chat/DM requests. The local station cannot be a message destination.
 
-Desktop controls use compact spacing; touch screens retain larger action targets and form text. Card grids and action rows adapt to available width, while long names and technical values can wrap. The [frontend modernization plan](docs/FRONTEND_MODERNIZATION_PLAN.md) records the implementation and remaining acceptance work. Current verification covers source syntax, references and generated assets; browser layout and interaction acceptance remain pending.
+Desktop controls use compact spacing; touch screens retain larger action targets and form text. Card grids and action rows adapt to available width, while long names and technical values can wrap. Node cards keep essential metrics visible and offer expandable route details. The [frontend modernization plan](docs/FRONTEND_MODERNIZATION_PLAN.md) records the implementation and remaining acceptance work. Current verification covers source syntax, references and generated assets; browser layout and interaction acceptance remain pending.
 
 ### Efficient delivery and mesh operation
 

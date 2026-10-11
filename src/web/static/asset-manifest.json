@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "f3a46ee557cda9898defd9c547a968bd9b20f2bd968f712b70d4ba2186e81cde",
-      "sha256": "88f245bd62901c89dfa9ce02f7b77c2e3fdf108091db80aafd1bed87787cdfb7",
-      "gzip_sha256": "88867178391adf0f1f7ff9c2b75d140097494f5dc9a16f0ddf31d79c08d68ceb",
-      "source_bytes": 78678,
-      "bytes": 62385,
-      "gzip_bytes": 11747
+      "source_sha256": "f61794c7db8723ac1355615183597d4324730b4a58e1e17980f5d5d80065046c",
+      "sha256": "5fc77770f54dc8fe84f6dcab56bf1e806095124586056b2c162813dba8260df6",
+      "gzip_sha256": "53762fa489c3236b99be868283986f62233e78b1a6cd9466fe6fac347c8c4374",
+      "source_bytes": 80559,
+      "bytes": 63984,
+      "gzip_bytes": 11995
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
@@ -184,12 +184,12 @@
     },
     "js/modules/nodes.js": {
       "file": "js/modules/nodes.min.js",
-      "source_sha256": "addc60ba5d0ff5a1bd242fd48adf3a38a4d7ea53e8b2e9d7f37776f79b65669c",
-      "sha256": "a39c6f8495dbcf6d75e0320c44cddf3010c26be2c12e1ab7ca744238b011ad78",
-      "gzip_sha256": "d76ce0ae95ab9984b0871753450c47fdf57be3d91397ed11b7edfc9db13abaca",
-      "source_bytes": 67204,
-      "bytes": 43417,
-      "gzip_bytes": 10210
+      "source_sha256": "abf5723dbea0129bbb0d357c77460c5c9a17a882b25f88b9c453b681af23284b",
+      "sha256": "b78868dcd13737063bacbe7e6132a6bba3617eee8ec0c09d29191f0baa7a1144",
+      "gzip_sha256": "5272bf4d1e94ef3d0f6144ad4dc3bcc1340024febb3f71efa75b1ec172178323",
+      "source_bytes": 69995,
+      "bytes": 45103,
+      "gzip_bytes": 10707
     },
     "js/modules/repeater.js": {
       "file": "js/modules/repeater.min.js",

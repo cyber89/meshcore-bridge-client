@@ -124,7 +124,26 @@ declared color-pair calculations and the heuristic linter. No runtime browser
 or suites were executed, and no performance or complete accessibility result
 is claimed. Existing APIs and manual radio operations retain their behavior.
 
-### Asset selection and cache behavior
+### Smaller node-card structure — 2026-10-11
+
+Node cards now group name/role, battery/activity and main actions/QR. Distance
+and last advertisement share the overview row; RX/TX paths, hop provenance and
+hash width remain available in the native route disclosure. Live updates,
+directory refreshes and language changes preserve disclosure state and focused
+route controls. Explicit LQI targeting prevents updates to unrelated values.
+
+Node-only padding/gaps/avatars are 12px/8px/32px; bounded columns begin at
+16rem (normally 256px). Name and metadata sizes stay at 14px/12.5px with the
+usual root, and touch targets retain 44px. Contact presentation is unchanged.
+Actual card heights depend on content and open details; no browser reduction
+percentage is claimed.
+
+Build/check verifies 25 assets: 2,016,026 source bytes, 1,729,566 served bytes and
+338,404 gzip bytes. Static syntax, six retained metric fields, unchanged API
+references, imports/icons and the heuristic linter were verified. No suites,
+browser, service or radio operation was run.
+
+### Asset selection and cache implementation
 
 `AssetsAdapter` mantiene las URLs originales. Selecciona la variante minimizada
 cuando coinciden los SHA256 de fuente y destino registrados en el manifest;

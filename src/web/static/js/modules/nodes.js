@@ -381,7 +381,7 @@ export class NodesModule {
     }
 
     const metricsDl = `
-      <dl class="node-telemetry-metrics">
+      <dl class="node-telemetry-metrics node-summary-metrics">
         <div class="node-metric-item">
           <dt>${I18n.t('nodes.distance_label')}</dt>
           <dd class="metric-distance-val">${distHtml}</dd>
@@ -390,6 +390,11 @@ export class NodesModule {
           <dt title="${escapeHtml(I18n.t('nodes.last_advert_heard_label'))}">${escapeHtml(I18n.t('nodes.last_advert_heard_label'))}</dt>
           <dd class="metric-advert-heard-val">${advertHeardHtml}</dd>
         </div>
+      </dl>
+    `;
+
+    const routeMetricsDl = `
+      <dl class="node-route-metrics">
         <div class="node-metric-item">
           <dt>${I18n.t('nodes.rx_path_label')}</dt>
           <dd class="metric-rx-path-val">${rxPathHtml}</dd>
@@ -409,10 +414,6 @@ export class NodesModule {
       </dl>
     `;
 
-    if (isLocal) {
-      return metricsDl;
-    }
-
     const accordion = `
       <details class="node-route-accordion">
         <summary class="route-accordion-summary">
@@ -420,11 +421,13 @@ export class NodesModule {
           <span>${I18n.t('nodes.route_details_btn')}</span>
         </summary>
         <div class="route-accordion-content">
+          ${routeMetricsDl}
+          ${isLocal ? "" : `
           <div class="route-section">
             <div class="route-section-title">
               <span>${I18n.t('nodes.route_rx_title')}</span>
               ${rxHashesStr ? `
-                <button type="button" class="btn-copy-hashes btn-card-icon" data-hashes="${escapeHtml(rxHashesStr)}" title="${escapeHtml(I18n.t('nodes.copy_hashes'))}" aria-label="${escapeHtml(`${I18n.t('nodes.copy_hashes')}: ${I18n.t('nodes.route_rx_title')}`)}">
+                <button type="button" class="btn-copy-hashes btn-card-icon" data-route-part="rx" data-hashes="${escapeHtml(rxHashesStr)}" title="${escapeHtml(I18n.t('nodes.copy_hashes'))}" aria-label="${escapeHtml(`${I18n.t('nodes.copy_hashes')}: ${I18n.t('nodes.route_rx_title')}`)}">
                   <i class="bi bi-clipboard button-icon" aria-hidden="true"></i>
                 </button>
               ` : ''}
@@ -441,7 +444,7 @@ export class NodesModule {
             <div class="route-section-title">
               <span>${I18n.t('nodes.route_tx_title')}</span>
               ${txHashesStr ? `
-                <button type="button" class="btn-copy-hashes btn-card-icon" data-hashes="${escapeHtml(txHashesStr)}" title="${escapeHtml(I18n.t('nodes.copy_hashes'))}" aria-label="${escapeHtml(`${I18n.t('nodes.copy_hashes')}: ${I18n.t('nodes.route_tx_title')}`)}">
+                <button type="button" class="btn-copy-hashes btn-card-icon" data-route-part="tx" data-hashes="${escapeHtml(txHashesStr)}" title="${escapeHtml(I18n.t('nodes.copy_hashes'))}" aria-label="${escapeHtml(`${I18n.t('nodes.copy_hashes')}: ${I18n.t('nodes.route_tx_title')}`)}">
                   <i class="bi bi-clipboard button-icon" aria-hidden="true"></i>
                 </button>
               ` : ''}
@@ -452,11 +455,12 @@ export class NodesModule {
               <span>${I18n.t('nodes.hash_width_label')} <strong>${escapeHtml(txHashWidth)}</strong></span>
             </div>
           </div>
+          `}
         </div>
       </details>
     `;
 
-    return metricsDl + accordion;
+    return `<div class="node-metrics-content">${metricsDl}${accordion}</div>`;
   }
 
 
@@ -720,12 +724,10 @@ export class NodesModule {
           <div class="node-card-info directory-card-info">
             <div class="node-card-top-row">
               <span class="node-card-name directory-card-title" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
-            </div>
-            <div class="node-card-badges-group directory-card-badges">
               <span class="node-role-badge ${roleClass}">${escapeHtml(I18n.role(roleUpper))}</span>
-              ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}"><i class="bi bi-battery-half button-icon" aria-hidden="true"></i> ${escapeHtml(batInfo.chipText)}</span>` : ""}
             </div>
-            <div class="node-card-sub-row">
+            <div class="node-card-sub-row node-card-badges-group directory-card-badges">
+              ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}"><i class="bi bi-battery-half button-icon" aria-hidden="true"></i> ${escapeHtml(batInfo.chipText)}</span>` : ""}
               <span class="node-card-activity" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
             </div>
           </div>
@@ -733,12 +735,12 @@ export class NodesModule {
 
         <div class="node-telemetry-panel">
           <div class="node-meta-row">
-            <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-            <span>${hasGps ? `<i class="bi bi-geo-alt button-icon" aria-hidden="true"></i> <span class="font-mono">${fLat.toFixed(3)}, ${fLon.toFixed(3)}</span>` : `<span class="color-dim">${I18n.t('common.no_gps')}</span>`}</span>
+            <span class="node-meta-key">${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
+            <span class="node-meta-gps">${hasGps ? `<i class="bi bi-geo-alt button-icon" aria-hidden="true"></i> <span class="font-mono">${fLat.toFixed(3)}, ${fLon.toFixed(3)}</span>` : `<span class="color-dim">${I18n.t('common.no_gps')}</span>`}</span>
           </div>
           <div class="node-meta-sub">
-            <span>${telemLine2}</span>
-            ${isLocal ? `<span><i class="bi bi-lightning-charge button-icon" aria-hidden="true"></i> <strong>5V USB</strong></span>` : `<span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>`}
+            <span class="node-meta-description">${telemLine2}</span>
+            ${isLocal ? `<span class="node-meta-quality"><i class="bi bi-lightning-charge button-icon" aria-hidden="true"></i> <strong>5V USB</strong></span>` : `<span class="node-meta-quality">${I18n.t('nodes.lqi_label')} <strong class="lqi-score">${escapeHtml(lqiVal)}</strong></span>`}
           </div>
         </div>
 
@@ -753,6 +755,7 @@ export class NodesModule {
         ${this._renderTelemetryMetricsHtml(node, isLocal)}
 
         <div class="node-actions-bar directory-card-actions">
+          <div class="node-primary-actions">
           ${isRepeater ? `
             <button type="button" class="btn btn-primary btn-sm btn-card-action btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
               <i class="bi bi-sliders button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.manage_btn')}</span>
@@ -778,6 +781,7 @@ export class NodesModule {
               <i class="bi bi-signpost-split button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.trace_btn')}</span>
             </button>
           ` : ""}
+          </div>
           <div class="directory-card-tools">
             <button type="button" class="btn btn-outline-secondary btn-sm btn-card-icon btn-node-qr" title="${I18n.t('nodes.title_qr')}" aria-label="${escapeHtml(`${I18n.t('nodes.title_qr')}: ${cleanName}`)}">
               <i class="bi bi-qr-code button-icon" aria-hidden="true"></i>
@@ -825,11 +829,37 @@ export class NodesModule {
   renderNodesDirectory(nodes = Array.from(this.knownNodes.values())) {
     const contactsGrid = this.dom.contactsGridUi;
     const unifiedNodesGrid = this.dom.nodesUnifiedGridUi;
+    const openRoutes = new Map();
+    unifiedNodesGrid?.querySelectorAll(".node-card").forEach((card) => {
+      openRoutes.set(card.dataset.pk.toLowerCase(), Boolean(card.querySelector(".node-route-accordion")?.open));
+    });
+    const focusedElement = document.activeElement;
+    const focusedRouteControl = unifiedNodesGrid?.contains(focusedElement)
+      ? focusedElement.closest(".node-route-accordion > summary, .node-route-accordion [data-route-part]")
+      : null;
+    const routeFocus = focusedRouteControl ? {
+      publicKey: focusedRouteControl.closest(".node-card").dataset.pk.toLowerCase(),
+      routePart: focusedRouteControl.getAttribute("data-route-part"),
+    } : null;
+    const restoreRouteFocus = () => {
+      if (!routeFocus) return;
+      const card = Array.from(unifiedNodesGrid.querySelectorAll(".node-card"))
+        .find((candidate) => candidate.dataset.pk.toLowerCase() === routeFocus.publicKey);
+      const canFocusCard = card && !card.closest(".hidden, [hidden]") && card.getClientRects().length > 0;
+      const copyButton = canFocusCard && routeFocus.routePart
+        ? Array.from(card.querySelectorAll("[data-route-part]")).find((button) => button.dataset.routePart === routeFocus.routePart)
+        : null;
+      const target = canFocusCard ? (copyButton || card.querySelector(".node-route-accordion > summary")) : this.dom.nodesSearchInput;
+      if (target && !target.closest(".hidden, [hidden]") && target.getClientRects().length > 0) {
+        target.focus({ preventScroll: true });
+      }
+    };
 
     if (!nodes || nodes.length === 0) {
       this.knownNodes.clear();
       if (contactsGrid) contactsGrid.innerHTML = `<div class="empty-state">${I18n.t('nodes.no_contacts')}</div>`;
       if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = `<div class="empty-state">${I18n.t('nodes.no_nodes')}</div>`;
+      restoreRouteFocus();
       return;
     }
 
@@ -918,6 +948,8 @@ export class NodesModule {
       // 2. Tarjetas para Nodos Unificados (Todos los nodos descubiertos en la malla)
       if (unifiedNodesGrid) {
         const nCard = this.createNodeCard(node, "node");
+        const accordion = nCard.querySelector(".node-route-accordion");
+        if (accordion) accordion.open = Boolean(openRoutes.get(node.public_key.toLowerCase()));
         nodesFrag.appendChild(nCard);
       }
     }
@@ -952,6 +984,7 @@ export class NodesModule {
 
     const qN = this.dom.nodesSearchInput ? this.dom.nodesSearchInput.value : "";
     this.filterNodesGrid(qN);
+    restoreRouteFocus();
 
     // Notificar al bus para actualizar mapa con la lista completa de nodos
     this.ctx.eventBus.emit(EVENTS.NODE_UPDATED, deduplicatedNodes);
@@ -991,7 +1024,7 @@ export class NodesModule {
           if (snrEl) snrEl.textContent = "--";
           const rssiEl = card.querySelector(".metric-rssi, .stat-pill:nth-child(1) strong");
           if (rssiEl) rssiEl.textContent = "--";
-          const lqiBadge = card.querySelector(".lqi-score, .node-meta-sub strong:last-child");
+          const lqiBadge = card.querySelector(".lqi-score") || card.querySelector(".contact-card .node-meta-sub > span:last-child > strong");
           if (lqiBadge) lqiBadge.textContent = "--";
         } else {
           card.classList.remove("node-card-offline", "contact-card-offline");
@@ -1180,7 +1213,7 @@ export class NodesModule {
       if (rssiEl) {
         rssiEl.textContent = isLocal ? "Local" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
       }
-      const lqiBadge = card.querySelector(".lqi-score, .node-meta-sub strong:last-child");
+      const lqiBadge = card.querySelector(".lqi-score") || card.querySelector(".contact-card .node-meta-sub > span:last-child > strong");
       if (lqiBadge) {
         lqiBadge.textContent = isLocal ? "100%" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--");
       }
@@ -1206,7 +1239,7 @@ export class NodesModule {
             chip.className = `contact-battery-chip ${batInfo.levelClass}`.trim();
             chip.title = batInfo.tooltip;
             chip.innerHTML = `<i class="bi bi-battery-half button-icon" aria-hidden="true"></i> ${escapeHtml(batInfo.chipText)}`;
-            titleRow.appendChild(chip);
+            titleRow.insertBefore(chip, titleRow.querySelector(".node-card-activity"));
           }
         }
       } else if (isLocal) {
@@ -1247,21 +1280,28 @@ export class NodesModule {
       }
       card.setAttribute("data-has-gps", hasGps ? "1" : "0");
 
-      // Actualizar 6 Métricas de Telemetría y Acordeón de Rutas (en vista Nodos)
-      const metricsContainer = card.querySelector(".node-telemetry-metrics");
-      const accordionContainer = card.querySelector(".node-route-accordion");
+      // Replace telemetry as one unit, keeping the user's disclosure and focus.
+      const metricsContainer = card.querySelector(".node-metrics-content");
       if (metricsContainer) {
+        const accordionContainer = metricsContainer.querySelector(".node-route-accordion");
+        const focusedElement = document.activeElement;
+        const hadFocus = metricsContainer.contains(focusedElement);
+        const routePart = hadFocus ? focusedElement.getAttribute("data-route-part") : null;
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = this._renderTelemetryMetricsHtml(node, isLocal);
-        const newMetrics = tempDiv.querySelector(".node-telemetry-metrics");
+        const newMetrics = tempDiv.querySelector(".node-metrics-content");
         const newAccordion = tempDiv.querySelector(".node-route-accordion");
         if (newMetrics) {
+          if (newAccordion) newAccordion.open = Boolean(accordionContainer?.open);
           metricsContainer.replaceWith(newMetrics);
-        }
-        if (accordionContainer && newAccordion) {
-          accordionContainer.replaceWith(newAccordion);
-        } else if (!accordionContainer && newAccordion && newMetrics) {
-          newMetrics.insertAdjacentElement("afterend", newAccordion);
+          if (hadFocus) {
+            const replacement = routePart
+              ? Array.from(newMetrics.querySelectorAll("[data-route-part]")).find((button) => button.dataset.routePart === routePart)
+              : null;
+            const focusTarget = replacement || newAccordion?.querySelector("summary") || newMetrics;
+            if (focusTarget === newMetrics) focusTarget.tabIndex = -1;
+            focusTarget.focus({ preventScroll: true });
+          }
         }
       }
     });
