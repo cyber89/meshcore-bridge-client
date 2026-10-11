@@ -342,7 +342,7 @@
           <div class="analytics-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2 data-i18n="analytics.title"><i class="bi bi-activity section-icon" style="font-size: 20px;" aria-hidden="true"></i> Métricas & Analítica de la Red Malla</h2>
+                <h2 data-i18n="analytics.title"><i class="bi bi-activity section-icon" aria-hidden="true"></i> Métricas & Analítica de la Red Malla</h2>
                 <p class="header-subtitle" data-i18n="analytics.subtitle">Monitoreo de tráfico RF en tiempo real, gráficos de series temporales, composición de tramas y salud del enlace.</p>
               </div>
               <div class="header-actions">
@@ -351,8 +351,8 @@
                   <button type="button" class="btn-range" data-range="6h" aria-pressed="false" data-i18n="analytics.range_6h">6h</button>
                   <button type="button" class="btn-range active" data-range="24h" aria-pressed="true" data-i18n="analytics.range_24h">24h</button>
                 </div>
-                <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshAnalytics" data-i18n="analytics.refresh"><i class="bi bi-arrow-repeat" style="font-size: 14px;" aria-hidden="true"></i> Actualizar Métricas</button>
-                <button type="button" class="btn btn-secondary btn-sm btn-danger-hover" id="btnResetMetrics" title="Restablecer contadores y estadísticas acumuladas" data-i18n-title="analytics.reset_title"><i class="bi bi-arrow-counterclockwise" style="font-size: 14px;" aria-hidden="true"></i> <span id="btnResetMetricsText" data-i18n="analytics.reset">Restablecer Métricas</span></button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshAnalytics" data-i18n="analytics.refresh"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Actualizar Métricas</button>
+                <button type="button" class="btn btn-secondary btn-sm btn-danger-hover" id="btnResetMetrics" title="Restablecer contadores y estadísticas acumuladas" data-i18n-title="analytics.reset_title"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> <span id="btnResetMetricsText" data-i18n="analytics.reset">Restablecer Métricas</span></button>
               </div>
             </div>
 
@@ -361,7 +361,7 @@
             <!-- Fila 1: Tarjetas KPI con Micro-Sparklines -->
             <div class="analytics-kpi-grid">
               <div class="analytics-kpi-card" id="cardKpiPackets">
-                <div class="kpi-icon"><i class="bi bi-box-seam" style="font-size: 22px;" aria-hidden="true"></i></div>
+                <div class="kpi-icon"><i class="bi bi-box-seam" aria-hidden="true"></i></div>
                 <div class="kpi-data">
                   <span class="kpi-label" data-i18n="analytics.kpi_packets">Paquetes de la sesión</span>
                   <strong class="kpi-value" id="kpiTotalPackets">0</strong>
@@ -370,7 +370,7 @@
                 <div id="kpiSparklinePackets" class="kpi-sparkline-box"></div>
               </div>
               <div class="analytics-kpi-card" id="cardKpiRouting">
-                <div class="kpi-icon"><i class="bi bi-diagram-2" style="font-size: 22px;" aria-hidden="true"></i></div>
+                <div class="kpi-icon"><i class="bi bi-diagram-2" aria-hidden="true"></i></div>
                 <div class="kpi-data">
                   <span class="kpi-label" data-i18n="analytics.kpi_routing_eff">Eficiencia Enrutamiento</span>
                   <strong class="kpi-value" id="kpiRoutingDirect">0%</strong>
@@ -379,7 +379,7 @@
                 <div id="kpiSparklineRouting" class="kpi-sparkline-box"></div>
               </div>
               <div class="analytics-kpi-card" id="cardKpiErrorRate">
-                <div class="kpi-icon"><i class="bi bi-shield-exclamation" style="font-size: 22px;" aria-hidden="true"></i></div>
+                <div class="kpi-icon"><i class="bi bi-shield-exclamation" aria-hidden="true"></i></div>
                 <div class="kpi-data">
                   <span class="kpi-label" data-i18n="analytics.kpi_error_rate">Tasa de Error Global</span>
                   <strong class="kpi-value" id="kpiErrorRate">0.0%</strong>
@@ -388,7 +388,7 @@
                 <div id="kpiSparklineErrors" class="kpi-sparkline-box"></div>
               </div>
               <div class="analytics-kpi-card" id="cardKpiDutyCycle">
-                <div class="kpi-icon"><i class="bi bi-clock" style="font-size: 22px;" aria-hidden="true"></i></div>
+                <div class="kpi-icon"><i class="bi bi-clock" aria-hidden="true"></i></div>
                 <div class="kpi-data">
                   <span class="kpi-label" data-i18n="analytics.kpi_duty_cycle">Airtime / Duty Cycle</span>
                   <strong class="kpi-value" id="kpiDutyCycleVal">0.00%</strong>
@@ -403,8 +403,8 @@
               <!-- Gráfico de Área Temporal RX vs TX -->
               <div class="analytics-card chart-card-wide" id="cardChartTraffic">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><i class="bi bi-graph-up-arrow" style="font-size: 18px;" aria-hidden="true"></i></span>
-                  <div>
+                  <span class="card-icon"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i></span>
+                  <div class="card-heading">
                     <h3 data-i18n="analytics.chart_traffic_title">Actividad Temporal de Tráfico (RX vs TX)</h3>
                     <p data-i18n="analytics.chart_traffic_sub">Ventana seleccionada; el último intervalo está en curso. Los totales superiores cubren toda la sesión.</p>
                   </div>
@@ -418,8 +418,8 @@
               <!-- Gráfico Donut de Tipos de Trama -->
               <div class="analytics-card" id="cardChartTypes">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><i class="bi bi-pie-chart" style="font-size: 18px;" aria-hidden="true"></i></span>
-                  <div>
+                  <span class="card-icon"><i class="bi bi-pie-chart" aria-hidden="true"></i></span>
+                  <div class="card-heading">
                     <h3 data-i18n="analytics.chart_types_title">Composición por Tipo de Trama</h3>
                     <p data-i18n="analytics.chart_types_sub">Distribución del tráfico: Chat, Anuncios, Telemetría, Traceroute y Admin</p>
                   </div>
@@ -433,8 +433,8 @@
               <!-- Diagnóstico de Enrutamiento & Errores -->
               <div class="analytics-card" id="cardRoutingErrors">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><i class="bi bi-sliders" style="font-size: 18px;" aria-hidden="true"></i></span>
-                  <div>
+                  <span class="card-icon"><i class="bi bi-sliders" aria-hidden="true"></i></span>
+                  <div class="card-heading">
                     <h3 data-i18n="analytics.chart_routing_errors_title">Eficiencia de Enrutamiento & Fallos</h3>
                     <p data-i18n="analytics.chart_routing_errors_sub">Proporción Flood vs Directo y causas de error detectadas</p>
                   </div>
@@ -454,8 +454,8 @@
               <!-- Salud del Transceptor y Hardware Local -->
               <div class="analytics-card" id="cardBridgeHealth">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><i class="bi bi-cpu" style="font-size: 18px;" aria-hidden="true"></i></span>
-                  <div>
+                  <span class="card-icon"><i class="bi bi-cpu" aria-hidden="true"></i></span>
+                  <div class="card-heading">
                     <h3 data-i18n="analytics.bridge">Salud del Transceptor & Puente</h3>
                     <p data-i18n="analytics.bridge_sub">Métricas de hardware, piso de ruido RF y estado de subsistemas</p>
                   </div>
@@ -498,8 +498,8 @@
               <!-- Top Nodos Más Activos -->
               <div class="analytics-card" id="cardTopActive">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><i class="bi bi-trophy" style="font-size: 18px;" aria-hidden="true"></i></span>
-                  <div>
+                  <span class="card-icon"><i class="bi bi-trophy" aria-hidden="true"></i></span>
+                  <div class="card-heading">
                     <h3 data-i18n="analytics.top_active">Top Nodos Más Activos</h3>
                     <p data-i18n="analytics.top_active_sub">Nodos con mayor volumen de paquetes y calidad de enlace LQI</p>
                   </div>
@@ -526,25 +526,25 @@
               <!-- Presupuesto Horario de Airtime & Duty Cycle -->
               <div class="analytics-card" id="cardAirtimeBudget">
                 <div class="analytics-card-header">
-                  <span class="card-icon"><i class="bi bi-broadcast" style="font-size: 18px;" aria-hidden="true"></i></span>
-                  <div>
+                  <span class="card-icon"><i class="bi bi-broadcast" aria-hidden="true"></i></span>
+                  <div class="card-heading">
                     <h3 data-i18n="ui.static_101">Presupuesto Horario de Airtime (Duty Cycle)</h3>
                     <p data-i18n="ui.static_102">Monitoreo regulatorio de tiempo en el aire LoRa en ventana móvil de 1 hora</p>
                   </div>
                 </div>
-                <div class="airtime-progress-container" style="padding: 1rem 0;">
-                  <div class="airtime-progress-header" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <div class="airtime-progress-container">
+                  <div class="airtime-progress-header">
                     <span id="analyticsAirtimeLabel" class="font-semibold text-sm">Uso actual: 0.0%</span>
                     <span id="analyticsAirtimeMs" class="text-sm font-mono text-muted">0 ms / 36,000 ms (Límite: 1.0%)</span>
                   </div>
-                  <div class="airtime-progress-bar-bg" style="width: 100%; height: 12px; background: var(--bg-tertiary, #1f293d); border-radius: 6px; overflow: hidden; position: relative;">
-                    <div id="analyticsAirtimeFill" class="airtime-progress-bar-fill" style="width: 0%; height: 100%; background: var(--accent-primary, #3b82f6); transition: width 0.4s ease, background 0.4s ease;"></div>
-                    <div id="analyticsAirtimeWarnMarker" style="position: absolute; left: 80%; top: 0; bottom: 0; width: 2px; background: rgba(234, 179, 8, 0.7); z-index: 2;" title="Umbral de advertencia (80% del límite)" data-i18n-title="ui.static_105"></div>
+                  <div class="airtime-progress-bar-bg">
+                    <div id="analyticsAirtimeFill" class="airtime-progress-bar-fill" style="width: 0%;"></div>
+                    <div id="analyticsAirtimeWarnMarker" class="airtime-warning-marker" style="left: 80%;" title="Umbral de advertencia (80% del límite)" data-i18n-title="ui.static_105"></div>
                   </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 6px;">
+                  <div class="airtime-progress-scale">
                     <span data-i18n="ui.static_106">0% (Libre)</span>
-                    <span id="analyticsAirtimeWarnLabel" style="color: var(--accent-warning, #eab308);">▲ 0.8% Advertencia (80%)</span>
-                    <span id="analyticsAirtimeLimitLabel" style="color: var(--accent-danger, #ef4444);">1.0% Límite Legal</span>
+                    <span id="analyticsAirtimeWarnLabel" class="airtime-warning-label">▲ 0.8% Advertencia (80%)</span>
+                    <span id="analyticsAirtimeLimitLabel" class="airtime-limit-label">1.0% Límite Legal</span>
                   </div>
                 </div>
               </div>
@@ -710,7 +710,7 @@
             <div class="pane-header">
               <div class="header-title-group">
                 <div class="header-badge-row">
-                  <h2 data-i18n="ui.static_166"><i class="bi bi-sliders section-icon" style="font-size: 20px;" aria-hidden="true"></i> Configuración & Gestión del Nodo Local</h2>
+                  <h2 data-i18n="ui.static_166"><i class="bi bi-sliders section-icon" aria-hidden="true"></i> Configuración & Gestión del Nodo Local</h2>
                   <span class="badge-pill badge-primary" id="localNodeRoleBadge">Base Station</span>
                   <span class="badge-pill badge-secondary" id="localHwBoardBadge" data-i18n="common.unverified">Sin verificar</span>
                   <span class="badge-pill badge-outline" id="localFwVersionBadge" data-i18n="common.unverified">Sin verificar</span>
@@ -718,26 +718,26 @@
                 <p class="header-subtitle" data-i18n="ui.static_170">Control integral de parámetros RF, telemetría de hardware, identidad y consola interactiva del transceptor MeshCore conectado.</p>
               </div>
               <div class="header-actions">
-                <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshLocalConfig" data-i18n="settings.refresh"><i class="bi bi-arrow-repeat" style="font-size: 14px;" aria-hidden="true"></i> Actualizar Parámetros</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshLocalConfig" data-i18n="settings.refresh"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Actualizar Parámetros</button>
               </div>
             </div>
 
             <!-- Subpestañas de Configuración del Nodo Local -->
             <div class="local-settings-subtabs" aria-labelledby="navTabSettings">
-              <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry" data-i18n="settings.subtab_telem"><i class="bi bi-activity subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Telemetría & Estado</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-radio" data-i18n="settings.subtab_radio"><i class="bi bi-broadcast subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Parámetros RF & Radio</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos" data-i18n="settings.subtab_identity"><i class="bi bi-geo-alt subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Identidad & Posición GPS</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-console" data-i18n="settings.subtab_terminal"><i class="bi bi-terminal subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Terminal</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps" data-i18n="settings.subtab_maps"><i class="bi bi-map subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Mapas Offline</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-security" data-i18n="settings.subtab_security"><i class="bi bi-shield-check subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Seguridad & API</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-services" data-i18n="settings.subtab_services"><i class="bi bi-hdd-stack subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Servicios & Red</button>
+              <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry" data-i18n="settings.subtab_telem"><i class="bi bi-activity subtab-icon" aria-hidden="true"></i> Telemetría & Estado</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-radio" data-i18n="settings.subtab_radio"><i class="bi bi-broadcast subtab-icon" aria-hidden="true"></i> Parámetros RF & Radio</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos" data-i18n="settings.subtab_identity"><i class="bi bi-geo-alt subtab-icon" aria-hidden="true"></i> Identidad & Posición GPS</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-console" data-i18n="settings.subtab_terminal"><i class="bi bi-terminal subtab-icon" aria-hidden="true"></i> Terminal</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps" data-i18n="settings.subtab_maps"><i class="bi bi-map subtab-icon" aria-hidden="true"></i> Mapas Offline</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-security" data-i18n="settings.subtab_security"><i class="bi bi-shield-check subtab-icon" aria-hidden="true"></i> Seguridad & API</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-services" data-i18n="settings.subtab_services"><i class="bi bi-hdd-stack subtab-icon" aria-hidden="true"></i> Servicios & Red</button>
             </div>
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
             <div id="local-telemetry" class="local-settings-subpanel active">
               <div class="info-grid info-grid-extended">
                 <div class="metric-card">
-                  <div class="card-icon"><i class="bi bi-lightning" style="font-size: 20px;" aria-hidden="true"></i></div>
+                  <div class="card-icon"><i class="bi bi-lightning" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_171">Alimentación Host (USB)</span>
                     <strong class="card-value" id="localSolarValue" data-i18n="common.unverified">Sin verificar</strong>
@@ -745,7 +745,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon"><i class="bi bi-clock" style="font-size: 20px;" aria-hidden="true"></i></div>
+                  <div class="card-icon"><i class="bi bi-clock" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_174">Reloj RTC (Hora Nodo)</span>
                     <strong class="card-value" id="localClockValue">--:--:--</strong>
@@ -753,7 +753,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon"><i class="bi bi-activity" style="font-size: 20px;" aria-hidden="true"></i></div>
+                  <div class="card-icon"><i class="bi bi-activity" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_176">Tiempo Activo (Uptime)</span>
                     <strong class="card-value" id="localUptimeValue">--</strong>
@@ -761,7 +761,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon"><i class="bi bi-broadcast" style="font-size: 20px;" aria-hidden="true"></i></div>
+                  <div class="card-icon"><i class="bi bi-broadcast" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_177">Total Airtime (En Aire)</span>
                     <strong class="card-value" id="localAirtimeValue">-- ms</strong>
@@ -770,7 +770,7 @@
                 </div>
 
                 <div class="metric-card">
-                  <div class="card-icon"><i class="bi bi-volume-up" style="font-size: 20px;" aria-hidden="true"></i></div>
+                  <div class="card-icon"><i class="bi bi-volume-up" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_179">Piso de Ruido (Noise)</span>
                     <strong class="card-value" id="localNoiseValue">-- dBm</strong>
@@ -778,7 +778,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon"><i class="bi bi-box-seam" style="font-size: 20px;" aria-hidden="true"></i></div>
+                  <div class="card-icon"><i class="bi bi-box-seam" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_181">Paquetes TX / RX</span>
                     <strong class="card-value" id="localPacketsValue">-- / --</strong>
@@ -800,36 +800,36 @@
               <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
               <div class="hardware-actions-section">
                 <div class="section-micro-header">
-                  <span class="micro-title" data-i18n="settings.hw_actions_title"><i class="bi bi-lightning" style="font-size: 14px;" aria-hidden="true"></i> Acciones Rápidas de Hardware</span>
+                  <span class="micro-title" data-i18n="settings.hw_actions_title"><i class="bi bi-lightning" aria-hidden="true"></i> Acciones Rápidas de Hardware</span>
                   <span class="micro-subtitle" data-i18n="settings.hw_actions_sub">Comandos de ejecución y control directo sobre el microcontrolador y transceptor LoRa</span>
                 </div>
                 <div class="hardware-actions-toolbar">
                   <button type="button" class="btn-compact-action btn-compact-primary" id="btnActionAdvertHop" title="Difunde anuncio directo a nodos vecinos en alcance visual de 1 salto (0 saltos)" data-i18n-title="ui.static_188">
-                    <i class="bi bi-broadcast btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
+                    <i class="bi bi-broadcast btn-compact-icon" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_advert_hop">Advert Hop 0</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionAdvertFlood" title="Difunde anuncio enrutado por inundación a toda la malla" data-i18n-title="ui.static_189">
-                    <i class="bi bi-wifi btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
+                    <i class="bi bi-wifi btn-compact-icon" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_advert_flood">Advert Flood</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnRefreshLocalTelem" title="Consulta telemetría y contadores de hardware en tiempo real" data-i18n-title="ui.static_190">
-                    <i class="bi bi-activity btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
+                    <i class="bi bi-activity btn-compact-icon" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_stats">Stats Hardware</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnSyncLocalClock" title="Ajusta el reloj de tiempo real RTC del nodo con la hora del host" data-i18n-title="ui.static_191">
-                    <i class="bi bi-clock btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
+                    <i class="bi bi-clock btn-compact-icon" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_sync_rtc">Sincronizar RTC</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionClearLocalStats" title="Restablece contadores de paquetes, duplicados y tiempos de aire" data-i18n-title="settings.action_clear_stats_title">
-                    <i class="bi bi-trash btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
+                    <i class="bi bi-trash btn-compact-icon" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_clear_stats">Limpiar Stats</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionReconnectSerial" title="Cierra y reabre de forma segura la conexión USB/Serial con el transceptor" data-i18n-title="ui.static_192">
-                    <i class="bi bi-broadcast btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
+                    <i class="bi bi-broadcast btn-compact-icon" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_reconnect_serial">Reconectar Serial</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-danger" id="btnActionRebootLocal" title="Envía comando de reinicio de hardware al microcontrolador ESP32/nRF52" data-i18n-title="ui.static_193">
-                    <i class="bi bi-arrow-repeat btn-compact-icon" style="font-size: 14px;" aria-hidden="true"></i>
+                    <i class="bi bi-arrow-repeat btn-compact-icon" aria-hidden="true"></i>
                     <span class="btn-compact-label" data-i18n="settings.action_reboot">Reiniciar Nodo</span>
                   </button>
                 </div>
@@ -906,7 +906,7 @@
                         <span class="toggle-field-title" data-i18n="ui.static_219">Modo Repetidor / Router</span>
                         <span class="toggle-field-desc" data-i18n="ui.static_220">Reenvía paquetes de otros nodos en la malla LoRa</span>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div class="settings-toggle-controls">
                         <span class="toggle-state-badge" id="localRepeatBadge">OFF</span>
                         <label class="toggle-switch toggle-purple" for="localRepeatMode" title="Activar/desactivar reenvío de paquetes repetidor" data-i18n-title="ui.static_221">
                           <input type="checkbox" id="localRepeatMode" role="switch" aria-label="Modo repetidor / router"  data-i18n-aria-label="ui.static_222"/>
@@ -916,7 +916,7 @@
                     </div>
                   </div>
                   <!-- Sección: Balizas & Transmisiones Periódicas -->
-                  <div class="form-section-title span-full" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;" data-i18n="ui.static_223">
+                  <div class="form-section-title settings-form-section span-full" data-i18n="ui.static_223">
                     <i class="bi bi-broadcast section-icon" aria-hidden="true"></i> Balizas &amp; Transmisiones Periódicas
                   </div>
                   <p id="localPeriodicSupportHint" class="field-hint span-full" data-i18n="settings.periodic_unsupported">El nodo local Companion no permite configurar estas transmisiones periódicas. Los modos de telemetría de abajo controlan quién puede solicitar datos; no programan envíos.</p>
@@ -927,7 +927,7 @@
                         <span class="toggle-field-title" data-i18n="ui.static_224">Anuncios de Presencia (Advert)</span>
                         <span class="toggle-field-desc" data-i18n="ui.static_225">Emite balizas periódicas para que la malla descubra tu nodo</span>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div class="settings-toggle-controls">
                         <span class="toggle-state-badge" id="localAdvertEnableBadge">OFF</span>
                         <label class="toggle-switch toggle-blue" for="localAdvertEnable" title="Activar/desactivar anuncios periódicos Advert" data-i18n-title="ui.static_226">
                           <input type="checkbox" id="localAdvertEnable" role="switch" aria-label="Anuncios periódicos Advert" aria-describedby="localPeriodicSupportHint" disabled data-i18n-aria-label="ui.static_227"/>
@@ -947,7 +947,7 @@
                         <span class="toggle-field-title" data-i18n="ui.static_230">Telemetría Periódica</span>
                         <span class="toggle-field-desc" data-i18n="ui.static_231">Transmite periódicamente estado de batería y métricas del nodo</span>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div class="settings-toggle-controls">
                         <span class="toggle-state-badge" id="localTelemetryEnableBadge">OFF</span>
                         <label class="toggle-switch toggle-blue" for="localTelemetryEnable" title="Activar/desactivar telemetría periódica" data-i18n-title="ui.static_232">
                           <input type="checkbox" id="localTelemetryEnable" role="switch" aria-label="Telemetría periódica" aria-describedby="localPeriodicSupportHint" disabled data-i18n-aria-label="ui.static_233"/>
@@ -962,7 +962,7 @@
                   </div>
 
                   <!-- Sección de Parámetros Avanzados del Firmware MeshCore -->
-                  <div class="form-section-title span-full" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;" data-i18n="ui.static_236">
+                  <div class="form-section-title settings-form-section span-full" data-i18n="ui.static_236">
                     <i class="bi bi-cpu section-icon" aria-hidden="true"></i> Parámetros Avanzados &amp; Firmware MeshCore
                   </div>
                   <div class="form-group">
@@ -1015,7 +1015,7 @@
                         <span class="toggle-field-title" data-i18n="ui.static_253">Compartir Ubicación en Anuncio</span>
                         <span class="toggle-field-desc" data-i18n="ui.static_254">Incluye coordenadas en paquetes Advert</span>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div class="settings-toggle-controls">
                         <span class="toggle-state-badge" id="localAdvLocBadge">OFF</span>
                         <label class="toggle-switch toggle-blue" for="localAdvLocPolicy" title="Compartir coordenadas en balizas advert" data-i18n-title="ui.static_255">
                           <input type="checkbox" id="localAdvLocPolicy" role="switch" aria-label="Compartir ubicación en anuncios"  data-i18n-aria-label="ui.static_256"/>
@@ -1030,7 +1030,7 @@
                         <span class="toggle-field-title" data-i18n="ui.static_257">Multi-ACKs</span>
                         <span class="toggle-field-desc" data-i18n="ui.static_258">Permite confirmaciones múltiples</span>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div class="settings-toggle-controls">
                         <span class="toggle-state-badge" id="localMultiAcksBadge">OFF</span>
                         <label class="toggle-switch toggle-blue" for="localMultiAcks" title="Habilitar confirmaciones multi-ack" data-i18n-title="ui.static_259">
                           <input type="checkbox" id="localMultiAcks" role="switch" aria-label="Habilitar multi-acks"  data-i18n-aria-label="ui.static_260"/>
@@ -1045,7 +1045,7 @@
                         <span class="toggle-field-title" data-i18n="ui.static_261">Aprobación Manual de Contactos</span>
                         <span class="toggle-field-desc" data-i18n="ui.static_262">Confirmación manual de contactos</span>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div class="settings-toggle-controls">
                         <span class="toggle-state-badge" id="localManualAddBadge">OFF</span>
                         <label class="toggle-switch toggle-blue" for="localManualAddContacts" title="Aprobación manual de contactos entrantes" data-i18n-title="ui.static_263">
                           <input type="checkbox" id="localManualAddContacts" role="switch" aria-label="Aprobación manual de contactos"  data-i18n-aria-label="ui.static_264"/>
@@ -1061,16 +1061,16 @@
               </div>
 
               <!-- Panel de Variables Personalizadas (Custom Vars - CMD 40/41) -->
-              <div class="card-panel" style="margin-top: 20px;">
-                <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div class="card-panel settings-panel-spaced">
+                <div class="panel-header-row settings-panel-heading">
                   <div>
-                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;" data-i18n="ui.static_265"><i class="bi bi-cpu section-icon" aria-hidden="true"></i> Variables Personalizadas del Dispositivo (Custom Vars - CMD 40/41)</h3>
-                    <p style="font-size: 0.82rem; color: var(--color-text-secondary); margin: 3px 0 0 0;" data-i18n="ui.static_266">Parámetros clave-valor configurados directamente en la memoria flash del transceptor.</p>
+                    <h3 data-i18n="ui.static_265"><i class="bi bi-cpu section-icon" aria-hidden="true"></i> Variables Personalizadas del Dispositivo (Custom Vars - CMD 40/41)</h3>
+                    <p class="settings-panel-description" data-i18n="ui.static_266">Parámetros clave-valor configurados directamente en la memoria flash del transceptor.</p>
                   </div>
-                  <button type="button" class="btn btn-secondary btn-xs" id="btnRefreshCustomVars" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" style="font-size: 12px;" aria-hidden="true"></i> Actualizar</button>
+                  <button type="button" class="btn btn-secondary btn-xs" id="btnRefreshCustomVars" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Actualizar</button>
                 </div>
                 
-                <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
+                <div class="table-responsive settings-table-scroll">
                   <table class="table table-hover table-striped table-sm align-middle data-table" id="localCustomVarsTable">
                     <thead>
                       <tr>
@@ -1085,7 +1085,7 @@
                   </table>
                 </div>
 
-                <form id="formAddCustomVar" class="grid-form-3col" style="margin-top: 14px; align-items: flex-end;" onsubmit="return false;" aria-label="Variables personalizadas" data-i18n-aria-label="ui.form_variables">
+                <form id="formAddCustomVar" class="grid-form-3col settings-form-end" onsubmit="return false;" aria-label="Variables personalizadas" data-i18n-aria-label="ui.form_variables">
                   <div class="form-group">
                     <label for="inputCustomVarKey" data-i18n="ui.static_271">Nombre / Clave:</label>
                     <input type="text" id="inputCustomVarKey" placeholder="Ej: gps_interval" required  data-i18n-placeholder="ui.static_272"/>
@@ -1095,7 +1095,7 @@
                     <input type="text" id="inputCustomVarVal" placeholder="Ej: 60" required  data-i18n-placeholder="ui.static_274"/>
                   </div>
                   <div class="form-group">
-                    <button type="button" class="btn btn-primary btn-block" id="btnSaveCustomVar" data-i18n="ui.static_275"><i class="bi bi-plus-lg" style="font-size: 14px;" aria-hidden="true"></i> Guardar Variable</button>
+                    <button type="button" class="btn btn-primary btn-block" id="btnSaveCustomVar" data-i18n="ui.static_275"><i class="bi bi-plus-lg" aria-hidden="true"></i> Guardar Variable</button>
                   </div>
                 </form>
               </div>
@@ -1115,7 +1115,7 @@
                     <label for="localNodePubkey" data-i18n="ui.static_279">Clave Pública (Identidad Hexadecimal):</label>
                     <div class="input-with-action">
                       <input type="text" id="localNodePubkey" readonly class="input-readonly font-mono" />
-                      <button type="button" class="btn btn-secondary btn-sm" id="btnCopyLocalPubkey" title="Copiar clave pública" data-i18n-title="ui.static_280" data-i18n="qr.copy_btn"><i class="bi bi-clipboard" style="font-size: 13px;" aria-hidden="true"></i> Copiar</button>
+                      <button type="button" class="btn btn-secondary btn-sm" id="btnCopyLocalPubkey" title="Copiar clave pública" data-i18n-title="ui.static_280" data-i18n="qr.copy_btn"><i class="bi bi-clipboard" aria-hidden="true"></i> Copiar</button>
                     </div>
                   </div>
                   <div class="form-group span-full">
@@ -1142,7 +1142,7 @@
                         <span class="toggle-field-title" data-i18n="ui.static_290">Posición GPS Fija</span>
                         <span class="toggle-field-desc" data-i18n="ui.static_291">Difundir coordenadas fijas configuradas (ON) o desactivar emisión (OFF)</span>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div class="settings-toggle-controls">
                         <span class="toggle-state-badge is-active" id="localPosFixedBadge">FIJA</span>
                         <label class="toggle-switch" for="localPosFixed" title="Alternar entre difusión de coordenadas fijas o desactivada" data-i18n-title="ui.static_292">
                           <input type="checkbox" id="localPosFixed" role="switch" checked aria-label="Posición GPS fija"  data-i18n-aria-label="ui.static_293"/>
@@ -1152,10 +1152,10 @@
                     </div>
                   </div>
                   <div class="form-group flex-row-align">
-                    <button type="button" class="btn btn-secondary" id="btnGetBrowserGps" data-i18n="ui.static_294"><i class="bi bi-compass" style="font-size: 14px;" aria-hidden="true"></i> Obtener GPS del Navegador</button>
+                    <button type="button" class="btn btn-secondary" id="btnGetBrowserGps" data-i18n="ui.static_294"><i class="bi bi-compass" aria-hidden="true"></i> Obtener GPS del Navegador</button>
                   </div>
                   <div class="form-actions-full">
-                    <button type="submit" class="btn btn-primary" id="btnSaveLocalIdentityPos" data-i18n="ui.static_295"><i class="bi bi-floppy" style="font-size: 14px;" aria-hidden="true"></i> Guardar Identidad & Posición</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveLocalIdentityPos" data-i18n="ui.static_295"><i class="bi bi-floppy" aria-hidden="true"></i> Guardar Identidad & Posición</button>
                   </div>
                 </form>
               </div>
@@ -1172,15 +1172,15 @@
                   </div>
                   <span class="linux-term-title" data-i18n="ui.static_296">MeshCore Node CLI — Transceptor Local</span>
                   <div class="linux-term-actions">
-                    <button type="button" class="btn btn-xs btn-outline-term" id="btnToggleLocalCmdHelp" data-i18n="ui.static_297"><i class="bi bi-info-circle" style="font-size: 13px;" aria-hidden="true"></i> Ayuda (help)</button>
-                    <button type="button" class="btn btn-xs btn-outline-term" id="btnClearLocalTerminal" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 13px;" aria-hidden="true"></i> Limpiar</button>
+                    <button type="button" class="btn btn-xs btn-outline-term" id="btnToggleLocalCmdHelp" data-i18n="ui.static_297"><i class="bi bi-info-circle" aria-hidden="true"></i> Ayuda (help)</button>
+                    <button type="button" class="btn btn-xs btn-outline-term" id="btnClearLocalTerminal" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
                   </div>
                 </div>
 
                 <!-- Desplegable interactivo de ayuda de comandos -->
                 <div id="localTerminalHelpDrawer" class="terminal-help-drawer hidden">
                   <div class="help-drawer-header">
-                    <strong data-i18n="ui.static_298"><i class="bi bi-file-earmark-text" style="font-size: 14px;" aria-hidden="true"></i> Referencia Oficial de Comandos MeshCore</strong>
+                    <strong data-i18n="ui.static_298"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Referencia Oficial de Comandos MeshCore</strong>
                     <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help">✕</button>
                   </div>
                   <div class="help-drawer-grid">
@@ -1313,7 +1313,7 @@
               <div class="card-panel">
                 <div class="panel-header-modern">
                   <div>
-                    <h3 data-i18n="ui.static_331"><i class="bi bi-database section-icon" style="font-size: 18px;" aria-hidden="true"></i> Almacenamiento Local & Mapas Offline</h3>
+                    <h3 data-i18n="ui.static_331"><i class="bi bi-database section-icon" aria-hidden="true"></i> Almacenamiento Local & Mapas Offline</h3>
                     <p class="panel-desc" data-i18n="ui.static_332">Gestiona la base de datos IndexedDB del navegador y la configuración de capas cartográficas fuera de línea.</p>
                   </div>
                 </div>
@@ -1327,13 +1327,13 @@
                     </div>
                     <p class="card-desc" data-i18n="ui.static_335">SQLite guarda los mensajes y el estado en el servidor. IndexedDB conserva una caché por estación para consultar el historial descargado sin conexión.</p>
                     <div class="settings-form">
-                      <div class="form-group toggle-field-group" style="margin-bottom: 14px;">
+                      <div class="form-group toggle-field-group">
                         <div class="toggle-field-row">
                           <div class="toggle-field-info">
-                            <span class="toggle-field-title" data-i18n="ui.static_336"><i class="bi bi-volume-up" style="font-size: 14px;" aria-hidden="true"></i> Timbre de Alerta Sonora</span>
+                            <span class="toggle-field-title" data-i18n="ui.static_336"><i class="bi bi-volume-up" aria-hidden="true"></i> Timbre de Alerta Sonora</span>
                             <span class="toggle-field-desc" data-i18n="ui.static_337">Reproduce un chime de audio sintetizado al recibir mensajes entrantes (Web Audio API)</span>
                           </div>
-                          <div style="display: flex; align-items: center; gap: 8px;">
+                          <div class="settings-toggle-controls">
                             <span class="toggle-state-badge is-active-success" id="chatSoundBadge" data-i18n="ui.static_128">ON</span>
                             <label class="toggle-switch toggle-success" for="chkChatSoundAlerts" title="Activar o desactivar timbre de audio" data-i18n-title="ui.static_338">
                               <input type="checkbox" id="chkChatSoundAlerts" role="switch" checked aria-label="Timbre de alerta sonora"  data-i18n-aria-label="ui.static_339"/>
@@ -1343,7 +1343,7 @@
                         </div>
                       </div>
                       <div class="form-row">
-                        <button type="button" class="btn btn-danger btn-sm" id="btnClearIndexedDbStorage" data-i18n="ui.static_340"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Vaciar caché local</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="btnClearIndexedDbStorage" data-i18n="ui.static_340"><i class="bi bi-trash" aria-hidden="true"></i> Vaciar caché local</button>
                         <button type="button" class="btn btn-secondary btn-sm" id="btnImportLocalHistory" data-i18n="settings.import_history">Importar historial local anterior</button>
                       </div>
                     </div>
@@ -1357,12 +1357,12 @@
                     </div>
                     <p class="card-desc"><span data-i18n="ui.mixed_maps_before">Permite navegar cartográficamente 100% fuera de línea sin conexión a Internet usando bases de datos</span> <code>.mbtiles</code> <span data-i18n="ui.mixed_maps_after">o carpetas de teselas XYZ locales.</span></p>
                     
-                    <div id="localMapsStatusCard" class="analytics-card" style="margin-bottom: 16px; background: var(--bg-surface-elevated);">
+                    <div id="localMapsStatusCard" class="analytics-card settings-storage-status">
                       <div class="card-title-row">
-                        <h4 style="font-size: 0.9rem; font-weight: 600;" data-i18n="ui.static_343"><i class="bi bi-hdd" style="font-size: 14px;" aria-hidden="true"></i> Estado del Almacenamiento Local</h4>
-                        <button type="button" class="btn btn-secondary btn-xs" id="btnReloadLocalMaps" title="Volver a escanear archivos .mbtiles en data/maps/" data-i18n-title="ui.static_344" data-i18n="ui.static_345"><i class="bi bi-arrow-repeat" style="font-size: 12px;" aria-hidden="true"></i> Reindexar</button>
+                        <h4 data-i18n="ui.static_343"><i class="bi bi-hdd" aria-hidden="true"></i> Estado del Almacenamiento Local</h4>
+                        <button type="button" class="btn btn-secondary btn-xs" id="btnReloadLocalMaps" title="Volver a escanear archivos .mbtiles en data/maps/" data-i18n-title="ui.static_344" data-i18n="ui.static_345"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Reindexar</button>
                       </div>
-                      <div id="localMapsStatusContent" style="font-size: 0.85rem; color: var(--color-text-secondary); margin-top: 8px;">
+                      <div id="localMapsStatusContent" class="settings-status-hint">
                         Detectando mapas locales en <code>data/maps/</code>...
                       </div>
                     </div>
@@ -1373,7 +1373,7 @@
                         <input type="text" id="inputLocalTileUrl" class="form-control" placeholder="/api/map/tiles/{z}/{x}/{y}.png" value="/api/map/tiles/{z}/{x}/{y}.png"  data-i18n-placeholder="ui.static_348"/>
                       </div>
                       <div class="form-row">
-                        <button type="button" class="btn btn-primary btn-sm" id="btnSaveMapSettings" data-i18n="ui.static_349"><i class="bi bi-floppy" style="font-size: 14px;" aria-hidden="true"></i> Guardar Configuración de Mapas</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="btnSaveMapSettings" data-i18n="ui.static_349"><i class="bi bi-floppy" aria-hidden="true"></i> Guardar Configuración de Mapas</button>
                       </div>
                     </div>
                   </div>
@@ -1384,7 +1384,7 @@
             <!-- Subpanel 6: Autenticación & API Key del Bridge -->
             <div id="local-security" class="local-settings-subpanel">
               <div class="settings-content-layout">
-                <div class="settings-cards-col" style="max-width: 800px;">
+                <div class="settings-cards-col settings-stack">
                   <div class="settings-card">
                     <div class="card-title-row">
                       <h3 data-i18n="ui.static_350"><i class="bi bi-shield-check section-icon" aria-hidden="true"></i> Autenticación & API Key del Bridge</h3>
@@ -1397,19 +1397,19 @@
                       <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario"  data-i18n-aria-label="ui.static_352"/>
                       <div class="form-group">
                         <label for="inputBridgeApiKey" data-i18n="ui.static_353">API Key del Bridge (Cabecera X-Api-Key)</label>
-                        <div style="display: flex; gap: 8px; align-items: center;">
+                        <div class="settings-inline-controls">
                           <input type="password" id="inputBridgeApiKey" class="form-control" placeholder="Ingresa tu clave secreta de BRIDGE_API_KEY..." autocomplete="current-password"  data-i18n-placeholder="ui.static_354"/>
                           <button type="button" class="btn btn-primary btn-sm" id="btnSaveBridgeApiKey" data-i18n="modal.save">Guardar</button>
                           <button type="button" class="btn btn-secondary btn-sm" id="btnClearBridgeApiKey" data-i18n="chat.clear">Limpiar</button>
                         </div>
-                        <span id="apiKeyStatusHint" class="text-success text-xs hidden" style="margin-top: 8px; display: inline-block;">✓ API Key guardada para esta sesión de pestaña</span>
+                        <span id="apiKeyStatusHint" class="text-success text-xs hidden settings-status-hint">✓ API Key guardada para esta sesión de pestaña</span>
                         <p class="card-desc" data-i18n="settings.api_session_note">La clave se conserva al recargar esta pestaña y se elimina al terminar su sesión. LocalStorage sólo guarda preferencias.</p>
                       </div>
                     </form>
                   </div>
 
                   <!-- Tarjeta de Ámbito de Inundación (Flood Scope) -->
-                  <div class="settings-card" style="margin-top: 16px;">
+                  <div class="settings-card">
                     <div class="card-title-row">
                       <h3 data-i18n="ui.static_355"><i class="bi bi-broadcast section-icon" aria-hidden="true"></i> Ámbito de Inundación LoRa (Flood Scope)</h3>
                       <span class="badge-pill badge-secondary" data-i18n="ui.static_356">Aislamiento de Malla</span>
@@ -1420,18 +1420,18 @@
                     <form class="settings-form" id="floodScopeForm" onsubmit="return false;" aria-label="Alcance de difusión" data-i18n-aria-label="ui.form_scope">
                       <div class="form-group">
                         <label for="inputFloodScope" data-i18n="ui.static_357">Nombre de Scope (#grupo) o Clave Hexadecimal de Transporte:</label>
-                        <div style="display: flex; gap: 8px; align-items: center;">
+                        <div class="settings-inline-controls">
                           <input type="text" id="inputFloodScope" class="form-control font-mono" placeholder="Ej: #emergencia o clave 16B hex..."  data-i18n-placeholder="ui.static_358"/>
                           <button type="button" class="btn btn-primary btn-sm" id="btnSaveFloodScope" data-i18n="ui.static_359">Aplicar Scope</button>
                           <button type="button" class="btn btn-secondary btn-sm" id="btnResetFloodScope" data-i18n="ui.static_360">Global (Reset)</button>
                         </div>
-                        <span id="floodScopeStatusHint" class="text-xs" style="margin-top: 6px; display: inline-block; color: var(--color-text-secondary);" data-i18n="ui.static_361">Ámbito actual: <strong id="currentFloodScopeLabel">Global (*)</strong></span>
+                        <span id="floodScopeStatusHint" class="text-xs settings-status-hint" data-i18n="ui.static_361">Ámbito actual: <strong id="currentFloodScopeLabel">Global (*)</strong></span>
                       </div>
                     </form>
                   </div>
 
                   <!-- Tarjeta de Política de Auto-Adición de Contactos -->
-                  <div class="settings-card" style="margin-top: 16px;">
+                  <div class="settings-card">
                     <div class="card-title-row">
                       <h3 data-i18n="ui.static_362"><i class="bi bi-person-plus section-icon" aria-hidden="true"></i> Política de Auto-Adición de Contactos (AutoAdd Contact Config)</h3>
                       <span class="badge-pill badge-secondary" data-i18n="ui.static_363">Memoria Flash</span>
@@ -1440,18 +1440,18 @@
                       Configura la máscara de bits y directivas del transceptor cuando escucha paquetes de nodos desconocidos en el medio RF (CMD 58/59).
                     </p>
                     <form class="settings-form" id="autoAddConfigForm" onsubmit="return false;" aria-label="Política de contactos" data-i18n-aria-label="ui.form_contacts">
-                      <div class="form-group" style="display: flex; flex-direction: column; gap: 10px;">
-                        <label for="chkAutoAddChat" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                      <div class="form-group settings-choice-group">
+                        <label for="chkAutoAddChat" class="settings-choice-row">
                           <input type="checkbox" id="chkAutoAddChat" checked />
                           <span data-i18n="ui.static_365">Auto-agregar contactos que envían mensajes directos (<code>AUTO_ADD_CHAT</code>)</span>
                         </label>
-                        <label for="chkAutoAddOverwrite" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <label for="chkAutoAddOverwrite" class="settings-choice-row">
                           <input type="checkbox" id="chkAutoAddOverwrite" />
                           <span data-i18n="ui.static_366">Sobrescribir el contacto más antiguo cuando la flash esté llena (<code>AUTO_ADD_OVERWRITE_OLDEST</code>)</span>
                         </label>
-                        <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
-                          <label for="numAutoAddMaxHops" style="margin: 0; min-width: 170px;" data-i18n="ui.static_367">Máximo de saltos para auto-adición:</label>
-                          <input type="number" id="numAutoAddMaxHops" min="0" max="64" disabled style="width: 80px;" class="form-control" />
+                        <div class="settings-policy-row">
+                          <label for="numAutoAddMaxHops" data-i18n="ui.static_367">Máximo de saltos para auto-adición:</label>
+                          <input type="number" id="numAutoAddMaxHops" min="0" max="64" disabled class="form-control settings-policy-input" />
                           <button type="button" class="btn btn-primary btn-sm" id="btnSaveAutoAddConfig" data-i18n="ui.static_368">Guardar Política</button>
                         </div>
                       </div>
@@ -1464,18 +1464,18 @@
             <!-- Subpanel 7: Servicios de Red (MQTT Local/Externo & TCP Companion) -->
             <div id="local-services" class="local-settings-subpanel">
               <div class="settings-content-layout">
-                <div class="settings-cards-col" style="max-width: 900px;">
+                <div class="settings-cards-col settings-stack">
 
                   <!-- Tarjeta 1: Servidor MQTT Externo & Gestor de Presets -->
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <div style="display: flex; align-items: center; gap: 8px;">
-                        <i class="bi bi-globe section-icon" style="font-size: 18px;" aria-hidden="true"></i>
+                      <div class="card-heading settings-card-title">
+                        <i class="bi bi-globe section-icon" aria-hidden="true"></i>
                         <h3 data-i18n="services.ext_title">Servidor MQTT Externo / Upstream</h3>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 10px;">
+                      <div class="settings-toggle-controls">
                         <span id="badgeExtMqttStatus" class="badge-pill badge-secondary" data-i18n="services.status_disconnected">Desconectado</span>
-                        <label class="switch-toggle" style="margin: 0;" for="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo">
+                        <label class="switch-toggle" for="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo">
                           <input type="checkbox" id="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo" />
                           <span class="slider round"></span>
                         </label>
@@ -1486,23 +1486,23 @@
                     </p>
 
                     <!-- Gestor de Presets -->
-                    <div class="form-group" style="background: var(--color-bg-secondary, rgba(255,255,255,0.03)); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
-                      <label for="selExtMqttPreset" style="font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
-                        <span><i class="bi bi-bookmark" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="services.preset_label">Perfil de Conexión (Preset):</span></span>
-                        <span id="presetTypeBadge" class="badge-pill badge-primary text-xs" style="font-size: 10px;">Personalizado</span>
+                    <div class="form-group settings-preset-panel">
+                      <label for="selExtMqttPreset" class="settings-preset-heading">
+                        <span><i class="bi bi-bookmark" aria-hidden="true"></i> <span data-i18n="services.preset_label">Perfil de Conexión (Preset):</span></span>
+                        <span id="presetTypeBadge" class="badge-pill badge-primary text-xs">Personalizado</span>
                       </label>
-                      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <select id="selExtMqttPreset" class="form-control" style="flex: 1; min-width: 200px;">
+                      <div class="settings-inline-controls">
+                        <select id="selExtMqttPreset" class="form-control settings-inline-control">
                           <!-- Dinámico desde API / services_config.json -->
                         </select>
                         <button type="button" class="btn btn-secondary btn-sm" id="btnSaveCurrentAsPreset" title="Guardar los valores actuales como un perfil nuevo">
-                          <i class="bi bi-plus-circle" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="services.btn_save_preset">Guardar como Preset</span>
+                          <i class="bi bi-plus-circle" aria-hidden="true"></i> <span data-i18n="services.btn_save_preset">Guardar como Preset</span>
                         </button>
                         <button type="button" class="btn btn-danger btn-sm" id="btnDeleteCustomPreset" title="Eliminar el preset personalizado seleccionado" disabled>
-                          <i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="services.btn_delete_preset">Borrar</span>
+                          <i class="bi bi-trash" aria-hidden="true"></i> <span data-i18n="services.btn_delete_preset">Borrar</span>
                         </button>
                       </div>
-                      <small id="presetDescriptionText" style="display: block; margin-top: 6px; color: var(--color-text-secondary);"></small>
+                      <small id="presetDescriptionText" class="settings-status-hint"></small>
                     </div>
 
                     <form id="externalMqttForm" onsubmit="return false;" class="settings-form">
@@ -1527,12 +1527,12 @@
                         </div>
                         <div class="form-group">
                           <span class="form-label d-block mb-1" data-i18n="services.tls_security">Seguridad TLS / SSL:</span>
-                          <div style="display: flex; gap: 16px; align-items: center; margin-top: 8px;">
-                            <label for="chkExtMqttTls" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <div class="settings-inline-controls">
+                            <label for="chkExtMqttTls" class="settings-choice-row">
                               <input type="checkbox" id="chkExtMqttTls" />
                               <span data-i18n="services.enable_tls">Habilitar TLS</span>
                             </label>
-                            <label for="chkExtMqttTlsVerify" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <label for="chkExtMqttTlsVerify" class="settings-choice-row">
                               <input type="checkbox" id="chkExtMqttTlsVerify" checked />
                               <span data-i18n="services.verify_cert">Verificar CA</span>
                             </label>
@@ -1577,7 +1577,7 @@
                       </div>
 
                       <!-- Configuración de Tópicos y Región -->
-                      <div class="form-row-3col" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                      <div class="form-row-3col">
                         <div class="form-group">
                           <label for="selExtMqttTopicMode" data-i18n="services.topic_mode">Modo de Tópicos:</label>
                           <select id="selExtMqttTopicMode" class="form-control">
@@ -1614,36 +1614,36 @@
                       </div>
 
                       <!-- Filtros de Contenido -->
-                      <div style="background: var(--color-bg-secondary, rgba(255,255,255,0.02)); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin: 12px 0;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                          <strong data-i18n="services.filters_title"><i class="bi bi-funnel" style="font-size: 14px;" aria-hidden="true"></i> Filtros de Reenvío LoRa &rarr; MQTT</strong>
-                          <label for="chkExtObserverMode" style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--color-warning, #f59e0b);">
+                      <div class="settings-preset-panel">
+                        <div class="settings-preset-heading">
+                          <strong data-i18n="services.filters_title"><i class="bi bi-funnel" aria-hidden="true"></i> Filtros de Reenvío LoRa &rarr; MQTT</strong>
+                          <label for="chkExtObserverMode" class="settings-choice-row settings-choice-warning">
                             <input type="checkbox" id="chkExtObserverMode" />
                             <strong data-i18n="services.observer_mode">Modo Observer (Sin chats)</strong>
                           </label>
                         </div>
-                        <div class="checkbox-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
-                          <label for="chkExtFilterPublic" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <div class="checkbox-grid">
+                          <label for="chkExtFilterPublic" class="settings-choice-row">
                             <input type="checkbox" id="chkExtFilterPublic" checked />
                             <span data-i18n="services.filter_public">Canal 0 (Público)</span>
                           </label>
-                          <label for="chkExtFilterChannels" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterChannels" class="settings-choice-row">
                             <input type="checkbox" id="chkExtFilterChannels" checked />
                             <span data-i18n="services.filter_channels">Canales Secundarios</span>
                           </label>
-                          <label for="chkExtFilterDirect" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterDirect" class="settings-choice-row">
                             <input type="checkbox" id="chkExtFilterDirect" />
                             <span data-i18n="services.filter_direct">Mensajes Directos (DM)</span>
                           </label>
-                          <label for="chkExtFilterTelemetry" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterTelemetry" class="settings-choice-row">
                             <input type="checkbox" id="chkExtFilterTelemetry" checked />
                             <span data-i18n="services.filter_telemetry">Telemetría y Sensores</span>
                           </label>
-                          <label for="chkExtFilterNodes" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterNodes" class="settings-choice-row">
                             <input type="checkbox" id="chkExtFilterNodes" checked />
                             <span data-i18n="services.filter_nodes">Anuncios de Nodos</span>
                           </label>
-                          <label for="chkExtFilterRaw" style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                          <label for="chkExtFilterRaw" class="settings-choice-row">
                             <input type="checkbox" id="chkExtFilterRaw" />
                             <span data-i18n="services.filter_raw">Tramas RF Crudas (Hex)</span>
                           </label>
@@ -1651,34 +1651,34 @@
                       </div>
 
                       <!-- Downlink Toggle con Advertencia -->
-                      <div style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid var(--color-warning, #f59e0b); padding: 10px 14px; border-radius: 4px; margin: 12px 0;">
-                        <label for="chkExtDownlink" style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600;">
+                      <div class="settings-warning-panel">
+                        <label for="chkExtDownlink" class="settings-choice-row settings-choice-emphasis">
                           <input type="checkbox" id="chkExtDownlink" />
                           <span data-i18n="services.enable_downlink">Permitir retransmisión desde Internet hacia la Radio (Downlink)</span>
                         </label>
-                        <p style="font-size: 11px; margin: 4px 0 0 24px; color: var(--color-text-secondary);" data-i18n="services.downlink_warning">
+                        <p class="settings-warning-description" data-i18n="services.downlink_warning">
                           ⚠️ Advertencia: El downlink hace que tu nodo transmita paquetes al aire, consumiendo tiempo de radio (airtime). Desactivado por defecto.
                         </p>
                       </div>
 
                       <!-- Botón Probar Conexión -->
-                      <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px;">
+                      <div class="settings-form-actions settings-form-actions-start">
                         <button type="button" class="btn btn-secondary" id="btnTestExternalMqtt">
-                          <i class="bi bi-lightning" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="services.btn_test_conn">Probar Conexión</span>
+                          <i class="bi bi-lightning" aria-hidden="true"></i> <span data-i18n="services.btn_test_conn">Probar Conexión</span>
                         </button>
-                        <span id="extMqttTestStatus" class="text-xs" style="font-weight: 500;"></span>
+                        <span id="extMqttTestStatus" class="text-xs font-medium"></span>
                       </div>
                     </form>
                   </div>
 
                   <!-- Tarjeta 2: Servidor MQTT Local / Propio -->
-                  <div class="settings-card" style="margin-top: 16px;">
+                  <div class="settings-card">
                     <div class="card-title-row">
-                      <div style="display: flex; align-items: center; gap: 8px;">
-                        <i class="bi bi-cpu section-icon" style="font-size: 18px;" aria-hidden="true"></i>
+                      <div class="card-heading settings-card-title">
+                        <i class="bi bi-cpu section-icon" aria-hidden="true"></i>
                         <h3 data-i18n="services.local_mqtt_title">Servidor MQTT Local / Domótica (n8n & Home Assistant)</h3>
                       </div>
-                      <label class="switch-toggle" style="margin: 0;" for="chkLocalMqttEnabled" aria-label="Habilitar Servidor MQTT Local">
+                      <label class="switch-toggle" for="chkLocalMqttEnabled" aria-label="Habilitar Servidor MQTT Local">
                         <input type="checkbox" id="chkLocalMqttEnabled" checked aria-label="Habilitar Servidor MQTT Local" />
                         <span class="slider round"></span>
                       </label>
@@ -1702,8 +1702,8 @@
                           <label for="inputLocalMqttPrefix" data-i18n="services.local_prefix">Tópico Raíz:</label>
                           <input type="text" id="inputLocalMqttPrefix" class="form-control font-mono" value="meshcore" />
                         </div>
-                        <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 8px;">
-                          <label for="chkLocalMqttAuth" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <div class="form-group settings-form-align-end">
+                          <label for="chkLocalMqttAuth" class="settings-choice-row">
                             <input type="checkbox" id="chkLocalMqttAuth" />
                             <span data-i18n="services.local_auth_toggle">Requiere Autenticación</span>
                           </label>
@@ -1723,13 +1723,13 @@
                   </div>
 
                   <!-- Tarjeta 3: Servidor TCP Companion -->
-                  <div class="settings-card" style="margin-top: 16px;">
+                  <div class="settings-card">
                     <div class="card-title-row">
-                      <div style="display: flex; align-items: center; gap: 8px;">
-                        <i class="bi bi-phone section-icon" style="font-size: 18px;" aria-hidden="true"></i>
+                      <div class="card-heading settings-card-title">
+                        <i class="bi bi-phone section-icon" aria-hidden="true"></i>
                         <h3 data-i18n="services.tcp_title">Servidor TCP Companion (App Móvil Oficial & CLI)</h3>
                       </div>
-                      <label class="switch-toggle" style="margin: 0;" for="chkTcpServerEnabled" aria-label="Habilitar Servidor TCP Companion">
+                      <label class="switch-toggle" for="chkTcpServerEnabled" aria-label="Habilitar Servidor TCP Companion">
                         <input type="checkbox" id="chkTcpServerEnabled" checked aria-label="Habilitar Servidor TCP Companion" />
                         <span class="slider round"></span>
                       </label>
@@ -1765,8 +1765,8 @@
                   </div>
 
                   <!-- Botón Principal Guardar y Aplicar -->
-                  <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
-                    <button type="button" class="btn btn-primary" id="btnSaveServicesConfig" style="padding: 10px 24px; font-size: 14px;">
+                  <div class="settings-form-actions">
+                    <button type="button" class="btn btn-primary" id="btnSaveServicesConfig">
                       <i class="bi bi-floppy" aria-hidden="true"></i> <span data-i18n="services.btn_save_all">Guardar y Aplicar Servicios</span>
                     </button>
                   </div>

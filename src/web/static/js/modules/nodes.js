@@ -416,7 +416,7 @@ export class NodesModule {
     const accordion = `
       <details class="node-route-accordion">
         <summary class="route-accordion-summary">
-          <i class="bi bi-signpost-split me-1" style="font-size: 12px;" aria-hidden="true"></i>
+          <i class="bi bi-signpost-split button-icon" aria-hidden="true"></i>
           <span>${I18n.t('nodes.route_details_btn')}</span>
         </summary>
         <div class="route-accordion-content">
@@ -424,8 +424,8 @@ export class NodesModule {
             <div class="route-section-title">
               <span>${I18n.t('nodes.route_rx_title')}</span>
               ${rxHashesStr ? `
-                <button type="button" class="btn-copy-hashes" data-hashes="${escapeHtml(rxHashesStr)}" title="${I18n.t('nodes.copy_hashes')}">
-                  <i class="bi bi-clipboard" style="font-size: 11px;" aria-hidden="true"></i>
+                <button type="button" class="btn-copy-hashes btn-card-icon" data-hashes="${escapeHtml(rxHashesStr)}" title="${escapeHtml(I18n.t('nodes.copy_hashes'))}" aria-label="${escapeHtml(`${I18n.t('nodes.copy_hashes')}: ${I18n.t('nodes.route_rx_title')}`)}">
+                  <i class="bi bi-clipboard button-icon" aria-hidden="true"></i>
                 </button>
               ` : ''}
             </div>
@@ -441,8 +441,8 @@ export class NodesModule {
             <div class="route-section-title">
               <span>${I18n.t('nodes.route_tx_title')}</span>
               ${txHashesStr ? `
-                <button type="button" class="btn-copy-hashes" data-hashes="${escapeHtml(txHashesStr)}" title="${I18n.t('nodes.copy_hashes')}">
-                  <i class="bi bi-clipboard" style="font-size: 11px;" aria-hidden="true"></i>
+                <button type="button" class="btn-copy-hashes btn-card-icon" data-hashes="${escapeHtml(txHashesStr)}" title="${escapeHtml(I18n.t('nodes.copy_hashes'))}" aria-label="${escapeHtml(`${I18n.t('nodes.copy_hashes')}: ${I18n.t('nodes.route_tx_title')}`)}">
+                  <i class="bi bi-clipboard button-icon" aria-hidden="true"></i>
                 </button>
               ` : ''}
             </div>
@@ -540,25 +540,25 @@ export class NodesModule {
     card.setAttribute("data-has-gps", hasGps ? "1" : "0");
 
     if (isContact) {
-      card.className = `contact-card ${isDisconnected ? "contact-card-offline" : ""}`;
+      card.className = `contact-card directory-card ${isDisconnected ? "contact-card-offline" : ""}`;
       card.setAttribute("data-favorite", node.is_favorite ? "1" : "0");
 
       card.innerHTML = `
-        <div class="contact-card-header">
+        <div class="contact-card-header directory-card-header">
           <div class="node-card-avatar-wrapper">
-            <div class="contact-avatar font-mono">${escapeHtml(cleanName.slice(0, 2).toUpperCase())}</div>
+            <div class="contact-avatar" aria-hidden="true">${escapeHtml(cleanName.slice(0, 2).toUpperCase())}</div>
             <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>
           </div>
-          <div class="contact-info">
+          <div class="contact-info directory-card-info">
             <div class="contact-title-row">
-              <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
-              ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}">🔋 ${escapeHtml(batInfo.chipText)}</span>` : ""}
-              <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="${I18n.t('nodes.favorite')}">
-                <i class="bi ${node.is_favorite ? "bi-star-fill text-warning" : "bi-star"}" style="font-size: 14px;" aria-hidden="true"></i>
+              <span class="contact-name directory-card-title" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
+              <button type="button" class="btn-toggle-fav btn-card-icon ${node.is_favorite ? "is-fav" : ""}" title="${escapeHtml(node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav'))}" aria-label="${escapeHtml(`${I18n.t('nodes.favorite')}: ${cleanName}`)}" aria-pressed="${node.is_favorite ? "true" : "false"}">
+                <i class="bi ${node.is_favorite ? "bi-star-fill text-warning" : "bi-star"} button-icon" aria-hidden="true"></i>
               </button>
             </div>
+            <div class="directory-card-badges">${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}"><i class="bi bi-battery-half button-icon" aria-hidden="true"></i> ${escapeHtml(batInfo.chipText)}</span>` : ""}</div>
             <div class="node-card-sub-row">
-              <span class="node-card-activity font-mono" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
+              <span class="node-card-activity" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
             </div>
           </div>
         </div>
@@ -566,7 +566,7 @@ export class NodesModule {
         <div class="node-telemetry-panel">
           <div class="node-meta-row">
             <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-            <span>${hasGps ? `📍 ${fLat.toFixed(3)}, ${fLon.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
+            <span>${hasGps ? `<i class="bi bi-geo-alt button-icon" aria-hidden="true"></i> <span class="font-mono">${fLat.toFixed(3)}, ${fLon.toFixed(3)}</span>` : `<span class="color-dim">${I18n.t('common.no_gps')}</span>`}</span>
           </div>
           <div class="node-meta-sub">
             <span>${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong></span>
@@ -575,24 +575,26 @@ export class NodesModule {
         </div>
 
         <div class="contact-card-chips">
-          <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
-          <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
-          <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}"><i class="bi bi-broadcast button-icon" aria-hidden="true"></i> <strong>${escapeHtml(rssiVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}"><i class="bi bi-reception-4 button-icon" aria-hidden="true"></i> <strong>${escapeHtml(snrVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}"><i class="bi bi-signpost-split button-icon" aria-hidden="true"></i> <strong>${escapeHtml(hopsVal)}</strong></div>
         </div>
 
-        <div class="contact-card-actions">
-          <button type="button" class="btn btn-primary btn-sm btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
-            <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>${I18n.t('nodes.chat_btn')}
+        <div class="contact-card-actions directory-card-actions">
+          <button type="button" class="btn btn-primary btn-sm btn-card-action btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
+            <i class="bi bi-chat-dots button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.chat_btn')}</span>
           </button>
-          <button type="button" class="btn btn-secondary btn-sm btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
-            <i class="bi bi-signpost-split me-1" aria-hidden="true"></i>${I18n.t('nodes.trace_btn')}
+          <button type="button" class="btn btn-secondary btn-sm btn-card-action btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
+            <i class="bi bi-signpost-split button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.trace_btn')}</span>
           </button>
-          <button type="button" class="btn btn-outline-secondary btn-sm btn-contact-qr" title="${I18n.t('contacts.title_qr')}">
-            <i class="bi bi-qr-code" aria-hidden="true"></i>
-          </button>
-          <button type="button" class="btn btn-outline-danger btn-sm btn-contact-del" title="${I18n.t('contacts.title_del')}">
-            <i class="bi bi-trash" aria-hidden="true"></i>
-          </button>
+          <div class="directory-card-tools">
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-card-icon btn-contact-qr" title="${I18n.t('contacts.title_qr')}" aria-label="${escapeHtml(`${I18n.t('contacts.title_qr')}: ${cleanName}`)}">
+              <i class="bi bi-qr-code button-icon" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm btn-card-icon btn-contact-del" title="${I18n.t('contacts.title_del')}" aria-label="${escapeHtml(`${I18n.t('contacts.title_del')}: ${cleanName}`)}">
+              <i class="bi bi-trash button-icon" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
       `;
 
@@ -606,6 +608,9 @@ export class NodesModule {
           card.setAttribute("data-favorite", newFav ? "1" : "0");
           favBtn.classList.toggle("is-fav", newFav);
           favBtn.title = newFav ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav');
+          favBtn.setAttribute("aria-pressed", String(newFav));
+          const favIcon = favBtn.querySelector(".button-icon");
+          if (favIcon) favIcon.className = `bi ${newFav ? "bi-star-fill text-warning" : "bi-star"} button-icon`;
 
           const known = this.knownNodes.get(node.public_key.toLowerCase());
           if (known) known.is_favorite = newFav;
@@ -690,38 +695,38 @@ export class NodesModule {
 
     } else {
       // Modo Node (Malla Unificada)
-      card.className = `node-card ${roleClass}-card ${isDisconnected ? "node-card-offline" : ""}`;
+      card.className = `node-card directory-card ${roleClass}-card ${isDisconnected ? "node-card-offline" : ""}`;
       card.setAttribute("data-role", roleUpper);
 
-      const avatarIcon = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : (isRoom ? "💬" : "👤")));
+      const avatarIcon = isLocal ? "bi-house" : (isRepeater ? "bi-broadcast" : (isSensor ? "bi-thermometer-half" : (isRoom ? "bi-chat-dots" : "bi-person")));
 
       let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
       if (isLocal) {
-        telemLine2 = `🖥️ <strong>${I18n.t("nodes.usb_host")}</strong>`;
+        telemLine2 = `<i class="bi bi-pc-display button-icon" aria-hidden="true"></i> <strong>${I18n.t("nodes.usb_host")}</strong>`;
       } else if (node.temperature_c != null) {
-        telemLine2 = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
+        telemLine2 = `<i class="bi bi-thermometer-half button-icon" aria-hidden="true"></i> <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `<i class="bi bi-droplet button-icon" aria-hidden="true"></i> ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
       } else if (node.owner_name) {
         telemLine2 = `${I18n.t('nodes.owner_label')} <strong>${escapeHtml(node.owner_name)}</strong>`;
       }
 
       card.innerHTML = `
-        <div class="node-card-header">
+        <div class="node-card-header directory-card-header">
           <div class="node-card-avatar-wrapper">
             <div class="node-card-avatar avatar-${roleClass === "role-local" ? "local" : (roleClass === "role-repeater" ? "repeater" : (roleClass === "role-sensor" ? "sensor" : "client"))}">
-              ${avatarIcon}
+              <i class="bi ${avatarIcon}" aria-hidden="true"></i>
             </div>
             <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>
           </div>
-          <div class="node-card-info">
+          <div class="node-card-info directory-card-info">
             <div class="node-card-top-row">
-              <span class="node-card-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
-              <div class="node-card-badges-group">
-                ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}">🔋 ${escapeHtml(batInfo.chipText)}</span>` : ""}
-                <span class="node-role-badge ${roleClass}">${escapeHtml(I18n.role(roleUpper))}</span>
-              </div>
+              <span class="node-card-name directory-card-title" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
+            </div>
+            <div class="node-card-badges-group directory-card-badges">
+              <span class="node-role-badge ${roleClass}">${escapeHtml(I18n.role(roleUpper))}</span>
+              ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}"><i class="bi bi-battery-half button-icon" aria-hidden="true"></i> ${escapeHtml(batInfo.chipText)}</span>` : ""}
             </div>
             <div class="node-card-sub-row">
-              <span class="node-card-activity font-mono" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
+              <span class="node-card-activity" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
             </div>
           </div>
         </div>
@@ -729,53 +734,55 @@ export class NodesModule {
         <div class="node-telemetry-panel">
           <div class="node-meta-row">
             <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-            <span>${hasGps ? `📍 ${fLat.toFixed(3)}, ${fLon.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
+            <span>${hasGps ? `<i class="bi bi-geo-alt button-icon" aria-hidden="true"></i> <span class="font-mono">${fLat.toFixed(3)}, ${fLon.toFixed(3)}</span>` : `<span class="color-dim">${I18n.t('common.no_gps')}</span>`}</span>
           </div>
           <div class="node-meta-sub">
             <span>${telemLine2}</span>
-            ${isLocal ? `<span>⚡ <strong>5V USB</strong></span>` : `<span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>`}
+            ${isLocal ? `<span><i class="bi bi-lightning-charge button-icon" aria-hidden="true"></i> <strong>5V USB</strong></span>` : `<span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>`}
           </div>
         </div>
 
         ${isLocal ? "" : `
         <div class="node-rf-strip">
-          <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
-          <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
-          <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}"><i class="bi bi-broadcast button-icon" aria-hidden="true"></i> <strong>${escapeHtml(rssiVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}"><i class="bi bi-reception-4 button-icon" aria-hidden="true"></i> <strong>${escapeHtml(snrVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}"><i class="bi bi-signpost-split button-icon" aria-hidden="true"></i> <strong>${escapeHtml(hopsVal)}</strong></div>
         </div>
         `}
 
         ${this._renderTelemetryMetricsHtml(node, isLocal)}
 
-        <div class="node-actions-bar">
+        <div class="node-actions-bar directory-card-actions">
           ${isRepeater ? `
-            <button type="button" class="btn btn-primary btn-sm btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
-              <i class="bi bi-sliders me-1" aria-hidden="true"></i>${I18n.t('nodes.manage_btn')}
+            <button type="button" class="btn btn-primary btn-sm btn-card-action btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
+              <i class="bi bi-sliders button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.manage_btn')}</span>
             </button>
           ` : ""}
           ${!isLocal && !isRepeater && !isSensor ? `
-            <button type="button" class="btn btn-primary btn-sm btn-dm-node" title="${I18n.t('nodes.title_dm')}">
-              <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>${I18n.t('nodes.chat_btn')} DM
+            <button type="button" class="btn btn-primary btn-sm btn-card-action btn-dm-node" title="${I18n.t('nodes.title_dm')}">
+              <i class="bi bi-chat-dots button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.chat_btn')} DM</span>
             </button>
           ` : ""}
           ${!isLocal && isRepeater ? `
-            <button type="button" class="btn btn-secondary btn-sm btn-ping-node" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
-              <i class="bi bi-bullseye me-1" aria-hidden="true"></i>${I18n.t('nodes.ping_btn') || 'Ping'}
+            <button type="button" class="btn btn-secondary btn-sm btn-card-action btn-ping-node" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
+              <i class="bi bi-bullseye button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.ping_btn') || 'Ping'}</span>
             </button>
           ` : ""}
           ${isLocal ? `
-            <button type="button" class="btn btn-secondary btn-sm btn-configure-local" title="${I18n.t('nodes.title_settings')}">
-              <i class="bi bi-gear me-1" aria-hidden="true"></i>${I18n.t('nodes.settings_btn')}
+            <button type="button" class="btn btn-secondary btn-sm btn-card-action btn-configure-local" title="${I18n.t('nodes.title_settings')}">
+              <i class="bi bi-gear button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.settings_btn')}</span>
             </button>
           ` : ""}
           ${!isLocal ? `
-            <button type="button" class="btn btn-secondary btn-sm btn-trace-node" title="${I18n.t('nodes.title_trace')}">
-              <i class="bi bi-signpost-split me-1" aria-hidden="true"></i>${I18n.t('nodes.trace_btn')}
+            <button type="button" class="btn btn-secondary btn-sm btn-card-action btn-trace-node" title="${I18n.t('nodes.title_trace')}">
+              <i class="bi bi-signpost-split button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.trace_btn')}</span>
             </button>
           ` : ""}
-          <button type="button" class="btn btn-outline-secondary btn-sm btn-node-qr" title="${I18n.t('nodes.title_qr')}">
-            <i class="bi bi-qr-code" aria-hidden="true"></i>
-          </button>
+          <div class="directory-card-tools">
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-card-icon btn-node-qr" title="${I18n.t('nodes.title_qr')}" aria-label="${escapeHtml(`${I18n.t('nodes.title_qr')}: ${cleanName}`)}">
+              <i class="bi bi-qr-code button-icon" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
       `;
 
@@ -1190,16 +1197,16 @@ export class NodesModule {
         let batEl = card.querySelector(".contact-battery-chip");
         if (batEl) {
           batEl.className = `contact-battery-chip ${batInfo.levelClass}`.trim();
-          batEl.textContent = `🔋 ${batInfo.chipText}`;
+          batEl.innerHTML = `<i class="bi bi-battery-half button-icon" aria-hidden="true"></i> ${escapeHtml(batInfo.chipText)}`;
           batEl.title = batInfo.tooltip;
         } else {
-          const titleRow = card.querySelector(".contact-title-row, .node-card-badges-group");
+          const titleRow = card.querySelector(".directory-card-badges");
           if (titleRow) {
             const chip = document.createElement("span");
             chip.className = `contact-battery-chip ${batInfo.levelClass}`.trim();
             chip.title = batInfo.tooltip;
-            chip.textContent = `🔋 ${batInfo.chipText}`;
-            titleRow.insertBefore(chip, titleRow.firstChild);
+            chip.innerHTML = `<i class="bi bi-battery-half button-icon" aria-hidden="true"></i> ${escapeHtml(batInfo.chipText)}`;
+            titleRow.appendChild(chip);
           }
         }
       } else if (isLocal) {
@@ -1211,9 +1218,9 @@ export class NodesModule {
       const telemEl = card.querySelector(".node-telemetry-panel .node-meta-sub span:first-child");
       if (telemEl) {
         if (isLocal) {
-          telemEl.innerHTML = `🖥️ <strong>${I18n.t("nodes.usb_host")}</strong>`;
+          telemEl.innerHTML = `<i class="bi bi-pc-display button-icon" aria-hidden="true"></i> <strong>${I18n.t("nodes.usb_host")}</strong>`;
         } else if (node.temperature_c != null) {
-          telemEl.innerHTML = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
+          telemEl.innerHTML = `<i class="bi bi-thermometer-half button-icon" aria-hidden="true"></i> <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `<i class="bi bi-droplet button-icon" aria-hidden="true"></i> ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
         } else if (node.owner_name) {
           telemEl.innerHTML = `${window.I18n ? window.I18n.t('nodes.owner_label') : "Dueño:"} <strong>${escapeHtml(node.owner_name)}</strong>`;
         } else if (node.best_route || node.hops != null) {
@@ -1236,7 +1243,7 @@ export class NodesModule {
       const hasGps = !isNaN(fLat) && !isNaN(fLon) && (fLat !== 0 || fLon !== 0 || node.position_valid);
       const gpsEl = card.querySelector(".node-telemetry-panel .node-meta-row span:last-child");
       if (gpsEl) {
-        gpsEl.innerHTML = hasGps ? `📍 ${fLat.toFixed(3)}, ${fLon.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`;
+        gpsEl.innerHTML = hasGps ? `<i class="bi bi-geo-alt button-icon" aria-hidden="true"></i> <span class="font-mono">${fLat.toFixed(3)}, ${fLon.toFixed(3)}</span>` : `<span class="color-dim">${I18n.t('common.no_gps')}</span>`;
       }
       card.setAttribute("data-has-gps", hasGps ? "1" : "0");
 
@@ -1298,7 +1305,7 @@ export class NodesModule {
     const originalHtml = btnEl ? btnEl.innerHTML : null;
     if (btnEl) {
       btnEl.disabled = true;
-      btnEl.innerHTML = `<i class="bi bi-arrow-repeat spin me-1" style="font-size: 13px;" aria-hidden="true"></i> ${window.I18n ? window.I18n.t('nodes.pinging') || 'Midiendo...' : 'Midiendo...'}`;
+      btnEl.innerHTML = `<i class="bi bi-arrow-repeat spin button-icon" aria-hidden="true"></i><span>${window.I18n ? window.I18n.t('nodes.pinging') || 'Midiendo...' : 'Midiendo...'}</span>`;
     }
 
     try {
@@ -1363,10 +1370,10 @@ export class NodesModule {
         if (originalHtml) {
           btnEl.innerHTML = originalHtml;
         } else {
-          btnEl.innerHTML = `<i class="bi bi-bullseye me-1" style="font-size: 13px;" aria-hidden="true"></i> ${window.I18n ? window.I18n.t('nodes.ping_btn') || 'Ping' : 'Ping'}`;
+          btnEl.innerHTML = `<i class="bi bi-bullseye button-icon" aria-hidden="true"></i><span>${window.I18n ? window.I18n.t('nodes.ping_btn') || 'Ping' : 'Ping'}</span>`;
         }
       } else {
-        btnEl.innerHTML = `<i class="bi bi-clock me-1" style="font-size: 13px;" aria-hidden="true"></i> ${remaining}s`;
+        btnEl.innerHTML = `<i class="bi bi-clock button-icon" aria-hidden="true"></i><span>${remaining}s</span>`;
         setTimeout(tick, 1000);
       }
     };

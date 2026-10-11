@@ -99,7 +99,32 @@ existing DOM-ID preservation and the heuristic linter were checked. No browser,
 suite, service or radio operation was run; this is not runtime accessibility or
 performance evidence. See the plan for remaining Phase 2–3 work and acceptance.
 
-### Asset selection and cache
+### Compact card delivery — 2026-10-11
+
+Node/contact directories, statistics/telemetry and all seven local settings
+panels now use shared density and alignment rules. Base desktop buttons are
+32px high and small variants 30px, while coarse-pointer targets remain at least
+44px. With the usual 16px root, names/body use 14px, metadata 12.5px and KPI
+values 22px. Root sizing respects browser preferences; phone inputs use 16px.
+Card padding/gaps are 14px/12px, avatars 36px. Bounded grids, full-name wrapping,
+independent badge/tool rows and protected field widths support narrow layouts.
+
+Directory markup retains event/data selectors and live GPS/battery updates;
+favorites expose state and icon-only actions have contextual names. Local
+icons replace presentation glyphs. Statistics headings, label/value rows and
+sparklines have explicit alignment; settings headings/actions wrap and technical
+tables retain local scrolling. Removed 136 inline presentation attributes from
+HTML; all functional attributes and text remain unchanged. The English README
+and the modernization plan describe this delivery and remaining acceptance.
+
+Build/check verifies 25 assets: 2,011,354 source bytes, 1,726,281 served bytes and
+337,659 gzip bytes. Static verification includes 37 JS syntax checks, 560
+preserved unique IDs, ARIA/import/icon references, HTML attribute comparison,
+declared color-pair calculations and the heuristic linter. No runtime browser
+or suites were executed, and no performance or complete accessibility result
+is claimed. Existing APIs and manual radio operations retain their behavior.
+
+### Asset selection and cache behavior
 
 `AssetsAdapter` mantiene las URLs originales. Selecciona la variante minimizada
 cuando coinciden los SHA256 de fuente y destino registrados en el manifest;

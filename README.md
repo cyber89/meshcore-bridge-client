@@ -19,11 +19,11 @@ Run it on a Linux gateway or a Windows computer, open the dashboard from your br
 | **Maps and analytics** | Node positions, link quality, RF activity, airtime estimates, health metrics, logs, and packet inspection. Local MBTiles and XYZ tile storage support map use without downloading each tile. |
 | **Automation** | Structured MQTT receive events, outgoing message requests, transmission status, and administrative commands. Optional external broker forwarding includes event filters and location privacy settings. |
 | **Companion access** | A TCP Companion endpoint for compatible MeshCore mobile applications and CLI tools, with command arbitration for the shared radio. |
-| **Web experience** | Responsive navigation, light and dark themes, keyboard selection for conversations, map nodes and subtabs, field-linked channel/contact validation, live WebSocket updates, and a REST API with a locally served OpenAPI viewer. |
+| **Web experience** | Compact, aligned node/contact cards and statistics/settings panels, responsive navigation, light and dark themes, keyboard selection for conversations, map nodes and subtabs, field-linked channel/contact validation, live WebSocket updates, and a REST API with a locally served OpenAPI viewer. |
 
 The radio remains the source of MeshCore protocol behavior. Available commands depend on its firmware and capabilities. Repeater devices belong to the node and administration views; they never appear as chat contacts or receive chat/DM requests. The local station cannot be a message destination.
 
-The [frontend modernization plan](docs/FRONTEND_MODERNIZATION_PLAN.md) records the implementation and remaining acceptance work. Current verification covers source syntax, references and generated assets; browser layout and interaction acceptance remain pending.
+Desktop controls use compact spacing; touch screens retain larger action targets and form text. Card grids and action rows adapt to available width, while long names and technical values can wrap. The [frontend modernization plan](docs/FRONTEND_MODERNIZATION_PLAN.md) records the implementation and remaining acceptance work. Current verification covers source syntax, references and generated assets; browser layout and interaction acceptance remain pending.
 
 ### Efficient delivery and mesh operation
 
