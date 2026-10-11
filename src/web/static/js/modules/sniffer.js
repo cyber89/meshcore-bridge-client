@@ -5,6 +5,7 @@
 
 import { escapeHtml, debounce, MAX_SYSTEM_LOGS, MAX_RAW_PACKETS } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
+import { initManualTabs } from "../core/tabs.js";
 
 /**
  * Formatea un búfer binario o cadena hexadecimal al estilo estándar Wireshark / xxd.
@@ -158,12 +159,10 @@ export class SnifferModule {
 
   _bindEvents() {
     // Alternar subpestañas Dual Sniffer
-    if (this.dom.btnSubtabLogs) {
-      this.dom.btnSubtabLogs.addEventListener("click", () => this.switchSubtab("logs"));
-    }
-    if (this.dom.btnSubtabSniffer) {
-      this.dom.btnSubtabSniffer.addEventListener("click", () => this.switchSubtab("sniffer"));
-    }
+    this._viewTabs = initManualTabs(this.dom.btnSubtabLogs?.parentElement, {
+      panelAttribute: "data-target",
+      onActivate: (tab) => this.switchSubtab(tab === this.dom.btnSubtabLogs ? "logs" : "sniffer"),
+    });
 
     // Controles de Logs del Sistema
     if (this.dom.chkDebugMode) {
@@ -221,15 +220,11 @@ export class SnifferModule {
     if (this.dom.btnClosePacketInspector) {
       this.dom.btnClosePacketInspector.addEventListener("click", () => this.closePacketInspector());
     }
-    if (this.dom.inspectorTabSemantic) {
-      this.dom.inspectorTabSemantic.addEventListener("click", () => this.switchInspectorTab("semantic"));
-    }
-    if (this.dom.inspectorTabHex) {
-      this.dom.inspectorTabHex.addEventListener("click", () => this.switchInspectorTab("hex"));
-    }
-    if (this.dom.inspectorTabJson) {
-      this.dom.inspectorTabJson.addEventListener("click", () => this.switchInspectorTab("json"));
-    }
+    this._inspectorTabs = initManualTabs(this.dom.inspectorTabSemantic?.parentElement, {
+      panelAttribute: "data-panel",
+      onActivate: (tab) => this.switchInspectorTab(tab === this.dom.inspectorTabSemantic ? "semantic" :
+        tab === this.dom.inspectorTabHex ? "hex" : "json"),
+    });
     if (this.dom.btnCopyHexDump) {
       this.dom.btnCopyHexDump.addEventListener("click", () => this.copyHexDumpToClipboard());
     }
@@ -271,6 +266,7 @@ export class SnifferModule {
 
   switchSubtab(target) {
     const isLogs = target === "logs";
+    this._viewTabs?.sync(isLogs ? this.dom.btnSubtabLogs : this.dom.btnSubtabSniffer);
     if (this.dom.btnSubtabLogs) this.dom.btnSubtabLogs.classList.toggle("active", isLogs);
     if (this.dom.btnSubtabSniffer) this.dom.btnSubtabSniffer.classList.toggle("active", !isLogs);
     if (this.dom.subpanelSystemLogs) this.dom.subpanelSystemLogs.classList.toggle("hidden", !isLogs);
@@ -625,6 +621,8 @@ export class SnifferModule {
   }
 
   switchInspectorTab(tab) {
+    this._inspectorTabs?.sync(tab === "semantic" ? this.dom.inspectorTabSemantic :
+      tab === "hex" ? this.dom.inspectorTabHex : this.dom.inspectorTabJson);
     if (this.dom.inspectorTabSemantic) this.dom.inspectorTabSemantic.classList.toggle("active", tab === "semantic");
     if (this.dom.inspectorTabHex) this.dom.inspectorTabHex.classList.toggle("active", tab === "hex");
     if (this.dom.inspectorTabJson) this.dom.inspectorTabJson.classList.toggle("active", tab === "json");

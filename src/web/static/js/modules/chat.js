@@ -131,6 +131,10 @@ export class ChatModule {
   onLanguageChange() {
     this._updateActiveChatHeader();
     this.updateCharCounter();
+    this._syncConversationSelection();
+    this.dom.dmListUi?.querySelectorAll(".channel-item").forEach((item) => {
+      this._updateDmCloseLabel(item);
+    });
     this._paintConversation(this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`, { preserveScroll: true });
     if (this.dom.modalShareContact && !this.dom.modalShareContact.classList.contains('hidden')) {
       this._populateShareContactList(this.dom.shareContactSearch?.value || '');
@@ -463,6 +467,7 @@ export class ChatModule {
 
   _populateShareContactList(filterQuery = "") {
     if (!this.dom.shareContactList) return;
+    const focusKey = this._getPickerFocusKey(this.dom.shareContactList);
     this.dom.shareContactList.innerHTML = "";
     const q = (filterQuery || "").toLowerCase().trim();
 
@@ -508,32 +513,35 @@ export class ChatModule {
           ${q ? I18n.t("chat.contacts_no_match", { p0: escapeHtml(q) }) : I18n.t("chat.no_contacts_share")}
         </div>
       `;
+      this._restorePickerFocus(this.dom.shareContactList, focusKey);
       return;
     }
 
     const frag = document.createDocumentFragment();
     clientContacts.forEach((contact) => {
-      const item = document.createElement("div");
+      const item = document.createElement("button");
+      item.type = "button";
       item.className = "share-picker-item";
+      item.dataset.shareKey = contact.public_key;
       const isMyContact = Boolean(contact.is_my_contact);
       const cleanName = contact.name || contact.alias || contact.public_key.slice(0, 8);
       const isSelected = this.selectedShareContact?.public_key === contact.public_key;
       if (isSelected) item.classList.add("selected");
+      item.setAttribute("aria-pressed", String(isSelected));
 
       item.innerHTML = `
-        <div class="share-picker-left">
-          <span style="font-size: 18px;">${isMyContact ? "⭐" : "👤"}</span>
-          <div>
-            <div class="share-picker-title">${escapeHtml(cleanName)}</div>
-            <div class="share-picker-sub">${escapeHtml(contact.public_key.slice(0, 14))}… • ${isMyContact ? (window.I18n ? window.I18n.t('chat.my_station_sub') : "Mi Estación Local") : escapeHtml(contact.role || "CLIENT")}</div>
-          </div>
-        </div>
+        <span class="share-picker-left">
+          <span aria-hidden="true" style="font-size: 18px;">${isMyContact ? "⭐" : "👤"}</span>
+          <span>
+            <span class="share-picker-title">${escapeHtml(cleanName)}</span>
+            <span class="share-picker-sub">${escapeHtml(contact.public_key.slice(0, 14))}… • ${isMyContact ? (window.I18n ? window.I18n.t('chat.my_station_sub') : "Mi Estación Local") : escapeHtml(contact.role || "CLIENT")}</span>
+          </span>
+        </span>
         <span class="badge-pill ${isMyContact ? 'badge-primary' : ''}">${isMyContact ? (window.I18n ? window.I18n.t('chat.my_contact_badge') : "Mi Contacto") : (contact.is_favorite ? "⭐" : I18n.t("chat.contact"))}</span>
       `;
 
       item.addEventListener("click", () => {
-        this.dom.shareContactList.querySelectorAll(".share-picker-item").forEach((el) => el.classList.remove("selected"));
-        item.classList.add("selected");
+        this._selectPickerItem(this.dom.shareContactList, item);
         this.selectedShareContact = contact;
         if (this.dom.btnConfirmShareContact) this.dom.btnConfirmShareContact.disabled = false;
       });
@@ -542,6 +550,32 @@ export class ChatModule {
     });
 
     this.dom.shareContactList.appendChild(frag);
+    this._restorePickerFocus(this.dom.shareContactList, focusKey);
+  }
+
+  _getPickerFocusKey(list) {
+    const focused = document.activeElement;
+    return list.contains(focused) ? focused?.dataset.shareKey : null;
+  }
+
+  _restorePickerFocus(list, key) {
+    if (key == null) return;
+    const replacement = Array.from(list.querySelectorAll(".share-picker-item"))
+      .find((item) => item.dataset.shareKey === key);
+    if (replacement) replacement.focus({ preventScroll: true });
+    else {
+      const fallback = list === this.dom.shareContactList
+        ? this.dom.shareContactSearch
+        : this.dom.btnCancelShareChannel;
+      fallback?.focus({ preventScroll: true });
+    }
+  }
+
+  _selectPickerItem(list, selected) {
+    list.querySelectorAll(".share-picker-item").forEach((item) => {
+      item.classList.toggle("selected", item === selected);
+      item.setAttribute("aria-pressed", String(item === selected));
+    });
   }
 
   filterShareContactList(query) {
@@ -585,6 +619,7 @@ export class ChatModule {
 
   _populateShareChannelList() {
     if (!this.dom.shareChannelList) return;
+    const focusKey = this._getPickerFocusKey(this.dom.shareChannelList);
     this.dom.shareChannelList.innerHTML = "";
 
     const rawList = this.ctx.channelsList || this.ctx.settingsModule?.channelsList || [];
@@ -605,30 +640,35 @@ export class ChatModule {
       `;
       this.dom.shareChannelList.appendChild(emptyDiv);
       if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = true;
+      this._restorePickerFocus(this.dom.shareChannelList, focusKey);
       return;
     }
 
     const frag = document.createDocumentFragment();
     chList.forEach((ch) => {
-      const item = document.createElement("div");
+      const item = document.createElement("button");
+      item.type = "button";
       item.className = "share-picker-item";
+      item.dataset.shareKey = String(ch.index);
+      const isSelected = String(this.selectedShareChannel?.index) === String(ch.index);
+      item.classList.toggle("selected", isSelected);
+      item.setAttribute("aria-pressed", String(isSelected));
       const chName = ch.name || I18n.t("chat.channel_name", { p0: ch.index });
       const isEncrypted = Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0 && ch.psk !== MESHCORE_PUBLIC_CHANNEL_SECRET));
 
       item.innerHTML = `
-        <div class="share-picker-left">
-          <span style="font-size: 18px;">${isEncrypted ? "🔒" : "📻"}</span>
-          <div>
-            <div class="share-picker-title">${escapeHtml(chName)}</div>
-            <div class="share-picker-sub">${I18n.t('chat.index', { index: ch.index })} • ${isEncrypted ? I18n.t("chat.private_encrypted") : I18n.t("chat.open_secondary")}</div>
-          </div>
-        </div>
+        <span class="share-picker-left">
+          <span aria-hidden="true" style="font-size: 18px;">${isEncrypted ? "🔒" : "📻"}</span>
+          <span>
+            <span class="share-picker-title">${escapeHtml(chName)}</span>
+            <span class="share-picker-sub">${I18n.t('chat.index', { index: ch.index })} • ${isEncrypted ? I18n.t("chat.private_encrypted") : I18n.t("chat.open_secondary")}</span>
+          </span>
+        </span>
         <span class="badge-pill">${isEncrypted ? I18n.t('chat.encrypted_badge') : I18n.t('chat.open_badge')}</span>
       `;
 
       item.addEventListener("click", () => {
-        this.dom.shareChannelList.querySelectorAll(".share-picker-item").forEach((el) => el.classList.remove("selected"));
-        item.classList.add("selected");
+        this._selectPickerItem(this.dom.shareChannelList, item);
         this.selectedShareChannel = ch;
         if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = false;
       });
@@ -637,6 +677,7 @@ export class ChatModule {
     });
 
     this.dom.shareChannelList.appendChild(frag);
+    this._restorePickerFocus(this.dom.shareChannelList, focusKey);
   }
 
   async confirmShareChannel() {
@@ -862,9 +903,7 @@ export class ChatModule {
 
     this._updateActiveChatHeader();
 
-    document.querySelectorAll(".channel-item").forEach((el) => el.classList.remove("active"));
-    const activeItem = document.querySelector(`.channel-item[data-channel-idx="${this.activeChannelIdx}"]`);
-    if (activeItem) activeItem.classList.add("active");
+    this._syncConversationSelection();
 
     const panel = document.querySelector(".chat-channels-panel");
     if (panel && window.innerWidth <= 900) {
@@ -916,9 +955,7 @@ export class ChatModule {
     this._updateActiveChatHeader();
     this.addDmContact(canonicalPk, this.activeDmName);
 
-    document.querySelectorAll(".channel-item").forEach((el) => el.classList.remove("active"));
-    const activeDmEl = document.querySelector(`.channel-item[data-pubkey="${canonicalPk}"]`);
-    if (activeDmEl) activeDmEl.classList.add("active");
+    this._syncConversationSelection();
 
     const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
     if (navBtn) navBtn.click();
@@ -1011,15 +1048,40 @@ export class ChatModule {
     } catch (_) {}
   }
 
+  _syncConversationSelection() {
+    document.querySelectorAll(".channel-item").forEach((item) => {
+      const selected = this.activeDmTarget
+        ? item.dataset.pubkey === this.activeDmTarget
+        : item.dataset.channelIdx !== undefined && Number(item.dataset.channelIdx) === this.activeChannelIdx;
+      item.classList.toggle("active", selected);
+      item.querySelector(".channel-select")?.setAttribute("aria-pressed", String(selected));
+    });
+  }
+
+  _updateDmCloseLabel(item) {
+    const button = item.querySelector(".btn-close-dm");
+    if (!button) return;
+    const label = `${I18n.t("chat.close_chat")}: ${item.querySelector(".ch-name")?.textContent || item.dataset.pubkey}`;
+    button.title = label;
+    button.setAttribute("aria-label", label);
+  }
+
   closeDmConversation(pubkey) {
     if (!pubkey) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
     this.closedDmThreads.add(canonicalPk);
     this._saveClosedDmThreads();
 
+    let restoreFocus = false;
+    let focusReplacement = null;
     // Eliminar el elemento del DOM en dmListUi
     if (this.dom.dmListUi) {
       const item = this.dom.dmListUi.querySelector(`.channel-item[data-pubkey="${canonicalPk}"]`);
+      restoreFocus = Boolean(item?.contains(document.activeElement));
+      if (restoreFocus) {
+        focusReplacement = item.nextElementSibling?.querySelector(".channel-select")
+          || item.previousElementSibling?.querySelector(".channel-select");
+      }
       if (item) item.remove();
       const totalDms = this.dom.dmListUi.querySelectorAll(".channel-item").length;
       if (this.dom.dmCountBadge) {
@@ -1030,6 +1092,10 @@ export class ChatModule {
     // Si el chat cerrado era el que estaba activo en pantalla, conmutar suavemente al Canal 0 (Público)
     if (this.activeDmTarget === canonicalPk) {
       this.switchChannel(0);
+    }
+    if (restoreFocus) {
+      (focusReplacement || document.querySelector('.channel-item[data-channel-idx="0"] .channel-select'))
+        ?.focus({ preventScroll: true });
     }
 
     if (this.ctx.showToast) {
@@ -1049,6 +1115,7 @@ export class ChatModule {
         const realName = node.alias || node.name;
         if (nameSpan && realName && nameSpan.textContent !== realName) {
           nameSpan.textContent = realName;
+          this._updateDmCloseLabel(item);
         }
       }
     });
@@ -1090,6 +1157,7 @@ export class ChatModule {
         const nameSpan = existing.querySelector(".ch-name");
         if (nameSpan && nameSpan.textContent !== cleanDisplayName) {
           nameSpan.textContent = cleanDisplayName;
+          this._updateDmCloseLabel(existing);
         }
       }
       return;
@@ -1099,12 +1167,18 @@ export class ChatModule {
     li.className = "channel-item";
     li.setAttribute("data-pubkey", canonicalPk);
     li.innerHTML = `
-      <span class="channel-icon">💬</span>
-      <span class="channel-name ch-name">${escapeHtml(cleanDisplayName)}</span>
-      <span class="channel-idx font-mono">DM</span>
-      <button type="button" class="btn-close-dm" title="${window.I18n ? window.I18n.t('chat.close_chat') : 'Cerrar chat'}" aria-label="${window.I18n ? window.I18n.t('chat.close_chat') : 'Cerrar chat'}">✕</button>
+      <button type="button" class="channel-select" aria-pressed="${this.activeDmTarget === canonicalPk}">
+        <span class="channel-icon" aria-hidden="true"><i class="bi bi-chat-dots"></i></span>
+        <span class="channel-name ch-name">${escapeHtml(cleanDisplayName)}</span>
+        <span class="channel-idx font-mono">DM</span>
+      </button>
+      <button type="button" class="btn-close-dm"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
     `;
-    li.addEventListener("click", () => this.openDmConversation(canonicalPk, cleanDisplayName));
+    li.classList.toggle("active", this.activeDmTarget === canonicalPk);
+    li.querySelector(".channel-select").addEventListener("click", () => {
+      this.openDmConversation(canonicalPk, li.querySelector(".ch-name").textContent);
+    });
+    this._updateDmCloseLabel(li);
 
     const btnClose = li.querySelector(".btn-close-dm");
     if (btnClose) {

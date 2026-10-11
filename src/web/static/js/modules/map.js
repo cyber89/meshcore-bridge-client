@@ -43,6 +43,7 @@ export class MapModule {
     const nodes = Array.from(this.ctx.knownNodes?.values() || []);
     this.updateMapMarkers(nodes);
     this.updateMapNodesOverlayList(nodes);
+    this._setMapOverlayMinimized?.(this.dom.mapOverlayInfo?.classList.contains("minimized"));
     if (this._lastTraceHops) {
       this.renderTracerouteGraph(this._lastTraceHops);
       this.renderTracerouteTable(this._lastTraceHops);
@@ -291,6 +292,7 @@ export class MapModule {
       const btnMode = btn.getAttribute("data-layer");
       const isActive = (mode === "auto" && (btnMode === "auto" || btnMode === "standard" || btnMode === "map")) || btnMode === mode;
       btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-pressed", String(isActive));
     });
   }
 
@@ -302,19 +304,26 @@ export class MapModule {
 
     const setMinimizedState = (minimized) => {
       overlay.classList.toggle("minimized", minimized);
+      if (this.dom.mapNodesList) {
+        if (minimized && this.dom.mapNodesList.contains(document.activeElement)) btnToggle?.focus();
+        this.dom.mapNodesList.hidden = Boolean(minimized);
+      }
       if (btnToggle) {
         const icon = btnToggle.querySelector(".toggle-icon");
         if (icon) icon.textContent = minimized ? "＋" : "−";
         btnToggle.setAttribute("aria-expanded", String(!minimized));
         btnToggle.title = minimized ? I18n.t("map.expand_nodes") : I18n.t("map.minimize_nodes");
+        btnToggle.setAttribute("aria-label", btnToggle.title);
+        btnToggle.setAttribute("aria-controls", "mapNodesList");
+        btnToggle.dataset.i18nTitle = minimized ? "map.expand_nodes" : "map.minimize_nodes";
+        btnToggle.dataset.i18nAriaLabel = btnToggle.dataset.i18nTitle;
       }
       localStorage.setItem("meshcore_map_nodes_minimized", String(minimized));
     };
+    this._setMapOverlayMinimized = setMinimizedState;
 
     const savedState = localStorage.getItem("meshcore_map_nodes_minimized");
-    if (savedState === "true") {
-      setMinimizedState(true);
-    }
+    setMinimizedState(savedState === "true");
 
     if (btnToggle) {
       btnToggle.addEventListener("click", (e) => {
@@ -714,6 +723,10 @@ export class MapModule {
 
   updateMapNodesOverlayList(nodes) {
     if (!this.dom.mapNodesList) return;
+    const focusedItem = document.activeElement?.closest(".map-node-item");
+    const restoreFocus = focusedItem && this.dom.mapNodesList.contains(focusedItem);
+    const focusedKey = restoreFocus ? focusedItem.dataset.nodeKey : null;
+    const focusedIndex = restoreFocus ? Array.from(this.dom.mapNodesList.children).indexOf(focusedItem) : -1;
 
     const positionedNodes = nodes.filter((n) => {
       const rawLat = n.latitude ?? n.lat ?? n.adv_lat ?? n.gps?.latitude;
@@ -730,7 +743,11 @@ export class MapModule {
     this.dom.mapNodesList.innerHTML = "";
 
     if (positionedNodes.length === 0) {
-      this.dom.mapNodesList.innerHTML = `<div class="map-node-empty-hint">${I18n.t('map.no_gps_nodes')}</div>`;
+      this.dom.mapNodesList.innerHTML = `<div class="map-node-empty-hint">${escapeHtml(I18n.t('map.no_gps_nodes'))}</div>`;
+      if (restoreFocus) {
+        this.dom.mapNodesList.tabIndex = -1;
+        this.dom.mapNodesList.focus({ preventScroll: true });
+      }
       return;
     }
 
@@ -744,21 +761,25 @@ export class MapModule {
       const isSensor = String(node.role || "").toUpperCase() === "SENSOR";
       const cleanName = node.name || node.alias || (node.public_key ? node.public_key.slice(0, 8) : I18n.t('common.node'));
 
-      const itemEl = document.createElement("div");
+      const itemEl = document.createElement("button");
+      itemEl.type = "button";
+      itemEl.dataset.nodeKey = node.public_key ? String(node.public_key).toLowerCase() :
+        JSON.stringify([isLocal ? "local" : node.role, lat, lon]);
       itemEl.className = `map-node-item ${isLocal ? "is-local local-node-item" : ""}`;
       itemEl.innerHTML = `
-        <div class="map-node-item-header">
-          <span class="map-node-icon">${isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : "👤"))}</span>
+        <span class="map-node-item-header">
+          <span class="map-node-icon" aria-hidden="true">${isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : "👤"))}</span>
           <strong class="map-node-name font-mono">${escapeHtml(cleanName)}</strong>
           <span class="badge-pill" style="font-size: 9.5px;">${escapeHtml(I18n.role(node.role || (isLocal ? "LOCAL" : "CLIENT")))}</span>
-        </div>
-        <div class="map-node-item-sub font-mono">
+        </span>
+        <span class="map-node-item-sub font-mono">
           <span>📍 ${lat.toFixed(4)}, ${lon.toFixed(4)}</span>
           ${node.last_snr != null ? `<span>📶 ${escapeHtml(String(node.last_snr))} dB</span>` : ""}
-        </div>
+        </span>
       `;
 
       itemEl.addEventListener("click", () => {
+        if (!this.map) return;
         this.map.setView([lat, lon], 15);
         const pk = (node.public_key || "").toLowerCase();
         const marker = this.mapMarkers.get(pk);
@@ -769,6 +790,12 @@ export class MapModule {
 
       this.dom.mapNodesList.appendChild(itemEl);
     });
+    if (restoreFocus) {
+      const items = Array.from(this.dom.mapNodesList.querySelectorAll(".map-node-item"));
+      const replacement = items.find((item) => item.dataset.nodeKey === focusedKey) ||
+        items[Math.min(focusedIndex, items.length - 1)];
+      replacement?.focus({ preventScroll: true });
+    }
   }
 
   updateSingleNodeMarker(node) {

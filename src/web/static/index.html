@@ -144,11 +144,13 @@
                   <button class="btn btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal" data-i18n-title="chat.add_channel_title" data-i18n-aria-label="ui.static_019"><i class="bi bi-plus-circle" style="font-size: 13px;" aria-hidden="true"></i></button>
                 </div>
               </div>
-              <ul class="channel-list" id="channelListUi" role="listbox" aria-label="Canales disponibles" data-i18n-aria-label="ui.static_020">
-                <li class="channel-item active" data-channel-idx="0" role="option" aria-selected="true">
+              <ul class="channel-list" id="channelListUi" aria-label="Canales disponibles" data-i18n-aria-label="ui.static_020">
+                <li class="channel-item active" data-channel-idx="0">
+                  <button type="button" class="channel-select" aria-pressed="true">
                   <span class="ch-badge" data-i18n="ui.static_021">Ch 0</span>
                   <span class="ch-name" data-i18n="chat.ch_0_default">Public / Broadcast</span>
                   <span class="ch-lock" title="Canal Público" data-i18n-title="ui.static_022"><i class="bi bi-unlock" style="font-size: 13px;" aria-hidden="true"></i></span>
+                  </button>
                 </li>
               </ul>
 
@@ -158,7 +160,7 @@
                   <span class="badge-pill" id="dmCountBadge">0</span>
                 </div>
               </div>
-              <ul class="channel-list" id="dmListUi" role="listbox" aria-label="Mensajes Directos" data-i18n-aria-label="chat.direct_messages">
+              <ul class="channel-list" id="dmListUi" aria-label="Mensajes Directos" data-i18n-aria-label="chat.direct_messages">
                 <li class="empty-hint" data-i18n="chat.no_conversations">Sin conversaciones activas</li>
               </ul>
             </aside>
@@ -554,7 +556,7 @@
         <section id="tab-logs" class="tab-pane" role="tabpanel" aria-labelledby="navTabLogs" hidden>
           <div class="logs-view-container">
             <!-- Barra de Subpestañas Dual Sniffer -->
-            <div class="subtabs-nav-bar" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
+            <div class="subtabs-nav-bar" aria-labelledby="navTabLogs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
               <button type="button" class="subtab-btn active" id="btnSubtabLogs" data-target="subpanelSystemLogs" data-i18n="logs.subtab_logs">
                 <i class="bi bi-file-earmark-text" style="font-size: 15px;" aria-hidden="true"></i> Logs del Sistema
               </button>
@@ -721,7 +723,7 @@
             </div>
 
             <!-- Subpestañas de Configuración del Nodo Local -->
-            <div class="local-settings-subtabs">
+            <div class="local-settings-subtabs" aria-labelledby="navTabSettings">
               <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry" data-i18n="settings.subtab_telem"><i class="bi bi-activity subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Telemetría & Estado</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-radio" data-i18n="settings.subtab_radio"><i class="bi bi-broadcast subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Parámetros RF & Radio</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos" data-i18n="settings.subtab_identity"><i class="bi bi-geo-alt subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Identidad & Posición GPS</button>
@@ -1842,7 +1844,7 @@
         <form id="createChannelForm" class="modal-body" aria-labelledby="createChannelTitle">
           <div class="form-group">
             <label for="chModalIndex" data-i18n="ui.static_371">Índice de Canal (1 - 7):</label>
-            <select id="chModalIndex" class="select-input" required>
+            <select id="chModalIndex" class="select-input" required aria-describedby="chModalIndexHint">
               <option value="1" data-i18n="ui.static_372">Canal 1 (Secundario)</option>
               <option value="2" data-i18n="ui.static_373">Canal 2 (Secundario)</option>
               <option value="3" data-i18n="ui.static_374">Canal 3 (Secundario)</option>
@@ -1851,12 +1853,12 @@
               <option value="6" data-i18n="ui.static_377">Canal 6 (Secundario)</option>
               <option value="7" data-i18n="ui.static_378">Canal 7 (Secundario)</option>
             </select>
-            <span class="field-hint" data-i18n="ui.static_379">El canal 0 está reservado para difusión pública y abierta.</span>
+            <span class="field-hint" id="chModalIndexHint" data-i18n="ui.static_379">El canal 0 está reservado para difusión pública y abierta.</span>
           </div>
 
           <div class="form-group">
             <label for="chModalName" data-i18n="ui.static_380">Nombre del Canal:</label>
-            <input type="text" id="chModalName" placeholder="Ej: Operaciones, Táctico, Emergencias..." maxlength="32" required  data-i18n-placeholder="ui.static_381"/>
+            <input type="text" id="chModalName" placeholder="Ej: Operaciones, Táctico, Emergencias..." maxlength="31" required  data-i18n-placeholder="ui.static_381"/>
           </div>
 
           <div class="form-group toggle-field-group" style="margin-bottom: 12px;">
@@ -1878,10 +1880,10 @@
           <div class="form-group" id="chModalPskGroup">
             <label for="chModalPsk" data-i18n="ui.static_386">Clave Precompartida (PSK / AES-128):</label>
             <div class="input-with-action">
-              <input type="text" id="chModalPsk" placeholder="Clave secreta o token hexadecimal..." required  data-i18n-placeholder="ui.static_387"/>
+              <input type="text" id="chModalPsk" placeholder="Clave hexadecimal (máximo 64 caracteres)..." required aria-describedby="chModalPskHint" data-i18n-placeholder="ui.static_387"/>
               <button type="button" class="btn btn-secondary btn-sm" id="btnGenRandomPsk" title="Generar clave AES-128 aleatoria" data-i18n-title="ui.static_388" data-i18n="ui.static_389"><i class="bi bi-arrow-repeat" style="font-size: 13px;" aria-hidden="true"></i> Generar</button>
             </div>
-            <span class="field-hint" data-i18n="ui.static_390">Los miembros deben compartir el mismo índice, nombre y clave PSK.</span>
+            <span class="field-hint" id="chModalPskHint" data-i18n="ui.static_390">Los miembros deben compartir el mismo índice, nombre y clave PSK.</span>
           </div>
 
           <div class="modal-footer">
@@ -1904,13 +1906,13 @@
         <form id="createContactForm" class="modal-body" aria-labelledby="createContactTitle">
           <div class="form-group">
             <label for="contactModalPubKey" data-i18n="ui.static_391">Clave Pública / ID Hexadecimal:</label>
-            <input type="text" id="contactModalPubKey" placeholder="Ej: a1b2c3d4e5f6..." required  data-i18n-placeholder="ui.static_392"/>
-            <span class="field-hint" data-i18n="ui.static_393">Identificador único hexadecimal del nodo MeshCore destino.</span>
+            <input type="text" id="contactModalPubKey" placeholder="Ej: a1b2c3d4e5f6..." required aria-describedby="contactModalPubKeyHint" data-i18n-placeholder="ui.static_392"/>
+            <span class="field-hint" id="contactModalPubKeyHint" data-i18n="ui.static_393">Identificador único hexadecimal del nodo MeshCore destino.</span>
           </div>
 
           <div class="form-group">
             <label for="contactModalName" data-i18n="ui.static_394">Nombre / Alias del Contacto:</label>
-            <input type="text" id="contactModalName" placeholder="Ej: Carlos Heltec, Base Operador..." maxlength="32" required  data-i18n-placeholder="ui.static_395"/>
+            <input type="text" id="contactModalName" placeholder="Ej: Carlos Heltec, Base Operador..." maxlength="31" required  data-i18n-placeholder="ui.static_395"/>
           </div>
 
           <div class="form-row-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
@@ -1960,7 +1962,7 @@
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareContactModalInstruction" data-i18n="ui.static_403">Selecciona un contacto de tu libreta para compartir su enlace oficial en esta conversación:</p>
           <input type="search" id="shareContactSearch" class="search-input" placeholder="Buscar contacto por nombre o clave..." aria-label="Buscar contacto a compartir" style="margin-bottom: 12px; width: 100%;"  data-i18n-placeholder="ui.static_404" data-i18n-aria-label="ui.static_405"/>
-          <div class="share-picker-list" id="shareContactList" role="listbox" style="max-height: 260px; overflow-y: auto;">
+          <div class="share-picker-list" id="shareContactList" role="group" aria-labelledby="modalShareContactTitle" style="max-height: 260px; overflow-y: auto;">
             <!-- Renderizado dinámico de contactos cliente -->
           </div>
         </div>
@@ -1982,7 +1984,7 @@
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareChannelModalInstruction" data-i18n="ui.static_407">Selecciona un canal para compartir sus parámetros de conexión y clave en esta conversación:</p>
-          <div class="share-picker-list" id="shareChannelList" role="listbox" style="max-height: 260px; overflow-y: auto;">
+          <div class="share-picker-list" id="shareChannelList" role="group" aria-labelledby="modalShareChannelTitle" style="max-height: 260px; overflow-y: auto;">
             <!-- Renderizado dinámico de canales disponibles -->
           </div>
           <div class="callout-box warning-callout" style="margin-top: 12px; font-size: 0.8rem;">
@@ -2105,7 +2107,7 @@
           </div>
 
           <!-- Subpestañas del Repetidor -->
-          <div class="repeater-subtabs">
+          <div class="repeater-subtabs" aria-labelledby="repeaterAdminTitle">
             <button class="subtab-btn active" data-subtab="rep-info" data-i18n="settings.subtab_telem"><i class="bi bi-activity subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Telemetría & Estado</button>
             <button class="subtab-btn" data-subtab="rep-radio" data-i18n="ui.static_418"><i class="bi bi-broadcast subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Configuración RF</button>
             <button class="subtab-btn" data-subtab="rep-owner-pos" data-i18n="ui.static_419"><i class="bi bi-geo-alt subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Propietario & Posición</button>
@@ -2689,7 +2691,7 @@
         </div>
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 75vh; overflow-y: auto;">
           <!-- Barra de Pestañas del Inspector -->
-          <div class="subtabs-nav-bar" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
+          <div class="subtabs-nav-bar" aria-labelledby="packetInspectorTitle" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
             <button type="button" class="subtab-btn active" id="inspectorTabSemantic" data-panel="inspectorPanelSemantic" data-i18n="ui.static_558">
               <i class="bi bi-layers" style="font-size: 14px;" aria-hidden="true"></i> Estructura Semántica
             </button>

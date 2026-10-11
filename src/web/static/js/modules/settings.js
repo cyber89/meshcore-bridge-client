@@ -12,6 +12,8 @@ import {
   setApiKey,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
+import { FormFeedback } from "../core/form_feedback.js";
+import { initManualTabs } from "../core/tabs.js";
 
 export class SettingsModule {
   constructor(context) {
@@ -294,9 +296,47 @@ export class SettingsModule {
       });
     }
 
+    this.dom.channelListUi?.addEventListener("click", (event) => {
+      const selection = event.target.closest(".channel-select");
+      if (!selection || !this.dom.channelListUi.contains(selection)) return;
+      const index = Number(selection.closest("[data-channel-idx]")?.dataset.channelIdx);
+      if (!Number.isInteger(index)) return;
+      this.ctx.switchChannel?.(index);
+      this.dom.sidebarChannelList?.classList.remove("mobile-open");
+    });
+
+    const channelFeedback = this.dom.createChannelForm ? new FormFeedback(this.dom.createChannelForm, {
+      index: this.dom.chModalIndex,
+      name: this.dom.chModalName,
+      psk: this.dom.chModalPsk,
+    }, {
+      invalid_channel_index: "index",
+      channel_index_out_of_bounds: "index",
+      channel_already_exists: "index",
+      invalid_channel_name: "name",
+    }) : null;
+    const contactFeedback = this.dom.createContactForm ? new FormFeedback(this.dom.createContactForm, {
+      public_key: this.dom.contactModalPubKey,
+      name: this.dom.contactModalName,
+      alias: this.dom.contactModalName,
+      latitude: this.dom.contactModalLat,
+      longitude: this.dom.contactModalLon,
+      role: this.dom.contactModalRole,
+    }, {
+      missing_public_key: "public_key",
+      invalid_public_key: "public_key",
+      cannot_add_local_station: "public_key",
+      repeater_contact_forbidden: "public_key",
+      invalid_contact_name: "name",
+      invalid_contact_role: "role",
+    }) : null;
+    const firmwareNameError = (name) => new TextEncoder().encode(name).length > 31 || /[\u0000-\u001f]/.test(name)
+      ? "forms.name_utf8" : null;
+
     // 1. Crear Canal Modal
     const openCreateChannel = () => {
-      if (!this.dom.createChannelModal) return;
+      if (!this.dom.createChannelModal || channelFeedback?.busy) return;
+      channelFeedback?.clear();
 
       const occupiedIndices = new Set(this.channelsList.map((c) => Number(c.index)));
       const availableIndices = [1, 2, 3, 4, 5, 6, 7].filter((idx) => !occupiedIndices.has(idx));
@@ -364,6 +404,7 @@ export class SettingsModule {
         }
         if (this.dom.chModalPsk) {
           this.dom.chModalPsk.required = isEnc;
+          channelFeedback?.clearField(this.dom.chModalPsk);
           if (isEnc && !this.dom.chModalPsk.value) {
             this.dom.chModalPsk.value = this.generateRandomHex(32);
           }
@@ -375,6 +416,7 @@ export class SettingsModule {
       this.dom.btnGenRandomPsk.addEventListener("click", () => {
         if (this.dom.chModalPsk) {
           this.dom.chModalPsk.value = this.generateRandomHex(32);
+          channelFeedback?.clearField(this.dom.chModalPsk);
         }
       });
     }
@@ -382,13 +424,18 @@ export class SettingsModule {
     if (this.dom.createChannelForm) {
       this.dom.createChannelForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const index = parseInt(this.dom.chModalIndex.value, 10);
+        if (channelFeedback.busy) return;
+        const index = Number(this.dom.chModalIndex.value);
         const name = this.dom.chModalName.value.trim();
         const isEncrypted = this.dom.chModalIsEncrypted ? this.dom.chModalIsEncrypted.checked : true;
         const psk = isEncrypted ? this.dom.chModalPsk.value.trim() : "";
-
-        const btnSubmit = this.dom.createChannelForm.querySelector('button[type="submit"]');
-        if (btnSubmit) btnSubmit.disabled = true;
+        if (!channelFeedback.validate({
+          index: Number.isInteger(index) ? null : "forms.invalid_value",
+          name: name ? firmwareNameError(name) : "forms.required",
+          psk: !isEncrypted || /^[a-fA-F0-9]{1,64}$/.test(psk) ? null : "forms.psk_hex",
+        })) return;
+        channelFeedback.setBusy(true);
+        let saved = false;
 
         try {
           const res = await fetch("/api/channels", {
@@ -397,26 +444,32 @@ export class SettingsModule {
             body: JSON.stringify({ index, name, psk }),
           });
           const data = await res.json().catch(() => ({}));
-          if (res.ok && data.status === "ok") {
-            closeCreateChannel();
-            await this.fetchChannels();
-            if (this.ctx.switchChannel) this.ctx.switchChannel(index);
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.ch_saved').replace('{index}', index).replace('{name}', escapeHtml(name)), "success");
+          if (res.ok && data?.status === "ok") {
+            saved = true;
           } else {
-            const errDetail = data.detail || data.message || data.error || I18n.t("settings.unknown_failure");
-            this._notify(I18n.t("settings.channel_save_error", { p0: errDetail }), "error");
+            channelFeedback.serverError(data);
           }
-        } catch (err) {
-          this._notify(I18n.t('settings.channel_save_network_error', { error: err.message }), "error");
+        } catch {
+          channelFeedback.networkError();
         } finally {
-          if (btnSubmit) btnSubmit.disabled = false;
+          channelFeedback.setBusy(false);
+          if (!saved && !this.dom.createChannelModal.classList.contains("show")) {
+            this._notify(I18n.t("forms.request_failed"), "error");
+          }
+        }
+        if (saved) {
+          closeCreateChannel();
+          await this.fetchChannels();
+          if (this.ctx.switchChannel) this.ctx.switchChannel(index);
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.ch_saved').replace('{index}', index).replace('{name}', escapeHtml(name)), "success");
         }
       });
     }
 
     // 3. Crear Contacto Modal
     const openCreateContact = () => {
-      if (!this.dom.createContactModal) return;
+      if (!this.dom.createContactModal || contactFeedback?.busy) return;
+      contactFeedback?.clear();
       this.dom.createContactModal.classList.remove("hidden");
       if (this.dom.contactModalPubKey) this.dom.contactModalPubKey.value = "";
       if (this.dom.contactModalName) this.dom.contactModalName.value = "";
@@ -453,20 +506,23 @@ export class SettingsModule {
     if (this.dom.createContactForm) {
       this.dom.createContactForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (contactFeedback.busy) return;
         const pubkey = this.dom.contactModalPubKey.value.trim();
         const name = this.dom.contactModalName.value.trim();
         const role = this.dom.contactModalRole ? this.dom.contactModalRole.value : "CLIENT";
         const isFavorite = Boolean(this.dom.contactModalFavorite?.checked);
-        if (!pubkey) return;
-
-        const btnSubmit = this.dom.createContactForm.querySelector('button[type="submit"]');
-        if (btnSubmit) btnSubmit.disabled = true;
+        if (!contactFeedback.validate({
+          public_key: /^[a-fA-F0-9]{64}$/.test(pubkey) ? null : "forms.public_key",
+          name: name ? firmwareNameError(name) : "forms.required",
+        })) return;
 
         const payload = { public_key: pubkey, name: name, alias: name, role: role, is_favorite: isFavorite };
         const latVal = this.dom.contactModalLat ? parseFloat(this.dom.contactModalLat.value) : NaN;
         const lonVal = this.dom.contactModalLon ? parseFloat(this.dom.contactModalLon.value) : NaN;
-        if (!isNaN(latVal)) payload.latitude = latVal;
-        if (!isNaN(lonVal)) payload.longitude = lonVal;
+        if (Number.isFinite(latVal)) payload.latitude = latVal;
+        if (Number.isFinite(lonVal)) payload.longitude = lonVal;
+        contactFeedback.setBusy(true);
+        let saved = false;
 
         try {
           const res = await fetch("/api/contacts", {
@@ -475,19 +531,24 @@ export class SettingsModule {
             body: JSON.stringify(payload),
           });
           const data = await res.json().catch(() => ({}));
-          if (res.ok && data.status === "ok") {
-            closeCreateContact();
-            if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
-            if (this.ctx.setDmTarget) this.ctx.setDmTarget(pubkey, name || pubkey);
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_added').replace('{name}', name || pubkey.slice(0, 8)), "success");
+          if (res.ok && data?.status === "ok") {
+            saved = true;
           } else {
-            const errDetail = data.detail || data.message || data.error || I18n.t("settings.unknown_failure");
-            this._notify(I18n.t("settings.contact_add_error", { p0: errDetail }), "error");
+            contactFeedback.serverError(data);
           }
-        } catch (err) {
-          this._notify(I18n.t('settings.contact_add_network_error', { error: err.message }), "error");
+        } catch {
+          contactFeedback.networkError();
         } finally {
-          if (btnSubmit) btnSubmit.disabled = false;
+          contactFeedback.setBusy(false);
+          if (!saved && !this.dom.createContactModal.classList.contains("show")) {
+            this._notify(I18n.t("forms.request_failed"), "error");
+          }
+        }
+        if (saved) {
+          closeCreateContact();
+          if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
+          if (this.ctx.setDmTarget) this.ctx.setDmTarget(pubkey, name || pubkey);
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_added').replace('{name}', name || pubkey.slice(0, 8)), "success");
         }
       });
     }
@@ -569,8 +630,9 @@ export class SettingsModule {
     }
 
     // 6. Navegación subpestañas locales
-    document.querySelectorAll(".local-subtab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
+    this._localTabs = initManualTabs(document.querySelector(".local-settings-subtabs"), {
+      tabSelector: ".local-subtab-btn",
+      onActivate: (btn) => {
         document.querySelectorAll(".local-subtab-btn").forEach((b) => b.classList.remove("active"));
         document.querySelectorAll(".local-settings-subpanel").forEach((p) => p.classList.remove("active"));
         btn.classList.add("active");
@@ -590,7 +652,7 @@ export class SettingsModule {
         if (target === "local-services") {
           this.loadServicesConfig();
         }
-      });
+      },
     });
 
     const regionSelect = document.getElementById("localRegion");
@@ -1288,6 +1350,10 @@ export class SettingsModule {
     this.channelsList = Array.isArray(channels) ? channels : [];
     const listEl = this.dom.channelListUi || document.getElementById("channelListUi");
     if (!listEl) return;
+    const focusedControl = listEl.contains(document.activeElement) ? document.activeElement : null;
+    const focusedIndex = focusedControl?.closest("[data-channel-idx]")?.dataset.channelIdx;
+    const focusedSelector = focusedControl?.matches(".btn-item-qr") ? ".btn-item-qr"
+      : focusedControl?.matches(".btn-item-delete") ? ".btn-item-delete" : ".channel-select";
     listEl.textContent = "";
 
     const activeIdx = this.ctx.activeChannelIdx ?? 0;
@@ -1297,11 +1363,8 @@ export class SettingsModule {
       const isActive = ch.index === activeIdx && !this.ctx.activeDmTarget;
       li.className = `channel-item ${isActive ? "active" : ""}`;
       li.setAttribute("data-channel-idx", String(ch.index));
-      li.setAttribute("role", "option");
-      li.setAttribute("aria-selected", isActive ? "true" : "false");
 
       const isEnc = ch.index !== 0 && Boolean(ch.is_encrypted ?? (ch.has_psk || (ch.psk && ch.psk.trim().length > 0)));
-      const lockIcon = isEnc ? "lock" : "unlock";
       const lockTitle = isEnc
         ? I18n.t("settings.encrypted_channel")
         : (ch.index === 0 ? I18n.t("settings.public_channel") : I18n.t("settings.open_channel"));
@@ -1309,12 +1372,14 @@ export class SettingsModule {
       const chDisplayName = ch.name || (ch.index === 0 ? I18n.t('chat.ch_0_default') : I18n.t("settings.channel_label", { p0: ch.index }));
 
       li.innerHTML = `
+        <button type="button" class="channel-select" aria-pressed="${isActive}">
         <span class="ch-badge font-mono">Ch ${ch.index}</span>
         <span class="ch-name">${escapeHtml(chDisplayName)}</span>
-        <div class="ch-actions">
-          <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${lockTitle}">
+          <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${escapeHtml(lockTitle)}">
             <i class="bi ${isEnc ? 'bi-lock' : 'bi-unlock'}" style="font-size: 13px;" aria-hidden="true"></i>
           </span>
+        </button>
+        <div class="ch-actions">
           ${ch.index > 0 ? `
             <button type="button" class="btn-item-qr" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="${I18n.t('settings.channel_qr_title')}" aria-label="${I18n.t('settings.share_channel', { index: ch.index })}">
               <i class="bi bi-qr-code" style="font-size: 13px;" aria-hidden="true"></i>
@@ -1325,12 +1390,6 @@ export class SettingsModule {
           ` : ''}
         </div>
       `;
-
-      li.addEventListener("click", (e) => {
-        if (e.target.closest(".btn-item-delete, .btn-item-qr")) return;
-        if (this.ctx.switchChannel) this.ctx.switchChannel(ch.index);
-        if (this.dom.sidebarChannelList) this.dom.sidebarChannelList.classList.remove("mobile-open");
-      });
 
       const btnQr = li.querySelector(".btn-item-qr");
       if (btnQr) {
@@ -1402,7 +1461,10 @@ export class SettingsModule {
 
       listEl.appendChild(li);
     });
-
+    if (focusedControl) {
+      const replacementRow = Array.from(listEl.children).find((row) => row.dataset.channelIdx === focusedIndex);
+      (replacementRow?.querySelector(focusedSelector) || listEl.querySelector(".channel-select"))?.focus({ preventScroll: true });
+    }
   }
 
   async processImportPayload(raw, closeCallback) {

@@ -14,6 +14,13 @@
   // ── Translation Dictionaries ────────────────────────────────────────────────
   const DICT = {
     es: {
+      'forms.required': 'Completa este campo.',
+      'forms.invalid_value': 'Introduce un valor válido.',
+      'forms.name_utf8': 'El nombre debe caber en 31 bytes UTF-8 y no contener caracteres de control.',
+      'forms.public_key': 'Introduce una clave pública de 64 caracteres hexadecimales.',
+      'forms.psk_hex': 'La clave PSK debe tener como máximo 64 caracteres hexadecimales.',
+      'forms.request_failed': 'No se pudo guardar. Revisa los campos indicados y vuelve a intentarlo.',
+      'forms.network_error': 'No se pudo conectar con el servidor. Los valores se han conservado; vuelve a intentarlo.',
       'common.unverified': 'Sin verificar',
       'chat.history_loading': 'Cargando historial…',
       'chat.history_failed': 'No se pudo actualizar el historial. Los mensajes disponibles se conservan.',
@@ -521,7 +528,7 @@
       "ui.static_384": "Activar o desactivar cifrado AES-128",
       "ui.static_385": "Canal cifrado AES-128",
       "ui.static_386": "Clave Precompartida (PSK / AES-128):",
-      "ui.static_387": "Clave secreta o token hexadecimal...",
+      "ui.static_387": "Clave hexadecimal (máximo 64 caracteres)...",
       "ui.static_388": "Generar clave AES-128 aleatoria",
       "ui.static_389": "Generar",
       "ui.static_390": "Los miembros deben compartir el mismo índice, nombre y clave PSK.",
@@ -1542,6 +1549,13 @@
     },
 
     en: {
+      'forms.required': 'Complete this field.',
+      'forms.invalid_value': 'Enter a valid value.',
+      'forms.name_utf8': 'The name must fit within 31 UTF-8 bytes and contain no control characters.',
+      'forms.public_key': 'Enter a public key containing 64 hexadecimal characters.',
+      'forms.psk_hex': 'The PSK must contain at most 64 hexadecimal characters.',
+      'forms.request_failed': 'Could not save. Review the indicated fields and try again.',
+      'forms.network_error': 'Could not connect to the server. Your values have been preserved; try again.',
       'common.unverified': 'Unverified',
       'chat.history_loading': 'Loading history…',
       'chat.history_failed': 'History could not be refreshed. Available messages have been retained.',
@@ -2049,7 +2063,7 @@
       "ui.static_384": "Enable or disable AES-128 encryption",
       "ui.static_385": "AES-128 encrypted channel",
       "ui.static_386": "Pre-shared key (PSK / AES-128):",
-      "ui.static_387": "Secret key or hexadecimal token...",
+      "ui.static_387": "Hexadecimal key (up to 64 characters)...",
       "ui.static_388": "Generate a random AES-128 key",
       "ui.static_389": "Generate",
       "ui.static_390": "Members must share the same index, name and PSK.",

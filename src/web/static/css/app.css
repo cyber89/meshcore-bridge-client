@@ -79,12 +79,14 @@
   --dialog-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
   --icon-surface: #1b2c44;
   --control-border: #657893;
+  --field-error-color: #ffadba;
   --scrollbar-thumb: rgba(255, 255, 255, 0.18);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.35);
 }
 
 /* Modo Zephyr (Claro) - Tokens Optimizados sin exceso de blanco (Slate/Zinc Soft) */
 [data-bs-theme="light"], body.light-theme {
+  --field-error-color: #9f1831;
   --bs-body-bg: #f1f5f9; /* Fondo pizarra suave para mitigar el resplandor */
   --bs-body-bg-rgb: 241, 245, 249;
   --bs-body-color: #1e293b; /* Texto pizarra oscuro de alta legibilidad */
@@ -853,12 +855,144 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.125rem 0.375rem;
   border-radius: 0.375rem;
-  cursor: pointer;
   margin-bottom: 2px;
   transition: var(--control-transition);
   border-left: 3px solid transparent;
+}
+
+/* Selection and secondary actions remain separate native controls. */
+.channel-select {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0.375rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.channel-icon,
+.channel-idx {
+  flex-shrink: 0;
+}
+
+.channel-idx {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+}
+
+.btn-close-dm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0.375rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  transition: var(--control-transition);
+}
+
+.btn-close-dm:hover {
+  color: var(--field-error-color);
+  background: var(--bs-tertiary-bg);
+}
+
+.share-picker-list {
+  display: grid;
+  gap: var(--space-sm);
+  padding: 3px;
+}
+
+.share-picker-item,
+.map-node-item {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0.75rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--bs-body-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: var(--control-transition);
+}
+
+.share-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.share-picker-item:hover,
+.map-node-item:hover {
+  background: var(--bs-tertiary-bg);
+  border-color: var(--control-border);
+}
+
+.share-picker-item[aria-pressed="true"] {
+  border-color: var(--bs-primary);
+  background: var(--bs-primary-bg-subtle);
+  color: var(--bs-primary-text-emphasis);
+}
+
+.share-picker-left { display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
+.share-picker-title,
+.share-picker-sub { display: block; overflow-wrap: anywhere; }
+.share-picker-title { font-weight: 600; }
+.share-picker-sub { margin-top: 0.25rem; font-size: 0.8rem; color: var(--bs-secondary-color); }
+
+.map-node-item { margin-bottom: var(--space-sm); }
+.map-node-item-header,
+.map-node-item-sub { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
+.map-node-item-header { font-weight: 600; overflow-wrap: anywhere; }
+.map-node-item-sub { margin-top: 0.375rem; font-size: 0.8rem; color: var(--bs-secondary-color); }
+
+.field-error,
+.form-feedback-summary {
+  color: var(--field-error-color);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.field-error { margin: 0.375rem 0 0; }
+.form-feedback-summary {
+  margin: 0 0 var(--space-md);
+  padding: 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--field-error-color) 8%, var(--bs-body-bg));
+}
+
+[aria-invalid="true"] { --control-border: var(--field-error-color); }
+.modal-card input:not([type="checkbox"]):not([type="range"]):not(.linux-term-input)[aria-invalid="true"],
+.modal-card select[aria-invalid="true"] { border-color: var(--field-error-color); }
+
+@media (pointer: coarse) {
+  .channel-select,
+  .btn-close-dm,
+  .share-picker-item,
+  .map-node-item { min-height: 44px; }
+  .btn-close-dm { min-width: 44px; }
 }
 
 .channel-item:hover {

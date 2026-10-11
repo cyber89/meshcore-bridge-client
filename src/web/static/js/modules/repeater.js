@@ -5,6 +5,7 @@
 
 import { escapeHtml, getHardwarePowerLimits, REGION_FREQUENCIES } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
+import { initManualTabs } from "../core/tabs.js";
 
 export class RepeaterModule {
   constructor(context) {
@@ -204,24 +205,26 @@ export class RepeaterModule {
     }
 
     // Subtabs de repetidor
-    document.querySelectorAll(".repeater-subtabs .subtab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
+    this._adminTabs = initManualTabs(document.querySelector(".repeater-subtabs"), {
+      onActivate: (btn, panel) => {
         document.querySelectorAll(".repeater-subtabs .subtab-btn").forEach((b) => b.classList.remove("active"));
         document.querySelectorAll(".repeater-subpanel").forEach((p) => p.classList.remove("active"));
         btn.classList.add("active");
         const panelId = btn.getAttribute("data-subtab");
-        const panel = document.getElementById(panelId);
         if (panel) panel.classList.add("active");
 
         if (panelId === "rep-console") {
           setTimeout(() => {
+            if (!panel?.classList.contains("active") || panel.hidden ||
+                !this.dom.repeaterAdminModal?.classList.contains("show") ||
+                this.dom.repeaterAdminModal.inert) return;
             const inp = this.dom.repeaterTerminalInput || document.getElementById("repeaterTerminalInput");
             if (inp) inp.focus();
             const out = this.dom.repeaterTerminalOutput || document.getElementById("repeaterTerminalOutput");
             if (out) out.scrollTop = out.scrollHeight;
           }, 80);
         }
-      });
+      },
     });
 
     // Atajo desde Telemetría a Consola Terminal Completa

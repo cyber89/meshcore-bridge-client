@@ -71,9 +71,35 @@ history validation succeeds. Form grids and terminal styles now have shared
 contracts, and traceroute headers match their generated cells. This delivery
 adds no backend routes, radio traffic, retries or radio timers.
 
-Source/build checks do not establish browser behavior. Keyboard selectors,
-field-linked validation, broader component/layout migration and runtime
+Source/build checks do not establish browser behavior. At this first delivery,
+keyboard selectors and field-linked validation remained pending; the second
+delivery implements them. Broader component/layout migration and runtime
 acceptance remain tracked in the plan.
+
+### Second modernization delivery — 2026-10-11
+
+The build includes two additional local modules: `js/core/tabs.js` and
+`js/core/form_feedback.js`, with minimized/gzip variants selected by the same
+manifest. Native selection controls cover channel/DM lists, sharing pickers and
+map nodes. Secondary actions remain separate buttons; updates retain focus by
+stable item identity. Local/admin/logs/inspector tabs share manual keyboard
+activation: arrow/Home/End navigation does not execute their action callbacks.
+
+Channel/contact creation keeps rejected input, links persistent errors to fields
+and hints, focuses the first invalid field and blocks duplicate submission.
+Validation mirrors existing controller/SDK constraints, including the 31-byte
+UTF-8 name limit; HTTP field errors and general/network failures have distinct
+feedback. Failures arriving after a dialog closes also produce a notification.
+Shared styles define selection cards, focus-compatible native controls and
+theme-specific field errors. README feature descriptions remain in English.
+
+Build/check verifies 25 assets: 2,000,647 source bytes, 1,717,210 served bytes and
+336,357 gzip bytes. JavaScript syntax, source references, static ARIA targets,
+existing DOM-ID preservation and the heuristic linter were checked. No browser,
+suite, service or radio operation was run; this is not runtime accessibility or
+performance evidence. See the plan for remaining Phase 2–3 work and acceptance.
+
+### Asset selection and cache
 
 `AssetsAdapter` mantiene las URLs originales. Selecciona la variante minimizada
 cuando coinciden los SHA256 de fuente y destino registrados en el manifest;
