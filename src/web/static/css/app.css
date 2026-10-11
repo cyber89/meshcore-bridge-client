@@ -448,7 +448,8 @@ body {
 
 .header-actions,
 .chat-header-actions,
-.panel-btn-group {
+.panel-btn-group,
+.pane-actions {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -1536,10 +1537,17 @@ body {
   border-radius: var(--radius-md);
   background: var(--bg-surface);
   color: var(--text-main);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .search-input::placeholder {
   color: var(--text-muted);
+}
+
+.search-input:focus {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  outline: none;
 }
 
 .nodes-filter-pills,
@@ -1714,6 +1722,91 @@ body {
 .node-card .node-primary-actions .btn-card-action { flex: 1 1 4.5rem; width: auto; }
 .node-card .directory-card-tools { flex: 0 0 auto; margin-left: auto; align-self: flex-end; }
 
+/* Barra de Salud de Subsistemas y Filtros de Logs/Sniffer */
+.subsystems-health-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--bs-border-color);
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+.health-chip .chip-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.health-chip .val {
+  font-weight: 600;
+}
+
+.health-chip .val.ok {
+  color: var(--bs-success, #22c55e);
+}
+
+.health-chip .val.err {
+  color: var(--bs-danger, #ef4444);
+}
+
+.logs-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.logs-filter-bar .filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.logs-filter-bar .filter-group label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-bottom: 0;
+}
+
+.logs-filter-bar .filter-group select,
+.logs-filter-bar .filter-group .select-input {
+  width: auto;
+  min-width: 140px;
+}
+
+.logs-filter-bar .search-group {
+  display: flex;
+  flex: 1 1 220px;
+  min-width: min(100%, 12rem);
+}
+
+.logs-filter-bar .search-group input,
+.logs-filter-bar .search-group .search-input {
+  width: 100%;
+}
+
+.logs-filter-bar .toggle-field-inline {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 /* Terminales y Consola de Comandos */
 .system-logs-box, .linux-term-window pre, .linux-term-body {
   font-family: var(--bs-font-monospace);
@@ -1726,6 +1819,112 @@ body {
   padding: 0.75rem;
   overflow-y: auto;
   max-height: 520px;
+}
+
+/* Entradas y badges del Registro del Sistema (System Logs Feed) */
+.log-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: var(--bs-font-monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.log-row:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #94a3b8;
+  font-size: 11px;
+  flex-shrink: 0;
+  font-family: var(--bs-font-monospace);
+}
+
+.log-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  line-height: 1.3;
+  letter-spacing: 0.5px;
+}
+
+.badge-lvl-info {
+  background: rgba(13, 110, 253, 0.25);
+  color: #70b0ff;
+  border: 1px solid rgba(13, 110, 253, 0.4);
+}
+
+.badge-lvl-debug {
+  background: rgba(108, 117, 125, 0.25);
+  color: #cbd5e1;
+  border: 1px solid rgba(108, 117, 125, 0.4);
+}
+
+.badge-lvl-warning {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.badge-lvl-error,
+.badge-lvl-critical {
+  background: rgba(220, 53, 69, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(220, 53, 69, 0.45);
+}
+
+.log-mod {
+  color: #8bc6ff;
+  font-weight: 600;
+  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-msg {
+  flex: 1 1 auto;
+  color: var(--term-text, #e2e8f0);
+}
+
+.log-trace {
+  width: 100%;
+  margin: 4px 0 2px 24px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-left: 3px solid var(--bs-danger);
+  color: #f87171;
+  font-size: 11px;
+  border-radius: 2px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.log-row-rf {
+  border-left: 2px solid #38bdf8;
+  padding-left: 6px;
+}
+
+.log-row-network {
+  border-left: 2px solid #818cf8;
+  padding-left: 6px;
+}
+
+.log-row-suspicious {
+  border-left: 2px solid #f87171;
+  background: rgba(239, 68, 68, 0.08);
+  padding-left: 6px;
 }
 
 .linux-term-input-bar,

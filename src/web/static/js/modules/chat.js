@@ -55,6 +55,8 @@ export class ChatModule {
     this.activeEmojiTab = "smileys";
     this.selectedShareContact = null;
     this.selectedShareChannel = null;
+    this._sharingChannel = false;
+    this._shareChannelSession = 0;
     this.emojiCategories = {
       smileys: [
         "😀","😃","😄","😁","😆","😅","😂","🤣","😊","😇",
@@ -666,7 +668,8 @@ export class ChatModule {
   }
 
   openShareChannelModal() {
-    if (!this.dom.modalShareChannel) return;
+    if (!this.dom.modalShareChannel || this._sharingChannel) return;
+    ++this._shareChannelSession;
 
     const rawList = this.ctx.channelsList || this.ctx.settingsModule?.channelsList || [];
     // REGLA SSoT: El canal 0 (Public / Broadcast) es universal y todos los nodos ya lo tienen.
@@ -687,6 +690,8 @@ export class ChatModule {
   }
 
   closeShareChannelModal() {
+    ++this._shareChannelSession;
+    this._shareChannelAbort?.abort();
     if (this.dom.modalShareChannel) this.dom.modalShareChannel.classList.add("hidden");
     this.selectedShareChannel = null;
   }
@@ -728,7 +733,7 @@ export class ChatModule {
       item.classList.toggle("selected", isSelected);
       item.setAttribute("aria-pressed", String(isSelected));
       const chName = ch.name || I18n.t("chat.channel_name", { p0: ch.index });
-      const isEncrypted = Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0 && ch.psk !== MESHCORE_PUBLIC_CHANNEL_SECRET));
+      const isEncrypted = Boolean(ch.is_encrypted ?? (ch.has_psk || (ch.psk && ch.psk.trim().length > 0 && ch.psk !== MESHCORE_PUBLIC_CHANNEL_SECRET)));
 
       item.innerHTML = `
         <span class="share-picker-left">
@@ -742,6 +747,7 @@ export class ChatModule {
       `;
 
       item.addEventListener("click", () => {
+        if (this._sharingChannel) return;
         this._selectPickerItem(this.dom.shareChannelList, item);
         this.selectedShareChannel = ch;
         if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = false;
@@ -764,16 +770,20 @@ export class ChatModule {
     if (!isPublic && (!secret || secret.includes("•") || secret === "••••••••")) {
       try {
         const headers = this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {};
-        const res = await fetch("/api/channels/export", { headers });
+        const exportUrl = ch.index != null ? `/api/channels/export?index=${encodeURIComponent(ch.index)}` : "/api/channels/export";
+        const res = await fetch(exportUrl, { headers });
         if (res.ok) {
           const exportData = await res.json();
-          const list = Array.isArray(exportData) ? exportData : (exportData.channels || []);
-          const found = list.find((c) => Number(c.index) === Number(ch.index) || c.name === ch.name);
-          if (found) {
-            const rawPsk = String(found.psk || found.secret || "").trim();
-            if (rawPsk && !rawPsk.includes("•")) {
-              secret = rawPsk;
+          let rawPsk = String(exportData.data?.secret || exportData.secret || "").trim();
+          if (!rawPsk || rawPsk.includes("•")) {
+            const list = Array.isArray(exportData) ? exportData : (exportData.channels || []);
+            const found = list.find((c) => Number(c.index) === Number(ch.index) || c.name === ch.name);
+            if (found) {
+              rawPsk = String(found.psk || found.secret || "").trim();
             }
+          }
+          if (rawPsk && !rawPsk.includes("•")) {
+            secret = rawPsk;
           }
         }
       } catch (_) {}
