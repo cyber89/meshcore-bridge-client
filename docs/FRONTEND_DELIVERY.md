@@ -56,6 +56,25 @@ ejecutaron suites ni inspección de navegador durante este retoque.
 
 ## Selección y caché
 
+### First modernization delivery — 2026-10-11
+
+The first implementation block of [the modernization plan](FRONTEND_MODERNIZATION_PLAN.md)
+adds a local `js/core/dialog_controller.js` module to the existing asset build.
+Public module URLs remain unchanged; the manifest also serves this module through
+its minimized/precompressed representation. Removed application/repeater focus
+and Escape handlers are replaced by one dialog lifecycle owner.
+
+Chat and analytics expose loading/error/authorization states and reject stale
+responses; recoverable refresh failures retain available data. Storage blocks
+offline history access after credential changes or denied access until online
+history validation succeeds. Form grids and terminal styles now have shared
+contracts, and traceroute headers match their generated cells. This delivery
+adds no backend routes, radio traffic, retries or radio timers.
+
+Source/build checks do not establish browser behavior. Keyboard selectors,
+field-linked validation, broader component/layout migration and runtime
+acceptance remain tracked in the plan.
+
 `AssetsAdapter` mantiene las URLs originales. Selecciona la variante minimizada
 cuando coinciden los SHA256 de fuente y destino registrados en el manifest;
 selecciona gzip solo si también coincide su digest y el navegador lo acepta.

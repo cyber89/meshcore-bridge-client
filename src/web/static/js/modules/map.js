@@ -589,17 +589,23 @@ export class MapModule {
   renderTracerouteTable(hops) {
     if (!this.dom.traceBreakdownTableBody) return;
     this.dom.traceBreakdownTableBody.innerHTML = "";
-    if (!Array.isArray(hops) || hops.length === 0) return;
+    if (!Array.isArray(hops) || hops.length === 0) {
+      this.dom.traceBreakdownTableBody.innerHTML = `<tr><td colspan="6" class="text-center" data-i18n="ui.static_548">${escapeHtml(I18n.t('ui.static_548'))}</td></tr>`;
+      return;
+    }
 
     hops.forEach((h, i) => {
       const tr = document.createElement("tr");
+      const key = String(h.pubkey || "");
+      const snr = h.snr == null ? null : Number(h.snr);
+      const rtt = h.rtt_ms == null ? null : Number(h.rtt_ms);
       tr.innerHTML = `
-        <td><strong>#${i}</strong></td>
-        <td><code>${escapeHtml(h.pubkey ? h.pubkey.slice(0, 8) : "--")}</code></td>
+        <th scope="row">#${Number.isInteger(h.hop_index) ? h.hop_index : i}</th>
+        <td><code title="${escapeHtml(key)}">${escapeHtml(key ? key.slice(0, 8) : "—")}</code></td>
         <td>${escapeHtml(h.name || I18n.t('common.node'))}</td>
-        <td><span class="badge-pill">${escapeHtml(h.role || "NODE")}</span></td>
-        <td>${h.snr != null ? `${escapeHtml(String(h.snr))} dB` : "--"}</td>
-        <td>${h.rtt_ms != null ? `${escapeHtml(String(h.rtt_ms))} ms` : "--"}</td>
+        <td><span class="badge-pill">${escapeHtml(I18n.role(h.role || 'UNKNOWN'))}</span></td>
+        <td>${Number.isFinite(snr) ? `${snr} dB` : "—"}</td>
+        <td>${Number.isFinite(rtt) ? `${rtt} ms` : "—"}</td>
       `;
       this.dom.traceBreakdownTableBody.appendChild(tr);
     });

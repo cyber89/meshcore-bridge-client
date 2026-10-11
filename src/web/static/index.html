@@ -345,14 +345,16 @@
               </div>
               <div class="header-actions">
                 <div class="time-range-selector" role="group" aria-label="Rango temporal" data-i18n-aria-label="analytics.range_selector_aria">
-                  <button type="button" class="btn-range" data-range="1h" data-i18n="analytics.range_1h">1h</button>
-                  <button type="button" class="btn-range" data-range="6h" data-i18n="analytics.range_6h">6h</button>
-                  <button type="button" class="btn-range active" data-range="24h" data-i18n="analytics.range_24h">24h</button>
+                  <button type="button" class="btn-range" data-range="1h" aria-pressed="false" data-i18n="analytics.range_1h">1h</button>
+                  <button type="button" class="btn-range" data-range="6h" aria-pressed="false" data-i18n="analytics.range_6h">6h</button>
+                  <button type="button" class="btn-range active" data-range="24h" aria-pressed="true" data-i18n="analytics.range_24h">24h</button>
                 </div>
                 <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshAnalytics" data-i18n="analytics.refresh"><i class="bi bi-arrow-repeat" style="font-size: 14px;" aria-hidden="true"></i> Actualizar Métricas</button>
                 <button type="button" class="btn btn-secondary btn-sm btn-danger-hover" id="btnResetMetrics" title="Restablecer contadores y estadísticas acumuladas" data-i18n-title="analytics.reset_title"><i class="bi bi-arrow-counterclockwise" style="font-size: 14px;" aria-hidden="true"></i> <span id="btnResetMetricsText" data-i18n="analytics.reset">Restablecer Métricas</span></button>
               </div>
             </div>
+
+            <p id="analyticsRequestStatus" class="view-state-notice" role="status" aria-live="polite" hidden></p>
 
             <!-- Fila 1: Tarjetas KPI con Micro-Sparklines -->
             <div class="analytics-kpi-grid">
@@ -479,11 +481,11 @@
                   </div>
                   <div class="detailed-stat-row">
                     <span data-i18n="ui.static_098">Transceptor Serial UART:</span>
-                    <strong id="statSerialStatus" style="color: var(--accent-success);">Conectado</strong>
+                    <strong id="statSerialStatus" data-i18n="common.unverified">Sin verificar</strong>
                   </div>
                   <div class="detailed-stat-row">
                     <span data-i18n="ui.static_100">Broker MQTT (Bridge):</span>
-                    <strong id="statMqttStatus" style="color: var(--accent-success);">En Línea</strong>
+                    <strong id="statMqttStatus" data-i18n="common.unverified">Sin verificar</strong>
                   </div>
                 </div>
               </div>
@@ -708,8 +710,8 @@
                 <div class="header-badge-row">
                   <h2 data-i18n="ui.static_166"><i class="bi bi-sliders section-icon" style="font-size: 20px;" aria-hidden="true"></i> Configuración & Gestión del Nodo Local</h2>
                   <span class="badge-pill badge-primary" id="localNodeRoleBadge">Base Station</span>
-                  <span class="badge-pill badge-secondary" id="localHwBoardBadge">ESP32 / SX1262</span>
-                  <span class="badge-pill badge-outline" id="localFwVersionBadge">FW: v1.6.0</span>
+                  <span class="badge-pill badge-secondary" id="localHwBoardBadge" data-i18n="common.unverified">Sin verificar</span>
+                  <span class="badge-pill badge-outline" id="localFwVersionBadge" data-i18n="common.unverified">Sin verificar</span>
                 </div>
                 <p class="header-subtitle" data-i18n="ui.static_170">Control integral de parámetros RF, telemetría de hardware, identidad y consola interactiva del transceptor MeshCore conectado.</p>
               </div>
@@ -736,8 +738,8 @@
                   <div class="card-icon"><i class="bi bi-lightning" style="font-size: 20px;" aria-hidden="true"></i></div>
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_171">Alimentación Host (USB)</span>
-                    <strong class="card-value" id="localSolarValue">Conectado (5V)</strong>
-                    <span class="card-sub" id="localSolarStatus">Energía Constante USB</span>
+                    <strong class="card-value" id="localSolarValue" data-i18n="common.unverified">Sin verificar</strong>
+                    <span class="card-sub" id="localSolarStatus" data-i18n="common.unverified">Sin verificar</span>
                   </div>
                 </div>
                 <div class="metric-card">
@@ -745,7 +747,7 @@
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_174">Reloj RTC (Hora Nodo)</span>
                     <strong class="card-value" id="localClockValue">--:--:--</strong>
-                    <span class="card-sub" id="localClockStatus">Sincronizado</span>
+                    <span class="card-sub" id="localClockStatus" data-i18n="common.unverified">Sin verificar</span>
                   </div>
                 </div>
                 <div class="metric-card">
@@ -753,7 +755,7 @@
                   <div class="card-data">
                     <span class="card-label" data-i18n="ui.static_176">Tiempo Activo (Uptime)</span>
                     <strong class="card-value" id="localUptimeValue">--</strong>
-                    <span class="card-sub" data-i18n="common.online">En línea</span>
+                    <span class="card-sub" data-i18n="common.unverified">Sin verificar</span>
                   </div>
                 </div>
                 <div class="metric-card">
@@ -1051,7 +1053,7 @@
                     </div>
                   </div>
                   <div class="form-actions-full">
-                    <button type="submit" class="btn btn-primary" id="btnSaveLocalRadio" data-i18n="modal.save"><i class="bi bi-floppy btn-icon" aria-hidden="true"></i> Guardar</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveLocalRadio" data-i18n="modal.save"><i class="bi bi-floppy button-icon" aria-hidden="true"></i> Guardar</button>
                   </div>
                 </form>
               </div>
@@ -1772,7 +1774,6 @@
             </div>
           </div>
         </section>
-      </main>
     </main>
   </div>
 
@@ -2076,7 +2077,7 @@
 
               <div class="auth-gate-actions">
                 <button type="button" class="btn btn-primary btn-block" id="btnRepeaterGateSubmit" data-i18n="rep.unlock_btn">
-                  <i class="bi bi-unlock btn-icon" aria-hidden="true"></i> Desbloquear & Autenticar Repetidor
+                  <i class="bi bi-unlock button-icon" aria-hidden="true"></i> Desbloquear & Autenticar Repetidor
                 </button>
                 <button type="button" class="btn btn-secondary btn-block" id="btnRepeaterGateCancel" style="margin-top: 8px;" data-i18n="modal.cancel">
                   Cancelar
@@ -2353,7 +2354,7 @@
                   <small id="remoteAdvertMinutesHint" data-i18n="repeater.advert_minutes_hint">0 desactiva; de 60 a 240 minutos, en valores pares.</small>
                 </div>
                 <div class="form-actions-full">
-                  <button type="submit" class="btn btn-primary" id="btnSubmitRepRadio" data-i18n="modal.save"><i class="bi bi-floppy btn-icon" aria-hidden="true"></i> Guardar</button>
+                  <button type="submit" class="btn btn-primary" id="btnSubmitRepRadio" data-i18n="modal.save"><i class="bi bi-floppy button-icon" aria-hidden="true"></i> Guardar</button>
                 </div>
               </form>
             </div>
@@ -2409,7 +2410,7 @@
                   </div>
                 </div>
                 <div class="form-actions-full">
-                  <button type="submit" class="btn btn-primary" id="btnSubmitRepOwnerPos" data-i18n="modal.save"><i class="bi bi-floppy btn-icon" aria-hidden="true"></i> Guardar</button>
+                  <button type="submit" class="btn btn-primary" id="btnSubmitRepOwnerPos" data-i18n="modal.save"><i class="bi bi-floppy button-icon" aria-hidden="true"></i> Guardar</button>
                 </div>
               </form>
             </div>
@@ -2625,12 +2626,12 @@
             <table class="table table-hover table-striped table-sm align-middle data-table trace-breakdown-table">
               <thead>
                 <tr>
-                  <th data-i18n="ui.static_542">Salto</th>
-                  <th data-i18n="ui.static_543">Nodo / Repetidor</th>
-                  <th data-i18n="ui.static_544">Clave Pública</th>
-                  <th data-i18n="ui.static_545">SNR Entrada</th>
-                  <th data-i18n="ui.static_546">SNR Salida</th>
-                  <th data-i18n="ui.static_547">Latencia Segmento</th>
+                  <th scope="col" data-i18n="map.trace_col_hop">Salto</th>
+                  <th scope="col" data-i18n="map.trace_col_key">Clave / hash</th>
+                  <th scope="col" data-i18n="map.trace_col_node">Nodo</th>
+                  <th scope="col" data-i18n="map.trace_col_role">Rol</th>
+                  <th scope="col" data-i18n="map.trace_col_snr">SNR disponible</th>
+                  <th scope="col" data-i18n="map.trace_col_rtt">RTT desde origen</th>
                 </tr>
               </thead>
               <tbody id="traceBreakdownTableBody">
@@ -2638,6 +2639,7 @@
               </tbody>
             </table>
           </div>
+          <p class="field-hint" data-i18n="map.trace_measurement_hint">El SNR puede proceder de la última lectura conocida; el RTT solo se muestra donde está disponible. — indica un valor desconocido.</p>
         </div>
       </div>
     </div>

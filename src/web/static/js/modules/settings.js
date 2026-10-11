@@ -1589,7 +1589,10 @@ export class SettingsModule {
     const hwBadge = document.getElementById("localHwBoardBadge");
     if (hwBadge) {
       const hwName = cfg.hardware_board || cfg.board || cfg.model;
-      if (hwName) hwBadge.textContent = hwName;
+      if (hwName) {
+        hwBadge.removeAttribute('data-i18n');
+        hwBadge.textContent = hwName;
+      }
     }
 
     const fwBadge = document.getElementById("localFwVersionBadge");
@@ -1597,6 +1600,7 @@ export class SettingsModule {
       const fw = cfg.fw_ver || cfg.ver || cfg.fw_version;
       const build = cfg.fw_build || cfg.build;
       if (fw) {
+        fwBadge.removeAttribute('data-i18n');
         fwBadge.textContent = build ? `FW: v${fw} (b${build})` : `FW: v${fw}`;
       }
     }
@@ -1845,6 +1849,7 @@ export class SettingsModule {
     if (elSolarStatus && (cfg.battery_mv != null || cfg.voltage != null)) {
       const mv = cfg.battery_mv != null ? cfg.battery_mv : Math.round((cfg.voltage || 5) * 1000);
       const vStr = cfg.voltage != null ? `${cfg.voltage} V` : `${(mv / 1000).toFixed(2)} V`;
+      elSolarStatus.removeAttribute('data-i18n');
       elSolarStatus.textContent = `${mv} mV (${vStr})`;
     }
 

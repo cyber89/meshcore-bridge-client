@@ -42,9 +42,17 @@ export class MeshCoreStorage {
     this.stationId = null;
     this.validatedOnline = false;
     this.authGeneration = 0;
+    this.accessGeneration = 0;
+    this.cacheAccessBlocked = false;
+    this.acceptanceTransactions = new Set();
     window.addEventListener("meshcore:credentials_changed", () => {
       this.authGeneration += 1;
+      this.accessGeneration += 1;
       this.validatedOnline = false;
+      this.cacheAccessBlocked = true;
+      for (const transaction of this.acceptanceTransactions) {
+        try { transaction.abort(); } catch { /* Already committed or aborted. */ }
+      }
     });
     this.readyPromise = this.init();
   }
@@ -93,21 +101,69 @@ export class MeshCoreStorage {
     }
   }
 
+  _assertAuthGeneration(generation) {
+    if (generation !== this.authGeneration) {
+      const error = new Error("Credentials changed during history request");
+      error.code = "STALE_AUTH";
+      throw error;
+    }
+  }
+
+  _assertCacheAccess(generation) {
+    this._assertAuthGeneration(generation);
+    if (this.cacheAccessBlocked) {
+      const error = new Error("Validate the current credentials before opening cached history");
+      error.authRequired = true;
+      throw error;
+    }
+  }
+
+  _assertAccessGeneration(generation) {
+    if (generation !== this.accessGeneration) {
+      const error = new Error("History access changed during this request");
+      error.authRequired = true;
+      throw error;
+    }
+  }
+
+  _denyAccess() {
+    ++this.accessGeneration;
+    this.validatedOnline = false;
+    this.cacheAccessBlocked = true;
+    for (const transaction of this.acceptanceTransactions) {
+      try { transaction.abort(); } catch { /* Already committed or aborted. */ }
+    }
+    window.dispatchEvent(new CustomEvent("meshcore:history_access_denied"));
+  }
+
   async _request(path, options = {}) {
     const authGeneration = this.authGeneration;
+    const accessGeneration = this.accessGeneration;
     let response;
     try {
       response = await fetch(path, { ...options, headers: getAuthHeaders(options.headers) });
     } catch (cause) {
+      this._assertAuthGeneration(authGeneration);
       const error = new Error("History server unavailable", { cause });
       error.offline = true;
       throw error;
     }
-    const result = await response.json();
-    if (authGeneration !== this.authGeneration) throw new Error("Credentials changed during history request");
-    if (!response.ok || result.status !== "ok") {
-      throw new Error(result.detail || result.message || result.error || `HTTP ${response.status}`);
+    this._assertAuthGeneration(authGeneration);
+    if (response.status === 401 || response.status === 403) {
+      this._denyAccess();
     }
+    const parsed = await response.json().catch(error => {
+      if (response.ok) throw error;
+      return {};
+    });
+    const result = parsed && typeof parsed === "object" ? parsed : {};
+    this._assertAuthGeneration(authGeneration);
+    if (!response.ok || result.status !== "ok") {
+      const error = new Error(result.detail || result.message || result.error || `HTTP ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    this._assertAccessGeneration(accessGeneration);
     const data = result.data;
     if (!data || typeof data.station_id !== "string" || !data.station_id) {
       throw new Error("History response has no station identity");
@@ -115,11 +171,15 @@ export class MeshCoreStorage {
     return data;
   }
 
-  async _accept(data) {
+  async _accept(data, authGeneration = this.authGeneration, accessGeneration = this.accessGeneration) {
     await this.readyPromise;
+    this._assertAuthGeneration(authGeneration);
+    this._assertAccessGeneration(accessGeneration);
     if (this.db) {
+      let tx;
       try {
-        const tx = this.db.transaction([CACHE_STORE, META_STORE], "readwrite");
+        tx = this.db.transaction([CACHE_STORE, META_STORE], "readwrite");
+        this.acceptanceTransactions.add(tx);
         const done = transactionDone(tx);
         const store = tx.objectStore(CACHE_STORE);
         for (const message of data.messages || []) {
@@ -134,14 +194,21 @@ export class MeshCoreStorage {
         // Identity and downloaded messages become visible together after commit.
         await done;
       } catch (error) {
+        this._assertAuthGeneration(authGeneration);
+        this._assertAccessGeneration(accessGeneration);
         console.warn("History downloaded, but offline cache unavailable:", error);
         this.db?.close();
         this.db = null;
+      } finally {
+        this.acceptanceTransactions.delete(tx);
       }
     }
+    this._assertAuthGeneration(authGeneration);
+    this._assertAccessGeneration(accessGeneration);
     const previousStation = this.stationId;
     this.stationId = data.station_id;
     this.validatedOnline = true;
+    this.cacheAccessBlocked = false;
     if (previousStation !== this.stationId) {
       window.dispatchEvent(new CustomEvent("meshcore:station_changed", { detail: { station_id: this.stationId } }));
     }
@@ -164,17 +231,27 @@ export class MeshCoreStorage {
   }
 
   async getHistoryPage(feedKey, { limit = 100, before = null } = {}) {
+    const authGeneration = this.authGeneration;
+    const accessGeneration = this.accessGeneration;
     await this.readyPromise;
+    this._assertAuthGeneration(authGeneration);
+    this._assertAccessGeneration(accessGeneration);
     const params = new URLSearchParams({ feed_key: feedKey, limit: String(limit) });
     if (before != null) params.set("before", String(before));
     try {
       const data = await this._request(`/api/messages/history?${params}`);
-      await this._accept(data);
+      await this._accept(data, authGeneration, accessGeneration);
       return { ...data, offline: false };
     } catch (error) {
       if (!error.offline) throw error;
+      this._assertAccessGeneration(accessGeneration);
+      this._assertCacheAccess(authGeneration);
+      const stationId = this.stationId;
       const messages = await this._cachedFeed(feedKey, limit, before);
-      return { messages, station_id: this.stationId, next_before: messages[0]?.seq || null, has_more: messages.length === limit, offline: true };
+      this._assertAccessGeneration(accessGeneration);
+      this._assertCacheAccess(authGeneration);
+      if (stationId !== this.stationId) throw new Error("Station changed during cached history read");
+      return { messages, station_id: stationId, next_before: messages[0]?.seq || null, has_more: messages.length === limit, offline: true };
     }
   }
 
@@ -183,6 +260,8 @@ export class MeshCoreStorage {
   }
 
   async _cachedFeed(feedKey, limit, before) {
+    const authGeneration = this.authGeneration;
+    this._assertCacheAccess(authGeneration);
     if (!this.db || !this.stationId) return [];
     const stationId = this.stationId;
     return new Promise((resolve, reject) => {
@@ -192,6 +271,7 @@ export class MeshCoreStorage {
       const messages = [];
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
+        try { this._assertCacheAccess(authGeneration); } catch (error) { reject(error); return; }
         const cursor = request.result;
         if (cursor && messages.length < limit) {
           messages.push(cursor.value);
@@ -202,17 +282,27 @@ export class MeshCoreStorage {
   }
 
   async getDmConversations(localPubkey = "") {
+    const authGeneration = this.authGeneration;
+    const accessGeneration = this.accessGeneration;
     await this.readyPromise;
+    this._assertAuthGeneration(authGeneration);
+    this._assertAccessGeneration(accessGeneration);
     let conversations;
     try {
       const data = await this._request("/api/messages/conversations");
-      await this._accept(data);
+      await this._accept(data, authGeneration, accessGeneration);
       conversations = data.conversations || [];
     } catch (error) {
       if (!error.offline) throw error;
+      this._assertAccessGeneration(accessGeneration);
+      this._assertCacheAccess(authGeneration);
       if (!this.db || !this.stationId) return [];
+      const stationId = this.stationId;
       const tx = this.db.transaction(META_STORE, "readonly");
-      conversations = (await requestValue(tx.objectStore(META_STORE).get(`conversations:${this.stationId}`)))?.conversations || [];
+      conversations = (await requestValue(tx.objectStore(META_STORE).get(`conversations:${stationId}`)))?.conversations || [];
+      this._assertAccessGeneration(accessGeneration);
+      this._assertCacheAccess(authGeneration);
+      if (stationId !== this.stationId) throw new Error("Station changed during cached conversation read");
     }
     return conversations.filter(thread => String(thread.feed_key || "").startsWith("dm_"))
       .map(thread => ({ ...thread, pubkey: thread.pubkey || thread.feed_key.slice(3), name: thread.name || thread.peer_name || (thread.last_message?.is_outgoing ? thread.last_message?.dm_target_name : thread.last_message?.sender_name) || thread.feed_key.slice(3, 11) }))
@@ -284,11 +374,15 @@ export class MeshCoreStorage {
   clearAll() { return this._clear(); }
 
   async importLegacyHistory() {
+    const authGeneration = this.authGeneration;
+    const accessGeneration = this.accessGeneration;
     await this.readyPromise;
+    this._assertAuthGeneration(authGeneration);
+    this._assertAccessGeneration(accessGeneration);
     if (!this.db) throw new Error("Legacy browser history is unavailable");
     // Explicit consent targets the currently authenticated station. Never replay TX.
     const station = await this._request("/api/messages/conversations");
-    await this._accept(station);
+    await this._accept(station, authGeneration, accessGeneration);
     let imported = 0;
     let skipped = 0;
     let after = null;
@@ -307,7 +401,11 @@ export class MeshCoreStorage {
         return { ...fields, msg_id: message.msg_id || null };
       });
       if (!batch.length) continue;
+      this._assertAuthGeneration(authGeneration);
+      this._assertAccessGeneration(accessGeneration);
       const data = await this._request("/api/messages/import", { method: "POST", body: JSON.stringify({ messages: batch, station_id: station.station_id }) });
+      this._assertAuthGeneration(authGeneration);
+      this._assertAccessGeneration(accessGeneration);
       if (data.station_id !== station.station_id) throw new Error("Station changed during history import");
       imported += data.imported || data.imported_count || 0;
     }

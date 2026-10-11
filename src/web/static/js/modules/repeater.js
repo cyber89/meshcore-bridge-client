@@ -36,7 +36,7 @@ export class RepeaterModule {
   onLanguageChange() {
     if (this._neighbors) this.renderNeighborsTable(this._neighbors);
     const submit = this.dom.btnRepeaterGateSubmit;
-    if (submit) I18n.setText(submit, submit.disabled ? 'repeater.verify' : 'repeater.unlock');
+    if (submit) I18n.setText(submit.querySelector(".btn-text") || submit, submit.disabled ? 'repeater.verify' : 'repeater.unlock');
   }
 
   _setFieldIfNotDirty(id, value, isChecked = null) {
@@ -154,13 +154,10 @@ export class RepeaterModule {
 
     if (btnToggleGatePwd && repeaterGatePassword) {
       btnToggleGatePwd.addEventListener("click", () => {
-        if (repeaterGatePassword.type === "password") {
-          repeaterGatePassword.type = "text";
-          btnToggleGatePwd.textContent = "🙈";
-        } else {
-          repeaterGatePassword.type = "password";
-          btnToggleGatePwd.textContent = "👁️";
-        }
+        const visible = repeaterGatePassword.type === "password";
+        repeaterGatePassword.type = visible ? "text" : "password";
+        btnToggleGatePwd.innerHTML = `<i class="bi bi-${visible ? "eye-slash" : "eye"} button-icon" aria-hidden="true"></i>`;
+        btnToggleGatePwd.setAttribute("aria-pressed", String(visible));
       });
     }
 
@@ -304,15 +301,6 @@ export class RepeaterModule {
         }
       });
     }
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        const m = this.dom.repeaterAdminModal || document.getElementById("repeaterAdminModal");
-        if (m && !m.classList.contains("hidden")) {
-          this.closeRepeaterAdminModal();
-        }
-      }
-    });
 
     // Desplegable de Ayuda de Comandos
     const btnToggleCmdHelp = document.getElementById("btnToggleCmdHelp");
@@ -959,8 +947,9 @@ export class RepeaterModule {
     const submitBtn = this.dom.btnRepeaterGateSubmit || document.getElementById("btnRepeaterGateSubmit");
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.innerHTML = `<span class="btn-icon">🔐</span> ${I18n.t('repeater.unlock')}`;
-      I18n.setText(submitBtn, 'repeater.unlock');
+      submitBtn.removeAttribute("data-i18n");
+      submitBtn.innerHTML = '<i class="bi bi-unlock button-icon" aria-hidden="true"></i><span class="btn-text"></span>';
+      I18n.setText(submitBtn.querySelector(".btn-text"), 'repeater.unlock');
     }
   }
 
@@ -1012,8 +1001,9 @@ export class RepeaterModule {
     }
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = `<span class="btn-icon">⏳</span> ${I18n.t('repeater.verify')}`;
-      I18n.setText(submitBtn, 'repeater.verify');
+      submitBtn.removeAttribute("data-i18n");
+      submitBtn.innerHTML = '<i class="bi bi-hourglass-split button-icon" aria-hidden="true"></i><span class="btn-text"></span>';
+      I18n.setText(submitBtn.querySelector(".btn-text"), 'repeater.verify');
     }
 
     try {
@@ -1046,8 +1036,9 @@ export class RepeaterModule {
     } finally {
       if (submitBtn && revision === this._modalRevision) {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = `<span class="btn-icon">🔐</span> ${I18n.t('repeater.unlock')}`;
-        I18n.setText(submitBtn, 'repeater.unlock');
+        submitBtn.removeAttribute("data-i18n");
+        submitBtn.innerHTML = '<i class="bi bi-unlock button-icon" aria-hidden="true"></i><span class="btn-text"></span>';
+        I18n.setText(submitBtn.querySelector(".btn-text"), 'repeater.unlock');
       }
     }
   }

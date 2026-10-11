@@ -5,6 +5,7 @@
 
 import { eventBus, EVENTS } from "./core/eventbus.js";
 import { MeshCoreStorage } from "./core/storage.js";
+import { DialogController } from "./core/dialog_controller.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
 import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders } from "./core/utils.js";
 
@@ -88,10 +89,9 @@ class MeshCoreApp {
     this._initTheme();
     this._initNavigation();
     this._initSidebar();
-    this._initBootstrapModalBridge();
+    this.dialogController = new DialogController();
     document.getElementById("btnSelectImportFile")?.addEventListener("click", () => document.getElementById("importFileInput")?.click());
     this._initCommandPalette();
-    this._initModalFocus();
     this._initVisibilityHandler();
     this._subscribeBus();
 
@@ -132,49 +132,6 @@ class MeshCoreApp {
       headerDutyCycle: document.getElementById("headerDutyCycle"),
       headerAirtimeFill: document.getElementById("headerAirtimeFill"),
     };
-  }
-
-  _initBootstrapModalBridge() {
-    if (!window.bootstrap?.Modal) return;
-
-    const hiddenStates = new WeakMap();
-    // Bootstrap also changes transition/show classes. Only synchronize when
-    // the application's hidden flag actually changes.
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.type === "attributes" && m.attributeName === "class") {
-          const target = m.target;
-          if (!target.classList.contains("modal")) continue;
-          const isHidden = target.classList.contains("hidden");
-          if (hiddenStates.get(target) === isHidden) continue;
-          hiddenStates.set(target, isHidden);
-          const bsModal = bootstrap.Modal.getOrCreateInstance(target, {
-            backdrop: target.id === "systemDialogModal" ? "static" : true,
-            keyboard: true,
-          });
-          if (isHidden) {
-            bsModal.hide();
-          } else {
-            bsModal.show();
-          }
-        }
-      }
-    });
-
-    document.querySelectorAll(".modal").forEach((el) => {
-      hiddenStates.set(el, el.classList.contains("hidden"));
-      observer.observe(el, { attributes: true, attributeFilter: ["class"] });
-      el.addEventListener("hidden.bs.modal", () => {
-        if (!el.classList.contains("hidden")) {
-          el.classList.add("hidden");
-        }
-      });
-      el.addEventListener("shown.bs.modal", () => {
-        if (el.classList.contains("hidden")) {
-          el.classList.remove("hidden");
-        }
-      });
-    });
   }
 
   _applyTheme(theme) {
@@ -312,60 +269,6 @@ class MeshCoreApp {
     }
   }
 
-  _initModalFocus() {
-    const modals = Array.from(document.querySelectorAll('.modal-overlay[role="dialog"]'));
-    const focusable = (modal) => Array.from(modal.querySelectorAll(
-      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
-    )).filter((element) => element.getClientRects().length > 0 && !element.closest('[hidden], .hidden'));
-    const isOpen = (modal) => !modal.classList.contains("hidden") && !modal.hidden;
-    let lastOutsideFocus = document.activeElement;
-    document.addEventListener("focusin", (event) => {
-      if (!modals.some((modal) => modal.contains(event.target))) lastOutsideFocus = event.target;
-    });
-    const previousFocus = new WeakMap();
-    const previousState = new WeakMap(modals.map((modal) => [modal, isOpen(modal)]));
-    modals.forEach((modal) => {
-      // Modules own dialog actions; observe visibility to provide consistent focus.
-      new MutationObserver(() => {
-        const open = isOpen(modal);
-        if (open === previousState.get(modal)) return;
-        previousState.set(modal, open);
-        if (open) {
-          previousFocus.set(modal, modal.contains(document.activeElement) ? lastOutsideFocus : document.activeElement);
-          if (!modal.contains(document.activeElement)) {
-            const target = focusable(modal).find((element) => !element.matches(".modal-close")) || focusable(modal)[0];
-            if (target) target.focus();
-            else {
-              modal.tabIndex = -1;
-              modal.focus();
-            }
-          }
-        } else {
-          const target = previousFocus.get(modal);
-          if (target?.isConnected && target.getClientRects().length > 0) target.focus();
-        }
-      }).observe(modal, { attributes: true, attributeFilter: ["class", "hidden"] });
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key !== "Tab") return;
-      const modal = modals.filter(isOpen).at(-1);
-      if (!modal || modal === this.dom.commandPaletteModal) return;
-      const items = focusable(modal);
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (!first) {
-        event.preventDefault();
-        modal.focus();
-      } else if (!modal.contains(document.activeElement) || (event.shiftKey && document.activeElement === first)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    });
-  }
-
   _updateSidebarState() {
     const btn = this.dom.btnToggleSidebar;
     if (!btn || !this.dom.appSidebar) return;
@@ -384,7 +287,6 @@ class MeshCoreApp {
 
   _initCommandPalette() {
     const { btnCommandPalette, commandPaletteModal, cmdPaletteInput, cmdPaletteResults } = this.dom;
-    let lastActiveElement = null;
     let selectedIdx = -1;
 
     const getVisibleItems = () => {
@@ -477,21 +379,16 @@ class MeshCoreApp {
 
     const openPalette = () => {
       if (!commandPaletteModal) return;
-      lastActiveElement = document.activeElement;
-      commandPaletteModal.classList.remove("hidden");
+      this.dialogController.open(commandPaletteModal, { initialFocus: cmdPaletteInput, dismiss: closePalette });
       if (cmdPaletteInput) {
         cmdPaletteInput.value = "";
-        cmdPaletteInput.focus();
       }
       filterCmdItems("");
     };
 
     const closePalette = () => {
       if (!commandPaletteModal) return;
-      commandPaletteModal.classList.add("hidden");
-      if (lastActiveElement && typeof lastActiveElement.focus === "function") {
-        lastActiveElement.focus();
-      }
+      this.dialogController.close(commandPaletteModal);
     };
 
     if (btnCommandPalette && commandPaletteModal) {
@@ -515,22 +412,6 @@ class MeshCoreApp {
             closePalette();
           }
         }
-      } else if (e.key === "Escape") {
-        if (commandPaletteModal && !commandPaletteModal.classList.contains("hidden")) {
-          e.preventDefault();
-          closePalette();
-          return;
-        }
-        const openModals = Array.from(document.querySelectorAll(".modal-overlay:not(.hidden)"));
-        if (openModals.length > 0) {
-          const topModal = openModals[openModals.length - 1];
-          const closeBtn = topModal.querySelector(".modal-close");
-          if (closeBtn) {
-            closeBtn.click();
-          } else {
-            topModal.classList.add("hidden");
-          }
-        }
       }
     });
 
@@ -548,20 +429,6 @@ class MeshCoreApp {
           if (activeItem) {
             e.preventDefault();
             activeItem.click();
-          }
-        } else if (e.key === "Tab") {
-          if (visible.length > 0) {
-            const lastItem = visible[visible.length - 1];
-            if (!e.shiftKey && document.activeElement === lastItem) {
-              e.preventDefault();
-              cmdPaletteInput?.focus();
-            } else if (e.shiftKey && document.activeElement === cmdPaletteInput) {
-              e.preventDefault();
-              lastItem.focus();
-            }
-          } else {
-            e.preventDefault();
-            cmdPaletteInput?.focus();
           }
         }
       });
@@ -871,12 +738,13 @@ class MeshCoreApp {
       warning: { bg: "bg-warning text-dark", icon: "exclamation-triangle" },
       error: { bg: "bg-danger text-white", icon: "exclamation-octagon" },
     };
-    const cfg = typeConfig[type] || typeConfig.info;
+    type = type === "danger" ? "error" : typeConfig[type] ? type : "info";
+    const cfg = typeConfig[type];
 
     const toast = document.createElement("div");
     toast.className = `toast align-items-center ${cfg.bg} border-0 shadow mb-2`;
     toast.setAttribute("role", type === "error" ? "alert" : "status");
-    toast.setAttribute("aria-live", "assertive");
+    toast.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
     toast.setAttribute("aria-atomic", "true");
     toast.innerHTML = `
       <div class="d-flex align-items-center">
@@ -988,13 +856,13 @@ class MeshCoreApp {
     if (!modal) {
       modal = document.createElement("div");
       modal.id = "systemDialogModal";
-      modal.className = "modal-overlay hidden";
+      modal.className = "modal fade modal-overlay hidden";
       modal.setAttribute("role", "dialog");
       modal.setAttribute("aria-modal", "true");
       modal.setAttribute("aria-labelledby", "systemDialogTitleText");
       modal.setAttribute("aria-describedby", "systemDialogMessage");
       modal.innerHTML = `
-        <div class="modal-card system-dialog-card" id="systemDialogCard">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content modal-card system-dialog-card" id="systemDialogCard">
           <div class="modal-header system-dialog-header">
             <div class="system-dialog-title-group">
               <div class="system-dialog-icon-badge" id="systemDialogIconBadge">
@@ -1017,10 +885,11 @@ class MeshCoreApp {
             <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSystemDialog"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span></button>
             <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSystemDialog"><i class="bi bi-check2-circle" aria-hidden="true"></i><span class="btn-text">Confirmar</span></button>
           </div>
-        </div>
+        </div></div>
       `;
       document.body.appendChild(modal);
     }
+    this.dialogController.register(modal);
     return modal;
   }
 
@@ -1035,7 +904,6 @@ class MeshCoreApp {
   _displaySystemDialog(config) {
     return new Promise((resolve) => {
       const modal = this._ensureSystemDialogModal();
-      const previousActiveElement = document.activeElement;
 
       const card = modal.querySelector(".system-dialog-card") || document.getElementById("systemDialogCard");
       const iconBadge = document.getElementById("systemDialogIconBadge");
@@ -1053,7 +921,7 @@ class MeshCoreApp {
       const dialogType = rawType === "error" ? "danger" : rawType;
 
       if (card) {
-        card.className = `modal-card system-dialog-card dialog-type-${dialogType}${isDanger ? " is-danger" : ""}`;
+        card.className = `modal-content modal-card system-dialog-card dialog-type-${dialogType}${isDanger ? " is-danger" : ""}`;
       }
 
       if (iconBadge) {
@@ -1130,101 +998,45 @@ class MeshCoreApp {
         }
       }
 
-      const getFocusableElements = () => {
-        const focusables = modal.querySelectorAll('button:not(.hidden), input:not(.hidden), [tabindex="0"]');
-        return Array.from(focusables).filter((el) => {
-          return el.offsetParent !== null && !el.disabled && !el.classList.contains("hidden");
-        });
-      };
-
       let settled = false;
-      const cleanup = () => {
+      const finish = (value, event) => {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
         if (settled) return;
         settled = true;
-        modal.classList.add("hidden");
-        document.removeEventListener("keydown", onKeyDown);
         if (btnConfirm) btnConfirm.removeEventListener("click", onConfirm);
         if (btnCancel) btnCancel.removeEventListener("click", onCancel);
         if (btnClose) btnClose.removeEventListener("click", onCancel);
         modal.removeEventListener("click", onOverlayClick);
-        if (previousActiveElement && typeof previousActiveElement.focus === "function") {
-          try { previousActiveElement.focus(); } catch (_) {}
-        }
+        modal.removeEventListener("keydown", onKeyDown);
+        // Resolve only after hidden.bs.modal: queued dialogs cannot race a hide transition.
+        this.dialogController.close(modal).then(() => resolve(value));
       };
-
-      const onConfirm = (e) => {
-        if (e) e.preventDefault();
-        cleanup();
-        if (config.mode === "prompt") {
-          resolve(inputEl ? inputEl.value : "");
-        } else if (config.mode === "confirm") {
-          resolve(true);
-        } else {
-          resolve();
-        }
+      const onConfirm = (event) => finish(config.mode === "prompt" ? inputEl?.value || "" : config.mode === "confirm" ? true : undefined, event);
+      const onCancel = (event) => finish(config.mode === "prompt" ? null : config.mode === "confirm" ? false : undefined, event);
+      const onOverlayClick = (event) => {
+        if (event.target === modal && this.dialogController.isTop(modal)) onCancel(event);
       };
-
-      const onCancel = (e) => {
-        if (e) e.preventDefault();
-        cleanup();
-        if (config.mode === "prompt") {
-          resolve(null);
-        } else if (config.mode === "confirm") {
-          resolve(false);
-        } else {
-          resolve();
-        }
+      const onKeyDown = (event) => {
+        if (!event.defaultPrevented && event.key === "Enter" && config.mode === "prompt" && document.activeElement === inputEl) onConfirm(event);
       };
-
-      const onOverlayClick = (e) => {
-        if (e.target === modal) {
-          onCancel(e);
-        }
-      };
-
-      const onKeyDown = (e) => {
-        if (e.defaultPrevented) return;
-        if (e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          onCancel(e);
-        } else if (e.key === "Enter" && config.mode === "prompt" && document.activeElement === inputEl) {
-          e.preventDefault();
-          onConfirm(e);
-        } else if (e.key === "Tab") {
-          const focusables = getFocusableElements();
-          if (focusables.length === 0) return;
-          const first = focusables[0];
-          const last = focusables[focusables.length - 1];
-          if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      };
-
       if (btnConfirm) btnConfirm.addEventListener("click", onConfirm);
       if (btnCancel) btnCancel.addEventListener("click", onCancel);
       if (btnClose) btnClose.addEventListener("click", onCancel);
       modal.addEventListener("click", onOverlayClick);
-      document.addEventListener("keydown", onKeyDown);
-
-      modal.classList.remove("hidden");
-
-      setTimeout(() => {
-        if (settled) return;
-        if (config.mode === "prompt" && inputEl) {
-          inputEl.focus();
-          inputEl.select();
-        } else if (isDanger && config.mode !== "alert" && btnCancel) {
-          btnCancel.focus();
-        } else if (btnConfirm) {
-          btnConfirm.focus();
-        }
-      }, 50);
+      modal.addEventListener("keydown", onKeyDown);
+      this.dialogController.open(modal, {
+        initialFocus: () => {
+          if (config.mode === "prompt" && inputEl) {
+            inputEl.select();
+            return inputEl;
+          }
+          return isDanger && config.mode !== "alert" ? btnCancel : btnConfirm;
+        },
+        dismiss: onCancel,
+      });
     });
   }
 }

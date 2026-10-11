@@ -36,6 +36,9 @@ export class ChatModule {
     this.activeDmName = null;
     this.pendingOutgoingAcks = new Map();
     this.historyPages = new Map();
+    this._historyStates = new Map();
+    this._visibleFeedKey = null;
+    this._historyAccessDenied = false;
     this.chatSoundEnabled = localStorage.getItem("meshcore_chat_sound_enabled") !== "false";
     this._audioCtx = null;
     this.dom = {};
@@ -88,6 +91,8 @@ export class ChatModule {
     window.addEventListener("meshcore:station_changed", () => {
       this.channelFeeds.clear();
       this.historyPages.clear();
+      this._historyStates.clear();
+      this._visibleFeedKey = null;
       this.pendingOutgoingAcks.clear();
       this.conversationsWithMessages.clear();
       this.unreadCounts.clear();
@@ -95,11 +100,23 @@ export class ChatModule {
       if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
       if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.textContent = "";
     });
-    window.addEventListener("meshcore:credentials_changed", () => this.loadInitialHistory());
+    window.addEventListener("meshcore:credentials_changed", () => {
+      this._clearProtectedHistory();
+      this.loadInitialHistory();
+    });
+    window.addEventListener("meshcore:history_access_denied", () => {
+      this._clearProtectedHistory();
+      const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+      this._historyStates.set(feedKey, "auth");
+      this._paintConversation(feedKey);
+    });
     window.addEventListener("meshcore:history_imported", () => this.loadInitialHistory());
     window.addEventListener("meshcore:cache_cleared", () => {
+      ++this._renderGeneration;
       this.channelFeeds.clear();
       this.historyPages.clear();
+      this._historyStates.clear();
+      this._visibleFeedKey = null;
       if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.textContent = "";
     });
     this.loadInitialHistory();
@@ -114,7 +131,7 @@ export class ChatModule {
   onLanguageChange() {
     this._updateActiveChatHeader();
     this.updateCharCounter();
-    this.renderCurrentConversation();
+    this._paintConversation(this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`, { preserveScroll: true });
     if (this.dom.modalShareContact && !this.dom.modalShareContact.classList.contains('hidden')) {
       this._populateShareContactList(this.dom.shareContactSearch?.value || '');
     }
@@ -342,10 +359,14 @@ export class ChatModule {
   async loadInitialHistory() {
     if (!this.ctx.storage) return;
     await this.renderCurrentConversation();
+    if (this._historyAccessDenied) return;
+    const generation = this._renderGeneration;
+    const authGeneration = this.ctx.storage.authGeneration;
 
     try {
       const localPk = (this.ctx.localNodePubkey || (typeof document !== "undefined" ? document.getElementById("localNodePubkey")?.value : "") || "").toLowerCase().trim();
       const dmThreads = await this.ctx.storage.getDmConversations(localPk);
+      if (generation !== this._renderGeneration || authGeneration !== this.ctx.storage.authGeneration) return;
       if (dmThreads && dmThreads.length > 0) {
         for (const thread of dmThreads) {
           const canonicalPk = this.resolveCanonicalPubkey(thread.pubkey);
@@ -359,6 +380,14 @@ export class ChatModule {
         }
       }
     } catch (error) {
+      if (generation !== this._renderGeneration || authGeneration !== this.ctx.storage.authGeneration) return;
+      if (error.authRequired || error.status === 401 || error.status === 403) {
+        this._clearProtectedHistory();
+        this._historyAccessDenied = true;
+        const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+        this._historyStates.set(feedKey, "auth");
+        this._paintConversation(feedKey);
+      }
       console.warn("Conversation history unavailable:", error);
     }
   }
@@ -950,6 +979,8 @@ export class ChatModule {
     const renderGeneration = ++this._renderGeneration;
     this._feedGenerations.set(feedKey, (this._feedGenerations.get(feedKey) || 0) + 1);
     this.channelFeeds.set(feedKey, []);
+    this.historyPages.delete(feedKey);
+    this._historyStates.set(feedKey, this._historyAccessDenied ? "auth" : "ready");
 
     if (this.ctx.storage && this.ctx.storage.clearFeedMessages) {
       try {
@@ -959,7 +990,9 @@ export class ChatModule {
 
     const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
     if (renderGeneration === this._renderGeneration && feedKey === currentFeed && this.dom.chatMessageFeed) {
-      this.dom.chatMessageFeed.innerHTML = `
+      this.dom.chatMessageFeed.setAttribute("aria-busy", "false");
+      if (this._historyAccessDenied) this._paintConversation(feedKey);
+      else this.dom.chatMessageFeed.innerHTML = `
         <div class="chat-empty-state">
           <p>${window.I18n ? window.I18n.t('chat.cleared') : 'Historial de chat limpiado'}</p>
           <small>${window.I18n ? window.I18n.t('chat.write_below') : 'Escribe un mensaje abajo para comenzar'}</small>
@@ -1089,19 +1122,46 @@ export class ChatModule {
     }
   }
 
+  _clearProtectedHistory() {
+    ++this._renderGeneration;
+    this._historyAccessDenied = true;
+    this.channelFeeds.clear();
+    this.historyPages.clear();
+    this._historyStates.clear();
+    this.pendingOutgoingAcks.clear();
+    this.conversationsWithMessages.clear();
+    this.unreadCounts.clear();
+    this._visibleFeedKey = null;
+    if (this.dom.dmListUi) this.dom.dmListUi.textContent = "";
+    if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
+    if (this.dom.globalChatUnreadBadge) {
+      this.dom.globalChatUnreadBadge.textContent = "0";
+      this.dom.globalChatUnreadBadge.classList.add("hidden");
+    }
+    if (this.dom.chatMessageFeed) {
+      this.dom.chatMessageFeed.textContent = "";
+      this.dom.chatMessageFeed.setAttribute("aria-busy", "false");
+    }
+  }
+
   async renderCurrentConversation({ refresh = true, before = null } = {}) {
     if (!this.dom.chatMessageFeed) return;
     const renderGeneration = ++this._renderGeneration;
-    this.dom.chatMessageFeed.textContent = "";
-
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
     const feedGeneration = this._feedGenerations.get(feedKey) || 0;
-    let msgs = this.channelFeeds.get(feedKey);
+    const authGeneration = this.ctx.storage?.authGeneration;
+    const preserveScroll = this._visibleFeedKey === feedKey && (this.channelFeeds.get(feedKey)?.length || 0) > 0;
+    const isCurrent = () => renderGeneration === this._renderGeneration
+      && feedGeneration === (this._feedGenerations.get(feedKey) || 0)
+      && authGeneration === this.ctx.storage?.authGeneration
+      && feedKey === (this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`);
 
     if (refresh && this.ctx.storage) {
+      this._historyStates.set(feedKey, "loading");
+      this._paintConversation(feedKey, { preserveScroll });
       try {
         const page = await this.ctx.storage.getHistoryPage(feedKey, { before });
-        if (renderGeneration !== this._renderGeneration || feedGeneration !== (this._feedGenerations.get(feedKey) || 0)) return;
+        if (!isCurrent() || page.station_id !== this.ctx.storage.stationId) return;
         const existing = this.channelFeeds.get(feedKey) || [];
         const byId = new Map(existing.map(msg => [messageIdentity(msg), msg]));
         for (const msg of page.messages || []) {
@@ -1113,42 +1173,67 @@ export class ChatModule {
         const merged = [...byId.values()].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || (a.seq || 0) - (b.seq || 0));
         this.channelFeeds.set(feedKey, before == null ? merged.slice(-MAX_FEED_MESSAGES) : merged);
         this.historyPages.set(feedKey, page);
+        this._historyAccessDenied = false;
+        this._historyStates.set(feedKey, page.offline ? "offline" : "ready");
       } catch (error) {
+        if (!isCurrent()) return;
         console.warn("History unavailable:", error);
-        this.channelFeeds.delete(feedKey);
-        this.historyPages.delete(feedKey);
-        this.ctx.showToast?.(I18n.t("chat.history_error", { error: error.message }), "warning");
+        if (error.authRequired || error.status === 401 || error.status === 403) {
+          this._clearProtectedHistory();
+          this._historyAccessDenied = true;
+          this._historyStates.set(feedKey, "auth");
+          this._paintConversation(feedKey);
+          return;
+        }
+        this._historyStates.set(feedKey, "error");
       }
-      msgs = this.channelFeeds.get(feedKey);
     }
+    if (!isCurrent()) return;
+    this._paintConversation(feedKey, { preserveScroll });
+  }
 
-    const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
-    if (renderGeneration !== this._renderGeneration || feedKey !== currentFeed) return;
-
-    if (!msgs || msgs.length === 0) {
-      this.dom.chatMessageFeed.innerHTML = `
-        <div class="chat-empty-state">
-          <p>${I18n.t('chat.no_messages')}</p>
-          <small>${I18n.t('chat.write_below')}</small>
-        </div>
-      `;
-      return;
-    }
-
-    const frag = document.createDocumentFragment();
+  _paintConversation(feedKey, { preserveScroll = false } = {}) {
+    const feed = this.dom.chatMessageFeed;
+    if (!feed) return;
+    const oldTop = feed.scrollTop;
+    const msgs = this.channelFeeds.get(feedKey) || [];
     const page = this.historyPages.get(feedKey);
-    if (page?.offline) {
+    const state = this._historyStates.get(feedKey) || (this._historyAccessDenied ? "auth" : (page?.offline ? "offline" : "ready"));
+    feed.setAttribute("aria-busy", String(state === "loading"));
+    const frag = document.createDocumentFragment();
+    const statusKey = {
+      loading: "chat.history_loading",
+      error: "chat.history_failed",
+      auth: "chat.history_auth_required",
+      offline: msgs.length ? "chat.offline_cache" : "chat.offline_empty",
+    }[state];
+    if (statusKey) {
       const notice = document.createElement("p");
-      notice.className = "text-secondary text-xs";
+      notice.id = "chatHistoryStatus";
+      notice.className = "view-state-notice";
+      notice.dataset.state = state;
       notice.setAttribute("role", "status");
-      notice.textContent = I18n.t("chat.offline_cache");
+      notice.textContent = I18n.t(statusKey);
       frag.appendChild(notice);
     }
-    if (page?.has_more && page.next_before) {
+
+    if (msgs.length === 0 && state === "ready") {
+      const empty = document.createElement("div");
+      empty.className = "chat-empty-state";
+      const title = document.createElement("p");
+      title.textContent = I18n.t("chat.no_messages");
+      const help = document.createElement("small");
+      help.textContent = I18n.t("chat.write_below");
+      empty.append(title, help);
+      frag.appendChild(empty);
+    }
+
+    if (page?.has_more && page.next_before && state !== "auth") {
       const older = document.createElement("button");
       older.type = "button";
       older.className = "btn btn-secondary btn-sm";
       older.textContent = I18n.t("chat.load_older");
+      older.disabled = state === "loading";
       older.addEventListener("click", async () => {
         older.disabled = true;
         const oldHeight = this.dom.chatMessageFeed.scrollHeight;
@@ -1176,8 +1261,9 @@ export class ChatModule {
       frag.appendChild(this.createMessageBubble(m));
     });
 
-    this.dom.chatMessageFeed.appendChild(frag);
-    this.dom.chatMessageFeed.scrollTop = this.dom.chatMessageFeed.scrollHeight;
+    feed.replaceChildren(frag);
+    this._visibleFeedKey = feedKey;
+    feed.scrollTop = preserveScroll ? oldTop : feed.scrollHeight;
   }
 
   createMessageBubble(msg) {
@@ -1580,7 +1666,7 @@ export class ChatModule {
   }
 
   appendChatMessage(msg) {
-    if (!this.dom.chatMessageFeed) return;
+    if (!this.dom.chatMessageFeed || this._historyAccessDenied) return;
     const emptyState = this.dom.chatMessageFeed.querySelector(".chat-empty-state");
     if (emptyState) emptyState.remove();
 
@@ -1615,6 +1701,7 @@ export class ChatModule {
   }
 
   async handleIncomingChatMessage(payload) {
+    if (this._historyAccessDenied) return;
     if (payload.station_id && payload.station_id !== this.ctx.storage?.stationId) return;
     const rawText = payload.text || payload.message || "";
     const outgoing = Boolean(payload.is_outgoing);

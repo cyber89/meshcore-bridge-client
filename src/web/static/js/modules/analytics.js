@@ -35,12 +35,32 @@ export class AnalyticsModule {
     this.currentRange = "24h";
     this._lastAnalytics = null;
     this._lastAirtime = null;
+    this._requestGeneration = 0;
+    this._requestController = null;
+    this._requestState = "ready";
+    this._analyticsAccessDenied = false;
   }
 
   init() {
     this._bindElements();
+    this._clearProtectedAnalytics();
     this._bindEvents();
     this._subscribeBus();
+    for (const eventName of ["meshcore:credentials_changed", "meshcore:station_changed"]) {
+      window.addEventListener(eventName, () => {
+        ++this._requestGeneration;
+        this._requestController?.abort();
+        this._clearProtectedAnalytics();
+        this.fetchAnalytics();
+      });
+    }
+    window.addEventListener("meshcore:history_access_denied", () => {
+      ++this._requestGeneration;
+      this._requestController?.abort();
+      this._requestController = null;
+      this._clearProtectedAnalytics();
+      this._setRequestState("auth");
+    });
     this.fetchAnalytics();
   }
 
@@ -54,11 +74,14 @@ export class AnalyticsModule {
       this.renderTopActiveTable(payload.top_nodes_by_traffic || []);
     }
     if (this._lastAirtime) this.renderAirtimeStats(this._lastAirtime);
+    this._setRequestState(this._requestState);
   }
 
   _bindElements() {
     this.dom = {
       btnRefreshAnalytics: document.getElementById("btnRefreshAnalytics"),
+      analyticsRequestStatus: document.getElementById("analyticsRequestStatus"),
+      analyticsPanel: document.getElementById("tab-analytics"),
       btnResetMetrics: document.getElementById("btnResetMetrics"),
       rangeButtons: document.querySelectorAll(".time-range-selector .btn-range"),
 
@@ -130,11 +153,8 @@ export class AnalyticsModule {
 
           this.dom.rangeButtons.forEach((b) => b.classList.remove("active"));
           btn.classList.add("active");
+          this.dom.rangeButtons.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
           this.currentRange = range;
-
-          if (this.dom.chartTrafficRangeBadge) {
-            this.dom.chartTrafficRangeBadge.textContent = range;
-          }
 
           this.fetchAnalytics();
         });
@@ -214,7 +234,7 @@ export class AnalyticsModule {
     this.ctx.eventBus.on(EVENTS.RF_PACKET, triggerDebouncedRefresh);
     if (EVENTS.METRICS_UPDATE) {
       this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, (payload) => {
-        if (payload) {
+        if (payload && !this._analyticsAccessDenied) {
           const airtimeData = payload.airtime || (payload.duty_cycle_pct != null || payload.hourly_duty_cycle_pct != null ? payload : null);
           if (airtimeData) {
             this.renderAirtimeStats(airtimeData);
@@ -224,44 +244,122 @@ export class AnalyticsModule {
     }
     if (EVENTS.DUTY_CYCLE_ALERT) {
       this.ctx.eventBus.on(EVENTS.DUTY_CYCLE_ALERT, (payload) => {
-        if (payload) {
+        if (payload && !this._analyticsAccessDenied) {
           this.renderAirtimeStats(payload);
         }
       });
     }
   }
 
+  _setRequestState(state) {
+    this._requestState = state;
+    const busy = state === "loading";
+    this.dom.analyticsPanel?.setAttribute("aria-busy", String(busy));
+    if (this.dom.btnRefreshAnalytics) this.dom.btnRefreshAnalytics.disabled = busy;
+    const notice = this.dom.analyticsRequestStatus;
+    if (!notice) return;
+    const key = {
+      loading: "analytics.loading",
+      error: "analytics.load_failed",
+      auth: "analytics.auth_required",
+      warning: "analytics.airtime_unavailable",
+    }[state];
+    notice.hidden = !key;
+    notice.dataset.state = state;
+    notice.textContent = key ? I18n.t(key) : "";
+  }
+
+  _clearProtectedAnalytics() {
+    this._analyticsAccessDenied = true;
+    this._lastAnalytics = null;
+    this._lastAirtime = null;
+    for (const [key, element] of Object.entries(this.dom)) {
+      if (!element || !(element instanceof Element)) continue;
+      if (key.startsWith("kpi") || key.startsWith("stat")) {
+        element.removeAttribute("data-i18n");
+        element.removeAttribute("data-i18n-params");
+        element.textContent = key.includes("Sparkline") ? "" : "--";
+        element.style.removeProperty("color");
+      } else if (key.startsWith("chart") || key === "analyticsTopActiveTable") {
+        element.textContent = key === "chartTrafficRangeBadge" ? "--" : "";
+      } else if (key === "analyticsAirtimeFill") {
+        element.style.width = "0%";
+      } else if (key.startsWith("analyticsAirtime") && !key.endsWith("Marker")) {
+        element.textContent = "--";
+      }
+    }
+    for (const key of ["statSerialStatus", "statMqttStatus"]) {
+      if (this.dom[key]) I18n.setText(this.dom[key], "analytics.unknown_status");
+    }
+  }
+
   async fetchAnalytics() {
+    const generation = ++this._requestGeneration;
+    this._requestController?.abort();
+    const controller = new AbortController();
+    this._requestController = controller;
+    const range = this.currentRange;
+    this._setRequestState("loading");
     try {
       const headers = this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {};
-      const url = `/api/analytics?range=${encodeURIComponent(this.currentRange)}`;
-      const [resAnalytics, resAirtime] = await Promise.all([
-        fetch(url, { headers }),
-        fetch("/api/airtime/stats", { headers }).catch(() => null),
+      const url = `/api/analytics?range=${encodeURIComponent(range)}`;
+      const results = await Promise.allSettled([
+        fetch(url, { headers, signal: controller.signal }),
+        fetch("/api/airtime/stats", { headers, signal: controller.signal }),
       ]);
-
+      if (generation !== this._requestGeneration) return;
+      const resAnalytics = results[0].status === "fulfilled" ? results[0].value : null;
+      const resAirtime = results[1].status === "fulfilled" ? results[1].value : null;
+      if ([resAnalytics, resAirtime].some(response => response?.status === 401 || response?.status === 403)) {
+        const error = new Error("Analytics authorization required");
+        error.authRequired = true;
+        throw error;
+      }
+      if (results[0].status === "rejected") throw results[0].reason;
+      if (!resAnalytics.ok) throw new Error(`HTTP ${resAnalytics.status}`);
       const dataAnalytics = await resAnalytics.json();
       let dataAirtime = null;
       if (resAirtime && resAirtime.ok) {
-        dataAirtime = await resAirtime.json();
+        try { dataAirtime = await resAirtime.json(); } catch (error) {
+          if (error.name === "AbortError") throw error;
+        }
       }
-
+      if (generation !== this._requestGeneration || controller.signal.aborted) return;
       if (dataAnalytics.status === "ok" && dataAnalytics.data) {
         const payload = dataAnalytics.data;
+        this._analyticsAccessDenied = false;
         this._lastAnalytics = payload;
-
+        if (this.dom.chartTrafficRangeBadge) this.dom.chartTrafficRangeBadge.textContent = range;
         this.renderKpis(payload.summary || {}, payload);
         this.renderCharts(payload);
         this.renderDiagnostics(payload);
         this.renderHardwareStats(payload);
         this.renderTopActiveTable(payload.top_nodes_by_traffic || []);
+      } else {
+        throw new Error("Analytics response is unavailable");
       }
 
       if (dataAirtime && dataAirtime.status === "ok" && dataAirtime.data) {
         this.renderAirtimeStats(dataAirtime.data);
+        this._setRequestState("ready");
+      } else {
+        this._setRequestState("warning");
       }
     } catch (e) {
+      if (generation !== this._requestGeneration || e.name === "AbortError") return;
+      if (e.authRequired) {
+        this._clearProtectedAnalytics();
+        this._setRequestState("auth");
+      } else {
+        this._setRequestState("error");
+      }
       console.warn("Error cargando métricas analíticas:", e);
+    } finally {
+      if (generation === this._requestGeneration) {
+        this._requestController = null;
+        this.dom.analyticsPanel?.setAttribute("aria-busy", "false");
+        if (this.dom.btnRefreshAnalytics) this.dom.btnRefreshAnalytics.disabled = false;
+      }
     }
   }
 
@@ -460,15 +558,15 @@ export class AnalyticsModule {
     }
 
     if (this.dom.statSerialStatus) {
-      const isSerOk = Boolean(rootData.serial_connected);
-      I18n.setText(this.dom.statSerialStatus, isSerOk ? "analytics.connected_ok" : "analytics.disconnected");
-      this.dom.statSerialStatus.style.color = isSerOk ? "var(--accent-success, #10b981)" : "var(--accent-danger, #ef4444)";
+      const serialStatus = rootData.serial_connected;
+      I18n.setText(this.dom.statSerialStatus, serialStatus == null ? "analytics.unknown_status" : (serialStatus ? "analytics.connected_ok" : "analytics.disconnected"));
+      this.dom.statSerialStatus.style.color = serialStatus == null ? "var(--text-muted)" : (serialStatus ? "var(--accent-success, #10b981)" : "var(--accent-danger, #ef4444)");
     }
 
     if (this.dom.statMqttStatus) {
-      const isMqttOk = Boolean(rootData.mqtt_connected);
-      I18n.setText(this.dom.statMqttStatus, isMqttOk ? "analytics.online_broker" : "analytics.disconnected");
-      this.dom.statMqttStatus.style.color = isMqttOk ? "var(--accent-success, #10b981)" : "var(--accent-danger, #ef4444)";
+      const mqttStatus = rootData.mqtt_connected;
+      I18n.setText(this.dom.statMqttStatus, mqttStatus == null ? "analytics.unknown_status" : (mqttStatus ? "analytics.online_broker" : "analytics.disconnected"));
+      this.dom.statMqttStatus.style.color = mqttStatus == null ? "var(--text-muted)" : (mqttStatus ? "var(--accent-success, #10b981)" : "var(--accent-danger, #ef4444)");
     }
   }
 
