@@ -742,10 +742,130 @@ body {
   overflow-y: auto;
   background: var(--map-overlay-bg, rgba(15, 23, 42, 0.85));
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm, 8px);
   border: 1px solid var(--bs-border-color);
+  box-shadow: var(--card-shadow, 0 4px 16px rgba(0, 0, 0, 0.16));
   font-size: 12px;
+  transition: max-height 0.2s ease, padding 0.2s ease;
+}
+
+.map-overlay-info.minimized {
+  max-height: 44px;
+  overflow: hidden;
+  padding: 6px 10px;
+}
+
+.map-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--bs-border-color-subtle);
+  cursor: pointer;
+  user-select: none;
+}
+
+.map-overlay-info.minimized .map-overlay-header {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.map-overlay-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.map-overlay-icon {
+  color: var(--bs-primary);
+  font-size: 0.9375rem;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.map-overlay-title {
+  margin: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--bs-body-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-overlay-title-text {
+  font-weight: 600;
+}
+
+.map-nodes-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  font-family: var(--bs-font-monospace);
+  color: var(--bs-primary);
+  background-color: rgba(var(--bs-primary-rgb), 0.14);
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.3);
+  border-radius: 999px;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.btn-toggle-overlay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--control-border, var(--bs-border-color));
+  background-color: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--control-transition);
+}
+
+.btn-toggle-overlay:hover {
+  background-color: var(--bs-secondary-bg);
+  color: var(--bs-primary);
+  border-color: var(--bs-primary);
+  transform: translateY(-1px);
+}
+
+.btn-toggle-overlay:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.btn-toggle-overlay:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.btn-toggle-overlay .toggle-icon {
+  font-family: var(--bs-font-monospace), system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-block;
+  user-select: none;
+  pointer-events: none;
 }
 
 /* Filtro Táctico Oscuro para Mapas Leaflet Offline/Online */

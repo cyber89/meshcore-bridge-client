@@ -290,11 +290,14 @@
             <div class="map-overlay-info" id="mapOverlayInfo">
               <div class="map-overlay-header" id="mapOverlayHeader">
                 <div class="map-overlay-title-group">
-                  <i class="bi bi-people map-overlay-icon" aria-hidden="true"></i>
-                  <h4 data-i18n="ui.static_062">Nodos en Malla (<span id="mapNodesCount">0</span>)</h4>
+                  <i class="bi bi-people-fill map-overlay-icon" aria-hidden="true"></i>
+                  <h4 class="map-overlay-title">
+                    <span class="map-overlay-title-text" data-i18n="map.nodes_title">Nodos en Malla</span>
+                    <span id="mapNodesCount" class="map-nodes-badge badge rounded-pill">0</span>
+                  </h4>
                 </div>
-                <button type="button" class="btn-toggle-overlay" id="btnToggleMapNodes" title="Minimizar / Expandir lista de nodos" aria-label="Minimizar o expandir lista de nodos" aria-expanded="true" data-i18n-title="ui.static_063" data-i18n-aria-label="ui.static_064">
-                  <span class="toggle-icon">−</span>
+                <button type="button" class="btn-toggle-overlay" id="btnToggleMapNodes" title="Minimizar lista de nodos" aria-label="Minimizar lista de nodos" aria-expanded="true" data-i18n-title="map.minimize_nodes" data-i18n-aria-label="map.minimize_nodes" aria-controls="mapNodesList">
+                  <span class="toggle-icon" aria-hidden="true">−</span>
                 </button>
               </div>
               <div id="mapNodesList" class="map-nodes-feed"></div>
