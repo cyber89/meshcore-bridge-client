@@ -225,7 +225,7 @@ export class BrowserAuthentication {
     const errors = {};
     if (fields.password.value !== fields.confirmation.value) errors.confirmation = "auth.password_mismatch";
     const length = Array.from(fields.password.value).length;
-    if (length < 15 || length > 128 || new TextEncoder().encode(fields.password.value).length > 1024) errors.password = "auth.password_length";
+    if (length < 8 || length > 64) errors.password = "auth.password_length";
     if (this.requestBusy || !this.accountFeedback.validate(errors)) return;
     const forced = this.session?.must_change_credentials;
     const data = await this._submit("/api/auth/credentials", "PUT", {

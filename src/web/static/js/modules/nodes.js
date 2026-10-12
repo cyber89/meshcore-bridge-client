@@ -585,12 +585,14 @@ export class NodesModule {
         </div>
 
         <div class="contact-card-actions directory-card-actions">
-          <button type="button" class="btn btn-primary btn-sm btn-card-action btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
-            <i class="bi bi-chat-dots button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.chat_btn')}</span>
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm btn-card-action btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
-            <i class="bi bi-signpost-split button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.trace_btn')}</span>
-          </button>
+          <div class="node-primary-actions contact-primary-actions">
+            <button type="button" class="btn btn-primary btn-sm btn-card-action btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
+              <i class="bi bi-chat-dots button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.chat_btn')}</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm btn-card-action btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
+              <i class="bi bi-signpost-split button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.trace_btn')}</span>
+            </button>
+          </div>
           <div class="directory-card-tools">
             <button type="button" class="btn btn-outline-secondary btn-sm btn-card-icon btn-contact-qr" title="${I18n.t('contacts.title_qr')}" aria-label="${escapeHtml(`${I18n.t('contacts.title_qr')}: ${cleanName}`)}">
               <i class="bi bi-qr-code button-icon" aria-hidden="true"></i>
