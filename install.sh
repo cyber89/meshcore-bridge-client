@@ -430,7 +430,7 @@ print_info "Check installed dependencies for the web profile"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
 
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
-print_info "Create personal web account (3-minute shared deadline)"
+print_info "Initialize default web account (admin:admin; change required at first login)"
 sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/setup_auth.py" --project-dir "$INSTALL_DIR"
 print_ok "Python environment ready; dependency imports and versions verified."
 

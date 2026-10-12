@@ -25,6 +25,7 @@
       <div class="auth-brand"><img src="/brand.svg" width="48" height="48" alt=""><span>Meshcore-Bridge</span><button id="authLanguageButton" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="auth.language">ES / EN</button></div>
       <h2 id="authHeading" data-i18n="auth.login_title">Inicia sesión en tu estación</h2>
       <p class="text-body-secondary" data-i18n="auth.login_description">Tu cuenta protege la estación, sus mensajes y la API.</p>
+      <p class="text-body-secondary" data-i18n="auth.first_login">En una instalación nueva, inicia sesión con usuario admin y contraseña admin. Deberás cambiar la contraseña inmediatamente para acceder a la estación.</p>
       <p id="authLoading" role="status" data-i18n="auth.loading">Comprobando la sesión…</p>
       <form id="loginForm" class="auth-form" hidden>
         <div class="form-group"><label for="loginUsername" data-i18n="auth.username">Nombre de usuario</label><input id="loginUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+"></div>
@@ -36,9 +37,9 @@
     </div>
   </section>
   <dialog id="accountDialog" class="auth-dialog" aria-labelledby="accountHeading" aria-describedby="accountDescription">
-    <div class="auth-dialog-heading"><h2 id="accountHeading" data-i18n="auth.account">Cuenta y acceso</h2><button id="accountCloseButton" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="auth.close">Cerrar</button></div>
-    <p id="accountDescription" class="text-body-secondary" data-i18n="auth.account_description">Actualiza el usuario y la contraseña de tu estación.</p>
-    <p id="accountRequiredNotice" class="alert alert-warning" role="status" hidden data-i18n="auth.change_required">La cuenta predeterminada necesita una contraseña nueva antes de acceder a la estación.</p>
+    <div class="auth-dialog-heading"><h2 id="accountHeading" data-i18n="auth.account">Perfil</h2><button id="accountCloseButton" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="auth.close">Cerrar</button></div>
+    <p id="accountDescription" class="text-body-secondary" data-i18n="auth.account_description">Cambia tu contraseña, actualiza tu nombre de usuario o cierra sesión.</p>
+    <p id="accountRequiredNotice" class="alert alert-warning" role="status" hidden data-i18n="auth.change_required">Cambia ahora la contraseña predeterminada admin. La estación y la API seguirán bloqueadas hasta que guardes una contraseña nueva.</p>
     <form id="accountCredentialsForm" class="auth-form">
       <div class="form-group"><label for="accountCurrentPassword" data-i18n="auth.current_password">Contraseña actual</label><input id="accountCurrentPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="128"></div>
       <div class="form-group"><label for="accountUsername" data-i18n="auth.username">Nombre de usuario</label><input id="accountUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+" aria-describedby="accountUsernameHint"><p id="accountUsernameHint" class="field-hint text-body-secondary" data-i18n="auth.username_hint">1–64 caracteres: letras, números, punto, guion o guion bajo.</p></div>
@@ -92,7 +93,6 @@
 
       <!-- Métricas y Controles de Cabecera -->
       <div class="d-flex align-items-center gap-2 ms-auto header-right">
-        <button type="button" class="btn btn-outline-secondary btn-sm auth-account-button" data-open-account data-i18n-title="auth.account" data-i18n-aria-label="auth.account" aria-label="Cuenta y acceso" title="Cuenta y acceso"><i class="bi bi-person-circle" aria-hidden="true"></i><span id="accountNameLabel" data-i18n="auth.account">Cuenta y acceso</span></button>
         <div class="d-none d-xl-flex align-items-center gap-2 header-metrics" role="region" aria-label="Métricas globales de tráfico" data-i18n-aria-label="ui.static_004">
           <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Nodos Activos en Malla" data-i18n-title="header.active_nodes">
             <i class="bi bi-people chip-icon" aria-hidden="true"></i> <strong id="headerNodeCount">0</strong>
@@ -130,6 +130,7 @@
         <button class="btn btn-outline-secondary btn-sm d-lg-none ms-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Abrir menú de navegación">
           <i class="bi bi-list fs-5"></i>
         </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm auth-account-button" data-open-account data-i18n-title="auth.account" data-i18n-aria-label="auth.account" aria-label="Perfil" title="Perfil" aria-haspopup="dialog" aria-controls="accountDialog"><i class="bi bi-person-circle" aria-hidden="true"></i><span id="accountNameLabel" data-i18n="auth.account">Perfil</span></button>
       </div>
     </div>
   </header>
@@ -1447,8 +1448,8 @@
                       <h3 data-i18n="ui.static_350"><i class="bi bi-shield-check section-icon" aria-hidden="true"></i> Autenticación & API Key del Bridge</h3>
                       <span class="badge-pill badge-primary" data-i18n="ui.static_351">Control de Acceso</span>
                     </div>
-                    <p class="card-desc" data-i18n="auth.security_description">La sesión protege todas las rutas de API y WebSocket. Desde tu cuenta puedes cambiar las credenciales, cerrar sesión y generar tokens para automatizaciones.</p>
-                    <button class="btn btn-primary btn-sm" type="button" data-open-account data-i18n="auth.account">Cuenta y acceso</button>
+                    <p class="card-desc" data-i18n="auth.security_description">La sesión protege todas las rutas de API y WebSocket. Desde Perfil puedes cambiar las credenciales, cerrar sesión y generar tokens para automatizaciones.</p>
+                    <button class="btn btn-primary btn-sm" type="button" data-open-account data-i18n="auth.account">Perfil</button>
                   </div>
 
                   <!-- Tarjeta de Ámbito de Inundación (Flood Scope) -->

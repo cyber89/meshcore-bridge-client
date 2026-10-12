@@ -54,7 +54,7 @@ cd "$HOME/meshcore-bridge-client"
 sudo bash install.sh
 ```
 
-The installer deploys to `/opt/meshcore-bridge`, creates a Python virtual environment, configures serial access, and registers and starts `meshcore-bridge.service`. It creates `.env` from the template when absent and preserves an existing configuration. Before the first start, it asks for a web username and a hidden password. You have three minutes in total to complete the prompts; timeout or a noninteractive installation uses `admin:admin`, which must be changed at the first login before station access. Updates preserve the existing account.
+The installer deploys to `/opt/meshcore-bridge`, creates a Python virtual environment, configures serial access, and registers and starts `meshcore-bridge.service`. It creates `.env` from the template when absent and preserves an existing configuration. A new installation creates the web account `admin:admin` automatically, without credential prompts or a waiting period. Sign in and immediately change the default password before accessing the station. Updates preserve the existing account.
 
 The initial installation also configures and starts Mosquitto with an anonymous listener on `0.0.0.0:1883`. Choose the broker's bind address, authentication, and firewall rules for your deployment. To configure the bridge before its first connection, use the manual setup below.
 
@@ -177,7 +177,7 @@ The web server uses FastAPI/Uvicorn and shares state with the radio and MQTT pip
 | Repeater administration | `POST /api/admin/repeater` | Remote administrative operations. |
 | Companion TCP | `tcp://<host-ip>:5000` | Shared-radio access for compatible Companion clients. |
 
-Sign in before accessing station data, API documentation, local tiles or live events. Select **Remember me** to keep a session for 30 days; without it the browser receives a session cookie and the server expires the session after 12 hours. The account view lets you change the username and password, sign out, or generate an integration token. New passwords need 15–128 characters. Changing credentials revokes previous sessions and generated tokens.
+Sign in before accessing station data, API documentation, local tiles or live events. New installations use `admin:admin` and immediately require a new password. Select **Remember me** to keep a session for 30 days; without it the browser receives a session cookie and the server expires the session after 12 hours. The **Profile** button in the top-right corner opens the account view, where you can change the username and password, sign out, or generate an integration token. New passwords need 15–128 characters. Changing credentials revokes previous sessions and generated tokens.
 
 REST integrations send the generated token in `Authorization: Bearer <token>`. An explicitly configured `BRIDGE_API_KEY` remains available through `X-Api-Key` or Bearer and must be rotated separately. Credentials in URL query strings are not accepted. The documentation viewer displays the contract and does not execute API operations. MQTT and Companion TCP retain their separate authentication controls.
 

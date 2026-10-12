@@ -42,11 +42,10 @@ body.auth-pending > #app { display: none !important; }
 .auth-dialog-footer { justify-content: flex-end; }
 .auth-token-result { display: grid; gap: var(--space-sm); margin-top: var(--space-md); }
 .auth-token-result .form-control { min-width: 0; font-size: 0.8125rem; }
-.auth-account-button span { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; }
+.auth-account-button { flex-shrink: 0; white-space: nowrap; }
 @media (max-width: 575.98px) {
   .auth-gate { padding: var(--space-md); }
   .auth-card { padding: var(--space-lg); }
-  .auth-account-button span { display: none; }
 }
 
 /**
@@ -4452,8 +4451,25 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 /* Teléfonos y Pantallas Estrechas (<= 640px) */
 @media (max-width: 640px) {
   .app-header > .container-fluid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--space-sm);
   }
+
+  .header-right {
+    display: grid !important;
+    grid-template-columns: repeat(3, auto);
+    justify-content: end;
+  }
+
+  .header-right > .auth-account-button {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: end;
+    min-height: 44px;
+  }
+
+  .header-right > button:not(.auth-account-button) { grid-row: 2; }
 
   .app-main {
     padding: var(--space-sm) !important;
@@ -4726,7 +4742,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 
 @media (max-width: 360px) {
   .app-header { padding-inline: 8px !important; }
-  .brand-title { font-size: 0.875rem !important; }
+  .brand-title { font-size: 0.875rem !important; max-width: 6.5rem; white-space: normal; }
 }
 
 /* ==========================================================================

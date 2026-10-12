@@ -1,6 +1,6 @@
 # Autenticación de la estación personal
 
-Fecha: 2026-10-12. Plan revisado por los agentes de backend/seguridad, frontend e instalación, coordinados por el principal.
+Fecha: 2026-10-12. Plan revisado por los agentes de backend/seguridad, frontend e instalación, coordinados por el principal. Actualización posterior solicitada por el usuario: instalación sin prompts, cuenta inicial `admin:admin` y botón Perfil visible arriba a la derecha.
 
 ## Alcance y decisiones
 
@@ -18,8 +18,8 @@ Nombre de usuario: entre 1 y 64 letras ASCII, dígitos, puntos, guiones o guione
 
 1. **Inspección y acuerdo de contrato.** Identificar guardas existentes, puntos de arranque SPA, almacenamiento y secuencia de los instaladores. Fijar los endpoints antes de editar los consumidores.
 2. **Backend y persistencia.** Agente backend: repositorio de autenticación, middleware, endpoints, WebSocket y OpenAPI. Preparar regresiones aisladas antes de implementación; no ejecutar suites durante esta solicitud.
-3. **Instalación.** Agente instaladores: `install.sh`, `install.ps1`, `scripts/setup_auth.py` y guía de despliegue. Solicitar nombre, contraseña oculta y confirmación con un plazo total de 180 segundos. Si vence o no hay terminal interactivo, usar `admin:admin`. Conservar la cuenta existente al actualizar.
-4. **Interfaz.** Agente frontend: archivos estáticos, login previo al arranque de módulos, recordar sesión, cuenta, logout, token de integración y manejo de expiración/CSRF. Regenerar activos minificados y gzip.
+3. **Instalación.** Agente instaladores: `install.sh`, `install.ps1`, `scripts/setup_auth.py` y guía de despliegue. Crear `admin:admin` automáticamente sólo si no existe cuenta. No solicitar credenciales ni esperar un timeout. Conservar la cuenta existente al actualizar.
+4. **Interfaz.** Agente frontend: archivos estáticos, login previo al arranque de módulos, recordar sesión, Perfil visible en esquina superior derecha, cambio de contraseña, logout, token de integración y manejo de expiración/CSRF. Regenerar activos minificados y gzip.
 5. **Integración y revisión.** Principal: revisar diffs, contratos, documentación y comprobaciones estáticas. Publicar únicamente archivos propios de la tarea, manteniendo los cambios previos del usuario.
 
 ## Contrato HTTP
@@ -34,7 +34,7 @@ Nombre de usuario: entre 1 y 64 letras ASCII, dígitos, puntos, guiones o guione
 
 Estado de sesión: `{authenticated,username,csrf_token,must_change_credentials,api_key_configured}`. Un visitante recibe un estado anónimo sin secretos de una cuenta. Los endpoints de cuenta requieren sesión de navegador. Errores de autenticación: 401; CSRF/origen o cambio obligatorio: 403; limitación de intentos: 429.
 
-`admin:admin` es una credencial de arranque explícita solicitada por el usuario. Se marca como cambio obligatorio: permite iniciar sesión y cambiar credenciales, pero no consultar datos, abrir WebSockets ni utilizar un token de integración. No se sustituye una cuenta válida con el valor de arranque al reiniciar o guardar configuración.
+`admin:admin` es la credencial inicial de una instalación nueva, solicitada por el usuario. Se marca como cambio obligatorio inmediato: permite iniciar sesión y cambiar credenciales, pero no consultar datos, abrir WebSockets ni utilizar un token de integración. No se sustituye una cuenta válida con el valor de arranque al actualizar, reiniciar o guardar configuración. Perfil ofrece cambio de contraseña y cierre de sesión; el nombre actual se conserva si el operador sólo modifica la contraseña.
 
 ## Impacto en la malla
 
@@ -46,7 +46,7 @@ Estado de sesión: `{authenticated,username,csrf_token,must_change_credentials,a
 
 La petición autoriza implementar y revisar el plan, pero no ejecutar pytest, Playwright ni fuzzing. Se preparan regresiones y se realizan inspección de fuentes, sintaxis, Ruff, mypy y build estático cuando las herramientas estén disponibles. Esos controles no acreditan funcionamiento dinámico, layout en navegador ni seguridad completa. No se ejecutan instaladores, se inicia una estación operativa ni se transmite por hardware.
 
-HTTPS protege contraseñas y cookies durante el transporte. En una instalación HTTP local `HttpOnly` y CSRF no cifran el tráfico; para acceso remoto se debe usar un proxy HTTPS. El fallback conocido tampoco demuestra posesión exclusiva de la cuenta: el primer acceso debe completar el cambio de contraseña.
+HTTPS protege contraseñas y cookies durante el transporte. En una instalación HTTP local `HttpOnly` y CSRF no cifran el tráfico; para acceso remoto se debe usar un proxy HTTPS. La credencial inicial conocida tampoco demuestra posesión exclusiva de la cuenta: el primer acceso debe completar el cambio de contraseña.
 
 La confianza de cabeceras del proxy es optativa: `BRIDGE_TRUSTED_PROXY_IPS` declara sus IP exactas; vacío la desactiva. El proxy debe conservar el `Host` público y sobrescribir `X-Forwarded-Proto`/`X-Forwarded-For`. Para un proxy en el mismo host se puede configurar `127.0.0.1,::1` y restringir el listener del bridge a ese proxy. Esto permite reconocer HTTPS y marcar las cookies Secure sin confiar en cabeceras de clientes arbitrarios.
 
@@ -69,3 +69,21 @@ Las etapas de implementación y revisión de fuentes se completaron el 2026-10-1
 | Suites y operación | Pytest/cobertura, Playwright y fuzzing no ejecutados. No se arrancaron servicios ni radio; la instalación y aceptación dinámica siguen pendientes de autorización de QA. Los contratos de tests anteriores de acceso público deberán revisarse durante esa aceptación, porque la API ahora exige autenticación. |
 
 La publicación Git de esta entrega no equivale a un despliegue ni a una aceptación operativa.
+
+## Revisión posterior: instalación automática y Perfil
+
+Solicitud del usuario del 2026-10-12: retirar la creación interactiva del usuario y contraseña durante instalación. Este ajuste sustituye el plazo de tres minutos de la entrega inicial.
+
+Plan acordado por los tres agentes:
+
+1. **Instaladores:** eliminar entrada de terminal, confirmación y deadline del helper. Preparar la cuenta `admin:admin` sólo cuando no exista una; no modificar cuentas ya configuradas. Actualizar instaladores y guía de despliegue.
+2. **Frontend:** mantener el diálogo nativo de cuenta y renombrarlo Perfil. Poner el botón como último control de la cabecera derecha, con texto visible también en móvil. Ofrecer cambio de contraseña y cierre de sesión; conservar la sesión recordada y CSRF existentes.
+3. **Revisión de seguridad e integración:** comprobar por lectura que el login predeterminado obliga al cambio antes de cargar la SPA o permitir API/WS. Conservar revocación, hashes y persistencia. Preparar regresiones de instalación sin entrada y preservación de cuenta; ejecutar únicamente comprobaciones estáticas.
+
+No cambia ningún endpoint, parámetro de radio, intervalo o publicación MQTT. El coste RF adicional sigue siendo cero. El instalador deja de contener un timer de credenciales; los vencimientos de sesión existentes se conservan.
+
+**Entrega de la revisión:** eliminada toda captura de credenciales y plazo del helper; instaladores Linux/Windows actualizados. Perfil es el último control de cabecera en escritorio y se sitúa arriba a la derecha mediante grid en móvil, con etiqueta visible. El perfil conserva cambio de contraseña, cambio opcional de usuario y cierre de sesión; el login inicial abre obligatoriamente el cambio de contraseña antes de iniciar módulos de estación.
+
+Comprobaciones estáticas realizadas: Ruff y mypy estricto con `--explicit-package-bases` correctos para helper y dos nuevas regresiones; compilación Python, sintaxis JS, parser PowerShell, `bash -n` y `git diff --check` correctos. El build y su comprobación validan 30 activos, 1.953.368 bytes servidos y 398.182 bytes gzip. El validador documental conserva los seis problemas preexistentes de ADR 0017. Se revisaron directamente las guardas backend de cuenta inicial, API y WebSockets; no fue necesario modificarlas.
+
+Las dos regresiones en `tests/test_auth_setup.py` usan configuración y SQLite temporales para instalación sin entrada y conservación de cuenta/sesión/token al reinstalar. Se prepararon y comprobaron estáticamente, sin ejecutar pytest, cobertura ni navegador. No se ejecutó una instalación ni se arrancaron servicios. Los tres archivos previos del usuario siguen excluidos del commit.

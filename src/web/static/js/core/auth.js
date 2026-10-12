@@ -117,8 +117,6 @@ export class BrowserAuthentication {
     this.dialog.open && this.dialog.close();
     document.body.classList.remove("auth-pending");
     document.getElementById("authGate").hidden = true;
-    document.getElementById("accountNameLabel").textContent = session.username;
-    document.getElementById("accountNameLabel").removeAttribute("data-i18n");
     if (!this.started) {
       this.started = true;
       this.startApplication();
@@ -135,7 +133,7 @@ export class BrowserAuthentication {
     document.getElementById("accountAutomationSection").hidden = forced;
     this.accountForm.elements.username.value = this.session?.username || "";
     if (!this.dialog.open) this.dialog.showModal();
-    (forced ? this.accountForm.elements.current_password : this.accountForm.elements.username).focus();
+    this.accountForm.elements.current_password.focus();
   }
 
   _clearAccountSecrets() {
