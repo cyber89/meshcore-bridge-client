@@ -74,15 +74,50 @@ export class SnifferModule {
     this.isSnifferPaused = false;
     this.selectedPacketForInspect = null;
     this.dom = {};
+    this.worker = null;
+    this._workerReqId = 0;
+    this._pendingWorkerFilterId = 0;
   }
 
   init() {
+    this._initWorker();
     this._bindElements();
     this._bindEvents();
     this._subscribeBus();
     this.fetchSystemLogs();
     this.fetchSubsystemsHealth();
     this.fetchCapturedPackets();
+  }
+
+  _initWorker() {
+    if (typeof window !== "undefined" && window.Worker) {
+      try {
+        this.worker = new Worker(new URL("../workers/packet_worker.js", import.meta.url));
+        this.worker.onmessage = (e) => {
+          if (!e.data || typeof e.data !== "object") return;
+          const { id, action, success, result } = e.data;
+          if (action === "filter" && success && Array.isArray(result)) {
+            if (id === this._pendingWorkerFilterId) {
+              this._renderPacketRows(result);
+            }
+          }
+        };
+        this.worker.onerror = (err) => {
+          console.warn("Sniffer packet worker error, falling back to sync:", err);
+          this.worker = null;
+        };
+      } catch (err) {
+        console.warn("Web Worker not supported or restricted, running sync:", err);
+        this.worker = null;
+      }
+    }
+  }
+
+  destroy() {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
   }
 
   onLanguageChange() {
@@ -471,6 +506,21 @@ export class SnifferModule {
     const typeFilter = (this.dom.snifferTypeFilter?.value || "").toUpperCase().trim();
     const searchQuery = (this.dom.snifferSearchInput?.value || "").toLowerCase().trim();
 
+    if (this.worker) {
+      const reqId = ++this._workerReqId;
+      this._pendingWorkerFilterId = reqId;
+      this.worker.postMessage({
+        id: reqId,
+        action: "filter",
+        payload: {
+          packets: this.rfPackets,
+          filters: { dirFilter, typeFilter, searchQuery },
+        },
+      });
+      return;
+    }
+
+    // Fallback síncrono si el Web Worker no está disponible
     const filtered = this.rfPackets.filter((pkt) => {
       if (dirFilter && (pkt.direction || "").toLowerCase() !== dirFilter) {
         return false;
@@ -486,6 +536,11 @@ export class SnifferModule {
       return true;
     });
 
+    this._renderPacketRows(filtered);
+  }
+
+  _renderPacketRows(filtered) {
+    if (!this.dom.snifferPacketsBody) return;
     this.dom.snifferPacketsBody.textContent = "";
     if (filtered.length === 0) {
       const emptyRow = document.createElement("tr");

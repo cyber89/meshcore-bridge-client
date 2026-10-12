@@ -8,6 +8,7 @@ import { MeshCoreStorage } from "./core/storage.js";
 import { DialogController } from "./core/dialog_controller.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
 import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders } from "./core/utils.js";
+import { store } from "./core/store.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -22,6 +23,7 @@ class MeshCoreApp {
     this.eventBus = eventBus;
     this.storage = new MeshCoreStorage();
     this.wsClient = new MeshCoreWebSocketClient(this.eventBus, "/ws");
+    this.store = store;
 
     this.activeTabId = "tab-chat";
     this.knownNodes = new Map();
@@ -34,6 +36,7 @@ class MeshCoreApp {
       eventBus: this.eventBus,
       storage: this.storage,
       wsClient: this.wsClient,
+      store: this.store,
       knownNodes: this.knownNodes,
       localNodePubkey: "",
       showToast: (msg, type, duration) => this.showToast(msg, type, duration),
@@ -147,6 +150,7 @@ class MeshCoreApp {
     document.body.classList.add(`${theme}-theme`);
     document.documentElement.setAttribute("data-bs-theme", theme);
     localStorage.setItem("meshcore_theme", theme);
+    this.store.set("theme", theme);
     this._updateThemeIcon(theme);
     window.dispatchEvent(new CustomEvent("meshcore:theme-changed", { detail: { theme } }));
   }
@@ -227,6 +231,7 @@ class MeshCoreApp {
         }
 
         this.activeTabId = tabId;
+        this.store.set("activeTab", tabId);
         this.eventBus.emit(EVENTS.TAB_CHANGED, tabId);
       });
       btn.addEventListener("keydown", (event) => {
@@ -538,6 +543,7 @@ class MeshCoreApp {
 
   _subscribeBus() {
     this.eventBus.on(EVENTS.WS_STATUS_CHANGE, (status) => {
+      this.store.set("wsConnected", status === "connected");
       if (status === "connected") {
         if (this.modules?.settings?.fetchLocalNodeConfig) {
           this.modules.settings.fetchLocalNodeConfig();
@@ -623,6 +629,7 @@ class MeshCoreApp {
     const pct = Number(payload.duty_cycle_pct != null ? payload.duty_cycle_pct : (payload.hourly_duty_cycle_pct || 0.0));
     const limitPct = Number(payload.hourly_limit_pct || 1.0);
     const warnPct = Number(payload.warn_threshold_pct || 80.0);
+    this.store.setMany({ airtimeDutyCycle: pct, airtimeMs: Number(payload.airtime_ms || 0) });
     txt.textContent = `${pct.toFixed(1)}%`;
 
     const isCritical = Boolean(payload.is_critical || payload.level === "critical" || (pct >= limitPct));
@@ -679,6 +686,8 @@ class MeshCoreApp {
   updateRadioBadge(connected, portName = "") {
     this._lastRadioConnected = connected;
     this._lastRadioPort = portName;
+    const portClean = portName ? String(portName).trim() : "";
+    this.store.setMany({ radioConnected: Boolean(connected), radioPort: portClean });
     const el = this.dom.radioStatus;
     if (!el) return;
 
@@ -700,7 +709,6 @@ class MeshCoreApp {
     }
 
     const txtEl = el.querySelector(".status-text");
-    const portClean = portName ? String(portName).trim() : "";
 
     let label = "";
     if (connected) {

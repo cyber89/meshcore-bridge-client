@@ -57,6 +57,10 @@
   --control-transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
   --chat-divider: #7c8aa0;
   --chat-time-outgoing: #eaf2ff;
+
+  /* Tipografía Fluida Progresiva (WCAG 2.2 / Modern CSS) */
+  --font-fluid-body: clamp(0.8125rem, 0.77rem + 0.25vw, 0.9375rem);
+  --font-fluid-heading: clamp(1.125rem, 1.05rem + 0.4vw, 1.375rem);
 }
 
 /* Modo Slate (Oscuro) - Variables Específicas */
@@ -307,10 +311,19 @@ h5, .h5 { font-size: 0.8rem; font-weight: 600; }
   justify-content: center !important;
 }
 
-/* Accesibilidad: Foco Visible */
+/* Accesibilidad: Foco Visible de Alto Contraste (WCAG 2.2 AA) */
 :focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible,
+.nav-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb, 37, 92, 204), 0.25);
 }
 
 /* Accesibilidad: Reducción de movimiento */
