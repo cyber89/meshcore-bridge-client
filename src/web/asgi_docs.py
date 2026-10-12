@@ -1,15 +1,14 @@
 """Local, read-only documentation routes for the ASGI application.
 
-The public login shell and two fixed assets contain no API catalog or schema.
-When configured, documentation requires X-Api-Key, never a URL credential or
-new session. Schema construction is lazy and detached from operational state.
+The fixed assets contain no API catalog or schema. Documentation uses the same
+authenticated browser session or header token as the application. Schema
+construction is lazy and detached from operational state.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-import os
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -22,16 +21,16 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Match, NoMatchFound
 from starlette.types import Receive, Scope, Send
 
-from src.web.access_policy import has_valid_api_key, headers_to_legacy_dict
 from src.web.asgi_errors import legacy_json_response
 from src.web.asgi_security import DOC_RESPONSE_STATE, _raw_request_target
+from src.web.authentication import AUTHENTICATED_STATE
 
 _DOC_ROOTS = ("/docs", "/redoc", "/openapi.json")
 _PUBLIC_ASSETS = {
     "/docs/assets/docs.js": ("docs.js", "text/javascript"),
     "/docs/assets/docs.css": ("docs.css", "text/css"),
 }
-_NO_STORE = {"Cache-Control": "no-store", "Vary": "X-Api-Key"}
+_NO_STORE = {"Cache-Control": "no-store", "Vary": "Cookie, Authorization, X-Api-Key"}
 
 
 def _reserved(path: str) -> bool:
@@ -65,13 +64,7 @@ class DocumentationAdapter:
 
     @staticmethod
     def _authorized(request: Request) -> bool:
-        expected = os.getenv("BRIDGE_API_KEY", "")
-        if not expected:
-            return True
-        headers = headers_to_legacy_dict(request.scope.get("headers", ()))
-        # Removing query before the shared comparator makes this boundary
-        # header-only while retaining constant-time UTF-8 comparison semantics.
-        return has_valid_api_key("/docs", headers, expected)
+        return bool(request.scope.get("state", {}).get(AUTHENTICATED_STATE))
 
     def _asset(self, filename: str) -> bytes:
         # Callers select from fixed names below. No target-derived filesystem
@@ -91,9 +84,8 @@ class DocumentationAdapter:
             content = await asyncio.to_thread(self._asset, filename)
             return Response(content, media_type=media_type, headers=_NO_STORE)
         if path in ("/docs", "/redoc"):
-            # A normal navigation cannot attach X-Api-Key. A 401 login shell
-            # renders the local credential form without disclosing the schema;
-            # its JS makes the authenticated schema request explicitly.
+            # The perimeter authorizes the shell using the application's cookie
+            # or an integration header. Its JS reads the schema explicitly.
             status = 200 if self._authorized(request) else 401
             content = await asyncio.to_thread(self._asset, "index.html")
             return Response(

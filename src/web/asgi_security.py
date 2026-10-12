@@ -108,8 +108,9 @@ class BridgeSecurityMiddleware:
     contract; without it a controlled, credential-free exception is raised.
     """
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, *, auth_managed: bool = False) -> None:
         self.app = app
+        self.auth_managed = auth_managed
         self._reserved_websockets = 0
 
     @property
@@ -331,7 +332,8 @@ class BridgeSecurityMiddleware:
         state = scope.setdefault("state", {})
         state[BODY_BYTES_STATE] = buffered.raw
         state[BODY_JSON_STATE] = buffered.parsed
-        decision = evaluate_http_access(str(scope["method"]).upper(), target, headers)
+        decision = evaluate_http_access(str(scope["method"]).upper(), target, headers,
+                                        auth_managed=self.auth_managed)
         if decision.route_kind == "preflight":
             await self._reply_http(
                 scope, send, 204, b"", headers=preflight_headers(decision.cors_origin)
@@ -454,7 +456,8 @@ class BridgeSecurityMiddleware:
         previous_count = self._reserved_websockets
         self._reserved_websockets += 1
         try:
-            decision = evaluate_websocket_access(target, headers, previous_count)
+            decision = evaluate_websocket_access(target, headers, previous_count,
+                                                 auth_managed=self.auth_managed)
             if decision.rejection_status is not None:
                 status = decision.rejection_status
                 body = {

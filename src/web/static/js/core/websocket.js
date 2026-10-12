@@ -4,7 +4,6 @@
  */
 
 import { EVENTS } from "./eventbus.js";
-import { getApiKey } from "./utils.js";
 
 export class MeshCoreWebSocketClient {
   constructor(eventBus, path = "/ws") {
@@ -20,12 +19,7 @@ export class MeshCoreWebSocketClient {
 
   connect() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    let wsUrl = `${protocol}//${window.location.host}${this.path}`;
-    const apiKey = getApiKey();
-    if (apiKey) {
-      const sep = wsUrl.includes("?") ? "&" : "?";
-      wsUrl += `${sep}api_key=${encodeURIComponent(apiKey)}`;
-    }
+    const wsUrl = `${protocol}//${window.location.host}${this.path}`;
 
     if (this.ws) {
       try {
@@ -51,8 +45,26 @@ export class MeshCoreWebSocketClient {
       this._startHeartbeat();
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = async (event) => {
+      const closedSocket = this.ws;
       this._stopHeartbeat();
+      if ([1008, 4401, 4403].includes(event.code)) {
+        this._setStatus("disconnected");
+        window.dispatchEvent(new CustomEvent("meshcore:auth_expired"));
+        return;
+      }
+      // A rejected handshake can surface as code 1006, indistinguishable from
+      // network loss. Check the session before starting another reconnect.
+      try {
+        const response = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
+        const session = response.ok ? await response.json() : null;
+        if (response.status === 401 || (session && (!session.authenticated || session.must_change_credentials))) {
+          this._setStatus("disconnected");
+          window.dispatchEvent(new CustomEvent("meshcore:auth_expired"));
+          return;
+        }
+      } catch (_) { /* Transient network failure uses the existing backoff. */ }
+      if (!this.ws || this.ws !== closedSocket) return;
       this._scheduleReconnect();
     };
 

@@ -28,7 +28,7 @@ def isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
     """Keep JSON, logs and map databases away from the operator's working data."""
     monkeypatch.setattr("dotenv.load_dotenv", lambda *args, **kwargs: False)
     defaults = {
-        "BRIDGE_API_KEY": "", "BRIDGE_ALLOWED_ORIGINS": "",
+        "BRIDGE_API_KEY": "", "BRIDGE_ALLOWED_ORIGINS": "", "BRIDGE_TRUSTED_PROXY_IPS": "",
         "COMPANION_TOKEN": "", "COMPANION_ALLOWED_IPS": "",
         "MQTT_BROKER": "127.0.0.1", "MQTT_USER": None, "MQTT_PASSWORD": None,
         "WEB_ENABLED": True, "TCP_SERVER_ENABLED": True,

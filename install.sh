@@ -295,6 +295,8 @@ if [[ "$ACTION" == "--update" ]]; then
     "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
     mkdir -p "$INSTALL_DIR/logs" "$INSTALL_DIR/data"
     chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
+    print_info "Initialize web account (preserve existing credentials)"
+    sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/setup_auth.py" --project-dir "$INSTALL_DIR"
     cp -f "$STAGE_DIR/systemd.next" "$SYSTEMD_DIR/$SERVICE_NAME"
     systemctl daemon-reload
 
@@ -428,6 +430,8 @@ print_info "Check installed dependencies for the web profile"
 "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
 
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
+print_info "Create personal web account (3-minute shared deadline)"
+sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/setup_auth.py" --project-dir "$INSTALL_DIR"
 print_ok "Python environment ready; dependency imports and versions verified."
 
 # Step 7: Register and start the service

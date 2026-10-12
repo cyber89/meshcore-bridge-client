@@ -128,17 +128,10 @@ def has_valid_api_key(raw_path: str, headers: Mapping[str, str], expected_key: s
 
 
 def requires_api_auth(method: str, raw_path: str) -> bool:
-    """Reproduce the guard alone, before aliases and outside dispatch exceptions.
-
-    The caller must handle OPTIONS and tile requests first. Prefix comparisons
-    intentionally lack segment boundaries, matching the current implementation.
-    """
+    """Require authentication for all API reads and writes, apart from login/status."""
     clean_path = safe_log_path(raw_path).rstrip("/") or "/"
-    if any(clean_path.startswith(prefix) for prefix in PROTECTED_PREFIXES):
-        return not (clean_path.startswith("/api/nodes") and method == "GET")
-    if clean_path in SENSITIVE_READ_PATHS:
-        return True
-    return method in ("POST", "PUT", "DELETE", "PATCH") and clean_path.startswith("/api/")
+    return (method != "OPTIONS" and clean_path.startswith("/api/")
+            and clean_path not in ("/api/auth/login", "/api/auth/session"))
 
 
 def is_origin_allowed(req_origin: str, host_header: str, allowed_origins: Sequence[str]) -> bool:
@@ -179,7 +172,8 @@ def calculate_cors_origin(headers: Mapping[str, str]) -> str:
     return ""
 
 
-def evaluate_http_access(method: str, raw_path: str, headers: Mapping[str, str]) -> AccessDecision:
+def evaluate_http_access(method: str, raw_path: str, headers: Mapping[str, str], *,
+                         auth_managed: bool = False) -> AccessDecision:
     """Apply normal HTTP dispatch ordering after the caller's parsing/perimeter checks.
 
     A WebSocket upgrade must use evaluate_websocket_access before this function;
@@ -196,6 +190,8 @@ def evaluate_http_access(method: str, raw_path: str, headers: Mapping[str, str])
         )
     if not raw_path.startswith("/api/"):
         return AccessDecision("static", cors_origin, False, True, None, log_path)
+    if auth_managed:
+        return AccessDecision("api", cors_origin, True, True, None, log_path)
     auth_required = requires_api_auth(method, raw_path)
     expected_key = os.getenv("BRIDGE_API_KEY", "")
     if auth_required and not expected_key:
@@ -209,7 +205,8 @@ def evaluate_http_access(method: str, raw_path: str, headers: Mapping[str, str])
 
 
 def evaluate_websocket_access(
-    raw_path: str, headers: Mapping[str, str], active_connections: int
+    raw_path: str, headers: Mapping[str, str], active_connections: int, *,
+    auth_managed: bool = False,
 ) -> AccessDecision:
     """Preserve Origin -> capacity -> key denial order without accepting a socket.
 
@@ -222,6 +219,8 @@ def evaluate_websocket_access(
         return AccessDecision("websocket", cors_origin, False, True, 403, log_path)
     if active_connections >= WS_MAX_CONNECTIONS:
         return AccessDecision("websocket", cors_origin, False, True, 429, log_path)
+    if auth_managed:
+        return AccessDecision("websocket", cors_origin, True, True, None, log_path)
     expected_key = os.getenv("BRIDGE_API_KEY", "")
     auth_required = bool(expected_key)
     auth_valid = not auth_required or has_valid_api_key(raw_path, headers, expected_key)
@@ -262,8 +261,8 @@ def response_headers(
         headers.extend(
             (
                 (b"access-control-allow-origin", cors_origin.encode("utf-8")),
-                (b"access-control-allow-methods", b"GET, POST, OPTIONS, DELETE"),
-                (b"access-control-allow-headers", b"Content-Type, X-Api-Key"),
+                (b"access-control-allow-methods", b"GET, HEAD, POST, PUT, PATCH, OPTIONS, DELETE"),
+                (b"access-control-allow-headers", b"Content-Type, Authorization, X-Api-Key, X-CSRF-Token"),
             )
         )
     return headers
@@ -276,8 +275,8 @@ def preflight_headers(cors_origin: str) -> list[RawHeader]:
         headers.append((b"access-control-allow-origin", cors_origin.encode("utf-8")))
     headers.extend(
         (
-            (b"access-control-allow-methods", b"GET, POST, OPTIONS, DELETE"),
-            (b"access-control-allow-headers", b"Content-Type, Authorization, X-Api-Key"),
+            (b"access-control-allow-methods", b"GET, HEAD, POST, PUT, PATCH, OPTIONS, DELETE"),
+            (b"access-control-allow-headers", b"Content-Type, Authorization, X-Api-Key, X-CSRF-Token"),
             (b"access-control-max-age", b"86400"),
             (b"connection", b"close"),
         )

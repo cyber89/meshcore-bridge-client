@@ -24,13 +24,14 @@ def _schema_ref(name: str) -> dict[str, str]:
 def _auth_metadata(method: str, path: str) -> dict[str, Any]:
     guarded = requires_api_auth(method, path)
     return {
-        "security": [{"XApiKey": []}, {"LegacyQueryApiKey": []}] if guarded else [],
+        "security": [{"CookieAuth": [], **({"CsrfToken": []} if method not in ("GET", "HEAD", "OPTIONS") else {})},
+                     {"BearerAuth": []}, {"XApiKey": []}] if guarded else [],
         "x-meshcore-authentication": {
-            "required_when_BRIDGE_API_KEY_configured": guarded,
-            "empty_environment_key_bypasses_authentication": True,
-            "guard_uses_raw_path_before_alias_resolution": True,
-            "nonempty_header_precedes_query_even_if_invalid": True,
-            "query_requires_exactly_one_api_key_value": True,
+            "required": guarded,
+            "empty_environment_key_bypasses_authentication": False,
+            "default_credentials_require_change": True,
+            "cookie_mutations_require_csrf": method not in ("GET", "HEAD", "OPTIONS"),
+            "query_credentials_accepted": False,
         },
     }
 
@@ -241,10 +242,11 @@ def _tile_operation() -> dict[str, Any]:
             }
             for coordinate in ("z", "x", "y")
         ],
-        "security": [],
+        **_auth_metadata("GET", "/api/map/tiles/"),
         "responses": {
+            "401": {"description": "Missing, expired or invalid session/API token."},
             "200": {
-                "description": "Bytes de tesela; Cache-Control public, max-age=86400.",
+                "description": "Bytes de tesela autenticada; Cache-Control no-store.",
                 "headers": {"Cache-Control": {"schema": {"type": "string"}}},
                 "content": {
                     mime: dict(binary)
@@ -337,6 +339,47 @@ def build_openapi_schema() -> dict[str, Any]:
             **operation_metadata(contract),
         }
     paths["/api/map/tiles/{z}/{x}/{y}"] = {"get": _tile_operation()}
+    schemas["AuthSession"] = {
+        "type": "object", "required": ["authenticated", "username", "csrf_token", "must_change_credentials", "api_key_configured"],
+        "properties": {"authenticated": {"type": "boolean"}, "username": {"type": ["string", "null"]},
+                       "csrf_token": {"type": ["string", "null"]}, "must_change_credentials": {"type": "boolean"},
+                       "api_key_configured": {"type": "boolean"}},
+    }
+    username = {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_.-]+$"}
+    password = {"type": "string", "minLength": 1, "maxLength": 128, "writeOnly": True}
+    auth_specs: tuple[tuple[str, str, str, dict[str, Any] | None, list[str], list[dict[str, list[str]]], str | None], ...] = (
+        ("/api/auth/session", "get", "Read browser session status", None, [], [], "AuthSession"),
+        ("/api/auth/login", "post", "Log in and set opaque HttpOnly cookie",
+         {"username": username, "password": password, "remember": {"type": "boolean", "default": True}},
+         ["username", "password"], [], "AuthSession"),
+        ("/api/auth/logout", "post", "Revoke this browser session", None, [],
+         [{"CookieAuth": [], "CsrfToken": []}], None),
+        ("/api/auth/credentials", "put", "Change owner credentials and revoke all sessions/API tokens",
+         {"current_password": password, "username": username, "password": {**password, "minLength": 15}},
+         ["current_password", "username", "password"], [{"CookieAuth": [], "CsrfToken": []}], "AuthSession"),
+        ("/api/auth/api-token", "post", "Rotate the API token and reveal it once",
+         {"current_password": password}, ["current_password"], [{"CookieAuth": [], "CsrfToken": []}], None),
+    )
+    for path, method, summary, properties, required, security, response_schema in auth_specs:
+        success_schema: dict[str, Any] = _schema_ref(response_schema) if response_schema else {"type": "object"}
+        if path == "/api/auth/api-token":
+            success_schema = {"type": "object", "required": ["token"], "properties": {"token": {"type": "string"}}}
+        elif path == "/api/auth/logout":
+            success_schema = {"type": "object", "properties": {"authenticated": {"const": False}}}
+        operation: dict[str, Any] = {
+            "operationId": method + re.sub(r"\W+", "_", path), "summary": summary,
+            "tags": ["authentication"], "security": security,
+            "description": "Same-origin browser account endpoint. Login requires application/json and Origin. Cookie mutations require X-CSRF-Token; account changes require the current password. Default admin:admin must be replaced before accessing data.",
+            "responses": {"200": {"description": "Success; Cache-Control no-store.",
+                                  "content": {"application/json": {"schema": success_schema}}},
+                          **{str(status): {"description": description} for status, description in (
+                              (401, "Missing session or incorrect credentials"), (403, "Origin, CSRF or required password change rejected"),
+                              (415, "Login requires application/json"), (422, "Invalid input"), (429, "Persistent attempt budget exhausted or password worker busy"))}},
+        }
+        if properties is not None:
+            operation["requestBody"] = {"required": True, "content": {"application/json": {"schema": {
+                "type": "object", "properties": properties, "required": required}}}}
+        paths[path] = {method: operation}
     return {
         "openapi": "3.1.0",
         "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
@@ -350,7 +393,7 @@ def build_openapi_schema() -> dict[str, Any]:
                 "GET refresh/preflight y otros endpoints pueden tener efectos."
             ),
         },
-        "tags": [{"name": batch} for batch in (*ROUTE_BATCHES, "tiles")],
+        "tags": [{"name": batch} for batch in (*ROUTE_BATCHES, "tiles", "authentication")],
         "paths": paths,
         "components": {
             "schemas": schemas,
@@ -359,13 +402,12 @@ def build_openapi_schema() -> dict[str, Any]:
                     "type": "apiKey", "in": "header", "name": "X-Api-Key",
                     "description": "Clave configurada; encabezado no vacío tiene precedencia.",
                 },
-                "LegacyQueryApiKey": {
-                    "type": "apiKey", "in": "query", "name": "api_key",
-                    "description": (
-                        "Compatibilidad legacy; exige un valor único y se usa sólo "
-                        "si X-Api-Key está vacío o ausente. Evitar claves en URLs."
-                    ),
-                },
+                "CookieAuth": {"type": "apiKey", "in": "cookie", "name": "meshcore_session",
+                               "description": "Opaque HttpOnly SameSite=Strict owner session."},
+                "BearerAuth": {"type": "http", "scheme": "bearer",
+                               "description": "Owner-issued API token, or explicitly configured legacy BRIDGE_API_KEY."},
+                "CsrfToken": {"type": "apiKey", "in": "header", "name": "X-CSRF-Token",
+                              "description": "Required alongside CookieAuth for mutations."},
             },
         },
         "x-meshcore-observation": {
@@ -385,7 +427,7 @@ def build_openapi_schema() -> dict[str, Any]:
             "idempotency_or_automatic_retry_guaranteed": False,
             "compatibility_gaps": [
                 "GET /api/logs is recognized by the dispatcher but always returns log_not_found 404.",
-                "Aliases are guarded by their raw paths; some protected-prefix reads differ from canonical paths.",
+                "All API aliases and map tiles require authentication.",
                 "LogsController reparses raw query and ignores the merged body.",
                 "Wrong verbs and slash variants use the existing fallback, not inferred FastAPI 405/307.",
                 "OPTIONS is global perimeter 204 and is not counted as a canonical API operation.",

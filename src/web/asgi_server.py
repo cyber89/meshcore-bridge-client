@@ -7,8 +7,10 @@ It registers REST, WebSocket, static, tile and OpenAPI documentation adapters.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import math
+import os
 import socket
 from collections.abc import AsyncIterator, Callable, Generator
 from contextlib import asynccontextmanager, contextmanager
@@ -35,11 +37,21 @@ from src.web.asgi_routes import install_rest_routes
 from src.web.asgi_security import BridgeSecurityMiddleware
 from src.web.asgi_websocket import BridgeWebSocketProtocol
 from src.web.asgi_ws_hub import WebSocketHub
+from src.web.auth_store import AuthStore
+from src.web.authentication import AuthenticationService, BridgeAuthenticationMiddleware
 
 if TYPE_CHECKING:
     from src.web.api_router import WebAPIRouter
 
 logger = logging.getLogger(__name__)
+
+
+def trusted_proxy_ips(value: str) -> str:
+    """Only explicitly configured IP addresses can supply forwarded scheme/client."""
+    addresses = [address.strip() for address in value.split(",") if address.strip()]
+    for address in addresses:
+        ipaddress.ip_address(address)
+    return ",".join(addresses)
 
 
 class _SecuredFastAPI(FastAPI):
@@ -53,7 +65,8 @@ class _SecuredFastAPI(FastAPI):
     def build_middleware_stack(self) -> ASGIApp:
         compression = BridgeCompressionMiddleware(super().build_middleware_stack())
         self.state.compression_middleware = compression
-        return BridgeSecurityMiddleware(compression)
+        authentication = BridgeAuthenticationMiddleware(compression, self.state.authentication)
+        return BridgeSecurityMiddleware(authentication, auth_managed=True)
 
 
 def create_asgi_app(
@@ -64,6 +77,11 @@ def create_asgi_app(
     if not math.isfinite(shutdown_budget_s) or shutdown_budget_s <= 0:
         raise ValueError("shutdown_budget_s must be finite and positive")
     hub = WebSocketHub(router)
+    import config
+
+    database = getattr(router.api_ctx.bridge, "database", None)
+    database_path = getattr(database, "path", config.DATABASE_PATH)
+    authentication = AuthenticationService(AuthStore(database_path))
 
     @asynccontextmanager
     async def web_lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -71,6 +89,7 @@ def create_asgi_app(
         # or shutdown can cancel this instance's lifespan, never unrelated tasks.
         app.state.web_lifespan_task = asyncio.current_task()
         try:
+            await authentication.initialize()
             await hub.start()
             yield
         finally:
@@ -89,6 +108,8 @@ def create_asgi_app(
         lifespan=web_lifespan,
     )
     install_error_handlers(app)
+    app.state.authentication = authentication
+    authentication.install_routes(app)
     install_rest_routes(app, router)
     # The native handshake accepts upgrades on any path, including API paths.
     # HTTP route adapters match HTTP scopes only; no WS path restriction is added.
@@ -384,6 +405,7 @@ class AsgiWebServer:
                 self._force_close()
                 raise RuntimeError("ASGI startup interrupted by shutdown")
             self.router.resume_notifications()
+            trusted_proxies = trusted_proxy_ips(os.getenv("BRIDGE_TRUSTED_PROXY_IPS", ""))
             config = Config(
                 self.app,
                 host=self.host,
@@ -395,7 +417,8 @@ class AsgiWebServer:
                 workers=1,
                 reload=False,
                 log_config=None,
-                proxy_headers=False,
+                proxy_headers=bool(trusted_proxies),
+                forwarded_allow_ips=trusted_proxies,
                 access_log=False,
                 server_header=False,
                 date_header=False,
@@ -459,6 +482,7 @@ class AsgiWebServer:
         tasks.update(self.router.owned_notification_tasks())
         tasks.update(self._tile_tasks)
         tasks.update(self._compression_tasks())
+        tasks.update(self.app.state.authentication.owned_tasks())
         if self._serve_task is not None:
             tasks.add(self._serve_task)
         if self._server is not None:
@@ -502,7 +526,7 @@ class AsgiWebServer:
                         extra={"skip_broadcast": True},
                     )
         current = asyncio.current_task()
-        worker_tasks = self._tile_tasks | self._compression_tasks()
+        worker_tasks = self._tile_tasks | self._compression_tasks() | self.app.state.authentication.owned_tasks()
         for task in self._server_tasks():
             if task is not current and task not in worker_tasks and not task.done():
                 self._retain_task(task)

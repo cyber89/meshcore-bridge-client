@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from src.web.asgi_security import WS_ABORT_EXTENSION
+from src.web.authentication import AUTH_SERVICE_STATE, AuthenticationService
 from src.web.security_inspector import SecurityTrafficInspector
 
 if TYPE_CHECKING:
@@ -243,6 +244,11 @@ class WebSocketHub:
     async def _send_to_peer(self, peer: _Peer, text: str) -> None:
         async with peer.lock:
             if self.running and peer.ready and peer.socket in self._peers:
+                authentication = peer.socket.scope.get("state", {}).get(AUTH_SERVICE_STATE)
+                if isinstance(authentication, AuthenticationService) and not await authentication.websocket_authorized(peer.socket.scope):
+                    self._remove_peer(peer)
+                    await peer.socket.close(code=1008)
+                    return
                 await peer.socket.send_text(text)
 
     async def _deliver_to_peer(self, peer: _Peer, text: str) -> None:

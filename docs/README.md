@@ -18,6 +18,7 @@
 10. **[PROJECT_KNOWLEDGE.md](PROJECT_KNOWLEDGE.md)**: Mapa de conocimiento del proyecto y fuentes de referencia.
 11. **[FRONTEND_DELIVERY.md](FRONTEND_DELIVERY.md)**: Build JS/CSS minimizado, gzip previo y presupuesto de CPU de compresión web.
 12. **[Frontend modernization plan](FRONTEND_MODERNIZATION_PLAN.md)**: Plan de la reunión de agentes, auditoría de componentes y registro de entregas; densidad y alineación de tarjetas, contratos y aceptación pendiente.
+13. **[Autenticación de estación personal](AUTHENTICATION_PLAN.md)**: Plan por etapas, login, sesiones, API, CSRF y credenciales de instalación.
 
 ---
 
@@ -44,6 +45,7 @@ Los ADRs documentan las decisiones arquitectónicas fundamentales tomadas a lo l
 - **[ADR 0014: Decisión histórica CPython 3.15.0, sustituida](adr/0014-python-3-15-baseline.md)**
 - **[ADR 0015: Decisión histórica CPython 3.14.8, sustituida](adr/0015-python-3-14-8-baseline.md)**
 - **[ADR 0016: Mínimo CPython 3.12 y versión recomendada 3.13.5, sin máximo](adr/0016-python-3-12-baseline.md)**
+- **[ADR 0018: Autenticación de la estación personal](adr/0018-personal-station-authentication.md)**
 
 ---
 

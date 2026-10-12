@@ -232,12 +232,12 @@
     try {
       const headers = new Headers({Accept: "application/json"});
       if (apiKey) headers.set("X-Api-Key", apiKey);
-      const response = await fetch("/openapi.json", {method: "GET", headers, cache: "no-store", credentials: "omit", redirect: "error", signal: activeController.signal});
+      const response = await fetch("/openapi.json", {method: "GET", headers, cache: "no-store", credentials: "same-origin", redirect: "error", signal: activeController.signal});
       if (generation !== requestGeneration) return;
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
           forgetKey();
-          ui.status.textContent = "Acceso rechazado. La clave se ha borrado; introduce una clave válida para cargar la documentación.";
+          ui.status.textContent = "Acceso rechazado. Inicia sesión en la aplicación o introduce una clave válida. La clave anterior se ha borrado.";
         } else ui.status.textContent = `No se pudo cargar el contrato (HTTP ${response.status}).`;
         return;
       }

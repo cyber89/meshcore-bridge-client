@@ -8,8 +8,6 @@ import {
   REGION_FREQUENCIES,
   parseMeshCoreUri,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
-  getApiKey,
-  setApiKey,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 import { FormFeedback } from "../core/form_feedback.js";
@@ -159,10 +157,6 @@ export class SettingsModule {
       localTerminalForm: document.getElementById("localTerminalForm"),
       localTerminalInput: document.getElementById("localTerminalInput"),
       localTerminalOutput: document.getElementById("localTerminalOutput"),
-      inputBridgeApiKey: document.getElementById("inputBridgeApiKey"),
-      btnSaveBridgeApiKey: document.getElementById("btnSaveBridgeApiKey"),
-      btnClearBridgeApiKey: document.getElementById("btnClearBridgeApiKey"),
-      apiKeyStatusHint: document.getElementById("apiKeyStatusHint"),
       inputLocalTileUrl: document.getElementById("inputLocalTileUrl"),
       btnSaveMapSettings: document.getElementById("btnSaveMapSettings"),
       btnRefreshLocalConfig: document.getElementById("btnRefreshLocalConfig"),
@@ -780,42 +774,6 @@ export class SettingsModule {
           I18n.setText(posFixedBadge, checked ? "settings.fixed" : 'common.off');
           posFixedBadge.classList.toggle("is-active", checked);
         }
-      });
-    }
-
-    // Gestión de API Key
-    if (this.dom.inputBridgeApiKey) {
-      this.dom.inputBridgeApiKey.value = getApiKey();
-    }
-    if (this.dom.btnSaveBridgeApiKey && this.dom.inputBridgeApiKey) {
-      this.dom.btnSaveBridgeApiKey.addEventListener("click", () => {
-        const val = this.dom.inputBridgeApiKey.value.trim();
-        if (val) {
-          setApiKey(val);
-          if (this.dom.apiKeyStatusHint) {
-            this.dom.apiKeyStatusHint.classList.remove("hidden");
-            I18n.setText(this.dom.apiKeyStatusHint, "settings.api_saved_hint");
-          }
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_saved'), "success");
-        } else {
-          setApiKey("");
-          if (this.dom.apiKeyStatusHint) {
-            this.dom.apiKeyStatusHint.classList.remove("hidden");
-            I18n.setText(this.dom.apiKeyStatusHint, "settings.api_removed_hint");
-          }
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_del'), "info");
-        }
-      });
-    }
-    if (this.dom.btnClearBridgeApiKey && this.dom.inputBridgeApiKey) {
-      this.dom.btnClearBridgeApiKey.addEventListener("click", () => {
-        this.dom.inputBridgeApiKey.value = "";
-        setApiKey("");
-        if (this.dom.apiKeyStatusHint) {
-          this.dom.apiKeyStatusHint.classList.remove("hidden");
-          I18n.setText(this.dom.apiKeyStatusHint, 'toast.api_key_del');
-        }
-        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_del'), "info");
       });
     }
 

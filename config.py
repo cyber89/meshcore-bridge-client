@@ -161,6 +161,7 @@ WEB_ENABLED = os.getenv("WEB_ENABLED", "true").lower() in ("true", "1", "yes")
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = _safe_int("WEB_PORT", 8080)
 BRIDGE_API_KEY = os.getenv("BRIDGE_API_KEY", "")
+BRIDGE_TRUSTED_PROXY_IPS = os.getenv("BRIDGE_TRUSTED_PROXY_IPS", "")
 BRIDGE_ALLOWED_ORIGINS = os.getenv("BRIDGE_ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080")
 
 # ================= Servidor TCP Companion (App Móvil Oficial / CLI) =================

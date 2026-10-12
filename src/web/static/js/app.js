@@ -9,6 +9,7 @@ import { DialogController } from "./core/dialog_controller.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
 import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders } from "./core/utils.js";
 import { store } from "./core/store.js";
+import { BrowserAuthentication } from "./core/auth.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -114,7 +115,7 @@ class MeshCoreApp {
 
     // Conectar WebSocket
     this.wsClient.connect();
-    window.addEventListener("meshcore:credentials_changed", () => this.wsClient.connect());
+    window.addEventListener("meshcore:auth_expired", () => this.wsClient.close());
   }
 
   _bindElements() {
@@ -1051,5 +1052,6 @@ class MeshCoreApp {
 
 // Arranque de la aplicación cuando el DOM esté listo
 document.addEventListener("DOMContentLoaded", () => {
-  new MeshCoreApp();
+  const authentication = new BrowserAuthentication(() => new MeshCoreApp());
+  authentication.init();
 });

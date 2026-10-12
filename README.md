@@ -54,7 +54,7 @@ cd "$HOME/meshcore-bridge-client"
 sudo bash install.sh
 ```
 
-The installer deploys to `/opt/meshcore-bridge`, creates a Python virtual environment, configures serial access, and registers and starts `meshcore-bridge.service`. It creates `.env` from the template when absent and preserves an existing configuration.
+The installer deploys to `/opt/meshcore-bridge`, creates a Python virtual environment, configures serial access, and registers and starts `meshcore-bridge.service`. It creates `.env` from the template when absent and preserves an existing configuration. Before the first start, it asks for a web username and a hidden password. You have three minutes in total to complete the prompts; timeout or a noninteractive installation uses `admin:admin`, which must be changed at the first login before station access. Updates preserve the existing account.
 
 The initial installation also configures and starts Mosquitto with an anonymous listener on `0.0.0.0:1883`. Choose the broker's bind address, authentication, and firewall rules for your deployment. To configure the bridge before its first connection, use the manual setup below.
 
@@ -107,6 +107,7 @@ python -m pip install -r requirements.txt
 if [ ! -f .env ]; then cp .env.example .env; fi
 # Edit .env before starting the station.
 nano .env
+python scripts/setup_auth.py --project-dir .
 python meshcore_bridge.py
 ```
 
@@ -121,7 +122,8 @@ Configuration loads from `.env` in the repository or installation root; existing
 | `SERIAL_PORT` | `AUTO` | USB port such as `/dev/ttyACM0`, a persistent `/dev/serial/by-id/...` path, `COM3`, or `tcp://host:port`. Without `.env`, the code defaults to `/dev/ttyACM0` on Linux and `AUTO` on Windows. |
 | `BAUD_RATE` | `115200` | Serial connection speed. |
 | `WEB_ENABLED` / `WEB_HOST` / `WEB_PORT` | `true` / `0.0.0.0` / `8080` | Enable the dashboard and API, and choose their listening address. |
-| `BRIDGE_API_KEY` | Empty | Optional key for API writes, protected reads, WebSocket access, and API documentation. REST integrations use `X-Api-Key`. |
+| `BRIDGE_API_KEY` | Empty | Optional external integration key sent by header (`X-Api-Key` or Bearer). Web sign-in is always required independently; an empty key does not open the API. |
+| `BRIDGE_TRUSTED_PROXY_IPS` | Empty | Exact IP addresses of a trusted HTTPS reverse proxy, comma-separated. Empty disables forwarded-header trust. |
 | `MQTT_BROKER` / `MQTT_PORT` | `127.0.0.1` / `1883` | Local automation broker address and port. |
 | `MQTT_USER` / `MQTT_PASSWORD` | Empty | MQTT authentication when required by your broker. |
 | `MQTT_TLS` | `false` | Enable TLS; configure the broker, port, and optional CA/client certificate paths for that listener, then restart. |
@@ -133,7 +135,7 @@ Configuration loads from `.env` in the repository or installation root; existing
 
 SQLite stores station chat, conversations, delivery states, nodes, channels, service presets, airtime history and repeater cooldowns in `DATA_DIR/meshcore.sqlite3`. Set `DATABASE_PATH` to choose a different local location. Existing state JSON files are imported once and preserved; their configured paths remain migration sources. See [storage and migration](docs/STORAGE.md) for backup, restore and rollback details.
 
-The browser keeps theme, language and panel preferences in LocalStorage, and downloaded messages in an IndexedDB cache separated by station. SQLite retains chat when no browser is open. Settings offers an explicit import of old browser history; importing never retransmits messages. Clearing the cache does not delete station history. API credentials use tab-scoped SessionStorage. Offline reading covers downloaded messages in an already loaded interface; local map tiles alone do not guarantee a full offline launch.
+The browser keeps theme, language and panel preferences in LocalStorage, and downloaded messages in an IndexedDB cache separated by station. SQLite retains chat when no browser is open. Settings offers an explicit import of old browser history; importing never retransmits messages. Clearing the cache does not delete station history. Sign-in uses an HttpOnly cookie; authentication secrets are not kept in browser LocalStorage or SessionStorage. Offline reading covers downloaded messages in an already loaded, authorized interface; local map tiles alone do not guarantee a full offline launch.
 
 After startup, open **`http://localhost:8080`** on the host, or **`http://<host-ip>:8080`** from a device on your network. Select a channel or contact for chat, use Nodes for mesh and repeater operations, and use Settings to review station and integration configuration.
 
@@ -175,7 +177,11 @@ The web server uses FastAPI/Uvicorn and shares state with the radio and MQTT pip
 | Repeater administration | `POST /api/admin/repeater` | Remote administrative operations. |
 | Companion TCP | `tcp://<host-ip>:5000` | Shared-radio access for compatible Companion clients. |
 
-When `BRIDGE_API_KEY` is configured, enter it in the documentation viewer or supply it through `X-Api-Key` when fetching the schema. The viewer displays the contract and does not execute API operations. Choose listening addresses and client access controls for the network where the station runs.
+Sign in before accessing station data, API documentation, local tiles or live events. Select **Remember me** to keep a session for 30 days; without it the browser receives a session cookie and the server expires the session after 12 hours. The account view lets you change the username and password, sign out, or generate an integration token. New passwords need 15–128 characters. Changing credentials revokes previous sessions and generated tokens.
+
+REST integrations send the generated token in `Authorization: Bearer <token>`. An explicitly configured `BRIDGE_API_KEY` remains available through `X-Api-Key` or Bearer and must be rotated separately. Credentials in URL query strings are not accepted. The documentation viewer displays the contract and does not execute API operations. MQTT and Companion TCP retain their separate authentication controls.
+
+Passwords are hashed with a random salt using scrypt and stored in SQLite alongside session and token digests. Use HTTPS for remote browser access so passwords and cookies are encrypted in transit. For a reverse proxy on the same host, set `BRIDGE_TRUSTED_PROXY_IPS=127.0.0.1,::1`, preserve the public `Host`, and have the proxy overwrite `X-Forwarded-Proto` and `X-Forwarded-For`. Restrict direct access to the bridge listener; only the explicitly configured proxy addresses may supply trusted forwarded headers. Plain HTTP remains supported for a local station. See the [authentication plan](docs/AUTHENTICATION_PLAN.md) for the contract, fallback behavior and verification limits.
 
 ## Documentation
 

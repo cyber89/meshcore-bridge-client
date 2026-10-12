@@ -1,3 +1,54 @@
+/* Hide station data until the server authenticates and accepts the credentials. */
+body.auth-pending > .app-header,
+body.auth-pending > #app { display: none !important; }
+.auth-gate {
+  min-height: 100dvh;
+  overflow-y: auto;
+  display: grid;
+  place-items: center;
+  padding: var(--space-lg);
+  background: var(--bg-body);
+}
+.auth-gate[hidden], .auth-token-result[hidden], .auth-form[hidden] { display: none; }
+.auth-card, .auth-dialog {
+  width: min(100%, 30rem);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  color: var(--text-main);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--dialog-shadow);
+}
+.auth-brand, .auth-dialog-heading, .auth-dialog-footer, .auth-account-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.auth-brand { margin-bottom: var(--space-lg); font-weight: 700; }
+.auth-brand button { margin-left: auto; }
+.auth-card h2, .auth-dialog h2 { font-size: var(--font-fluid-heading); margin: 0 0 var(--space-sm); }
+.auth-dialog h3 { font-size: 1rem; }
+.auth-form { display: grid; gap: var(--space-md); }
+.auth-form .form-group { min-width: 0; }
+.auth-form label { display: block; margin-bottom: var(--space-xs); }
+.auth-form .form-check-label { display: inline; }
+.auth-form .form-control { min-height: 44px; font-size: 1rem; }
+.auth-form .field-hint { margin: var(--space-xs) 0 0; font-size: var(--font-meta); }
+.auth-form > button { min-height: 44px; }
+.auth-dialog { max-height: calc(100dvh - 2rem); max-width: calc(100vw - 2rem); }
+.auth-dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+.auth-dialog-heading { justify-content: space-between; align-items: flex-start; }
+.auth-automation, .auth-dialog-footer { border-top: 1px solid var(--border-color); padding-top: var(--space-lg); margin-top: var(--space-lg); }
+.auth-dialog-footer { justify-content: flex-end; }
+.auth-token-result { display: grid; gap: var(--space-sm); margin-top: var(--space-md); }
+.auth-token-result .form-control { min-width: 0; font-size: 0.8125rem; }
+.auth-account-button span { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 575.98px) {
+  .auth-gate { padding: var(--space-md); }
+  .auth-card { padding: var(--space-lg); }
+  .auth-account-button span { display: none; }
+}
+
 /**
  * MeshCore Bridge SPA — Estilos Centrales y Tokens de Diseño
  * Compatible con Bootstrap 5.3, Bootswatch Zephyr (Claro) y Bootswatch Slate (Oscuro).

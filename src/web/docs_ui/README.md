@@ -6,7 +6,9 @@ exactos en `/docs/assets/docs.css` y `/docs/assets/docs.js`. El alias no afirma 
 ReDoc esté instalado. Ninguna operación del catálogo está incrustada en el HTML.
 
 Una acción manual obtiene `/openapi.json` mediante GET y, si se introdujo una
-clave, la cabecera `X-Api-Key`. La clave no entra en la URL, el almacenamiento web,
+clave, la cabecera `X-Api-Key`. El shell y el esquema requieren una sesión personal
+o token de integración; el visor utiliza la cookie HttpOnly de la estación cuando
+no se introduce una clave. La clave de integración no entra en la URL, el almacenamiento web,
 cookies ni logs. El campo se vacía al iniciar la carga; la variable en memoria se
 borra al cerrar el visor, abandonar la página o recibir HTTP 401/403. El visor
 cierra cualquier contrato previo antes de cargar otro y cancela la solicitud en

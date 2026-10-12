@@ -85,7 +85,7 @@ flowchart TB
 ## 3. Capa 1: Presentación y Exposición (Presentation & Ingress/Egress)
 
 ### 3.1 Responsabilidad
-Constituye la frontera perimetral del sistema frente a redes IP, operadores humanos y servicios externos (n8n, Node-RED, brokers MQTT). Valida parámetros de entrada, gestiona autenticación API (`BRIDGE_API_KEY`), maneja conexiones HTTP/WebSocket y traduce payloads JSON hacia las llamadas de la Capa 2. **No contiene lógica de radiofrecuencia ni altera el estado de la malla.**
+Constituye la frontera perimetral del sistema frente a redes IP, operadores humanos y servicios externos (n8n, Node-RED, brokers MQTT). Valida parámetros de entrada, gestiona autenticación de la cuenta personal por cookie/CSRF y tokens de integración por cabecera, maneja conexiones HTTP/WebSocket y traduce payloads JSON hacia las llamadas de la Capa 2. `BRIDGE_API_KEY` conserva su papel de credencial externa opcional; una clave vacía no permite acceso público. Véase [autenticación](AUTHENTICATION_PLAN.md). **No contiene lógica de radiofrecuencia ni altera el estado de la malla.**
 
 ### 3.2 Clases y Métodos Principales
 

@@ -13,6 +13,9 @@ There is no upper version limit. Creates or reuses .venv, installs
 production dependencies when missing, and preserves an existing .env.
 Windows setup does not install a service or an MQTT broker. NO_COLOR disables
 terminal colors; redirected output uses plain text.
+First setup requests a web username and hidden password within 3 minutes total.
+Incomplete or noninteractive setup creates admin:admin, requiring a change at login.
+An existing account is preserved on subsequent setup runs.
 .PARAMETER Run
 Start the bridge after setup using the local virtual environment.
 .PARAMETER InstallDeps
@@ -300,6 +303,9 @@ if (-not (Test-Path "$ScriptDir\.env")) {
 } else {
     Write-Success "Existing .env preserved."
 }
+
+Write-Info "Check personal web account (3-minute shared deadline for first setup)"
+Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\setup_auth.py" --project-dir "$ScriptDir" } "Could not initialize the personal web account."
 
 # ==============================================================================
 # Setup summary and launch commands

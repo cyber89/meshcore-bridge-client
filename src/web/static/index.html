@@ -19,7 +19,51 @@
   <link rel="stylesheet" href="/css/leaflet.min.css">
   <script defer src="/js/leaflet.min.js"></script>
 </head>
-<body class="bg-body text-body d-flex flex-column overflow-hidden">
+<body class="bg-body text-body d-flex flex-column overflow-hidden auth-pending">
+  <section id="authGate" class="auth-gate" aria-labelledby="authHeading">
+    <div class="auth-card">
+      <div class="auth-brand"><img src="/brand.svg" width="48" height="48" alt=""><span>Meshcore-Bridge</span><button id="authLanguageButton" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="auth.language">ES / EN</button></div>
+      <h2 id="authHeading" data-i18n="auth.login_title">Inicia sesión en tu estación</h2>
+      <p class="text-body-secondary" data-i18n="auth.login_description">Tu cuenta protege la estación, sus mensajes y la API.</p>
+      <p id="authLoading" role="status" data-i18n="auth.loading">Comprobando la sesión…</p>
+      <form id="loginForm" class="auth-form" hidden>
+        <div class="form-group"><label for="loginUsername" data-i18n="auth.username">Nombre de usuario</label><input id="loginUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+"></div>
+        <div class="form-group"><label for="loginPassword" data-i18n="auth.password">Contraseña</label><input id="loginPassword" class="form-control" type="password" name="password" autocomplete="current-password" required maxlength="128"></div>
+        <div class="form-check"><input id="loginRemember" class="form-check-input" type="checkbox" name="remember" checked aria-describedby="loginRememberHint"><label class="form-check-label" for="loginRemember" data-i18n="auth.remember">Recordar mi sesión en este navegador</label><p id="loginRememberHint" class="field-hint text-body-secondary" data-i18n="auth.remember_hint">Durante 30 días. Úsalo sólo en un dispositivo personal.</p></div>
+        <button class="btn btn-primary" type="submit" data-i18n="auth.sign_in">Iniciar sesión</button>
+      </form>
+      <noscript><p>JavaScript is required to sign in to MeshCore Bridge.</p></noscript>
+    </div>
+  </section>
+  <dialog id="accountDialog" class="auth-dialog" aria-labelledby="accountHeading" aria-describedby="accountDescription">
+    <div class="auth-dialog-heading"><h2 id="accountHeading" data-i18n="auth.account">Cuenta y acceso</h2><button id="accountCloseButton" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="auth.close">Cerrar</button></div>
+    <p id="accountDescription" class="text-body-secondary" data-i18n="auth.account_description">Actualiza el usuario y la contraseña de tu estación.</p>
+    <p id="accountRequiredNotice" class="alert alert-warning" role="status" hidden data-i18n="auth.change_required">La cuenta predeterminada necesita una contraseña nueva antes de acceder a la estación.</p>
+    <form id="accountCredentialsForm" class="auth-form">
+      <div class="form-group"><label for="accountCurrentPassword" data-i18n="auth.current_password">Contraseña actual</label><input id="accountCurrentPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="128"></div>
+      <div class="form-group"><label for="accountUsername" data-i18n="auth.username">Nombre de usuario</label><input id="accountUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+" aria-describedby="accountUsernameHint"><p id="accountUsernameHint" class="field-hint text-body-secondary" data-i18n="auth.username_hint">1–64 caracteres: letras, números, punto, guion o guion bajo.</p></div>
+      <div class="form-group"><label for="accountNewPassword" data-i18n="auth.new_password">Contraseña nueva</label><input id="accountNewPassword" class="form-control" type="password" name="password" autocomplete="new-password" required minlength="15" maxlength="128" aria-describedby="accountPasswordHint"><p id="accountPasswordHint" class="field-hint text-body-secondary" data-i18n="auth.password_hint">Usa entre 15 y 128 caracteres; puedes elegir una frase larga.</p></div>
+      <div class="form-group"><label for="accountConfirmPassword" data-i18n="auth.confirm_password">Repite la contraseña nueva</label><input id="accountConfirmPassword" class="form-control" type="password" name="confirmation" autocomplete="new-password" required minlength="15" maxlength="128"></div>
+      <p class="field-hint text-body-secondary" data-i18n="auth.revocation_notice">Guardar cierra las otras sesiones y revoca los tokens de API. Tu sesión actual se renueva.</p>
+      <button type="submit" class="btn btn-primary" data-i18n="auth.save_credentials">Guardar usuario y contraseña</button>
+    </form>
+    <section id="accountAutomationSection" class="auth-automation" aria-labelledby="accountAutomationHeading">
+      <h3 id="accountAutomationHeading" data-i18n="auth.automation">Token para automatizaciones</h3>
+      <p class="text-body-secondary" data-i18n="auth.token_description">Genera una clave para n8n u otros clientes de API. Se mostrará una sola vez; el navegador usa su sesión.</p>
+      <form id="automationTokenForm" class="auth-form">
+        <div class="form-group"><label for="accountTokenPassword" data-i18n="auth.current_password">Contraseña actual</label><input id="accountTokenPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="128"></div>
+        <button type="submit" class="btn btn-outline-primary" data-i18n="auth.generate_token">Generar token de API</button>
+      </form>
+      <div id="accountTokenResult" class="auth-token-result" hidden>
+        <label for="accountTokenValue" data-i18n="auth.token_value">Token generado (cabecera X-Api-Key)</label>
+        <input id="accountTokenValue" class="form-control font-monospace" type="text" readonly autocomplete="off" spellcheck="false">
+        <p class="field-hint text-body-secondary" data-i18n="auth.token_once">Cópialo ahora y guárdalo de forma segura. Se ocultará al cerrar esta vista.</p>
+        <button id="accountCopyTokenButton" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="auth.copy_token">Copiar token</button>
+        <p id="accountTokenCopyStatus" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+    <div class="auth-dialog-footer"><button id="accountLogoutButton" type="button" class="btn btn-outline-danger" data-i18n="auth.sign_out">Cerrar sesión</button></div>
+  </dialog>
   <!-- Header Superior Navbar -->
   <header class="navbar navbar-expand-lg bg-body-tertiary border-bottom sticky-top py-2 px-3 app-header" role="banner">
     <div class="container-fluid px-0">
@@ -48,6 +92,7 @@
 
       <!-- Métricas y Controles de Cabecera -->
       <div class="d-flex align-items-center gap-2 ms-auto header-right">
+        <button type="button" class="btn btn-outline-secondary btn-sm auth-account-button" data-open-account data-i18n-title="auth.account" data-i18n-aria-label="auth.account" aria-label="Cuenta y acceso" title="Cuenta y acceso"><i class="bi bi-person-circle" aria-hidden="true"></i><span id="accountNameLabel" data-i18n="auth.account">Cuenta y acceso</span></button>
         <div class="d-none d-xl-flex align-items-center gap-2 header-metrics" role="region" aria-label="Métricas globales de tráfico" data-i18n-aria-label="ui.static_004">
           <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Nodos Activos en Malla" data-i18n-title="header.active_nodes">
             <i class="bi bi-people chip-icon" aria-hidden="true"></i> <strong id="headerNodeCount">0</strong>
@@ -1402,22 +1447,8 @@
                       <h3 data-i18n="ui.static_350"><i class="bi bi-shield-check section-icon" aria-hidden="true"></i> Autenticación & API Key del Bridge</h3>
                       <span class="badge-pill badge-primary" data-i18n="ui.static_351">Control de Acceso</span>
                     </div>
-                    <p class="card-desc">
-                      <span data-i18n="ui.mixed_key_before">Si has configurado</span> <code>BRIDGE_API_KEY</code> <span data-i18n="ui.mixed_key_middle">en tu archivo</span> <code>.env</code> <span data-i18n="ui.mixed_key_after">para restringir la transmisión RF por radio y comandos de administración, introduce tu clave aquí para autorizar este navegador.</span>
-                    </p>
-                    <form class="settings-form" id="bridgeApiKeyForm" onsubmit="return false;" aria-label="Autenticación de la API" data-i18n-aria-label="ui.form_api_key">
-                      <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario"  data-i18n-aria-label="ui.static_352"/>
-                      <div class="form-group">
-                        <label for="inputBridgeApiKey" data-i18n="ui.static_353">API Key del Bridge (Cabecera X-Api-Key)</label>
-                        <div class="settings-inline-controls">
-                          <input type="password" id="inputBridgeApiKey" class="form-control" placeholder="Ingresa tu clave secreta de BRIDGE_API_KEY..." autocomplete="current-password"  data-i18n-placeholder="ui.static_354"/>
-                          <button type="button" class="btn btn-primary btn-sm" id="btnSaveBridgeApiKey" data-i18n="modal.save">Guardar</button>
-                          <button type="button" class="btn btn-secondary btn-sm" id="btnClearBridgeApiKey" data-i18n="chat.clear">Limpiar</button>
-                        </div>
-                        <span id="apiKeyStatusHint" class="text-success text-xs hidden settings-status-hint">✓ API Key guardada para esta sesión de pestaña</span>
-                        <p class="card-desc" data-i18n="settings.api_session_note">La clave se conserva al recargar esta pestaña y se elimina al terminar su sesión. LocalStorage sólo guarda preferencias.</p>
-                      </div>
-                    </form>
+                    <p class="card-desc" data-i18n="auth.security_description">La sesión protege todas las rutas de API y WebSocket. Desde tu cuenta puedes cambiar las credenciales, cerrar sesión y generar tokens para automatizaciones.</p>
+                    <button class="btn btn-primary btn-sm" type="button" data-open-account data-i18n="auth.account">Cuenta y acceso</button>
                   </div>
 
                   <!-- Tarjeta de Ámbito de Inundación (Flood Scope) -->

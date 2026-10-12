@@ -15,10 +15,10 @@
   </header>
   <main id="main">
     <section class="panel access" aria-labelledby="access-title">
-      <div><h2 id="access-title">Cargar documentación</h2><p id="key-help">Si el servidor exige una clave, introdúcela aquí. Se envía únicamente en la cabecera de la solicitud de lectura y se mantiene en memoria hasta cerrar la documentación.</p></div>
+      <div><h2 id="access-title">Cargar documentación</h2><p id="key-help">Tu sesión de la aplicación permite leer el contrato. También puedes introducir una clave de API: se envía únicamente en la cabecera de lectura y se mantiene en memoria hasta cerrar la documentación.</p></div>
       <form id="load-form" autocomplete="off">
         <label for="api-key">Clave de API</label>
-        <input id="api-key" type="password" autocomplete="off" spellcheck="false" aria-describedby="key-help" placeholder="Opcional si no hay clave configurada">
+        <input id="api-key" type="password" autocomplete="off" spellcheck="false" aria-describedby="key-help" placeholder="Opcional con una sesión activa">
         <div class="actions"><button id="load-button" type="submit">Cargar contrato</button><button id="clear-button" type="button" class="secondary">Cerrar documentación y borrar clave</button></div>
       </form>
       <p id="status" role="status" aria-live="polite">El contrato se carga solo cuando pulses el botón.</p>

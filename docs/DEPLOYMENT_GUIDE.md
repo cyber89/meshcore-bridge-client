@@ -50,7 +50,8 @@ sudo bash install.sh --update
 4. **Detecta automáticamente el puerto de tu placa LoRa** conectada por USB.
 5. Despliega los archivos en `/opt/meshcore-bridge` y crea el archivo de configuración `.env`.
 6. Crea `venv/` e instala `requirements.txt`: cuatro dependencias core y seis de ASGI, detalladas abajo. El bridge incluye un decodificador CayenneLPP propio; `pycayennelpp` y `pyserial-asyncio-fast` pueden instalarse como dependencias transitivas del SDK `meshcore`, aunque el parser raw no las importe directamente.
-7. Registra, habilita y arranca el servicio **`meshcore-bridge.service`** en systemd.
+7. Antes de arrancar el bridge, solicita un nombre de usuario y contraseña oculta, con confirmación. Las tres entradas comparten un plazo total de **180 segundos**. Si se agota el plazo, se cierra la entrada o no hay terminal interactiva, crea **`admin:admin`** y exige cambiar las credenciales antes de acceder a la estación. Una cuenta existente se conserva sin volver a preguntar.
+8. Registra, habilita y arranca el servicio **`meshcore-bridge.service`** en systemd.
 
 ### 📦 Dependencias y Perfiles de Verificación
 
@@ -169,6 +170,13 @@ Para un broker remoto con TLS, configure `MQTT_TLS=true`, `MQTT_BROKER` con el n
     ```
     *Verifique `SERIAL_PORT` (`/dev/ttyACM0`, `/dev/ttyUSB0`, `AUTO` o `tcp://host:port`) y `DATA_DIR`. Para USB puede utilizar una ruta persistente de `/dev/serial/by-id/`. El default de `config.py` es `/dev/ttyACM0` fuera de Windows y `AUTO` en Windows; `.env` puede sobrescribirlo.*
 
+4. Prepare la cuenta web antes de arrancar el servicio, usando el mismo directorio e identidad que utilizará el bridge:
+   ```bash
+   cd /opt/meshcore-bridge
+   sudo -u meshcore venv/bin/python scripts/setup_auth.py --project-dir /opt/meshcore-bridge
+   ```
+   Sustituya `meshcore` por la cuenta configurada en systemd. El helper carga la configuración del proyecto y utiliza `DATABASE_PATH` (por defecto `DATA_DIR/meshcore.sqlite3`); esa ruta debe permitir escritura a la cuenta del servicio. No recibe contraseñas mediante argumentos, variables de entorno ni `.env`. No arranca servicios ni conecta a la radio. Si se omite este paso en una ejecución directa, el servidor web prepara la cuenta restringida `admin:admin` cuando inicializa la autenticación.
+
 ---
 
 ### 6. Configuración del Servicio systemd
@@ -199,19 +207,17 @@ Una vez iniciado el servicio, accede desde cualquier navegador en la misma red l
 
 - **URL de la Estación Web**: `http://<IP_DE_TU_SERVIDOR>:8080`
 - **Indicador de Vivacidad**: El badge en la barra superior mostrará **`⬤ Conectado`** en tiempo real mediante WebSockets RFC 6455.
-- **Autenticación (Opcional)**: Si configuras `BRIDGE_API_KEY=tu_clave_secreta` en `.env`:
-  1. Ve a **⚙️ Ajustes ➔ 🔐 Seguridad & API**.
-  2. Escribe tu clave secreta en el campo correspondiente y pulsa **Guardar**.
-  3. Tu navegador quedará automáticamente autorizado para emitir mensajes y enviar comandos administrativos.
+- **Autenticación obligatoria**: Inicie sesión con la cuenta creada durante la instalación. La API REST, los WebSockets y la documentación interactiva requieren autorización. La página de inicio de sesión y sus recursos estáticos permanecen accesibles para poder autenticar al usuario.
+- **Primera entrada con valores por defecto**: Si la instalación creó `admin:admin`, cambie el usuario y la contraseña en la vista de cuenta antes de acceder a datos u operaciones de la estación. La clave de API no evita este paso.
+- **Credenciales personales**: El nombre de usuario admite entre 1 y 64 letras ASCII, dígitos, puntos, guiones o guiones bajos. La contraseña personal debe tener entre 15 y 128 caracteres. La vista de cuenta requiere la contraseña actual para cambiar el usuario o contraseña, revoca las sesiones anteriores y los tokens de integración generados desde la vista de cuenta, y crea una sesión nueva para el navegador actual.
+- **Recordar sesión**: El navegador conserva una cookie de sesión opaca, `HttpOnly` y `SameSite=Strict`; no almacena la contraseña ni el token en `localStorage`. La opción de recordar utiliza una expiración de 30 días; una sesión sin recordar dura como máximo 12 horas y la cookie se elimina al cerrar la sesión del navegador. El servidor conserva únicamente el hash del identificador de sesión en SQLite. Cerrar sesión revoca ese identificador.
+- **Integraciones API**: Cree un token desde la vista de cuenta y envíelo en `Authorization: Bearer <token>` o `X-Api-Key`. El servidor muestra el token completo sólo al crearlo y almacena su hash. Una `BRIDGE_API_KEY` existente sigue siendo compatible una vez cambiadas las credenciales por defecto; cambiar la cuenta no modifica esa variable, que debe rotarse por separado en la configuración. Los tokens no se pasan en URLs.
 
-El servidor FastAPI publica `/docs` y `/redoc` como visor local, con assets del
-repositorio, y `/openapi.json` como catálogo OpenAPI 3.1. Si `BRIDGE_API_KEY` está
-configurada, el esquema exige `X-Api-Key`: la clave en query no autentica esta
-frontera documental. El formulario del visor solicita el esquema con esa cabecera;
-no ejecuta operaciones de radio. El catálogo describe los contratos del dispatcher
-y controladores vigentes; sus DTOs descriptivos no sustituyen la validación de
-negocio de las peticiones. La comprobación funcional de este visor y las APIs
-sigue pendiente de autorización de suites para la revisión actual.
+Las peticiones que modifican datos usando cookies necesitan el token CSRF que la aplicación obtiene con la sesión. La aplicación comprueba el origen de las peticiones y WebSockets. Publique el acceso remoto mediante HTTPS: permite marcar la cookie como `Secure` y protege la contraseña y la sesión durante el transporte. Si utiliza un proxy inverso, configure la terminación TLS y el manejo fiable de cabeceras de proxy; no confíe en cabeceras aportadas por clientes públicos.
+
+Para un proxy inverso en el mismo host, configure `WEB_HOST=127.0.0.1` y `BRIDGE_TRUSTED_PROXY_IPS=127.0.0.1,::1`. La confianza está desactivada por defecto; sólo admite IPs exactas, sin comodines ni rangos. El proxy debe conservar el `Host` público y sobrescribir `X-Forwarded-Proto`/`X-Forwarded-For`; así la aplicación reconoce HTTPS y valida el mismo origen. Restrinja el acceso directo al listener del bridge al proxy configurado.
+
+El servidor FastAPI publica `/docs` y `/redoc` como visores locales, con assets del repositorio, y `/openapi.json` como catálogo OpenAPI 3.1. La sesión web o un token válido autorizan esta frontera. El catálogo describe los contratos del dispatcher y controladores vigentes; sus DTOs descriptivos no sustituyen la validación de negocio de las peticiones. Esta implementación se revisa estáticamente; no se ejecutaron instalaciones, servicios ni suites de pruebas para la característica de autenticación del 2026-10-12.
 
 ---
 
@@ -258,12 +264,12 @@ mosquitto_sub -t "meshcore/bridge/health" -v
 
 ### 4. Consultar API REST de estado:
 ```bash
-curl -s http://127.0.0.1:8080/api/status | jq .
+curl -s -H 'Authorization: Bearer <token_creado_en_la_vista_de_cuenta>' http://127.0.0.1:8080/api/status | jq .
 ```
 
 ### Instalación en Windows (PowerShell)
 
-Para ejecutar en Windows, `install.ps1` crea o reutiliza `.venv` y ejecuta pip mediante el Python de ese entorno. Exige CPython estable 3.12 o superior (3.13.5 recomendado, sin máximo) y comprueba mínimos core/pins ASGI mediante `--profile web`, con independencia de `MESHCORE_PROFILE`. Para una venv nueva admite una ruta en `$env:MESHCORE_PYTHON`; sin ella inspecciona `python3.13`, `python3.12`, `python3.15`, `python3.14`, `python3`, `python` y los intérpretes instalados que enumera `py -0p`, comprobando su versión completa. Una venv antigua no cambia de intérprete al activar o actualizar paquetes; crear otra con un intérprete compatible, por ejemplo la rama 3.13 recomendada:
+Para ejecutar en Windows, `install.ps1` crea o reutiliza `.venv` y ejecuta pip mediante el Python de ese entorno. Antes de cualquier `-Run`, el helper solicita la cuenta web con el mismo plazo total de 180 segundos y contraseña oculta; los siguientes usos conservan la cuenta existente. Exige CPython estable 3.12 o superior (3.13.5 recomendado, sin máximo) y comprueba mínimos core/pins ASGI mediante `--profile web`, con independencia de `MESHCORE_PROFILE`. Para una venv nueva admite una ruta en `$env:MESHCORE_PYTHON`; sin ella inspecciona `python3.13`, `python3.12`, `python3.15`, `python3.14`, `python3`, `python` y los intérpretes instalados que enumera `py -0p`, comprobando su versión completa. Una venv antigua no cambia de intérprete al activar o actualizar paquetes; crear otra con un intérprete compatible, por ejemplo la rama 3.13 recomendada:
 ```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -291,7 +297,7 @@ Los otros scripts históricos de simulación deben inspeccionarse antes de ejecu
 
 ### Datos y actualización
 
-Guarde copia de `.env`, la base SQLite de estación, mapas y logs antes de una actualización. `DATABASE_PATH` usa por defecto `DATA_DIR/meshcore.sqlite3`; configure un disco local con locking compatible. Nodos, canales, servicios, airtime, cooldowns, chat y entregas usan SQLite. Los JSON existentes se importan una vez sin borrarlos; dejan de reflejar los cambios posteriores. IndexedDB es caché por estación, y `PacketBuffer`, deduplicación y colas TX/MQTT siguen en RAM. Véase [STORAGE.md](STORAGE.md) para importación y restauración.
+Guarde copia de `.env`, la base SQLite de estación, mapas y logs antes de una actualización. `DATABASE_PATH` usa por defecto `DATA_DIR/meshcore.sqlite3`; configure un disco local con locking compatible. Nodos, canales, servicios, airtime, cooldowns, chat y entregas usan SQLite. La cuenta web, hashes de sesiones y hashes de tokens también están en esa base: los upgrades conservan la cuenta, sin restaurar `admin:admin` ni reiniciar contraseñas. Proteja los backups con los mismos permisos que la base. Los JSON existentes se importan una vez sin borrarlos; dejan de reflejar los cambios posteriores. IndexedDB es caché por estación, y `PacketBuffer`, deduplicación y colas TX/MQTT siguen en RAM. Véase [STORAGE.md](STORAGE.md) para importación y restauración.
 
 Con el bridge activo, utilice la API de backup SQLite (`StationDatabase.backup`) para obtener una instantánea consistente; copiar sólo el archivo principal puede omitir commits del WAL. También puede detener limpiamente el servicio y respaldar la base junto con los sidecars restantes. Restrinja permisos: canales y servicios contienen credenciales. Un rollback del instalador recupera código, pero una versión JSON anterior no leerá los cambios posteriores a la migración; exporte documentos antes de volver a ella. Una ruta externa `DATABASE_PATH` requiere su propia copia de seguridad.
 
