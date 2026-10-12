@@ -340,6 +340,56 @@ h5, .h5 { font-size: 0.8rem; font-weight: 600; }
 .hidden { display: none !important; }
 .font-mono { font-family: var(--bs-font-monospace) !important; }
 
+/* Cajas de Aviso y Banners de Descubrimiento */
+.callout-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.warning-callout {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: var(--warning-text, #fbbf24);
+}
+
+.discovery-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  background: var(--bs-primary-bg-subtle, rgba(37, 92, 204, 0.12));
+  border: 1px solid var(--bs-primary);
+  border-radius: var(--radius-md);
+  color: var(--bs-primary-text-emphasis, var(--bs-body-color));
+}
+
+.discovery-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.discovery-icon {
+  color: var(--bs-primary);
+  flex-shrink: 0;
+}
+
+.discovery-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Layout Global SPA */
 html, body {
   height: 100%;
@@ -976,6 +1026,9 @@ body {
 
 .attach-label { font-size: 0.8125rem; font-weight: 600; }
 .attach-description { color: var(--text-muted); font-size: 0.75rem; line-height: 1.4; }
+.attach-icon-contact { color: var(--accent-success, #198754); }
+.attach-icon-channel { color: var(--accent-primary, #0d6efd); }
+.attach-icon-location { color: var(--accent-warning, #f59e0b); }
 
 .emoji-picker-tabs {
   display: grid;
@@ -1863,6 +1916,74 @@ body {
   padding: 0.75rem;
   overflow-y: auto;
   max-height: 520px;
+}
+
+.linux-term-window {
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--term-bg, #090d16);
+  margin-bottom: 1rem;
+}
+
+.linux-term-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.linux-term-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.linux-term-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot-red { background-color: #ef4444; }
+.dot-yellow { background-color: #f59e0b; }
+.dot-green { background-color: #10b981; }
+
+.linux-term-title {
+  font-size: 0.75rem;
+  font-family: var(--bs-font-monospace);
+  color: var(--bs-secondary-color, #94a3b8);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.linux-term-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terminal-help-drawer {
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid var(--bs-border-color);
+  padding: 10px 14px;
+}
+
+.help-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.775rem;
+}
+
+.help-drawer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px;
 }
 
 /* Entradas y badges del Registro del Sistema (System Logs Feed) */
