@@ -87,3 +87,7 @@ No cambia ningún endpoint, parámetro de radio, intervalo o publicación MQTT. 
 Comprobaciones estáticas realizadas: Ruff y mypy estricto con `--explicit-package-bases` correctos para helper y dos nuevas regresiones; compilación Python, sintaxis JS, parser PowerShell, `bash -n` y `git diff --check` correctos. El build y su comprobación validan 30 activos, 1.953.368 bytes servidos y 398.182 bytes gzip. El validador documental conserva los seis problemas preexistentes de ADR 0017. Se revisaron directamente las guardas backend de cuenta inicial, API y WebSockets; no fue necesario modificarlas.
 
 Las dos regresiones en `tests/test_auth_setup.py` usan configuración y SQLite temporales para instalación sin entrada y conservación de cuenta/sesión/token al reinstalar. Se prepararon y comprobaron estáticamente, sin ejecutar pytest, cobertura ni navegador. No se ejecutó una instalación ni se arrancaron servicios. Los tres archivos previos del usuario siguen excluidos del commit.
+
+## Mejora visual y recuperación propuesta
+
+La siguiente entrega mejora la pantalla de login con identidad local, formulario más legible, temas antes de iniciar sesión, mostrar/ocultar contraseña y ayuda de primer acceso desplegable. Conserva los contratos de autenticación y el cambio obligatorio. El [diseño y revisión](LOGIN_DESIGN_AND_RECOVERY.md) documenta los controles estáticos y distingue una propuesta de recuperación por CLI local que todavía no se implementó.

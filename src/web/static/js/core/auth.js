@@ -1,6 +1,7 @@
 /** Single-user browser session. Passwords and automation tokens never enter storage. */
 import { getAuthHeaders, setSessionCsrfToken } from "./utils.js";
 import { FormFeedback } from "./form_feedback.js";
+import { applyThemePreference, readThemePreference } from "./theme.js";
 
 export class BrowserAuthentication {
   constructor(startApplication) {
@@ -14,6 +15,8 @@ export class BrowserAuthentication {
   }
 
   async init() {
+    applyThemePreference(readThemePreference(), false);
+    this._updateThemeButton();
     // Remove secrets saved by the former API-key login without migrating them.
     for (const storageName of ["localStorage", "sessionStorage"]) {
       try {
@@ -23,6 +26,11 @@ export class BrowserAuthentication {
     this._bindForms();
     this._protectRequests();
     document.getElementById("authLanguageButton").addEventListener("click", () => window.I18n.toggle());
+    document.getElementById("authThemeButton").addEventListener("click", () => {
+      const next = document.documentElement.getAttribute("data-bs-theme") === "dark" ? "light" : "dark";
+      applyThemePreference(next);
+      this._updateThemeButton();
+    });
     window.addEventListener("meshcore:auth_expired", () => this._expire());
     this.channel?.addEventListener("message", () => this._expire());
     try {
@@ -52,6 +60,9 @@ export class BrowserAuthentication {
     });
     this.tokenFeedback = new FormFeedback(this.tokenForm, { current_password: this.tokenForm.elements.current_password });
     this.loginForm.addEventListener("submit", (event) => this._login(event));
+    document.getElementById("loginPasswordToggle").addEventListener("click", () => {
+      this._setPasswordVisible(this.loginForm.elements.password.type === "password");
+    });
     this.accountForm.addEventListener("submit", (event) => this._changeCredentials(event));
     this.tokenForm.addEventListener("submit", (event) => this._createToken(event));
     document.querySelectorAll("[data-open-account]").forEach((button) => {
@@ -106,11 +117,31 @@ export class BrowserAuthentication {
     this.loginForm.elements.username.focus();
   }
 
+  _updateThemeButton() {
+    const button = document.getElementById("authThemeButton");
+    const isDark = document.documentElement.getAttribute("data-bs-theme") === "dark";
+    const key = isDark ? "app.dark_theme_title" : "app.light_theme_title";
+    button.setAttribute("data-i18n-aria-label", key);
+    button.setAttribute("aria-label", I18n.t(key));
+    button.querySelector(".bi").className = `bi ${isDark ? "bi-sun" : "bi-moon"}`;
+  }
+
+  _setPasswordVisible(visible) {
+    const button = document.getElementById("loginPasswordToggle");
+    this.loginForm.elements.password.type = visible ? "text" : "password";
+    button.setAttribute("aria-pressed", String(visible));
+    const key = visible ? "auth.hide_password" : "auth.show_password";
+    button.setAttribute("data-i18n-aria-label", key);
+    button.setAttribute("aria-label", I18n.t(key));
+    button.querySelector(".bi").className = `bi ${visible ? "bi-eye-slash" : "bi-eye"}`;
+  }
+
   _acceptSession(session) {
     if (!session.authenticated) { this._showLogin(); return; }
     this.session = session;
     setSessionCsrfToken(session.csrf_token);
     this.loginForm.reset();
+    this._setPasswordVisible(false);
     document.getElementById("authLoading").hidden = true;
     this.loginForm.hidden = true;
     if (session.must_change_credentials) { this._openAccount(); return; }
@@ -184,6 +215,7 @@ export class BrowserAuthentication {
       username: fields.username.value, password: fields.password.value, remember: fields.remember.checked,
     }, this.loginFeedback);
     fields.password.value = "";
+    this._setPasswordVisible(false);
     if (data) this._acceptSession(data);
   }
 

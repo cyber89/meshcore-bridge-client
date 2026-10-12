@@ -229,3 +229,9 @@ esbuild 0.28.1; el lockfile conserva versión e integridades de paquetes npm.
 pytest/Playwright y mediciones de carga requieren petición explícita según
 [AGENTS.md](../AGENTS.md). No se inicia una estación ni se transmite por radio
 para construir estos archivos.
+
+## Login visual — 2026-10-12
+
+La pantalla de acceso utiliza los tokens vigentes de `app.css`, un SVG decorativo local y un formulario con controles de 48 px. En móvil muestra una columna y mantiene scroll propio; el tema guardado se aplica antes del login mediante `core/theme.js`, compartido con la estación. El control de visibilidad de contraseña conserva 44 px, nombres accesibles y vuelve a ocultar la entrada después de un intento.
+
+Se revisaron fuentes, IDs, traducciones y pares de contraste, y se regeneraron 31 activos: 1.963.214 bytes servidos y 400.692 bytes gzip. Build/check y sintaxis JS correctos. Las cifras son tamaños de build; no acreditan layout, rendimiento ni accesibilidad completos en navegador. La [revisión y propuesta de recuperación](LOGIN_DESIGN_AND_RECOVERY.md) distingue cambios de interfaz implementados de un CLI de recuperación todavía propuesto.

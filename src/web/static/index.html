@@ -22,18 +22,43 @@
 <body class="bg-body text-body d-flex flex-column overflow-hidden auth-pending">
   <section id="authGate" class="auth-gate" aria-labelledby="authHeading">
     <div class="auth-card">
-      <div class="auth-brand"><img src="/brand.svg" width="48" height="48" alt=""><span>Meshcore-Bridge</span><button id="authLanguageButton" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="auth.language">ES / EN</button></div>
-      <h2 id="authHeading" data-i18n="auth.login_title">Inicia sesión en tu estación</h2>
-      <p class="text-body-secondary" data-i18n="auth.login_description">Tu cuenta protege la estación, sus mensajes y la API.</p>
-      <p class="text-body-secondary" data-i18n="auth.first_login">En una instalación nueva, inicia sesión con usuario admin y contraseña admin. Deberás cambiar la contraseña inmediatamente para acceder a la estación.</p>
-      <p id="authLoading" role="status" data-i18n="auth.loading">Comprobando la sesión…</p>
-      <form id="loginForm" class="auth-form" hidden>
-        <div class="form-group"><label for="loginUsername" data-i18n="auth.username">Nombre de usuario</label><input id="loginUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+"></div>
-        <div class="form-group"><label for="loginPassword" data-i18n="auth.password">Contraseña</label><input id="loginPassword" class="form-control" type="password" name="password" autocomplete="current-password" required maxlength="128"></div>
-        <div class="form-check"><input id="loginRemember" class="form-check-input" type="checkbox" name="remember" checked aria-describedby="loginRememberHint"><label class="form-check-label" for="loginRemember" data-i18n="auth.remember">Recordar mi sesión en este navegador</label><p id="loginRememberHint" class="field-hint text-body-secondary" data-i18n="auth.remember_hint">Durante 30 días. Úsalo sólo en un dispositivo personal.</p></div>
-        <button class="btn btn-primary" type="submit" data-i18n="auth.sign_in">Iniciar sesión</button>
-      </form>
-      <noscript><p>JavaScript is required to sign in to MeshCore Bridge.</p></noscript>
+      <div class="auth-identity">
+        <div class="auth-brand"><img src="/brand.svg" width="44" height="44" alt=""><span>Meshcore-Bridge</span></div>
+        <div class="auth-intro">
+          <p class="auth-eyebrow" data-i18n="auth.personal_station">Estación personal LoRa</p>
+          <p class="auth-tagline" data-i18n="auth.station_tagline">Tu malla, en un solo lugar.</p>
+          <p class="auth-intro-description" data-i18n="auth.station_description">Mensajería, nodos y telemetría desde tu estación MeshCore.</p>
+        </div>
+        <svg class="auth-mesh" viewBox="0 0 320 200" fill="none" aria-hidden="true" focusable="false">
+          <g class="auth-mesh-orbits"><circle cx="160" cy="100" r="48"/><circle cx="160" cy="100" r="90"/></g>
+          <g class="auth-mesh-links"><path d="M48 50 160 100 272 50M48 150 160 100 272 150M160 100V20M160 100V180"/></g>
+          <g class="auth-mesh-nodes"><circle cx="48" cy="50" r="8"/><circle cx="272" cy="50" r="8"/><circle cx="48" cy="150" r="8"/><circle cx="272" cy="150" r="8"/><circle cx="160" cy="20" r="6"/><circle cx="160" cy="180" r="6"/></g>
+          <rect class="auth-mesh-hub" x="138" y="78" width="44" height="44" rx="14"/>
+          <path class="auth-mesh-radio" d="M150 90a14 14 0 0 0 0 20m20-20a14 14 0 0 1 0 20m-15-16a7 7 0 0 0 0 12m10-12a7 7 0 0 1 0 12m-5-3v10"/>
+          <circle class="auth-mesh-radio-dot" cx="160" cy="100" r="2.5"/>
+        </svg>
+        <p class="auth-identity-note"><i class="bi bi-shield-lock" aria-hidden="true"></i><span data-i18n="auth.personal_access">Acceso con tu cuenta personal</span></p>
+      </div>
+      <div class="auth-login-panel">
+        <div class="auth-tools">
+          <button id="authThemeButton" class="btn btn-outline-secondary auth-icon-button" type="button" aria-label="Cambiar a tema claro" data-i18n-aria-label="app.dark_theme_title"><i class="bi bi-sun" aria-hidden="true"></i></button>
+          <button id="authLanguageButton" class="btn btn-outline-secondary" type="button" data-i18n-aria-label="auth.language_label" aria-label="Cambiar idioma"><i class="bi bi-translate" aria-hidden="true"></i><span data-i18n="auth.language">ES / EN</span></button>
+        </div>
+        <h2 id="authHeading" data-i18n="auth.login_title">Inicia sesión en tu estación</h2>
+        <p class="auth-login-description text-body-secondary" data-i18n="auth.login_description">Tu cuenta protege la estación, sus mensajes y la API.</p>
+        <p id="authLoading" class="auth-loading" role="status"><i class="bi bi-hourglass-split" aria-hidden="true"></i><span data-i18n="auth.loading">Comprobando la sesión…</span></p>
+        <form id="loginForm" class="auth-form" hidden>
+          <div class="form-group"><label for="loginUsername" data-i18n="auth.username">Nombre de usuario</label><input id="loginUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+"></div>
+          <div class="form-group">
+            <label for="loginPassword" data-i18n="auth.password">Contraseña</label>
+            <div class="auth-password-field"><input id="loginPassword" class="form-control" type="password" name="password" autocomplete="current-password" required maxlength="128"><button id="loginPasswordToggle" type="button" class="btn auth-password-toggle" aria-controls="loginPassword" aria-pressed="false" aria-label="Mostrar contraseña" data-i18n-aria-label="auth.show_password"><i class="bi bi-eye" aria-hidden="true"></i></button></div>
+          </div>
+          <div class="auth-remember"><input id="loginRemember" class="form-check-input" type="checkbox" name="remember" checked aria-describedby="loginRememberHint"><div><label for="loginRemember" data-i18n="auth.remember">Recordar mi sesión en este navegador</label><p id="loginRememberHint" class="field-hint text-body-secondary" data-i18n="auth.remember_hint">Durante 30 días. Úsalo sólo en un dispositivo personal.</p></div></div>
+          <button class="btn btn-primary auth-submit" type="submit"><span class="auth-submit-label" data-i18n="auth.sign_in">Iniciar sesión</span><span class="auth-submit-busy" data-i18n="auth.signing_in">Iniciando sesión…</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+        </form>
+        <details class="auth-first-login"><summary><i class="bi bi-info-circle" aria-hidden="true"></i><span data-i18n="auth.first_login_title">¿Es tu primer acceso?</span></summary><p data-i18n="auth.first_login">En una instalación nueva, inicia sesión con usuario admin y contraseña admin. Deberás cambiar la contraseña inmediatamente para acceder a la estación.</p></details>
+        <noscript><p>JavaScript is required to sign in to MeshCore Bridge.</p></noscript>
+      </div>
     </div>
   </section>
   <dialog id="accountDialog" class="auth-dialog" aria-labelledby="accountHeading" aria-describedby="accountDescription">

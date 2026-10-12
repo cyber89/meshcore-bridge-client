@@ -10,6 +10,7 @@ import { MeshCoreWebSocketClient } from "./core/websocket.js";
 import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders } from "./core/utils.js";
 import { store } from "./core/store.js";
 import { BrowserAuthentication } from "./core/auth.js";
+import { applyThemePreference, readThemePreference } from "./core/theme.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -139,25 +140,14 @@ class MeshCoreApp {
   }
 
   _applyTheme(theme) {
-    const isDark = theme === "dark";
-    const themeLink = document.getElementById("themeStylesheet");
-    if (themeLink) {
-      const targetHref = isDark ? "/css/bootstrap-slate.min.css" : "/css/bootstrap-zephyr.min.css";
-      if (!themeLink.getAttribute("href")?.endsWith(targetHref)) {
-        themeLink.setAttribute("href", targetHref);
-      }
-    }
-    document.body.classList.remove("dark-theme", "light-theme");
-    document.body.classList.add(`${theme}-theme`);
-    document.documentElement.setAttribute("data-bs-theme", theme);
-    localStorage.setItem("meshcore_theme", theme);
+    applyThemePreference(theme);
     this.store.set("theme", theme);
     this._updateThemeIcon(theme);
     window.dispatchEvent(new CustomEvent("meshcore:theme-changed", { detail: { theme } }));
   }
 
   _initTheme() {
-    const savedTheme = localStorage.getItem("meshcore_theme") === "light" ? "light" : "dark";
+    const savedTheme = readThemePreference();
     this._applyTheme(savedTheme);
 
     if (this.dom.themeToggleBtn) {

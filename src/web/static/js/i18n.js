@@ -15,6 +15,15 @@
   const DICT = {
     es: {
       'auth.language': 'ES / EN',
+      'auth.language_label': 'Cambiar idioma',
+      'auth.personal_station': 'Estación personal LoRa',
+      'auth.station_tagline': 'Tu malla, en un solo lugar.',
+      'auth.station_description': 'Mensajería, nodos y telemetría desde tu estación MeshCore.',
+      'auth.personal_access': 'Acceso con tu cuenta personal',
+      'auth.first_login_title': '¿Es tu primer acceso?',
+      'auth.show_password': 'Mostrar contraseña',
+      'auth.hide_password': 'Ocultar contraseña',
+      'auth.signing_in': 'Iniciando sesión…',
       'auth.login_title': 'Inicia sesión en tu estación',
       'auth.login_description': 'Tu cuenta protege la estación, sus mensajes y la API.',
       'auth.first_login': 'En una instalación nueva, inicia sesión con usuario admin y contraseña admin. Deberás cambiar la contraseña inmediatamente para acceder a la estación.',
@@ -1608,6 +1617,15 @@
 
     en: {
       'auth.language': 'ES / EN',
+      'auth.language_label': 'Switch language',
+      'auth.personal_station': 'Personal LoRa station',
+      'auth.station_tagline': 'Your mesh, in one place.',
+      'auth.station_description': 'Messaging, nodes and telemetry from your MeshCore station.',
+      'auth.personal_access': 'Access with your personal account',
+      'auth.first_login_title': 'Is this your first sign-in?',
+      'auth.show_password': 'Show password',
+      'auth.hide_password': 'Hide password',
+      'auth.signing_in': 'Signing in…',
       'auth.login_title': 'Sign in to your station',
       'auth.login_description': 'Your account protects the station, its messages and the API.',
       'auth.first_login': 'On a new installation, sign in with username admin and password admin. You must change the password immediately to access the station.',
