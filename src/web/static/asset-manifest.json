@@ -49,12 +49,12 @@
     },
     "index.html": {
       "file": "index.html",
-      "source_sha256": "8c46f02c76d4daf00fc8c38cdae6d2b88a4c8cbf3bc8195a7530eead2249e5cb",
-      "sha256": "8c46f02c76d4daf00fc8c38cdae6d2b88a4c8cbf3bc8195a7530eead2249e5cb",
-      "gzip_sha256": "4b1b821022ba46cd7fb6a19f8d3c1d3f036eab3e75e597718bab27df9132c362",
-      "source_bytes": 218790,
-      "bytes": 218790,
-      "gzip_bytes": 38183
+      "source_sha256": "c3d848a453597f36a53d2a08d43bf5ec3a2bad84963d8b5f31a61f031be68847",
+      "sha256": "c3d848a453597f36a53d2a08d43bf5ec3a2bad84963d8b5f31a61f031be68847",
+      "gzip_sha256": "22fd890d613881b57cffd92a3e8c97680d662718d46ea1547876b29cfd43eae6",
+      "source_bytes": 219210,
+      "bytes": 219210,
+      "gzip_bytes": 38172
     },
     "js/app.js": {
       "file": "js/app.min.js",

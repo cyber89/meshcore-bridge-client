@@ -98,26 +98,26 @@
       </div>
       <div class="offcanvas-body p-3 flex-column d-flex justify-content-between h-100">
         <nav class="nav nav-pills flex-column gap-1 nav-tabs" role="tablist" aria-orientation="vertical" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
-          <button class="nav-link nav-btn active d-flex align-items-center justify-content-between text-start" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat" title="Mensajería (Chat)" data-i18n-title="ui.static_010">
+          <button type="button" class="nav-link nav-btn active d-flex align-items-center justify-content-between text-start" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat" title="Mensajería (Chat)" data-i18n-title="ui.static_010">
             <span class="d-flex align-items-center gap-2"><i class="bi bi-chat-dots nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.chat">Mensajería</span></span>
             <span class="badge bg-primary rounded-pill nav-badge-count hidden" id="globalChatUnreadBadge">0</span>
           </button>
-          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts" title="Libreta de Contactos" data-i18n-title="contacts.title">
+          <button type="button" class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts" title="Libreta de Contactos" data-i18n-title="contacts.title">
             <span class="d-flex align-items-center gap-2"><i class="bi bi-people nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.contacts">Contactos</span></span>
           </button>
-          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes" title="Nodos & Malla LoRa" data-i18n-title="ui.static_011">
+          <button type="button" class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes" title="Nodos & Malla LoRa" data-i18n-title="ui.static_011">
             <span class="d-flex align-items-center gap-2"><i class="bi bi-hdd-network nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.nodes">Nodos</span></span>
           </button>
-          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map" title="Mapa Cartográfico" data-i18n-title="ui.static_012">
+          <button type="button" class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map" title="Mapa Cartográfico" data-i18n-title="ui.static_012">
             <span class="d-flex align-items-center gap-2"><i class="bi bi-map nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.map">Mapa</span></span>
           </button>
-          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics" title="Métricas & Analítica" data-i18n-title="ui.static_013">
+          <button type="button" class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics" title="Métricas & Analítica" data-i18n-title="ui.static_013">
             <span class="d-flex align-items-center gap-2"><i class="bi bi-activity nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.analytics">Métricas</span></span>
           </button>
-          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs" title="Consola de Logs" data-i18n-title="ui.static_014">
+          <button type="button" class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs" title="Consola de Logs" data-i18n-title="ui.static_014">
             <span class="d-flex align-items-center gap-2"><i class="bi bi-file-earmark-text nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nav.logs">Logs Sistema</span></span>
           </button>
-          <button class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings" title="Ajustes & Parámetros RF" data-i18n-title="ui.static_015">
+          <button type="button" class="nav-link nav-btn d-flex align-items-center justify-content-between text-start" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings" title="Ajustes & Parámetros RF" data-i18n-title="ui.static_015">
             <span class="d-flex align-items-center gap-2"><i class="bi bi-sliders nav-icon" aria-hidden="true"></i> <span class="nav-label" data-i18n="nodes.settings_btn">Ajustes</span></span>
           </button>
         </nav>
@@ -140,8 +140,8 @@
               <div class="chat-channels-header">
                 <span class="panel-title" data-i18n="chat.channels">Canales</span>
                 <div class="panel-btn-group">
-                  <button class="btn btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto" aria-label="Importar canal o contacto" data-i18n-title="chat.import_channel_title" data-i18n-aria-label="chat.import_channel_title"><i class="bi bi-download" style="font-size: 13px;" aria-hidden="true"></i></button>
-                  <button class="btn btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal" data-i18n-title="chat.add_channel_title" data-i18n-aria-label="ui.static_019"><i class="bi bi-plus-circle" style="font-size: 13px;" aria-hidden="true"></i></button>
+                  <button type="button" class="btn btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto" aria-label="Importar canal o contacto" data-i18n-title="chat.import_channel_title" data-i18n-aria-label="chat.import_channel_title"><i class="bi bi-download" style="font-size: 13px;" aria-hidden="true"></i></button>
+                  <button type="button" class="btn btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal" data-i18n-title="chat.add_channel_title" data-i18n-aria-label="ui.static_019"><i class="bi bi-plus-circle" style="font-size: 13px;" aria-hidden="true"></i></button>
                 </div>
               </div>
               <ul class="channel-list" id="channelListUi" aria-label="Canales disponibles" data-i18n-aria-label="ui.static_020">
@@ -180,7 +180,7 @@
                   </div>
                 </div>
                 <div class="chat-header-actions">
-                  <button class="btn btn-secondary btn-sm hidden" id="btnCloseChat" title="Cerrar chat activo" aria-label="Cerrar chat" data-i18n-title="ui.static_027" data-i18n-aria-label="chat.close_chat" data-i18n="modal.close"><i class="bi bi-x-lg" style="font-size: 14px;" aria-hidden="true"></i> Cerrar</button>
+                  <button type="button" class="btn btn-secondary btn-sm hidden" id="btnCloseChat" title="Cerrar chat activo" aria-label="Cerrar chat" data-i18n-title="ui.static_027" data-i18n-aria-label="chat.close_chat" data-i18n="modal.close"><i class="bi bi-x-lg" style="font-size: 14px;" aria-hidden="true"></i> Cerrar</button>
                   <button type="button" class="btn btn-secondary btn-sm" id="clearChatBtn" title="Limpiar la caché local de esta conversación; el historial del servidor se conserva" aria-label="Limpiar la caché local de esta conversación; el historial del servidor se conserva" data-i18n-title="chat.clear_cache_title" data-i18n-aria-label="chat.clear_cache_title" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Limpiar</button>
                 </div>
               </div>
@@ -311,9 +311,9 @@
                 <p class="header-subtitle" data-i18n="contacts.subtitle">Directorio de contactos, nodos amigos y gestión de claves públicas de la red.</p>
               </div>
               <div class="header-actions">
-                <button class="btn btn-secondary" id="btnRefreshContacts" aria-label="Actualizar lista de contactos" data-i18n-aria-label="ui.static_065" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" style="font-size: 14px;" aria-hidden="true"></i> Actualizar</button>
-                <button class="btn btn-secondary" id="btnHeaderImportContact" aria-label="Importar contacto" data-i18n-aria-label="ui.static_066" data-i18n="ui.static_067"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> Importar</button>
-                <button class="btn btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto" data-i18n-aria-label="ui.static_068" data-i18n="contacts.add"><i class="bi bi-plus-lg" style="font-size: 14px;" aria-hidden="true"></i> Agregar Contacto</button>
+                <button type="button" class="btn btn-secondary" id="btnRefreshContacts" aria-label="Actualizar lista de contactos" data-i18n-aria-label="ui.static_065" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" style="font-size: 14px;" aria-hidden="true"></i> Actualizar</button>
+                <button type="button" class="btn btn-secondary" id="btnHeaderImportContact" aria-label="Importar contacto" data-i18n-aria-label="ui.static_066" data-i18n="ui.static_067"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> Importar</button>
+                <button type="button" class="btn btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto" data-i18n-aria-label="ui.static_068" data-i18n="contacts.add"><i class="bi bi-plus-lg" style="font-size: 14px;" aria-hidden="true"></i> Agregar Contacto</button>
               </div>
             </div>
 
@@ -591,8 +591,8 @@
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
-                  <button class="btn btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)" data-i18n-title="ui.static_111" data-i18n="logs.download_log"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> Descargar .log</button>
-                  <button class="btn btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs" data-i18n-title="ui.static_112" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Limpiar</button>
+                  <button type="button" class="btn btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)" data-i18n-title="ui.static_111" data-i18n="logs.download_log"><i class="bi bi-download" style="font-size: 14px;" aria-hidden="true"></i> Descargar .log</button>
+                  <button type="button" class="btn btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs" data-i18n-title="ui.static_112" data-i18n="chat.clear"><i class="bi bi-trash" style="font-size: 14px;" aria-hidden="true"></i> Limpiar</button>
                 </div>
               </div>
 
@@ -1848,7 +1848,7 @@
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="createChannelTitle" data-i18n="modal.channel_title"><i class="bi bi-broadcast modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Configurar Canal LoRa</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="createChannelForm" class="modal-body" aria-labelledby="createChannelTitle">
           <div class="form-group">
@@ -1910,7 +1910,7 @@
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="createContactTitle" data-i18n="modal.contact_title"><i class="bi bi-person modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Agregar Nuevo Contacto</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="createContactForm" class="modal-body" aria-labelledby="createContactTitle">
           <div class="form-group">
@@ -1966,7 +1966,7 @@
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="modalShareContactTitle" data-i18n="chat.share_contact"><i class="bi bi-person-check modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Compartir Contacto</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareContactModalInstruction" data-i18n="ui.static_403">Selecciona un contacto de tu libreta para compartir su enlace oficial en esta conversación:</p>
@@ -1989,7 +1989,7 @@
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="modalShareChannelTitle" data-i18n="chat.share_channel"><i class="bi bi-broadcast modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Compartir Canal</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareChannelModalInstruction" data-i18n="ui.static_407">Selecciona un canal para compartir sus parámetros de conexión y clave en esta conversación:</p>
@@ -2015,7 +2015,7 @@
       <div class="modal-content modal-card qr-modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="qrModalTitle"><i class="bi bi-qr-code modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Compartir por Código QR</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseQrShareModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseQrShareModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body qr-modal-body">
           <div class="qr-modal-layout">
@@ -2064,7 +2064,7 @@
               <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
             </div>
           </div>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
 
         <!-- Tarjeta de Bloqueo / Gate de Autenticación Requerida -->
@@ -2117,12 +2117,12 @@
 
           <!-- Subpestañas del Repetidor -->
           <div class="repeater-subtabs" aria-labelledby="repeaterAdminTitle">
-            <button class="subtab-btn active" data-subtab="rep-info" data-i18n="settings.subtab_telem"><i class="bi bi-activity subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Telemetría & Estado</button>
-            <button class="subtab-btn" data-subtab="rep-radio" data-i18n="ui.static_418"><i class="bi bi-broadcast subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Configuración RF</button>
-            <button class="subtab-btn" data-subtab="rep-owner-pos" data-i18n="ui.static_419"><i class="bi bi-geo-alt subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Propietario & Posición</button>
-            <button class="subtab-btn" data-subtab="rep-security" data-i18n="ui.static_420"><i class="bi bi-shield-check subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Seguridad & ACL</button>
-            <button class="subtab-btn" data-subtab="rep-neighbors" data-i18n="ui.static_421"><i class="bi bi-hdd-network subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Malla & Vecinos</button>
-            <button class="subtab-btn" data-subtab="rep-console" data-i18n="settings.subtab_terminal"><i class="bi bi-terminal subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Terminal</button>
+            <button type="button" class="subtab-btn active" data-subtab="rep-info" data-i18n="settings.subtab_telem"><i class="bi bi-activity subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Telemetría & Estado</button>
+            <button type="button" class="subtab-btn" data-subtab="rep-radio" data-i18n="ui.static_418"><i class="bi bi-broadcast subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Configuración RF</button>
+            <button type="button" class="subtab-btn" data-subtab="rep-owner-pos" data-i18n="ui.static_419"><i class="bi bi-geo-alt subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Propietario & Posición</button>
+            <button type="button" class="subtab-btn" data-subtab="rep-security" data-i18n="ui.static_420"><i class="bi bi-shield-check subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Seguridad & ACL</button>
+            <button type="button" class="subtab-btn" data-subtab="rep-neighbors" data-i18n="ui.static_421"><i class="bi bi-hdd-network subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Malla & Vecinos</button>
+            <button type="button" class="subtab-btn" data-subtab="rep-console" data-i18n="settings.subtab_terminal"><i class="bi bi-terminal subtab-icon" style="font-size: 15px;" aria-hidden="true"></i> Terminal</button>
           </div>
 
         <div class="modal-body repeater-admin-modal-body">
@@ -2616,7 +2616,7 @@
             <h3 id="tracerouteModalTitle" data-i18n="ui.static_537"><i class="bi bi-activity modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
             <span class="modal-pubkey-badge font-mono" id="traceTargetPkDisplay">--</span>
           </div>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseTracerouteModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseTracerouteModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body traceroute-modal-body">
           <div class="traceroute-controls">
@@ -2662,7 +2662,7 @@
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="importModalTitle" data-i18n="ui.static_549"><i class="bi bi-download modal-title-icon" style="font-size: 18px;" aria-hidden="true"></i> Importar Canal o Contacto</h3>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseImportModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseImportModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="importForm" class="modal-body" aria-labelledby="importModalTitle">
           <div class="form-group">
@@ -2696,7 +2696,7 @@
             <span id="inspectorDirBadge" class="badge-pill badge-info">RX</span>
             <span id="inspectorTypeBadge" class="badge-pill badge-secondary">CHAT</span>
           </div>
-          <button class="btn-close modal-close" data-bs-dismiss="modal" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557"></button>
+          <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557"></button>
         </div>
         <div class="modal-body packet-inspector-body">
           <!-- Barra de Pestañas del Inspector -->
