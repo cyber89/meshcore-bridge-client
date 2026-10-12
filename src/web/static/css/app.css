@@ -457,34 +457,180 @@ body {
   white-space: nowrap;
 }
 
+/* Radio Status Pill - Insignia Táctica de Conectividad en Cabecera */
+.radio-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  border-radius: 999px !important;
+  border-width: 1px !important;
+  border-style: solid !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+  cursor: default;
+}
+
+.radio-status-pill .status-indicator-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  flex-shrink: 0;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.radio-status-pill .status-icon {
+  font-size: 0.8125rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.radio-status-pill .status-text {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Radio Conectada (Enlace Activo) */
+.radio-status-pill.radio-status--connected {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.radio-status-pill.radio-status--connected .status-indicator-dot {
+  background-color: #10b981 !important;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.75);
+  animation: radioLedPulse 2.4s ease-in-out infinite;
+}
+
+.radio-status-pill.radio-status--connected .status-icon {
+  color: #10b981 !important;
+}
+
+/* Radio Desconectada (Enlace Inactivo / Sin Conexión USB) */
+.radio-status-pill.radio-status--disconnected {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.radio-status-pill.radio-status--disconnected .status-indicator-dot {
+  background-color: #ef4444 !important;
+  box-shadow: 0 0 5px rgba(239, 68, 68, 0.65);
+}
+
+.radio-status-pill.radio-status--disconnected .status-icon {
+  color: #f87171 !important;
+}
+
+/* Pulso LED para estado activo */
+@keyframes radioLedPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+}
+
+/* Modo Claro (Zephyr): Ajustes de contraste para cumplir WCAG AA/AAA */
+[data-bs-theme="light"] .radio-status-pill.radio-status--connected,
+body.light-theme .radio-status-pill.radio-status--connected {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+  color: #047857 !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+}
+
+[data-bs-theme="light"] .radio-status-pill.radio-status--connected .status-indicator-dot,
+body.light-theme .radio-status-pill.radio-status--connected .status-indicator-dot {
+  background-color: #059669 !important;
+  box-shadow: 0 0 4px rgba(5, 150, 105, 0.5);
+}
+
+[data-bs-theme="light"] .radio-status-pill.radio-status--connected .status-icon,
+body.light-theme .radio-status-pill.radio-status--connected .status-icon {
+  color: #047857 !important;
+}
+
+[data-bs-theme="light"] .radio-status-pill.radio-status--disconnected,
+body.light-theme .radio-status-pill.radio-status--disconnected {
+  background-color: rgba(220, 38, 38, 0.12) !important;
+  color: #b91c1c !important;
+  border-color: rgba(220, 38, 38, 0.4) !important;
+}
+
+[data-bs-theme="light"] .radio-status-pill.radio-status--disconnected .status-indicator-dot,
+body.light-theme .radio-status-pill.radio-status--disconnected .status-indicator-dot {
+  background-color: #dc2626 !important;
+  box-shadow: 0 0 4px rgba(220, 38, 38, 0.5);
+}
+
+[data-bs-theme="light"] .radio-status-pill.radio-status--disconnected .status-icon,
+body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
+  color: #b91c1c !important;
+}
+
+/* Barra Lateral de Navegación y Botones de Pestaña */
 .app-sidebar {
   background: var(--bg-sidebar) !important;
 }
 
-.app-sidebar .nav-tabs {
+.app-sidebar .nav-tabs,
+.app-sidebar .nav-pills {
   border: 0;
 }
 
+/* Anulación de degradados pesados y bordes skeuomórficos de Bootswatch Slate */
+.app-sidebar .nav-pills .nav-link,
 .app-sidebar .nav-btn {
   min-height: 42px;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
+  padding: 8px 12px;
+  border: 1px solid transparent !important;
+  border-radius: var(--radius-md, 12px) !important;
+  background-image: none !important;
+  text-shadow: none !important;
+  background-color: transparent;
+  color: var(--bs-secondary-color) !important;
   font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
   transition: var(--control-transition);
 }
 
+.app-sidebar .nav-pills .nav-link:hover,
 .app-sidebar .nav-btn:hover {
-  background: var(--bs-tertiary-bg);
-  color: var(--text-main);
+  background-image: none !important;
+  background-color: var(--bs-tertiary-bg) !important;
+  color: var(--bs-body-color) !important;
+  border-color: var(--bs-border-color-subtle) !important;
+  transform: translateX(1px);
 }
 
+.app-sidebar .nav-pills .nav-link:hover .nav-icon,
+.app-sidebar .nav-btn:hover .nav-icon {
+  color: var(--bs-primary);
+  background-color: var(--bs-secondary-bg);
+}
+
+.app-sidebar .nav-pills .nav-link.active,
 .app-sidebar .nav-btn.active {
-  background: var(--bs-primary-bg-subtle);
-  color: var(--bs-primary-text-emphasis);
-  border-color: transparent;
-  box-shadow: inset 3px 0 var(--bs-primary);
+  background-image: none !important;
+  background-color: var(--bs-primary-bg-subtle) !important;
+  color: var(--bs-primary-text-emphasis) !important;
+  border-color: rgba(var(--bs-primary-rgb), 0.3) !important;
+  box-shadow: inset 3.5px 0 0 var(--bs-primary), 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+  font-weight: 700;
 }
 
 .app-sidebar .nav-icon {
@@ -496,9 +642,52 @@ body {
   justify-content: center;
   border-radius: 8px;
   flex-shrink: 0;
+  color: var(--bs-secondary-color);
+  background-color: rgba(var(--bs-body-color-rgb, 231, 237, 247), 0.05);
+  border: 1px solid rgba(var(--bs-border-color-rgb, 100, 116, 139), 0.12);
+  transition: var(--control-transition);
 }
 
-.app-sidebar .nav-btn.active .nav-icon { background: var(--icon-surface); }
+.app-sidebar .nav-pills .nav-link.active .nav-icon,
+.app-sidebar .nav-btn.active .nav-icon {
+  color: var(--bs-primary) !important;
+  background-color: rgba(var(--bs-primary-rgb), 0.18) !important;
+  border-color: rgba(var(--bs-primary-rgb), 0.35) !important;
+  box-shadow: 0 1px 3px rgba(var(--bs-primary-rgb), 0.2);
+}
+
+/* Insignia de mensajes no leídos en la barra de navegación */
+.app-sidebar .nav-badge-count {
+  font-size: 0.6875rem !important;
+  font-weight: 700 !important;
+  font-family: var(--bs-font-monospace) !important;
+  padding: 2px 7px !important;
+  border-radius: 999px !important;
+  background-color: var(--bs-primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  line-height: 1.2;
+}
+
+.app-sidebar .nav-btn.active .nav-badge-count {
+  box-shadow: 0 1px 6px rgba(var(--bs-primary-rgb), 0.45);
+}
+
+.btn-sidebar-toggle {
+  background-color: var(--bs-tertiary-bg) !important;
+  color: var(--bs-secondary-color) !important;
+  border: 1px solid var(--control-border, var(--bs-border-color)) !important;
+  border-radius: var(--radius-sm, 8px) !important;
+  transition: var(--control-transition) !important;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.btn-sidebar-toggle:hover {
+  background-color: var(--bs-secondary-bg) !important;
+  color: var(--bs-body-color) !important;
+  border-color: var(--bs-primary) !important;
+}
 
 .pane-header {
   display: flex;
