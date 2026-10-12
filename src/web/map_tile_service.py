@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import struct
 import threading
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,7 @@ class MapTileService:
         self.tiles_dir = self.maps_dir / "tiles"
         self.mbtiles_conns: list[tuple[Path, sqlite3.Connection, str]] = []
         self._storage_lock = threading.RLock()
+        self._default_tactical_tile: bytes = self._generate_tactical_base_tile()
         self._init_storage()
 
     def _init_storage(self) -> None:
@@ -139,7 +142,41 @@ class MapTileService:
             except Exception as err:
                 logging.debug("Error consultando MBTiles '%s': %s", mbtiles_path.name, err)
 
-        return 404, b"", ""
+        # Si no se encuentra en MBTiles ni archivos sueltos, se retorna la tesela táctica offline predeterminada
+        return 200, self._default_tactical_tile, "image/png"
+
+    @staticmethod
+    def _generate_tactical_base_tile() -> bytes:
+        """
+        Genera una tesela base PNG táctica en memoria (256x256 px).
+        Garantiza que la aplicación funcione 100% offline y sin descargas de internet,
+        proporcionando una grilla de referencia táctica con bordes de tesela y retícula.
+        """
+        width, height = 256, 256
+        raw = bytearray()
+        for y in range(height):
+            raw.append(0)  # Filtro PNG: None (0)
+            for x in range(width):
+                is_border = (x == 0 or y == 0 or x == 255 or y == 255)
+                is_subgrid = (x % 64 == 0 or y % 64 == 0)
+                is_crosshair = (x in (127, 128) and 122 <= y <= 133) or (y in (127, 128) and 122 <= x <= 133)
+                if is_crosshair:
+                    raw.extend((52, 72, 98, 255))
+                elif is_border:
+                    raw.extend((42, 54, 71, 255))
+                elif is_subgrid:
+                    raw.extend((26, 35, 48, 255))
+                else:
+                    raw.extend((18, 24, 33, 255))
+
+        def chunk(tag: bytes, data: bytes) -> bytes:
+            return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+        sig = b"\x89PNG\r\n\x1a\n"
+        ihdr = chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+        idat = chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        iend = chunk(b"IEND", b"")
+        return sig + ihdr + idat + iend
 
     def _detect_mime(self, data: bytes, default_ext: str = "png") -> str:
         """Detecta el tipo MIME de los datos a partir de sus números mágicos."""
@@ -192,13 +229,13 @@ class MapTileService:
                 logging.debug("Error extrayendo metadatos de %s: %s", path.name, e)
 
         loose_tiles_found = any(self.tiles_dir.glob("*/*/*.*")) if self.tiles_dir.exists() else False
-        has_any_local_maps = bool(mbtiles_info or loose_tiles_found)
 
         return {
-            "has_local_maps": has_any_local_maps,
+            "has_local_maps": True,
             "maps_directory": str(self.maps_dir.resolve()),
             "tiles_directory": str(self.tiles_dir.resolve()),
             "mbtiles_count": len(mbtiles_info),
             "mbtiles_files": mbtiles_info,
             "has_loose_tiles": loose_tiles_found,
+            "tactical_fallback": True,
         }

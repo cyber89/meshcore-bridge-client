@@ -95,7 +95,21 @@
   ],
   "leaflet": {
     "version": "1.9.4",
-    "distribution": "unpkg CDN with existing SRI",
-    "stable_source": "https://registry.npmjs.org/leaflet/latest"
+    "distribution": "bundled locally for 100% offline support",
+    "stable_source": "https://registry.npmjs.org/leaflet/1.9.4",
+    "files": [
+      {
+        "source": "package/dist/leaflet.css",
+        "path": "src/web/static/css/leaflet.css",
+        "sha256": "a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6",
+        "bytes": 14806
+      },
+      {
+        "source": "package/dist/leaflet.js",
+        "path": "src/web/static/js/leaflet.js",
+        "sha256": "db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a",
+        "bytes": 147552
+      }
+    ]
   }
 }

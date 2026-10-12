@@ -275,8 +275,12 @@ export class MapModule {
 
     let selectedLayer;
     if (mode === "auto") {
-      const theme = this._getCurrentTheme();
-      selectedLayer = theme === "light" ? this.tileLayers.osm : this.tileLayers.dark;
+      if (!navigator.onLine) {
+        selectedLayer = this.tileLayers.local;
+      } else {
+        const theme = this._getCurrentTheme();
+        selectedLayer = theme === "light" ? this.tileLayers.osm : this.tileLayers.dark;
+      }
     } else {
       selectedLayer = this.tileLayers[mode] || this.tileLayers.dark;
     }
@@ -437,10 +441,10 @@ export class MapModule {
           const popupHtml = `
             <div class="custom-map-popup" style="min-width: 190px;">
               <div class="popup-title" style="color: ${color};">
-                <i class="bi bi-fire me-1" style="font-size: 14px;" aria-hidden="true"></i> <strong>${escapeHtml(pt.name)}</strong>
+                <i class="bi bi-fire me-1" aria-hidden="true"></i> <strong>${escapeHtml(pt.name)}</strong>
               </div>
               <div class="popup-info">
-                <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill" style="font-size: 10px;">${escapeHtml(roleLabel)}</span></div>
+                <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill badge-pill-sm">${escapeHtml(roleLabel)}</span></div>
                 <div><span>${I18n.t('map.link_qual')}</span> <strong style="color: ${color};">${qualityLabel}</strong></div>
                 <div><span>${I18n.t('map.rssi_snr')}</span> <strong>${rssiPart} / ${snrPart}</strong></div>
                 <div><span>${I18n.t('map.noise_floor')}</span> <strong>${noisePart}</strong></div>
@@ -770,7 +774,7 @@ export class MapModule {
         <span class="map-node-item-header">
           <span class="map-node-icon" aria-hidden="true">${isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : "👤"))}</span>
           <strong class="map-node-name font-mono">${escapeHtml(cleanName)}</strong>
-          <span class="badge-pill" style="font-size: 9.5px;">${escapeHtml(I18n.role(node.role || (isLocal ? "LOCAL" : "CLIENT")))}</span>
+          <span class="badge-pill badge-pill-sm">${escapeHtml(I18n.role(node.role || (isLocal ? "LOCAL" : "CLIENT")))}</span>
         </span>
         <span class="map-node-item-sub font-mono">
           <span>📍 ${lat.toFixed(4)}, ${lon.toFixed(4)}</span>

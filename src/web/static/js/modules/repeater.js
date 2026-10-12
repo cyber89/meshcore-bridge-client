@@ -1715,7 +1715,7 @@ export class RepeaterModule {
     } finally {
       if (btn && revision === this._modalRevision) {
         btn.disabled = false;
-        btn.innerHTML = `<i class="bi bi-wifi me-1" style="font-size: 14px;" aria-hidden="true"></i> ${I18n.t('repeater.discover_neighbors')}`;
+        btn.innerHTML = `<i class="bi bi-wifi me-1" aria-hidden="true"></i> ${I18n.t('repeater.discover_neighbors')}`;
         I18n.setText(btn, 'repeater.discover_neighbors');
       }
     }

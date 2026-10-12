@@ -585,7 +585,7 @@ export class ChatModule {
 
     if (clientContacts.length === 0) {
       this.dom.shareContactList.innerHTML = `
-        <div class="empty-state" style="padding: 18px; font-size: 12px; color: var(--text-muted); text-align: center;">
+        <div class="empty-state text-center text-muted p-3 small">
           ${q ? I18n.t("chat.contacts_no_match", { p0: escapeHtml(q) }) : I18n.t("chat.no_contacts_share")}
         </div>
       `;
@@ -607,7 +607,7 @@ export class ChatModule {
 
       item.innerHTML = `
         <span class="share-picker-left">
-          <span aria-hidden="true" style="font-size: 18px;">${isMyContact ? "⭐" : "👤"}</span>
+          <span class="share-picker-avatar" aria-hidden="true">${isMyContact ? "⭐" : "👤"}</span>
           <span>
             <span class="share-picker-title">${escapeHtml(cleanName)}</span>
             <span class="share-picker-sub">${escapeHtml(contact.public_key.slice(0, 14))}… • ${isMyContact ? (window.I18n ? window.I18n.t('chat.my_station_sub') : "Mi Estación Local") : escapeHtml(contact.role || "CLIENT")}</span>
@@ -708,12 +708,11 @@ export class ChatModule {
 
     if (chList.length === 0) {
       const emptyDiv = document.createElement("div");
-      emptyDiv.className = "share-picker-empty";
-      emptyDiv.style.cssText = "padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 0.85rem;";
+      emptyDiv.className = "share-picker-empty text-center text-muted p-4 small";
       emptyDiv.innerHTML = `
-        <div style="font-size: 28px; margin-bottom: 8px; opacity: 0.6;">📻</div>
+        <div class="chat-empty-icon">📻</div>
         <strong>${I18n.t("chat.no_private_channels")}</strong>
-        <p style="margin: 6px 0 0 0; font-size: 0.78rem; opacity: 0.8;">
+        <p class="chat-empty-subtext">
           ${I18n.t("chat.public_channel_help")}
         </p>
       `;
@@ -737,7 +736,7 @@ export class ChatModule {
 
       item.innerHTML = `
         <span class="share-picker-left">
-          <span aria-hidden="true" style="font-size: 18px;">${isEncrypted ? "🔒" : "📻"}</span>
+          <span class="share-picker-avatar" aria-hidden="true">${isEncrypted ? "🔒" : "📻"}</span>
           <span>
             <span class="share-picker-title">${escapeHtml(chName)}</span>
             <span class="share-picker-sub">${I18n.t('chat.index', { index: ch.index })} • ${isEncrypted ? I18n.t("chat.private_encrypted") : I18n.t("chat.open_secondary")}</span>
@@ -1448,7 +1447,7 @@ export class ChatModule {
             const stationLabel = window.I18n ? window.I18n.t('chat.my_station_sub') : 'Mi Estación Local';
             footerActionHtml = `
               <div class="card-local-pill">
-                <i class="bi bi-broadcast me-1" style="font-size: 13px;" aria-hidden="true"></i>
+                <i class="bi bi-broadcast me-1" aria-hidden="true"></i>
                 <span>${escapeHtml(stationLabel)}</span>
               </div>
             `;
@@ -1458,7 +1457,7 @@ export class ChatModule {
               : (window.I18n ? window.I18n.t('chat.save_contact') : 'Guardar en Contactos');
             footerActionHtml = `
               <button type="button" class="card-action-btn btn-save-shared-contact ${isKnown ? 'btn-saved' : ''}" data-pk="${escapeHtml(cPk)}" data-name="${escapeHtml(cName)}" data-role="${escapeHtml(cRole)}" ${isKnown ? 'disabled' : ''}>
-                <i class="bi ${isKnown ? 'bi-check-lg' : 'bi-person-plus'} me-1" style="font-size: 13px;" aria-hidden="true"></i>
+                <i class="bi ${isKnown ? 'bi-check-lg' : 'bi-person-plus'} me-1" aria-hidden="true"></i>
                 <span>${btnLabel}</span>
               </button>
             `;
@@ -1491,7 +1490,7 @@ export class ChatModule {
                 </div>
               </div>
               <button type="button" class="card-action-btn btn-join-shared-channel" data-name="${escapeHtml(chName)}" data-secret="${escapeHtml(parsedUri.secret || '')}" data-idx="${chIdx}">
-                <i class="bi bi-broadcast me-1" style="font-size: 13px;" aria-hidden="true"></i>
+                <i class="bi bi-broadcast me-1" aria-hidden="true"></i>
                 <span>${window.I18n ? window.I18n.t('chat.join_channel') : 'Unirse al Canal'}</span>
               </button>
             </div>
@@ -1520,7 +1519,7 @@ export class ChatModule {
             </div>
             <div class="loc-coords-badge">${detectedLat.toFixed(5)}, ${detectedLon.toFixed(5)}</div>
             <button type="button" class="btn-view-on-map" data-lat="${detectedLat}" data-lon="${detectedLon}">
-              <i class="bi bi-geo-alt me-1" style="font-size: 12px;" aria-hidden="true"></i> ${window.I18n ? window.I18n.t('chat.view_map') : 'Ver en Mapa'}
+              <i class="bi bi-geo-alt me-1" aria-hidden="true"></i> ${window.I18n ? window.I18n.t('chat.view_map') : 'Ver en Mapa'}
             </button>
           </div>
         `;
@@ -1585,7 +1584,7 @@ export class ChatModule {
               btnSave.classList.add("btn-saved");
               btnSave.disabled = true;
               btnSave.innerHTML = `
-                <i class="bi bi-check-lg me-1" style="font-size: 13px;" aria-hidden="true"></i>
+                <i class="bi bi-check-lg me-1" aria-hidden="true"></i>
                 <span>${window.I18n ? window.I18n.t('chat.saved_contact') : 'Contacto Guardado'}</span>
               `;
               if (this.ctx.showToast) this.ctx.showToast(I18n.t("chat.contact_saved", { p0: name }), "success");

@@ -1556,6 +1556,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 .share-picker-sub { display: block; overflow-wrap: anywhere; }
 .share-picker-title { font-weight: 600; }
 .share-picker-sub { margin-top: 0.25rem; font-size: 0.8rem; color: var(--bs-secondary-color); }
+.share-picker-avatar { font-size: 1.125rem; line-height: 1; flex-shrink: 0; }
 
 .map-node-item { margin-bottom: var(--space-sm); }
 .map-node-item-header,
@@ -2549,23 +2550,24 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   color: var(--bs-primary);
 }
 
-/* Subpestañas Repetidor */
+/* Subpestañas Repetidor - Armonizado con el panel de ajustes local */
 .repeater-subtabs {
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 6px;
   border-bottom: 1px solid var(--bs-border-color);
-  padding: 0 1rem;
+  padding: 8px 1rem;
   overflow-x: auto;
   background: var(--bs-tertiary-bg);
 }
 
 .subtab-btn {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 500;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  padding: 6px 12px;
+  border-radius: var(--bs-border-radius, 0.375rem);
+  font-size: 0.8125rem;
+  font-weight: 600;
   color: var(--bs-secondary-color);
   cursor: pointer;
   display: inline-flex;
@@ -2573,16 +2575,21 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   gap: 6px;
   transition: var(--control-transition);
   white-space: nowrap;
+  min-height: var(--control-height, 34px);
 }
 
 .subtab-btn:hover {
   color: var(--bs-body-color);
+  border-color: var(--bs-primary);
+  transform: translateY(-1px);
 }
 
 .subtab-btn.active {
-  color: var(--bs-primary);
-  border-bottom-color: var(--bs-primary);
+  background: var(--primary-fill, var(--bs-primary));
+  color: #fff;
+  border-color: var(--bs-primary);
   font-weight: 600;
+  box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
 }
 
 /* Cards de Métricas y Telemetría Extendida */
@@ -4669,5 +4676,290 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 @media (max-width: 360px) {
   .app-header { padding-inline: 8px !important; }
   .brand-title { font-size: 0.875rem !important; }
+}
+
+/* ==========================================================================
+   Chat Cards & Tactical Elements (Location, Contacts, Channels, Icons)
+   ========================================================================== */
+
+/* 1. Tarjetas de Mensajería Enriquecida (Ubicación GPS, Contactos, Canales) */
+.chat-location-card,
+.chat-contact-card,
+.chat-channel-card {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius-lg, 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.loc-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+.loc-coords-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  background: var(--bs-body-bg);
+  padding: 4px 10px;
+  border-radius: 4px;
+  width: fit-content;
+  border: 1px solid var(--bs-border-color);
+  letter-spacing: 0.02em;
+}
+
+/* Botón táctico "Ver en Mapa" */
+.btn-view-on-map {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: var(--bs-border-radius, 6px);
+  color: #fff;
+  background-color: var(--bs-primary);
+  border: 1px solid var(--bs-primary);
+  cursor: pointer;
+  text-decoration: none;
+  transition: var(--control-transition, all 0.15s ease-in-out);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  width: fit-content;
+}
+
+.btn-view-on-map:hover {
+  background-color: color-mix(in srgb, var(--bs-primary) 85%, black);
+  border-color: color-mix(in srgb, var(--bs-primary) 85%, black);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.18);
+}
+
+.btn-view-on-map:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn-view-on-map i {
+  font-size: 0.875rem;
+}
+
+/* Tarjeta de Contactos y Canales Compartidos en Chat */
+.card-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-avatar {
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.12));
+  border: 1px solid var(--bs-border-color);
+  flex-shrink: 0;
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--bs-body-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+}
+
+.card-key-mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.card-local-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 0.775rem;
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.12));
+  color: var(--bs-primary-text-emphasis, var(--bs-primary));
+  border: 1px solid var(--bs-border-color);
+  width: fit-content;
+}
+
+.card-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: var(--bs-border-radius, 6px);
+  color: var(--bs-primary-text-emphasis, var(--bs-primary));
+  background-color: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.1));
+  border: 1px solid var(--bs-border-color);
+  cursor: pointer;
+  transition: var(--control-transition, all 0.15s ease-in-out);
+  width: fit-content;
+}
+
+.card-action-btn:hover:not(:disabled) {
+  background-color: var(--bs-primary);
+  color: #fff;
+  border-color: var(--bs-primary);
+  transform: translateY(-1px);
+}
+
+.card-action-btn:disabled,
+.card-action-btn.btn-saved {
+  opacity: 0.75;
+  cursor: default;
+  background-color: var(--bs-success-bg-subtle, rgba(25, 135, 84, 0.15));
+  color: var(--bs-success-text-emphasis, #198754);
+  border-color: var(--bs-border-color);
+}
+
+/* 2. Estandarización Semántica de Iconos y Elementos Gráficos */
+.modal-title-icon {
+  font-size: 1.125rem;
+}
+
+.subtab-icon {
+  font-size: 0.9375rem;
+}
+
+.section-icon {
+  font-size: 1.25rem;
+}
+
+.card-icon i {
+  font-size: 1.25rem;
+}
+
+.btn-compact-icon {
+  font-size: 0.875rem;
+}
+
+.auth-icon {
+  font-size: 1.125rem;
+}
+
+.auth-gate-shield i {
+  font-size: 2.25rem;
+}
+
+.discovery-icon {
+  font-size: 1.25rem;
+}
+
+.filter-pill i {
+  font-size: 0.8125rem;
+}
+
+.cmd-item i {
+  font-size: 0.875rem;
+}
+
+.map-layer-btn i,
+.map-toggle-inline i {
+  font-size: 0.875rem;
+}
+
+.ch-lock i,
+.btn-item-qr i,
+.btn-item-delete i {
+  font-size: 0.8125rem;
+}
+
+.btn-chat-tool i,
+.btn-back-channels-mobile i {
+  font-size: 1.125rem;
+}
+
+.badge-pill.badge-pill-sm {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+}
+
+.data-table {
+  font-size: 0.8125rem;
+}
+
+.hex-dump-view,
+.json-dump-view {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+  background: var(--bg-canvas, var(--bs-body-bg));
+  color: var(--bs-body-color);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  line-height: 1.5;
+  border: 1px solid var(--bs-border-color);
+}
+
+.json-dump-view {
+  max-height: 350px;
+}
+
+.chat-empty-icon {
+  font-size: 1.75rem;
+  margin-bottom: 8px;
+  opacity: 0.6;
+}
+
+.chat-empty-subtext {
+  margin: 6px 0 0 0;
+  font-size: 0.78rem;
+  opacity: 0.8;
+}
+
+.callout-box.warning-callout {
+  margin-top: 12px;
+  font-size: 0.8rem;
+}
+
+.direct-rf-cmd-header {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 

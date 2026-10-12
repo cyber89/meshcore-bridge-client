@@ -8,7 +8,7 @@ depende de la versión del intérprete Python del bridge.
 | Bootstrap CSS y bundle JS | 5.3.3 | 5.3.8 | Archivos locales oficiales; el bundle incluye Popper. |
 | Bootswatch Temas Zephyr y Slate | - | 5.3.8 | Archivos locales compilados de Bootswatch (Zephyr para claro, Slate para oscuro). |
 | Bootstrap Icons CSS y fuentes WOFF/WOFF2 | 1.11.3 | 1.13.2 | Archivos locales del mismo paquete/version. |
-| Leaflet | 1.9.4 | 1.9.4 | CDN unpkg con los hashes SRI existentes; última estable consultada. |
+| Leaflet | 1.9.4 | 1.9.4 | Empaquetado local autónomo (CSS, JS e imágenes) para soporte 100% offline sin dependencias externas. |
 
 Fuentes primarias: [Bootstrap](https://getbootstrap.com/docs/5.3/getting-started/download/),
 [release de Icons](https://github.com/twbs/icons/releases/tag/v1.13.2),

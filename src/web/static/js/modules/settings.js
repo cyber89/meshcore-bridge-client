@@ -1376,16 +1376,16 @@ export class SettingsModule {
         <span class="ch-badge font-mono">Ch ${ch.index}</span>
         <span class="ch-name">${escapeHtml(chDisplayName)}</span>
           <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${escapeHtml(lockTitle)}">
-            <i class="bi ${ch.index === 0 ? 'bi-globe2' : (isEnc ? 'bi-lock' : 'bi-unlock')}" style="font-size: 13px;" aria-hidden="true"></i>
+            <i class="bi ${ch.index === 0 ? 'bi-globe2' : (isEnc ? 'bi-lock' : 'bi-unlock')}" aria-hidden="true"></i>
           </span>
         </button>
         <div class="ch-actions">
           ${ch.index > 0 ? `
             <button type="button" class="btn-item-qr" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="${I18n.t('settings.channel_qr_title')}" aria-label="${I18n.t('settings.share_channel', { index: ch.index })}">
-              <i class="bi bi-qr-code" style="font-size: 13px;" aria-hidden="true"></i>
+              <i class="bi bi-qr-code" aria-hidden="true"></i>
             </button>
             <button type="button" class="btn-item-delete" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="${I18n.t('settings.delete_channel', { index: ch.index })}" aria-label="${I18n.t('settings.delete_channel', { index: ch.index })}">
-              <i class="bi bi-trash" style="font-size: 13px;" aria-hidden="true"></i>
+              <i class="bi bi-trash" aria-hidden="true"></i>
             </button>
           ` : ''}
         </div>
