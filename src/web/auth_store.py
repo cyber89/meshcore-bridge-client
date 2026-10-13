@@ -323,3 +323,23 @@ class AuthStore:
                 "INSERT OR REPLACE INTO auth_api_tokens VALUES(1,?)", (_digest(value),)
             )
         return value
+
+    def recover_credentials(self, username: str, password: str) -> None:
+        """Administrative credential reset from local authority.
+
+        Revokes all active browser sessions and API tokens, clears attempt rate limits,
+        and sets must_change=0.
+        """
+        validate_credentials(username, password)
+        salt = secrets.token_bytes(16)
+        with self._hash_lock:
+            password_hash = _hash(password, salt)
+        with self._connection() as connection:
+            connection.execute(
+                "UPDATE auth_owner SET username=?,salt=?,password_hash=?,must_change=0,generation=generation+1 WHERE id=1",
+                (username, salt.hex(), password_hash),
+            )
+            connection.execute("DELETE FROM auth_sessions")
+            connection.execute("DELETE FROM auth_api_tokens")
+            connection.execute("DELETE FROM auth_login_attempts")
+

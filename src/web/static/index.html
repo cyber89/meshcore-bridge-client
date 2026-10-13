@@ -47,8 +47,8 @@
         <h2 id="authHeading" data-i18n="auth.login_title">Inicia sesión en tu estación</h2>
         <p class="auth-login-description text-body-secondary" data-i18n="auth.login_description">Tu cuenta protege la estación, sus mensajes y la API.</p>
         <p id="authLoading" class="auth-loading" role="status"><i class="bi bi-hourglass-split" aria-hidden="true"></i><span data-i18n="auth.loading">Comprobando la sesión…</span></p>
-        <form id="loginForm" class="auth-form" hidden>
-          <div class="form-group"><label for="loginUsername" data-i18n="auth.username">Nombre de usuario</label><input id="loginUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+"></div>
+        <form id="loginForm" class="auth-form" method="post" action="/api/auth/login" hidden>
+          <div class="form-group"><label for="loginUsername" data-i18n="auth.username">Nombre de usuario</label><input type="text" id="loginUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+"></div>
           <div class="form-group">
             <label for="loginPassword" data-i18n="auth.password">Contraseña</label>
             <div class="auth-password-field"><input id="loginPassword" class="form-control" type="password" name="password" autocomplete="current-password" required maxlength="256"><button id="loginPasswordToggle" type="button" class="btn auth-password-toggle" aria-controls="loginPassword" aria-pressed="false" aria-label="Mostrar contraseña" data-i18n-aria-label="auth.show_password"><i class="bi bi-eye" aria-hidden="true"></i></button></div>
@@ -65,33 +65,36 @@
     <div class="auth-dialog-heading"><h2 id="accountHeading" data-i18n="auth.account">Perfil</h2><button id="accountCloseButton" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="auth.close">Cerrar</button></div>
     <p id="accountDescription" class="text-body-secondary" data-i18n="auth.account_description">Cambia tu contraseña, actualiza tu nombre de usuario o cierra sesión.</p>
     <p id="accountRequiredNotice" class="alert alert-warning" role="status" hidden data-i18n="auth.change_required">Cambia ahora la contraseña predeterminada admin. La estación y la API seguirán bloqueadas hasta que guardes una contraseña nueva.</p>
-    <form id="accountCredentialsForm" class="auth-form" novalidate>
+    <form id="accountCredentialsForm" class="auth-form" method="post" action="/api/auth/credentials" novalidate>
       <div class="form-group" id="accountUsernameGroup">
         <label for="accountUsername" data-i18n="auth.username">Nombre de usuario</label>
-        <input id="accountUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+" aria-describedby="accountUsernameHint">
+        <input type="text" id="accountUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+" aria-describedby="accountUsernameHint">
         <p id="accountUsernameHint" class="field-hint text-body-secondary" data-i18n="auth.username_hint">1–64 caracteres: letras, números, punto, guion o guion bajo.</p>
       </div>
-      <div class="form-group" id="accountCurrentPasswordGroup">
-        <label for="accountCurrentPassword" data-i18n="auth.current_password">Contraseña actual</label>
-        <input id="accountCurrentPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="256">
-      </div>
-      <div class="form-group" id="accountNewPasswordGroup">
-        <label for="accountNewPassword" data-i18n="auth.new_password">Contraseña nueva</label>
-        <input id="accountNewPassword" class="form-control" type="password" name="password" autocomplete="new-password" required aria-describedby="accountPasswordHint">
-        <p id="accountPasswordHint" class="field-hint text-body-secondary" data-i18n="auth.password_hint">Usa entre 8 y 64 caracteres, sin requisitos de complejidad.</p>
-      </div>
-      <div class="form-group" id="accountConfirmPasswordGroup">
-        <label for="accountConfirmPassword" data-i18n="auth.confirm_password">Repite la contraseña nueva</label>
-        <input id="accountConfirmPassword" class="form-control" type="password" name="confirmation" autocomplete="new-password" required>
-      </div>
+      <fieldset class="auth-fieldset border-0 p-0 m-0">
+        <legend class="visually-hidden" data-i18n="auth.security_heading">Contraseña</legend>
+        <div class="form-group" id="accountCurrentPasswordGroup">
+          <label for="accountCurrentPassword" data-i18n="auth.current_password">Contraseña actual</label>
+          <input id="accountCurrentPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="256">
+        </div>
+        <div class="form-group" id="accountNewPasswordGroup">
+          <label for="accountNewPassword" data-i18n="auth.new_password">Contraseña nueva</label>
+          <input id="accountNewPassword" class="form-control" type="password" name="password" autocomplete="new-password" required aria-describedby="accountPasswordHint">
+          <p id="accountPasswordHint" class="field-hint text-body-secondary" data-i18n="auth.password_hint">Usa entre 8 y 64 caracteres, sin requisitos de complejidad.</p>
+        </div>
+        <div class="form-group" id="accountConfirmPasswordGroup">
+          <label for="accountConfirmPassword" data-i18n="auth.confirm_password">Repite la contraseña nueva</label>
+          <input id="accountConfirmPassword" class="form-control" type="password" name="confirmation" autocomplete="new-password" required>
+        </div>
+      </fieldset>
       <p class="field-hint text-body-secondary" data-i18n="auth.revocation_notice">Guardar cierra las otras sesiones y revoca los tokens de API. Tu sesión actual se renueva.</p>
       <button type="submit" class="btn btn-primary" data-i18n="auth.save_credentials">Guardar usuario y contraseña</button>
     </form>
     <section id="accountAutomationSection" class="auth-automation" aria-labelledby="accountAutomationHeading">
       <h3 id="accountAutomationHeading" data-i18n="auth.automation">Token para automatizaciones</h3>
       <p class="text-body-secondary" data-i18n="auth.token_description">Genera una clave para n8n u otros clientes de API. Se mostrará una sola vez; el navegador usa su sesión.</p>
-      <form id="automationTokenForm" class="auth-form" novalidate>
-        <input type="text" id="accountTokenUsername" name="username" autocomplete="username" class="d-none" aria-hidden="true" tabindex="-1" readonly>
+      <form id="automationTokenForm" class="auth-form" method="post" action="/api/auth/api-token" novalidate>
+        <input type="text" id="accountTokenUsername" name="username" autocomplete="username" class="visually-hidden" tabindex="-1" readonly aria-label="Nombre de usuario" data-i18n-aria-label="auth.username">
         <div class="form-group">
           <label for="accountTokenPassword" data-i18n="auth.current_password">Contraseña actual</label>
           <input id="accountTokenPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="256">
