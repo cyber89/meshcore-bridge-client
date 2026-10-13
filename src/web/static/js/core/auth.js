@@ -52,12 +52,18 @@ export class BrowserAuthentication {
       username: this.loginForm.elements.username,
       password: this.loginForm.elements.password,
     });
-    this.accountFeedback = new FormFeedback(this.accountForm, {
-      current_password: this.accountForm.elements.current_password,
-      username: this.accountForm.elements.username,
-      password: this.accountForm.elements.password,
-      confirmation: this.accountForm.elements.confirmation,
-    });
+    this.accountFeedback = new FormFeedback(
+      this.accountForm,
+      {
+        username: this.accountForm.elements.username,
+        current_password: this.accountForm.elements.current_password,
+        password: this.accountForm.elements.password,
+        confirmation: this.accountForm.elements.confirmation,
+      },
+      {
+        invalid_current_password: "current_password",
+      }
+    );
     this.tokenFeedback = new FormFeedback(this.tokenForm, { current_password: this.tokenForm.elements.current_password });
     this.loginForm.addEventListener("submit", (event) => this._login(event));
     document.getElementById("loginPasswordToggle").addEventListener("click", () => {
@@ -162,14 +168,34 @@ export class BrowserAuthentication {
     document.getElementById("accountRequiredNotice").hidden = !forced;
     document.getElementById("accountCloseButton").hidden = forced;
     document.getElementById("accountAutomationSection").hidden = forced;
-    this.accountForm.elements.username.value = this.session?.username || "";
+
+    const currentPassGroup = document.getElementById("accountCurrentPasswordGroup");
+    const currentPassInput = this.accountForm.elements.current_password;
+    if (currentPassGroup) currentPassGroup.hidden = forced;
+    if (currentPassInput) {
+      currentPassInput.required = !forced;
+      currentPassInput.disabled = forced;
+      currentPassInput.value = "";
+    }
+
+    const usernameVal = this.session?.username || "";
+    this.accountForm.elements.username.value = usernameVal;
+    const tokenUsername = this.tokenForm?.elements?.username;
+    if (tokenUsername) tokenUsername.value = usernameVal;
+
     if (!this.dialog.open) this.dialog.showModal();
-    this.accountForm.elements.current_password.focus();
+    if (forced) {
+      this.accountForm.elements.password.focus();
+    } else if (currentPassInput) {
+      currentPassInput.focus();
+    }
   }
 
   _clearAccountSecrets() {
     this.accountForm.reset();
     this.tokenForm.reset();
+    const currentPassInput = this.accountForm.elements.current_password;
+    if (currentPassInput) currentPassInput.disabled = false;
     document.getElementById("accountTokenResult").hidden = true;
     document.getElementById("accountTokenValue").value = "";
     document.getElementById("accountTokenCopyStatus").textContent = "";
@@ -227,10 +253,17 @@ export class BrowserAuthentication {
     const length = Array.from(fields.password.value).length;
     if (length < 8 || length > 64) errors.password = "auth.password_length";
     if (this.requestBusy || !this.accountFeedback.validate(errors)) return;
-    const forced = this.session?.must_change_credentials;
-    const data = await this._submit("/api/auth/credentials", "PUT", {
-      current_password: fields.current_password.value, username: fields.username.value, password: fields.password.value,
-    }, this.accountFeedback);
+    const forced = Boolean(this.session?.must_change_credentials);
+    const payload = {
+      username: fields.username.value,
+      password: fields.password.value,
+    };
+    if (!forced && fields.current_password?.value) {
+      payload.current_password = fields.current_password.value;
+    } else if (fields.current_password && !fields.current_password.disabled && fields.current_password.value) {
+      payload.current_password = fields.current_password.value;
+    }
+    const data = await this._submit("/api/auth/credentials", "PUT", payload, this.accountFeedback);
     if (!data) return;
     this._clearAccountSecrets();
     this.channel?.postMessage("credentials-changed");

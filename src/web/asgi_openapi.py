@@ -355,8 +355,8 @@ def build_openapi_schema() -> dict[str, Any]:
         ("/api/auth/logout", "post", "Revoke this browser session", None, [],
          [{"CookieAuth": [], "CsrfToken": []}], None),
         ("/api/auth/credentials", "put", "Change owner credentials and revoke all sessions/API tokens",
-         {"current_password": password, "username": username, "password": {**password, "minLength": 15}},
-         ["current_password", "username", "password"], [{"CookieAuth": [], "CsrfToken": []}], "AuthSession"),
+         {"current_password": password, "username": username, "password": {**password, "minLength": 8, "maxLength": 64, "description": "8-64 Unicode characters; no complexity requirement. Existing credentials remain accepted up to 128 characters for login and confirmation."}},
+         ["username", "password"], [{"CookieAuth": [], "CsrfToken": []}], "AuthSession"),
         ("/api/auth/api-token", "post", "Rotate the API token and reveal it once",
          {"current_password": password}, ["current_password"], [{"CookieAuth": [], "CsrfToken": []}], None),
     )

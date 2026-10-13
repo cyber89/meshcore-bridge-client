@@ -58,12 +58,12 @@
     },
     "index.html": {
       "file": "index.html",
-      "source_sha256": "39ad5ef6fd1203121ed0e786b1ab8955bc873d7c4d722f0482ae999b6a3cea61",
-      "sha256": "39ad5ef6fd1203121ed0e786b1ab8955bc873d7c4d722f0482ae999b6a3cea61",
-      "gzip_sha256": "0637e0b190d08769b2099f6527026349877fc2a9b8dd2610db3dd476f4939f51",
-      "source_bytes": 226753,
-      "bytes": 226753,
-      "gzip_bytes": 39988
+      "source_sha256": "4ef19d68f9455de9433b7c78bfcae903fb9fb7dfdb4ebcdaaa2f32c4383e0a4c",
+      "sha256": "4ef19d68f9455de9433b7c78bfcae903fb9fb7dfdb4ebcdaaa2f32c4383e0a4c",
+      "gzip_sha256": "a445317216b86a95dc8a96be9c1c76be46cba4993d372130a40188e96c4d1400",
+      "source_bytes": 227214,
+      "bytes": 227214,
+      "gzip_bytes": 40064
     },
     "js/app.js": {
       "file": "js/app.min.js",
@@ -85,12 +85,12 @@
     },
     "js/core/auth.js": {
       "file": "js/core/auth.min.js",
-      "source_sha256": "cbb1d1ee4fb264879a63d2583fe681940d7b68ba1f0e574c23b3de10ea5571a9",
-      "sha256": "4075592e0db47feaedadd4c1215c665dd354b73fe5328f30c4ae2e8b02a82a90",
-      "gzip_sha256": "a820b8203950965cd78fcf99936a994fbe1919660f75389186e17a5106791318",
-      "source_bytes": 12466,
-      "bytes": 9015,
-      "gzip_bytes": 2664
+      "source_sha256": "610261b8a97e2f22b54b15f7bfe0a7a8ceb8a005995f855fc02696f6e06e064a",
+      "sha256": "742baf008eaa5e751880e8bb560c30d123460c7099e7a408520dea0dddf19d34",
+      "gzip_sha256": "82cf6906e8851f6bbf29622630a7ace6c55332894d8b9522472a37714cb4b00d",
+      "source_bytes": 13610,
+      "bytes": 9498,
+      "gzip_bytes": 2788
     },
     "js/core/chart_engine.js": {
       "file": "js/core/chart_engine.min.js",

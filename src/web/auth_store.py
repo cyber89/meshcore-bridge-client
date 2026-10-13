@@ -38,8 +38,8 @@ def validate_credentials(username: str, password: str, *, allow_default: bool = 
         raise ValueError("Password must be a string")
     if allow_default and username == "admin" and password == "admin":
         return
-    if not 15 <= len(password) <= 128 or len(password.encode("utf-8")) > 1024:
-        raise ValueError("Password must contain 15-128 characters and at most 1024 UTF-8 bytes")
+    if not 8 <= len(password) <= 64 or len(password.encode("utf-8")) > 1024:
+        raise ValueError("Password must contain 8-64 characters; no complexity requirement")
 
 
 def _digest(token: str) -> str:
@@ -262,19 +262,28 @@ class AuthStore:
         with self._connection() as connection:
             return connection.execute("SELECT 1 FROM auth_api_tokens").fetchone() is not None
 
-    def _authorize_password(self, token: str, password: str) -> tuple[AuthSession, sqlite3.Row]:
+    def _authorize_password(
+        self, token: str, password: str | None, *, optional: bool = False
+    ) -> tuple[AuthSession, sqlite3.Row]:
         self._reserve_login("account:" + _digest(token))
         session = self.session(token)
         account = self._account()
-        if session is None or not self._matches_password(account, password):
-            raise ValueError("invalid_current_password")
+        if session is None:
+            raise ValueError("session_revoked")
+        if not optional or password:
+            if not password or not self._matches_password(account, password):
+                raise ValueError("invalid_current_password")
         return session, account
 
     def change_credentials(
-        self, token: str, current_password: str, username: str, password: str
+        self, token: str, current_password: str | None, username: str, password: str
     ) -> AuthSession:
         validate_credentials(username, password)
-        session, account = self._authorize_password(token, current_password)
+        session = self.session(token)
+        if session is None:
+            raise ValueError("session_revoked")
+        optional = bool(session.must_change_credentials)
+        session, account = self._authorize_password(token, current_password, optional=optional)
         salt = secrets.token_bytes(16)
         with self._hash_lock:
             password_hash = _hash(password, salt)

@@ -229,15 +229,17 @@ class AuthenticationService:
                 body.get("password"),
                 body.get("current_password"),
             )
+            needs_current = not session.must_change_credentials
             if (
                 not isinstance(username, str)
                 or not _password_input(password)
-                or not _password_input(current)
+                or (needs_current and not _password_input(current))
+                or (current is not None and current != "" and not _password_input(current))
             ):
                 return _error(422, "invalid_credentials_payload")
             try:
                 result = await self.password_call(
-                    self.store.change_credentials, session.token, current, username, password
+                    self.store.change_credentials, session.token, current or None, username, password
                 )
             except LoginLimited:
                 return _error(429, "login_rate_limited")

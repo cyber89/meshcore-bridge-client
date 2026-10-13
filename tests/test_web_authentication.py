@@ -1,5 +1,6 @@
 """Isolated authentication regressions; no station or radio dependencies."""
 
+import hashlib
 import sqlite3
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
+from src.web.asgi_openapi import build_openapi_schema
 from src.web.asgi_security import BridgeSecurityMiddleware
 from src.web.asgi_server import trusted_proxy_ips
 from src.web.auth_store import AuthStore, validate_credentials
@@ -57,6 +59,104 @@ def test_password_and_username_constraints_preserve_default_exception() -> None:
         validate_credentials("owner\n", "correct horse battery staple")
 
 
+@pytest.mark.parametrize("password", ["a" * 8, "a" * 64, "12345678", " " * 8, "🔒" * 8, "🔒" * 64])
+def test_new_password_accepts_length_boundaries_without_complexity(password: str) -> None:
+    validate_credentials("owner", password)
+
+
+@pytest.mark.parametrize("password", ["a" * 7, "a" * 65, "🔒" * 7, "🔒" * 65, "admin"])
+def test_new_password_rejects_outside_eight_to_sixty_four_characters(password: str) -> None:
+    with pytest.raises(ValueError):
+        validate_credentials("owner", password)
+
+
+@pytest.mark.parametrize(
+    "password,expected_status",
+    [("a" * 7, 422), ("a" * 8, 200), ("a" * 64, 200), ("a" * 65, 422), ("🔒" * 64, 200)],
+)
+async def test_account_password_boundaries_preserve_or_replace_session(
+    tmp_path: Path, password: str, expected_status: int
+) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    app, _ = _application(store)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost"
+    ) as client:
+        login = await client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin"},
+            headers={"Origin": "http://localhost"},
+        )
+        old_cookie = client.cookies.get("meshcore_session")
+        response = await client.put(
+            "/api/auth/credentials",
+            json={"username": "owner", "password": password, "current_password": "admin"},
+            headers={"Origin": "http://localhost", "X-CSRF-Token": login.json()["csrf_token"]},
+        )
+        assert response.status_code == expected_status
+        if expected_status == 200:
+            assert not response.json()["must_change_credentials"]
+            assert store.session(str(old_cookie)) is None
+            assert (await client.get("/api/private")).status_code == 200
+            assert (
+                store.login("owner", password, remember=False, peer="replacement-check") is not None
+            )
+        else:
+            assert store.session(str(old_cookie)) is not None
+            assert not store.account_ready()
+            assert (await client.get("/api/private")).status_code == 403
+
+
+@pytest.mark.parametrize("password_length", [65, 128])
+async def test_legacy_long_password_can_login_and_change_to_new_policy(
+    tmp_path: Path, password_length: int
+) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    store.initialize()
+    old_password = "a" * password_length
+    salt = bytes(range(16))
+    old_hash = hashlib.scrypt(
+        old_password.encode(), salt=salt, n=32768, r=8, p=3, maxmem=64 * 1024 * 1024, dklen=32
+    ).hex()
+    # Represent an account persisted before the new 64-character creation limit.
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "INSERT INTO auth_owner VALUES(1,?,?,?,?,0)", ("owner", salt.hex(), old_hash, 0)
+        )
+    app, _ = _application(store)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost"
+    ) as client:
+        login = await client.post(
+            "/api/auth/login",
+            json={"username": "owner", "password": old_password},
+            headers={"Origin": "http://localhost"},
+        )
+        assert login.status_code == 200
+        response = await client.put(
+            "/api/auth/credentials",
+            json={"username": "owner", "password": "aaaaaaaa", "current_password": old_password},
+            headers={"Origin": "http://localhost", "X-CSRF-Token": login.json()["csrf_token"]},
+        )
+        assert response.status_code == 200
+        assert store.login("owner", "aaaaaaaa", remember=False, peer="legacy-check") is not None
+
+
+def test_openapi_separates_new_password_policy_from_existing_credentials() -> None:
+    paths = build_openapi_schema()["paths"]
+    properties = paths["/api/auth/credentials"]["put"]["requestBody"]["content"][
+        "application/json"
+    ]["schema"]["properties"]
+    assert properties["password"]["minLength"] == 8
+    assert properties["password"]["maxLength"] == 64
+    assert properties["current_password"]["maxLength"] == 128
+    login_password = paths["/api/auth/login"]["post"]["requestBody"]["content"]["application/json"][
+        "schema"
+    ]["properties"]["password"]
+    assert login_password["minLength"] == 1
+    assert login_password["maxLength"] == 128
+
+
 def test_logout_removes_persistent_session(tmp_path: Path) -> None:
     store = AuthStore(tmp_path / "station.sqlite3")
     store.initialize()
@@ -85,6 +185,90 @@ def _application(store: AuthStore) -> tuple[BridgeSecurityMiddleware, Authentica
     return BridgeSecurityMiddleware(
         BridgeAuthenticationMiddleware(application, authentication), auth_managed=True
     ), authentication
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("username", ""),
+        ("username", "a" * 65),
+        ("username", "owner\n"),
+        ("username", "<script>"),
+        ("username", {}),
+        ("password", ""),
+        ("password", "a" * 129),
+        ("password", 12345678),
+        ("password", ["aaaaaaaa"]),
+        ("remember", "true"),
+        ("remember", 1),
+    ],
+)
+async def test_login_rejects_invalid_fields_without_creating_session(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    app, _ = _application(store)
+    payload: dict[str, object] = {"username": "admin", "password": "admin", "remember": True}
+    payload[field] = value
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost"
+    ) as client:
+        response = await client.post(
+            "/api/auth/login", json=payload, headers={"Origin": "http://localhost"}
+        )
+        assert response.status_code == 422
+        assert client.cookies.get("meshcore_session") is None
+        with sqlite3.connect(store.path) as connection:
+            assert connection.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0] == 0
+
+
+async def test_login_rejects_non_utf8_password_without_error_or_session(tmp_path: Path) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    app, _ = _application(store)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost"
+    ) as client:
+        response = await client.post(
+            "/api/auth/login",
+            content=b'{"username":"admin","password":"\\ud800"}',
+            headers={"Origin": "http://localhost", "Content-Type": "application/json"},
+        )
+        assert response.status_code == 422
+        assert client.cookies.get("meshcore_session") is None
+
+
+@pytest.mark.parametrize("remember", [False, True])
+async def test_https_login_cookie_remember_and_logout_contract(
+    tmp_path: Path, remember: bool
+) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    app, _ = _application(store)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="https://localhost"
+    ) as client:
+        response = await client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin", "remember": remember},
+            headers={"Origin": "https://localhost"},
+        )
+        assert response.status_code == 200
+        header = response.headers["set-cookie"]
+        assert "HttpOnly" in header and "Secure" in header and "SameSite=strict" in header
+        if remember:
+            assert "Max-Age=2592000" in header
+        else:
+            assert "Max-Age=" not in header
+        assert response.headers["cache-control"] == "no-store"
+        assert (await client.get("http://localhost/api/private")).status_code == 401
+        cookie = client.cookies.get("meshcore_session")
+        logout = await client.post(
+            "/api/auth/logout",
+            headers={"Origin": "https://localhost", "X-CSRF-Token": response.json()["csrf_token"]},
+        )
+        assert logout.status_code == 200
+        assert store.session(str(cookie)) is None
+        assert client.cookies.get("meshcore_session") is None
+        assert (await client.get("/api/private")).status_code == 401
 
 
 async def test_api_reads_and_query_credentials_are_rejected(
@@ -187,3 +371,60 @@ def test_proxy_trust_requires_exact_ip_addresses() -> None:
     for value in ("*", "10.0.0.0/8", "proxy.example"):
         with pytest.raises(ValueError):
             trusted_proxy_ips(value)
+
+
+async def test_initial_credentials_change_does_not_require_current_password(tmp_path: Path) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    store.initialize()
+    app, authentication = _application(store)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost"
+    ) as client:
+        # 1. Login with default credentials
+        login = await client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin"},
+            headers={"Origin": "http://localhost"},
+        )
+        assert login.status_code == 200
+        assert login.json()["must_change_credentials"]
+        csrf = login.json()["csrf_token"]
+
+        # 2. Change credentials on first setup without sending current_password
+        response = await client.put(
+            "/api/auth/credentials",
+            json={
+                "username": "admin_new",
+                "password": "valid_new_password_123",
+            },
+            headers={"Origin": "http://localhost", "X-CSRF-Token": csrf},
+        )
+        assert response.status_code == 200
+        assert not response.json()["must_change_credentials"]
+        assert response.json()["username"] == "admin_new"
+
+        # 3. Subsequent change MUST require current_password
+        new_csrf = response.json()["csrf_token"]
+        failed = await client.put(
+            "/api/auth/credentials",
+            json={
+                "username": "admin_final",
+                "password": "another_new_password_123",
+            },
+            headers={"Origin": "http://localhost", "X-CSRF-Token": new_csrf},
+        )
+        assert failed.status_code == 422
+        assert failed.json()["error"] == "invalid_credentials_payload"
+
+        # 4. Subsequent change succeeds with valid current_password
+        succeeded = await client.put(
+            "/api/auth/credentials",
+            json={
+                "username": "admin_final",
+                "password": "another_new_password_123",
+                "current_password": "valid_new_password_123",
+            },
+            headers={"Origin": "http://localhost", "X-CSRF-Token": new_csrf},
+        )
+        assert succeeded.status_code == 200
+        assert succeeded.json()["username"] == "admin_final"
