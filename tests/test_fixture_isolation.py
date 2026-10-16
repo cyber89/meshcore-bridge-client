@@ -49,7 +49,7 @@ async def test_virtual_fixture_cleans_up_when_server_start_fails(
     adapter.connect = AsyncMock()
     adapter.sync_all_contacts = AsyncMock(return_value=[])
     adapter.disconnect = AsyncMock()
-    monkeypatch.setattr(conftest, "MeshCoreBridge", MagicMock(return_value=bridge))
+    monkeypatch.setattr(conftest, "MeshCoreBridge", SimpleNamespace(create=AsyncMock(return_value=bridge)))
     monkeypatch.setattr(conftest, "VirtualMeshAdapter", MagicMock(return_value=adapter))
     fixture = conftest.virtual_bridge.__wrapped__(tmp_path)
     with pytest.raises(RuntimeError, match="server setup failed"):

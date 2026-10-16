@@ -67,6 +67,7 @@ _RAW_REPLY_TYPES: dict[int, frozenset[int]] = {
     59: frozenset({25}),  # GET_AUTOADD_CONFIG
     60: frozenset({26}),  # GET_ALLOWED_REPEAT_FREQ
     64: frozenset({28}),  # GET_DEFAULT_FLOOD_SCOPE
+    66: frozenset({29}),  # RUN_CLI_COMMAND (v14+) -> CLI_REPLY, never generic OK.
 }
 
 

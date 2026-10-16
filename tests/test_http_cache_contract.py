@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import gzip
+import hashlib
+import json
 import os
 from pathlib import Path
 
@@ -43,6 +45,16 @@ async def test_static_etag_gzip_and_modified_content(
     index = static / "index.html"
     first_content = b"<html><body>" + b"original " * 100 + b"</body></html>"
     index.write_bytes(first_content)
+    compressed = gzip.compress(first_content, mtime=0)
+    index.with_name("index.html.gz").write_bytes(compressed)
+    digest = hashlib.sha256(first_content).hexdigest()
+    (static / "asset-manifest.json").write_text(
+        json.dumps({"version": 1, "assets": {"index.html": {
+            "file": "index.html", "source_sha256": digest, "sha256": digest,
+            "gzip_sha256": hashlib.sha256(compressed).hexdigest(),
+        }}}),
+        encoding="utf-8",
+    )
     assert virtual_bridge.web_server is not None
     virtual_bridge.web_server.static_dir = static
 
@@ -53,7 +65,7 @@ async def test_static_etag_gzip_and_modified_content(
     etag = headers["etag"]
 
     status, cached_headers, body = await request_static(
-        virtual_bridge, f"If-None-Match: {etag}\r\n"
+        virtual_bridge, f"Accept-Encoding: gzip\r\nIf-None-Match: {etag}\r\n"
     )
     assert status == 304
     assert cached_headers["etag"] == etag
@@ -63,7 +75,10 @@ async def test_static_etag_gzip_and_modified_content(
     changed_content = b"<html><body>updated</body></html>"
     index.write_bytes(changed_content)
     os.utime(index, (previous_mtime + 1, previous_mtime + 1))
-    status, headers, body = await request_static(virtual_bridge, f"If-None-Match: {etag}\r\n")
+    status, headers, body = await request_static(
+        virtual_bridge, f"Accept-Encoding: gzip\r\nIf-None-Match: {etag}\r\n"
+    )
     assert status == 200
     assert headers["etag"] != etag
+    assert "content-encoding" not in headers  # The old build receipt is now stale.
     assert body == changed_content

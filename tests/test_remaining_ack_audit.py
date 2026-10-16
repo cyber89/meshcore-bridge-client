@@ -95,6 +95,7 @@ async def test_ack_with_supplied_msg_id_is_correlated_and_consumed_once():
     instance.register_pending_ack("1234abcd", "real-request", "")
     context = SimpleNamespace(bridge=instance, mqtt=MagicMock(), web_server=SimpleNamespace(broadcast_event=AsyncMock()),
                               background_tasks=set(), node_registry=NodeRegistry())
+    instance.web_server = context.web_server
     payload = {"event_type": "ack", "ack_code": "1234abcd", "msg_id": "untrusted-request"}
     handler = RepeaterAdminHandler()
     def meta():

@@ -36,6 +36,7 @@ def api_context(tmp_path: Any) -> ApiContext:
     registry.add_or_update("bbccddeeff001122bbccddeeff001122bbccddeeff001122bbccddeeff001122", NodeContactUpdate(name="RepeaterNorth", role="REPEATER"))
 
     mock_bridge = MagicMock()
+    mock_bridge.database = None  # This controller fixture exercises in-memory history.
     mock_bridge.node_registry = registry
     mock_bridge.start_time = time.time() - 3600
     mock_bridge.rx_count = 50

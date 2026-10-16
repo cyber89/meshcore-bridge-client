@@ -667,7 +667,7 @@ export class RepeaterModule {
   }
 
   _redactRemoteCommand(command) {
-    return String(command).replace(/^((?:login|password|set\s+(?:password|guest\.password|identity))\s+).+$/i, "$1********");
+    return String(command).replace(/^(\s*(?:[^\r\n]{2}\|\s*)?(?:login|password|set(?:\s+|_)(?:password|admin\.password|guest\.password|identity|wifi\.(?:pwd|password)|prv\.key|prv_key|pin|ble_pin|blepin|devicepin))\s+).*$/is, "$1********");
   }
 
   _remoteFieldValue(id) {

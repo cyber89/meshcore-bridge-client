@@ -32,7 +32,9 @@ def bridge() -> MeshCoreBridge:
     obj.watchdog = SimpleNamespace(start=MagicMock(), stop=AsyncMock())
     obj.web_server = SimpleNamespace(start=AsyncMock(), stop=AsyncMock(), broadcast_event=AsyncMock())
     obj.tcp_server = SimpleNamespace(start=AsyncMock(), stop=AsyncMock())
-    obj.node_registry = SimpleNamespace(save_to_file=MagicMock())
+    obj.node_registry = SimpleNamespace(
+        save_to_file=MagicMock(), get_local_pubkey=MagicMock(return_value="ab" * 32),
+    )
     obj.preflight = SimpleNamespace(run_all=MagicMock(return_value={"status": "OK", "checks": []}))
     obj.health_reporter = SimpleNamespace(start=MagicMock(side_effect=lambda: asyncio.create_task(asyncio.Event().wait())), stop=AsyncMock())
     obj._auto_bootstrap_heltec_state = AsyncMock()

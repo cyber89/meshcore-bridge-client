@@ -147,6 +147,9 @@ async def test_owned_close_stays_off_loop_and_pending_worker_prevents_restart(
     tmp_path: Path,
 ) -> None:
     _, maps, server = await make_resources(tmp_path, owns_maps=True)
+    # Keep first-run SQLite/password hashing outside the map lifecycle deadline.
+    # Authentication remains real and uses the isolated station database.
+    await server.app.state.authentication.initialize()
     maps.close_gate.clear()
     stopping = asyncio.create_task(server.stop())
     try:

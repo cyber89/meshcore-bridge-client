@@ -52,6 +52,7 @@ Los ADRs documentan las decisiones arquitectónicas fundamentales tomadas a lo l
 
 ## Auditoría actual
 
+- [MeshCore 1.18: investigación contrastada](../new1.18.md), [actualización por capas](MESHCORE_1_18_UPGRADE_PLAN.md) y [ledger de integración](audits/2026-10-15-meshcore-1.18-integration.md): correcciones iniciales, contratos y capacidades futuras diferenciadas.
 - [Reunión técnica y auditoría por capas del 2026-10-09](audits/2026-10-09-layer-audit.md): implementación, correcciones y evidencia estática; QA en ejecución pendiente.
 - [Plan y evolución FastAPI](../PROYECTO.md): distingue propuesta histórica de transporte seleccionado.
 

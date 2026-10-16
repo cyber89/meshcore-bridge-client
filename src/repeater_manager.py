@@ -1036,7 +1036,7 @@ class RepeaterManager:
 
     def _parse_radio_parameters(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae parámetros de módem RF LoRa (frecuencia, potencia, SF, BW, CR)."""
-        radio_line_m = re.search(r'(?:^|>)\s*(\d{3}(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+)\s*,\s*(\d+)', text)
+        radio_line_m = re.search(r'(?:^|>)\s*(\d{3,4}(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+)\s*,\s*(\d+)', text)
         if radio_line_m:
             try:
                 extracted["frequency"] = round(float(radio_line_m.group(1)), 3)

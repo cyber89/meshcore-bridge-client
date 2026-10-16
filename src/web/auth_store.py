@@ -80,7 +80,17 @@ class AuthStore:
             if path.is_symlink():
                 raise ValueError("Authentication database files must not be symbolic links")
             if path.exists():
-                os.chmod(path, 0o600)
+                try:
+                    os.chmod(path, 0o600)
+                except FileNotFoundError:
+                    # SQLite may remove WAL/SHM between exists() and chmod().
+                    if path == self.path:
+                        raise
+                except PermissionError:
+                    # Windows can report access denied during sidecar deletion.
+                    # Only a now-absent sidecar is benign; real denials still fail.
+                    if path == self.path or path.exists():
+                        raise
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:

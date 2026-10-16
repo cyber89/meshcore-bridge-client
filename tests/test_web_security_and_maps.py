@@ -5,6 +5,7 @@ Unit tests for SecurityTrafficInspector and MapTileService.
 from __future__ import annotations
 
 import sqlite3
+import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -116,8 +117,16 @@ class TestMapTileService(unittest.TestCase):
         self.assertTrue(self.tile_service.tiles_dir.is_dir())
 
         status = self.tile_service.get_status()
-        self.assertFalse(status["has_local_maps"])
+        # A generated tactical base is available even without geographic files.
+        self.assertTrue(status["has_local_maps"])
+        self.assertTrue(status["tactical_fallback"])
         self.assertEqual(status["mbtiles_count"], 0)
+        self.assertFalse(status["has_loose_tiles"])
+        self.assertEqual(status["mbtiles_files"], [])
+        code, tile, mime = self.tile_service.get_tile(0, 0, 0)
+        self.assertEqual((code, mime), (200, "image/png"))
+        self.assertTrue(tile.startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertEqual(struct.unpack(">II", tile[16:24]), (256, 256))
 
     def test_loose_tiles_xyz_resolution(self) -> None:
         """Verifica la lectura de teselas sueltas en estructura de directorios XYZ."""

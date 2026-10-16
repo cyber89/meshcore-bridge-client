@@ -24,6 +24,9 @@ async def test_e2e_navigation_all_tabs(browser_page: Page, tab: str) -> None:
     await button.click()
     await expect(browser_page.locator(f"#tab-{tab}")).to_be_visible()
     await expect(button).to_have_attribute("aria-selected", "true")
+    if tab == "analytics":
+        await expect(browser_page.locator("#analyticsRequestStatus")).to_have_attribute("data-state", "ready")
+        await expect(browser_page.locator("#tab-analytics")).to_have_attribute("aria-busy", "false")
 
 
 async def test_e2e_channel_switching_and_isolated_feed(browser_page: Page) -> None:

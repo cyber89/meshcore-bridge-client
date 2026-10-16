@@ -1,26 +1,18 @@
 """HTTP tile contracts using a temporary MBTiles database and ephemeral loopback port."""
 
-import asyncio
-import json
 import sqlite3
-import urllib.error
-import urllib.request
+import struct
+
+import httpx
 
 from src.bridge_core import MeshCoreBridge
-
-
-def fetch_url(url: str) -> tuple[int, str | None, bytes]:
-    request = urllib.request.Request(url, headers={"User-Agent": "TileTester/1.0"})
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            return response.status, response.headers.get("Content-Type"), response.read()
-    except urllib.error.HTTPError as error:
-        return error.code, error.headers.get("Content-Type"), error.read()
+from src.web.asgi_server import AsgiWebServer
 
 
 async def test_tile_server(virtual_bridge: MeshCoreBridge) -> None:
     server = virtual_bridge.web_server
-    assert server is not None and server.server is not None
+    assert isinstance(server, AsgiWebServer)
+    assert server.server is not None
     tile_bytes = b"\x89PNG\r\n\x1a\nFixtureTile"
     database = server.tile_service.maps_dir / "fixture.mbtiles"
     with sqlite3.connect(database) as connection:
@@ -31,12 +23,28 @@ async def test_tile_server(virtual_bridge: MeshCoreBridge) -> None:
     server.tile_service.reload_mbtiles()
     origin = f"http://127.0.0.1:{server.server.sockets[0].getsockname()[1]}"
 
-    status, _, body = await asyncio.to_thread(fetch_url, origin + "/api/map/status")
-    assert status == 200
-    assert json.loads(body)["data"]["has_local_maps"] is True
-    assert json.loads(body)["data"]["mbtiles_count"] == 1
+    async with httpx.AsyncClient(base_url=origin, trust_env=False, timeout=5) as client:
+        assert (await client.get("/api/map/status")).status_code == 401
+        login = await client.post("/api/auth/login", json={"username": "admin", "password": "admin"}, headers={"Origin": origin})
+        assert login.status_code == 200
+        credentials = await client.put(
+            "/api/auth/credentials",
+            json={"username": "qa-tiles", "password": "isolated tile owner password", "current_password": "admin"},
+            headers={"Origin": origin, "X-CSRF-Token": login.json()["csrf_token"]},
+        )
+        assert credentials.status_code == 200
+        assert credentials.json()["must_change_credentials"] is False
 
-    status, mime, body = await asyncio.to_thread(fetch_url, origin + "/api/map/tiles/0/0/0.png")
-    assert (status, mime, body) == (200, "image/png", tile_bytes)
-    status, _, _ = await asyncio.to_thread(fetch_url, origin + "/api/map/tiles/18/999/999.png")
-    assert status == 404
+        status = await client.get("/api/map/status")
+        assert status.status_code == 200
+        assert status.json()["data"]["has_local_maps"] is True
+        assert status.json()["data"]["mbtiles_count"] == 1
+
+        tile = await client.get("/api/map/tiles/0/0/0.png")
+        assert (tile.status_code, tile.headers["content-type"], tile.content) == (200, "image/png", tile_bytes)
+        fallback = await client.get("/api/map/tiles/18/999/999.png")
+        assert fallback.status_code == 200
+        assert fallback.headers["content-type"] == "image/png"
+        assert fallback.content.startswith(b"\x89PNG\r\n\x1a\n")
+        assert struct.unpack(">II", fallback.content[16:24]) == (256, 256)
+        assert (await client.get("/api/map/tiles/0/1/0.png")).status_code == 404

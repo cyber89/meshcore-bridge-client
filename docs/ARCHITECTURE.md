@@ -649,3 +649,16 @@ desde construcción; mapas respetan DATA_DIR. MQTT ofrece TLS opcional con
 certificado/hostname verificados, CA del sistema o explícita y mTLS; un fallo
 de confianza no degrada a plaintext. El aislamiento entre subsistemas y la
 ausencia de regresiones se valida mediante la suite automatizada de pruebas unitarias.
+
+
+## Preparación de MeshCore 1.18 (2026-10-15)
+
+La [investigación contrastada](../new1.18.md) y el [plan por capas](MESHCORE_1_18_UPGRADE_PLAN.md) distinguen cambios implementados y propuestas. El SDK de producción permanece fijado en2.3.15; no se actualizó el checkout de referencias ni se añadió un transporte nuevo. El adapter ya soportaba TCP Companion remoto.
+
+La primera entrega incorpora enum66, respuesta terminal29 en el proxy raw, lectura de frecuencias de cuatro dígitos y ocultación de claves WiFi en backend/terminal web. No modifica endpoints REST, eventos WS, esquemas MQTT/SQLite, colas TX, parámetros RF ni timers. Se conserva la serialización de respuestas con el lock existente y los timeouts no añaden retransmisiones.
+
+QA añadió reparaciones acotadas fuera del protocolo: tolerar desaparición comprobada de sidecars SQLite al ajustar permisos de autenticación, situar el menú móvil sobre su backdrop mediante el token Bootstrap y limitar la altura del panel remoto al viewport. No cambia el esquema SQLite ni sus datos; los errores de permisos reales y de la base principal se siguen propagando.
+
+Quedan diseñadas, pendientes de implementación: capacidades explícitas para protocolo14, CLI local de sólo lectura con comandos permitidos, diagnóstico web manual, configuración avanzada por hardware, control ROOM1.18 y asociaciones durables de suscripciones sensor. La consola del bridge conserva sus comandos propios; no se reenvía automáticamente todo su texto al firmware. La futura lectura de credenciales necesita sensibilidad desde la petición y protección del logging SDK, además de redacción del resultado.
+
+El [ledger de integración](audits/2026-10-15-meshcore-1.18-integration.md) registra evidencia de QA virtual y limitaciones; no declara interoperabilidad física. Para estado persistido prevalecen CONTEXT.md y ADR0017/0018 sobre descripciones históricas de JSON en este documento.

@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "31cedd145d642a047f21f492085c74bc00e5e799c3ba124ab20c19a6cc4e608f",
-      "sha256": "745204ae56c094bc0c34576205c9474074ae54c72d8959418eeb6265f0ceeb20",
-      "gzip_sha256": "ac1d8f2bfd76e1a68c0523ed2cf4f870cc329422f3cefe64ae537a815cc46025",
-      "source_bytes": 130082,
-      "bytes": 103520,
-      "gzip_bytes": 18731
+      "source_sha256": "dd2f693e542f96bb70c9e59e6e4a30b0b37e98060802229ee0baeb2c9bd5a312",
+      "sha256": "91bdecca92c38ffe0510d1d55f4ac3e91a236b8dd76576abff831ab65737c5a2",
+      "gzip_sha256": "75237d54ce71d9f1420e654f06e7c7db7802d35c951f7607c31390613c8c02f1",
+      "source_bytes": 130271,
+      "bytes": 103690,
+      "gzip_bytes": 18781
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
@@ -238,12 +238,12 @@
     },
     "js/modules/repeater.js": {
       "file": "js/modules/repeater.min.js",
-      "source_sha256": "156facf63691b495f9e09a94a928c19ded180f682bea807f9a7398f322edca92",
-      "sha256": "151b52968c75df33fca2ba6d7ca6f13fe1dbec7722eba267cb80ade53abe3647",
-      "gzip_sha256": "6a7a77e096be5e86f34e624c5e285deacf5ff71c5b23f30ae3a46ac0972512fc",
-      "source_bytes": 89613,
-      "bytes": 56061,
-      "gzip_bytes": 13147
+      "source_sha256": "82a043afd64df0ad4670b19f5377f0ae65eafa2908356fd68fc1cd3b2a5ef9c2",
+      "sha256": "49b7a8ad536dd6948493d4585d15c8507988320ff63774e8502b43dfa02565cd",
+      "gzip_sha256": "98773e6f665fc8d85097f553b8b5e4a9614eed49cbd24829e22e64213081e7cd",
+      "source_bytes": 89728,
+      "bytes": 56176,
+      "gzip_bytes": 13218
     },
     "js/modules/settings.js": {
       "file": "js/modules/settings.min.js",

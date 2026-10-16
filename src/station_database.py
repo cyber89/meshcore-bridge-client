@@ -79,10 +79,19 @@ class StationDatabase:
 
     def _restrict_files(self) -> None:
         for path in (self.path, Path(f"{self.path}-wal"), Path(f"{self.path}-shm")):
+            if path.is_symlink():
+                raise ValueError("Station database files must not be symbolic links")
             if path.exists():
-                if path.is_symlink():
-                    raise ValueError("Station database files must not be symbolic links")
-                os.chmod(path, 0o600)
+                try:
+                    os.chmod(path, 0o600)
+                except FileNotFoundError:
+                    # Other SQLite repositories can retire these sidecars.
+                    if path == self.path:
+                        raise
+                except PermissionError:
+                    # Windows deletion can surface as access denied. Verify loss.
+                    if path == self.path or path.exists():
+                        raise
 
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:

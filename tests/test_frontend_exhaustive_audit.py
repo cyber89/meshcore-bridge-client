@@ -7,9 +7,30 @@ import re
 from pathlib import Path
 
 import pytest
-from playwright.async_api import Page, expect
+from playwright.async_api import Locator, Page, expect
 
 ARTIFACTS = Path("tests/artifacts/frontend-exhaustive") / os.getenv("FRONTEND_AUDIT_PHASE", "final")
+
+
+async def navigate(page: Page, tab: str) -> None:
+    """Use the visible responsive navigation, including its mobile menu."""
+    button = page.locator(f'[data-tab="{tab}"]')
+    if not await button.is_visible():
+        await page.locator('[data-bs-toggle="offcanvas"][data-bs-target="#appSidebar"]').click()
+    await button.click()
+    await expect(page.locator(f"#{tab}")).to_be_visible()
+    if page.viewport_size is not None and page.viewport_size["width"] < 992:
+        await expect(page.locator("#appSidebar")).not_to_be_visible()
+
+
+async def settle_modal(modal: Locator) -> None:
+    """Measure only after Bootstrap has shown the dialog and finished its motion."""
+    await expect(modal).to_have_class(re.compile(r'.*\bshow\b.*'))
+    await modal.evaluate("""async element => {
+        await Promise.all(element.getAnimations({subtree: true})
+            .filter(animation => animation.effect.getComputedTiming().iterations !== Infinity)
+            .map(animation => animation.finished.catch(() => {})));
+    }""")
 
 
 @pytest.mark.parametrize("width,height", [(390, 844), (1920, 1080)])
@@ -19,7 +40,7 @@ async def test_system_logs_rendered_contrast_and_long_entries(
 ) -> None:
     await browser_page.set_viewport_size({"width": width, "height": height})
     await browser_page.evaluate("theme => {document.body.classList.remove('light-theme', 'dark-theme'); document.body.classList.add(theme + '-theme');}", theme)
-    await browser_page.locator('[data-tab="tab-logs"]').click()
+    await navigate(browser_page, "tab-logs")
     await browser_page.evaluate("""async () => {
         const {eventBus, EVENTS} = await import('/js/core/eventbus.js');
         for (const level of ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']) {
@@ -135,6 +156,7 @@ async def test_long_dialog_reflows_and_keyboard_focus(browser_page: Page, width:
     }""", theme)
     modal = browser_page.locator('#systemDialogModal')
     await expect(modal).to_be_visible()
+    await settle_modal(modal)
     card = await modal.locator('.modal-card').bounding_box()
     assert card is not None and card['x'] >= 0 and card['y'] >= 0, card
     assert card['x']+card['width'] <= width and card['y']+card['height'] <= height, card
@@ -167,13 +189,14 @@ async def test_authenticated_remote_admin_panels_reflow(browser_page: Page, widt
             return original(url,options);
         };
     }""", theme)
-    await browser_page.locator('[data-tab="tab-nodes"]').click()
+    await navigate(browser_page, "tab-nodes")
     await browser_page.locator('.btn-manage-repeater').first.click()
     await expect(browser_page.locator('#repeaterAuthGate')).to_be_visible()
     await browser_page.locator('#repeaterGatePassword').fill('virtual-only-password')
     await browser_page.locator('#btnRepeaterGateSubmit').click()
     await expect(browser_page.locator('#repeaterAdminModalCard')).to_have_class(re.compile(r'.*\bunlocked\b.*'))
     modal = browser_page.locator('#repeaterAdminModal')
+    await settle_modal(modal)
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     for lang in ('es','en'):
         await browser_page.evaluate("lang=>{if(I18n.lang!==lang)I18n.toggle();}", lang)
@@ -257,7 +280,13 @@ async def test_intermediate_header_widths_keep_controls_accessible(browser_page:
         for lang in ('es','en'):
             await browser_page.evaluate("lang=>{if(I18n.lang!==lang)I18n.toggle();}",lang)
             assert await browser_page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (theme,width,lang)
-            for selector in ('#themeToggleBtn','#langToggleBtn','.header-center button'):
+            selectors = ['#themeToggleBtn', '#langToggleBtn', '.auth-account-button']
+            if width >= 768:
+                selectors.append('.header-center button')
+            else:
+                await expect(browser_page.locator('.header-center button')).not_to_be_visible()
+                selectors.append('[data-bs-toggle="offcanvas"][data-bs-target="#appSidebar"]')
+            for selector in selectors:
                 box=await browser_page.locator(selector).bounding_box()
                 assert box is not None and 0<=box['x'] and box['x']+box['width']<=width, (width,selector,box)
                 await browser_page.locator(selector).click(trial=True)

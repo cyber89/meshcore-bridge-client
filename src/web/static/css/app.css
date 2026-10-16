@@ -426,7 +426,7 @@ h5, .h5 { font-size: 0.8rem; font-weight: 600; }
   flex-shrink: 0 !important;
   transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-x: hidden;
-  z-index: 1040;
+  z-index: var(--bs-offcanvas-zindex, 1040);
 }
 
 .app-sidebar.collapsed {
@@ -1904,6 +1904,11 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   display: flex;
   flex-direction: column;
   gap: var(--card-gap);
+}
+
+.node-card.node-card-offline,
+.contact-card.contact-card-offline {
+  border-style: dashed;
 }
 
 .contact-card-header, .node-card-header {
@@ -3840,6 +3845,10 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 
 .modal-dialog.modal-xl {
   max-width: 1140px;
+}
+
+.repeater-admin-modal-card {
+  max-height: calc(100dvh - 2rem);
 }
 
 .modal-card,

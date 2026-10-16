@@ -41,7 +41,8 @@ def test_nodes_import_once_and_keep_local_contact_exclusion(tmp_path: Path) -> N
     assert restored.error_categories["CRC_MISMATCH"] == 4
     snapshot = database.read_document("nodes")
     assert isinstance(snapshot, dict)
-    assert snapshot["nodes"][1]["vendor_metadata"] == {"revision": "v1"}
+    repeater = next(node for node in snapshot["nodes"] if node["public_key"] == "bb" * 32)
+    assert repeater["vendor_metadata"] == {"revision": "v1"}
 
 
 def test_services_credentials_survive_sqlite_roundtrip(tmp_path: Path) -> None:

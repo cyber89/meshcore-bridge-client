@@ -505,3 +505,17 @@ de ventana con último intervalo partial y includes_current_minute.
 | **`NETWORK`** (Topología y Calidad) | LQI, Tráfico, Enrutamiento | `lqi_score` (EMA), `lqi_status` (EXCELLENT/GOOD/FAIR/POOR), `best_route`, `hops`, `rx_packets`, `tx_packets`, `total_packets`, `error_count`, `error_rate_pct`, `direct_dups`, `flood_dups` | `LinkQualityEngine`, `PacketDeduplicator`, `RxEventRouter` |
 
 
+
+
+## 15. Companion 1.18 / protocolo 14 (revisión 2026-10-15)
+
+Fuente fijada: [MyMesh.cpp 1.18](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/examples/companion_radio/MyMesh.cpp). La revisión detallada y sus límites están en [investigación1.18](../new1.18.md) y [auditoría de protocolo](audits/2026-10-15-meshcore-1.18-protocol.md).
+
+- `CMD_RUN_CLI_COMMAND=66 (0x42)` lleva texto; responde `CLI_REPLY=29 (0x1D)` con texto sin NUL transmitido. No responde OK como éxito normal. El bridge identifica ese contrato en enum y tabla de transacciones raw. Recibir29 acredita respuesta de transporte, no éxito semántico del texto.
+- El código numérico14 se obtiene de DEVICE_INFO (`fw ver`), no de SELF_INFO. La presencia del opcode no habilita una consola web nativa; su API segura está pendiente según el plan.
+- No hay un límite uniforme de160bytes demostrado para CLI. `cli_command[80]` es rescue USB; `reply_buf[166]` incluye NUL. Validar gramática y límite específico de cada operación antes de exponerla.
+- Push binario `0x8C | reservado_u8 | tag_4bytes | datos` no contiene pubkey. Sin asociación previa verificable conservar origen desconocido; no interpretar cualquier push como LPP. Los pushes sensor de suscripciones incluyen timestamp antes de LPP.
+- Datagrama62, raw65, WiFi y rango sintáctico150–2500MHz ya existían en1.17.1. SDK2.3.16 incorpora modo hash en ruta de datagramas; límite SDK163bytes frente a165 del handler firmware. Validar modo, hops, divisibilidad y frame total antes de cualquier integración.
+- Los layouts anteriores son secuencias serializadas sin padding C++ ni CRC propio añadido. El framing Companion externo conserva dirección y longitud uint16 LE gestionadas por SDK; no mezclarlo con el framing AA/55 interno.
+
+El firmware1.18 rechaza `set repeat on` en ROOM. Esto es una restricción del dispatcher nuevo, no una guarda ya implementada por todos los ejecutores del bridge. La administración por rol y los setters avanzados siguen en capas posteriores del [plan de actualización](MESHCORE_1_18_UPGRADE_PLAN.md).

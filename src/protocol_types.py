@@ -185,6 +185,7 @@ class CommandType(IntEnum):
     SET_DEFAULT_FLOOD_SCOPE = 63
     GET_DEFAULT_FLOOD_SCOPE = 64
     SEND_RAW_PACKET = 65
+    RUN_CLI_COMMAND = 66  # Companion protocol v14+ (firmware 1.18); replies with CLI_REPLY.
 
 
 # Deprecated: Use CommandType instead. FirmwareCommandType was an alias maintained
@@ -833,6 +834,8 @@ SENSITIVE_CONFIG_KEYS: frozenset[str] = frozenset({
     "guest_password",
     "new_password",
     "current_password",
+    "wifi.pwd",
+    "wifi.password",
     "secret",
     "psk",
     "token",
@@ -843,8 +846,8 @@ SENSITIVE_CONFIG_KEYS: frozenset[str] = frozenset({
 
 _PIN_CONFIG_KEYS: frozenset[str] = frozenset({"pin", "devicepin", "ble_pin", "blepin"})
 _SENSITIVE_COMMAND = re.compile(
-    r"^(?P<prefix>(?:password|login)\s+|set[ _](?:password|admin\.password|guest\.password|"
-    r"wifi\.password|prv\.key|prv_key|pin|ble_pin|blepin|devicepin)\s+).*$",
+    r"^(?P<prefix>(?:[^\r\n]{2}\|\s*)?(?:(?:password|login)\s+|set(?:\s+|_)(?:password|admin\.password|guest\.password|"
+    r"wifi\.(?:pwd|password)|prv\.key|prv_key|pin|ble_pin|blepin|devicepin)\s+)).*$",
     re.IGNORECASE | re.DOTALL,
 )
 

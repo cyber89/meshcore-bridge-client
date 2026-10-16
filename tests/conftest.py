@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import re
 from collections.abc import AsyncIterator, Iterator
@@ -12,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from frontend_browser_resources import is_expected_remote_map_tile
+from frontend_browser_resources import is_expected_remote_map_tile, unexpected_request_failures
 from playwright.async_api import Page, Request, Route, async_playwright
 
 with patch("dotenv.load_dotenv", return_value=False):
@@ -134,9 +135,32 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
                 constructor(...args) { super(...args); window.__qaWebSockets.push(this); }
             };
         })();""")
+        await context.add_init_script("""(() => {
+            const nativeFetch = window.fetch;
+            window.__qaFetchAborts = [];
+            window.fetch = function(input, init) {
+                // Observe cancellation without replacing requests, signals or responses.
+                try {
+                    const request = input instanceof Request ? input : null;
+                    const signal = init?.signal || request?.signal;
+                    const url = new URL(request ? request.url : String(input), location.href).href;
+                    const method = String(init?.method || request?.method || 'GET').toUpperCase();
+                    const record = () => window.__qaFetchAborts.push({url, method});
+                    if (signal?.aborted) record();
+                    else signal?.addEventListener('abort', record, {once: true});
+                } catch (_) { /* Native fetch remains responsible for invalid input. */ }
+                return nativeFetch.apply(this, arguments);
+            };
+        })();""")
 
         async def local_only(route: Route) -> None:
-            if not route.request.url.startswith(origin + "/"):
+            if route.request.resource_type == "image" and is_expected_remote_map_tile(route.request.url):
+                # Local Leaflet still requests remote tiles. Supply only known tile
+                # providers offline; unexpected external traffic remains a failure.
+                await route.fulfill(content_type="image/png", body=base64.b64decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=="
+                ))
+            elif not route.request.url.startswith(origin + "/"):
                 external_requests.append(route.request.url)
                 await route.abort()
             elif route.request.resource_type == "document":
@@ -155,6 +179,7 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
         errors: list[str] = []
         console_errors: list[str] = []
         failures: list[str] = []
+        request_failures: list[tuple[str, str, str]] = []
 
         def record_request_failure(request: Request) -> None:
             # Leaflet removes obsolete tile images on resize/zoom. Chromium reports
@@ -166,7 +191,7 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
                 and request.failure == "net::ERR_ABORTED"
             )
             if not cancelled_expected_tile:
-                failures.append(f"{request.failure} {request.url}")
+                request_failures.append((request.failure or "unknown failure", request.url, request.method))
 
         page.on("pageerror", lambda error: errors.append(error.stack or str(error)))
         page.on("console", lambda message: console_errors.append(message.text) if message.type == "error" else None)
@@ -180,6 +205,8 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
             await asyncio.sleep(0.01)
         assert server.active_websockets, f"SPA WebSocket did not connect: {console_errors}"
         yield page
+        observed_aborts = await page.evaluate("window.__qaFetchAborts || []")
+        failures.extend(unexpected_request_failures(request_failures, observed_aborts))
         assert not errors, f"Uncaught JavaScript errors: {errors}"
         assert not console_errors, f"Browser console errors: {console_errors}"
         assert not failures, f"Failed local HTTP responses: {failures}"

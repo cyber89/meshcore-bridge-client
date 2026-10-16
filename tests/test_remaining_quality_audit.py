@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 import asyncio
 import importlib.util
-import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
@@ -130,7 +129,11 @@ async def test_demo_paths_and_constructor_are_isolated_before_start(
         assert bridge.node_registry.save_to_file(force=True)
         saved = Path(config.NODE_REGISTRY_STORAGE_PATH)
         assert saved.resolve().is_relative_to(isolated_state.resolve())
-        assert 'Synthetic Demo' in json.dumps(json.loads(saved.read_text(encoding='utf-8')))
+        assert bridge.database.path.resolve().is_relative_to(isolated_state.resolve())
+        snapshot = await asyncio.to_thread(bridge.database.read_document, 'nodes')
+        assert isinstance(snapshot, dict)
+        nodes = {node['public_key']: node for node in snapshot['nodes']}
+        assert nodes['ef' * 32]['name'] == 'Synthetic Demo'
     finally:
         await bridge.stop()
 
