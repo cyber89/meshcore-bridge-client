@@ -575,6 +575,7 @@ export class MapModule {
     this.dom.traceVisualGraph.innerHTML = "";
     if (!Array.isArray(hops) || hops.length === 0) return;
 
+    const frag = document.createDocumentFragment();
     hops.forEach((hop, idx) => {
       const nodeEl = document.createElement("div");
       nodeEl.className = "trace-node-item";
@@ -588,15 +589,16 @@ export class MapModule {
         <div class="trace-node-name font-mono">${escapeHtml(hop.name || (hop.pubkey ? hop.pubkey.slice(0, 8) : `Hop ${idx}`))}</div>
         <div class="trace-node-snr">${hop.snr != null ? `${escapeHtml(String(hop.snr))} dB` : ""}</div>
       `;
-      this.dom.traceVisualGraph.appendChild(nodeEl);
+      frag.appendChild(nodeEl);
 
       if (idx < hops.length - 1) {
         const arrowEl = document.createElement("div");
         arrowEl.className = "trace-arrow";
         arrowEl.innerHTML = `<span>➔</span>`;
-        this.dom.traceVisualGraph.appendChild(arrowEl);
+        frag.appendChild(arrowEl);
       }
     });
+    this.dom.traceVisualGraph.appendChild(frag);
   }
 
   renderTracerouteTable(hops) {
@@ -607,6 +609,7 @@ export class MapModule {
       return;
     }
 
+    const frag = document.createDocumentFragment();
     hops.forEach((h, i) => {
       const tr = document.createElement("tr");
       const key = String(h.pubkey || "");
@@ -620,8 +623,9 @@ export class MapModule {
         <td>${Number.isFinite(snr) ? `${snr} dB` : "—"}</td>
         <td>${Number.isFinite(rtt) ? `${rtt} ms` : "—"}</td>
       `;
-      this.dom.traceBreakdownTableBody.appendChild(tr);
+      frag.appendChild(tr);
     });
+    this.dom.traceBreakdownTableBody.appendChild(frag);
   }
 
   centerMapOnCoords(lat, lon, zoom = 14) {
@@ -755,6 +759,7 @@ export class MapModule {
       return;
     }
 
+    const frag = document.createDocumentFragment();
     positionedNodes.forEach((node) => {
       const rawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
       const rawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
@@ -792,8 +797,9 @@ export class MapModule {
         }
       });
 
-      this.dom.mapNodesList.appendChild(itemEl);
+      frag.appendChild(itemEl);
     });
+    this.dom.mapNodesList.appendChild(frag);
     if (restoreFocus) {
       const items = Array.from(this.dom.mapNodesList.querySelectorAll(".map-node-item"));
       const replacement = items.find((item) => item.dataset.nodeKey === focusedKey) ||

@@ -152,7 +152,7 @@
           <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)" data-i18n-title="header.airtime">
             <i class="bi bi-clock chip-icon" aria-hidden="true"></i>
             <span data-i18n="ui.static_005">Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
-            <span class="progress d-inline-block ms-1 header-airtime-track" style="width: 36px; height: 6px;" id="headerAirtimeTrack" aria-hidden="true">
+            <span class="progress d-inline-block ms-1 header-airtime-track" id="headerAirtimeTrack" aria-hidden="true">
               <span class="progress-bar bg-info header-airtime-fill" id="headerAirtimeFill" style="width: 0%;"></span>
             </span>
           </span>
@@ -246,7 +246,7 @@
                 </li>
               </ul>
 
-              <div class="chat-channels-header" style="margin-top: 16px;">
+              <div class="chat-channels-header mt-3">
                 <span class="panel-title" data-i18n="chat.direct_messages">Mensajes Directos</span>
                 <div class="panel-btn-group">
                   <span class="badge-pill" id="dmCountBadge">0</span>
@@ -406,9 +406,9 @@
                 <p class="header-subtitle" data-i18n="contacts.subtitle">Directorio de contactos, nodos amigos y gestión de claves públicas de la red.</p>
               </div>
               <div class="header-actions">
-                <button type="button" class="btn btn-secondary" id="btnRefreshContacts" aria-label="Actualizar lista de contactos" data-i18n-aria-label="ui.static_065" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Actualizar</button>
-                <button type="button" class="btn btn-secondary" id="btnHeaderImportContact" aria-label="Importar contacto" data-i18n-aria-label="ui.static_066" data-i18n="ui.static_067"><i class="bi bi-download" aria-hidden="true"></i> Importar</button>
-                <button type="button" class="btn btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto" data-i18n-aria-label="ui.static_068" data-i18n="contacts.add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar Contacto</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshContacts" aria-label="Actualizar lista de contactos" data-i18n-aria-label="ui.static_065" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Actualizar</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderImportContact" aria-label="Importar contacto" data-i18n-aria-label="ui.static_066" data-i18n="ui.static_067"><i class="bi bi-download" aria-hidden="true"></i> Importar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto" data-i18n-aria-label="ui.static_068" data-i18n="contacts.add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar Contacto</button>
               </div>
             </div>
 
@@ -666,7 +666,7 @@
               </button>
               <button type="button" class="subtab-btn" id="btnSubtabSniffer" data-target="subpanelRfPackets" data-i18n="sniffer.title">
                 <i class="bi bi-broadcast" aria-hidden="true"></i> Monitor de Paquetes RF (LoRa Sniffer)
-                <span class="badge-pill badge-primary text-xs" id="snifferPacketsBadge" style="margin-left: 6px;">0</span>
+                <span class="badge-pill badge-primary text-xs" id="snifferPacketsBadge">0</span>
               </button>
             </div>
 
@@ -677,7 +677,7 @@
                   <h2 data-i18n="logs.title"><i class="bi bi-file-earmark-text section-icon" aria-hidden="true"></i> Consola de Logs del Sistema</h2>
                   <p class="header-subtitle" data-i18n="ui.static_109">Registro de eventos y depuración en tiempo real del puente MeshCore.</p>
                 </div>
-                <div class="pane-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <div class="pane-actions">
                   <div class="toggle-field-inline" title="Alternar nivel de logging DEBUG" data-i18n-title="ui.static_110">
                     <span class="toggle-field-label" data-i18n="logs.debug_mode"><i class="bi bi-bug" aria-hidden="true"></i> Modo DEBUG</span>
                     <span class="toggle-state-badge badge-sm" id="debugModeBadge">OFF</span>
@@ -686,8 +686,8 @@
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
-                  <button type="button" class="btn btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)" data-i18n-title="ui.static_111" data-i18n="logs.download_log"><i class="bi bi-download" aria-hidden="true"></i> Descargar .log</button>
-                  <button type="button" class="btn btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs" data-i18n-title="ui.static_112" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)" data-i18n-title="ui.static_111" data-i18n="logs.download_log"><i class="bi bi-download" aria-hidden="true"></i> Descargar .log</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnClearLogs" title="Limpiar búfer de logs" data-i18n-title="ui.static_112" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
                 </div>
               </div>
 
@@ -737,7 +737,7 @@
                   <h2 data-i18n="ui.static_130"><i class="bi bi-broadcast section-icon" aria-hidden="true"></i> Monitor de Paquetes RF en Tránsito (LoRa Sniffer)</h2>
                   <p class="header-subtitle" data-i18n="ui.static_131">Inspección de tramas en tiempo real (RX/TX), cálculo de LQI, decodificación semántica y exportación Wireshark.</p>
                 </div>
-                <div class="pane-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <div class="pane-actions">
                   <div class="toggle-field-inline" title="Pausar o reanudar captura de tramas RF" data-i18n-title="ui.static_132">
                     <span class="toggle-field-label" data-i18n="ui.static_133"><i class="bi bi-broadcast" aria-hidden="true"></i> Captura RF</span>
                     <span class="toggle-state-badge badge-sm is-active-success" id="snifferCaptureBadge">ON</span>
@@ -747,7 +747,7 @@
                     </label>
                   </div>
                   <button type="button" class="btn btn-outline btn-sm" id="btnClearSnifferPackets" title="Limpiar búfer de paquetes" data-i18n-title="ui.static_135" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
-                  <div class="btn-group" style="display: flex; gap: 4px;">
+                  <div class="btn-group d-flex gap-1">
                     <button type="button" class="btn btn-secondary btn-sm" id="btnExportPcap" title="Descargar captura PCAP binaria (Wireshark DLT_USER0)" data-i18n-title="ui.static_136" data-i18n="ui.static_137"><i class="bi bi-download" aria-hidden="true"></i> PCAP (Wireshark)</button>
                     <button type="button" class="btn btn-secondary btn-sm" id="btnExportJson" title="Descargar paquetes en formato JSON" data-i18n-title="ui.static_138" data-i18n="ui.static_139"><i class="bi bi-code-slash" aria-hidden="true"></i> JSON</button>
                     <button type="button" class="btn btn-secondary btn-sm" id="btnExportCsv" title="Descargar paquetes en formato CSV" data-i18n-title="ui.static_140" data-i18n="ui.static_141"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i> CSV</button>
@@ -756,7 +756,7 @@
               </div>
 
               <!-- Barra de Filtros del Sniffer -->
-              <div class="logs-filter-bar" style="margin-bottom: 12px;">
+              <div class="logs-filter-bar">
                 <div class="filter-group">
                   <label for="snifferDirFilter" data-i18n="ui.static_142">Dirección:</label>
                   <select id="snifferDirFilter" class="form-select form-select-sm select-input">
@@ -782,25 +782,25 @@
               </div>
 
               <!-- Tabla de Paquetes Capturados -->
-              <div class="table-responsive" style="max-height: 550px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+              <div class="table-responsive sniffer-table-scroll">
                 <table class="table table-hover table-striped table-sm align-middle data-table sniffer-table">
                   <thead>
                     <tr>
-                      <th style="width: 50px;">#</th>
-                      <th style="width: 85px;" data-i18n="ui.static_155">Hora</th>
-                      <th style="width: 60px;" data-i18n="ui.static_156">Dir</th>
-                      <th style="width: 80px;" data-i18n="ui.static_157">Tipo</th>
-                      <th style="width: 60px;" data-i18n="ui.static_158">CH</th>
-                      <th style="width: 130px;" data-i18n="ui.static_159">Origen</th>
-                      <th style="width: 130px;" data-i18n="ui.static_160">Destino</th>
-                      <th style="width: 100px;" data-i18n="ui.static_161">SNR / RSSI</th>
-                      <th style="width: 60px;" data-i18n="ui.static_162">Bytes</th>
+                      <th class="col-w-50">#</th>
+                      <th class="col-w-85" data-i18n="ui.static_155">Hora</th>
+                      <th class="col-w-60" data-i18n="ui.static_156">Dir</th>
+                      <th class="col-w-80" data-i18n="ui.static_157">Tipo</th>
+                      <th class="col-w-60" data-i18n="ui.static_158">CH</th>
+                      <th class="col-w-130" data-i18n="ui.static_159">Origen</th>
+                      <th class="col-w-130" data-i18n="ui.static_160">Destino</th>
+                      <th class="col-w-100" data-i18n="ui.static_161">SNR / RSSI</th>
+                      <th class="col-w-60" data-i18n="ui.static_162">Bytes</th>
                       <th data-i18n="ui.static_163">Contenido / Resumen</th>
-                      <th style="width: 70px; text-align: center;" data-i18n="ui.static_164">Inspeccionar</th>
+                      <th class="col-w-70 text-center" data-i18n="ui.static_164">Inspeccionar</th>
                     </tr>
                   </thead>
                   <tbody id="snifferPacketsBody">
-                    <tr><td colspan="11" class="text-center text-muted" style="padding: 24px;" data-i18n="ui.static_165">No hay paquetes LoRa capturados en el búfer.</td></tr>
+                    <tr><td colspan="11" class="text-center text-muted p-4" data-i18n="ui.static_165">No hay paquetes LoRa capturados en el búfer.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1302,13 +1302,13 @@
                   <table class="table table-hover table-striped table-sm align-middle data-table" id="localCustomVarsTable">
                     <thead>
                       <tr>
-                        <th style="width: 35%;" data-i18n="ui.static_267">Clave (Key)</th>
-                        <th style="width: 45%;" data-i18n="ui.static_268">Valor (Value)</th>
-                        <th style="width: 20%; text-align: right;" data-i18n="ui.static_269">Acciones</th>
+                        <th class="col-w-35p" data-i18n="ui.static_267">Clave (Key)</th>
+                        <th class="col-w-45p" data-i18n="ui.static_268">Valor (Value)</th>
+                        <th class="col-w-20p text-end" data-i18n="ui.static_269">Acciones</th>
                       </tr>
                     </thead>
                     <tbody id="localCustomVarsTableBody">
-                      <tr><td colspan="3" class="text-center" style="color: var(--color-text-secondary);" data-i18n="ui.static_270">Sin variables registradas</td></tr>
+                      <tr><td colspan="3" class="text-center text-muted" data-i18n="ui.static_270">Sin variables registradas</td></tr>
                     </tbody>
                   </table>
                 </div>
@@ -1411,7 +1411,7 @@
                 <div id="localTerminalHelpDrawer" class="terminal-help-drawer hidden">
                   <div class="help-drawer-header">
                     <strong data-i18n="ui.static_298"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Referencia Oficial de Comandos MeshCore</strong>
-                    <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help">✕</button>
+                    <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                   </div>
                   <div class="help-drawer-grid">
                     <button type="button" class="help-cmd-item" data-cmd="info">
@@ -1727,9 +1727,9 @@
                       </div>
                       <div class="settings-toggle-controls">
                         <span id="badgeExtMqttStatus" class="badge-pill badge-secondary" data-i18n="services.status_disconnected">Desconectado</span>
-                        <label class="switch-toggle" for="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo">
+                        <label class="switch-toggle toggle-switch" for="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo">
                           <input type="checkbox" id="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo" />
-                          <span class="slider round"></span>
+                          <span class="slider round toggle-slider"></span>
                         </label>
                       </div>
                     </div>
@@ -1844,7 +1844,7 @@
                         </div>
                         <div class="form-group">
                           <label for="inputExtMqttIata" data-i18n="services.region_iata">Código IATA Región:</label>
-                          <input type="text" id="inputExtMqttIata" class="form-control font-mono" maxlength="5" value="XXX" style="text-transform: uppercase;" />
+                          <input type="text" id="inputExtMqttIata" class="form-control font-mono text-uppercase" maxlength="5" value="XXX" />
                         </div>
                       </div>
 
@@ -1930,9 +1930,9 @@
                         <i class="bi bi-cpu section-icon" aria-hidden="true"></i>
                         <h3 data-i18n="services.local_mqtt_title">Servidor MQTT Local / Domótica (n8n & Home Assistant)</h3>
                       </div>
-                      <label class="switch-toggle" for="chkLocalMqttEnabled" aria-label="Habilitar Servidor MQTT Local">
+                      <label class="switch-toggle toggle-switch" for="chkLocalMqttEnabled" aria-label="Habilitar Servidor MQTT Local">
                         <input type="checkbox" id="chkLocalMqttEnabled" checked aria-label="Habilitar Servidor MQTT Local" />
-                        <span class="slider round"></span>
+                        <span class="slider round toggle-slider"></span>
                       </label>
                     </div>
                     <p class="card-desc" data-i18n="services.local_mqtt_desc">
@@ -1981,9 +1981,9 @@
                         <i class="bi bi-phone section-icon" aria-hidden="true"></i>
                         <h3 data-i18n="services.tcp_title">Servidor TCP Companion (App Móvil Oficial & CLI)</h3>
                       </div>
-                      <label class="switch-toggle" for="chkTcpServerEnabled" aria-label="Habilitar Servidor TCP Companion">
+                      <label class="switch-toggle toggle-switch" for="chkTcpServerEnabled" aria-label="Habilitar Servidor TCP Companion">
                         <input type="checkbox" id="chkTcpServerEnabled" checked aria-label="Habilitar Servidor TCP Companion" />
-                        <span class="slider round"></span>
+                        <span class="slider round toggle-slider"></span>
                       </label>
                     </div>
                     <p class="card-desc" data-i18n="services.tcp_desc">
@@ -2033,14 +2033,14 @@
 
     <!-- Modal: Guardar Preset Personalizado -->
     <div id="modalSavePreset" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalSavePresetTitle">
-      <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
-        <div class="modal-content modal-card">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-narrow">
+        <div class="modal-content modal-card bg-body-tertiary border-secondary">
           <div class="modal-header">
             <h3 id="modalSavePresetTitle">
-              <i class="bi bi-bookmark-plus" aria-hidden="true"></i>
+              <i class="bi bi-bookmark-plus modal-title-icon" aria-hidden="true"></i>
               <span data-i18n="services.modal_save_title">Guardar como Preset</span>
             </h3>
-            <button type="button" class="btn-close modal-close-btn" data-bs-dismiss="modal" id="btnCloseSavePresetModal" aria-label="Cerrar" data-i18n-aria-label="modal.close"></button>
+            <button type="button" class="btn-close modal-close modal-close-btn" data-bs-dismiss="modal" id="btnCloseSavePresetModal" aria-label="Cerrar" data-i18n-aria-label="modal.close"></button>
           </div>
           <div class="modal-body">
             <div class="form-group mb-3">
@@ -2118,13 +2118,13 @@
             <input type="text" id="chModalName" placeholder="Ej: Operaciones, Táctico, Emergencias..." maxlength="31" required  data-i18n-placeholder="ui.static_381"/>
           </div>
 
-          <div class="form-group toggle-field-group" style="margin-bottom: 12px;">
+          <div class="form-group toggle-field-group">
             <div class="toggle-field-row">
               <div class="toggle-field-info">
                 <span class="toggle-field-title" data-i18n="ui.static_382">Canal Cifrado (AES-128)</span>
                 <span class="toggle-field-desc" data-i18n="ui.static_383">Proteger mensajes con clave precompartida secreta</span>
               </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="settings-toggle-controls">
                 <span class="toggle-state-badge is-active" id="chModalEncryptedBadge">CIFRADO</span>
                 <label class="toggle-switch toggle-sm" for="chModalIsEncrypted" title="Activar o desactivar cifrado AES-128" data-i18n-title="ui.static_384">
                   <input type="checkbox" id="chModalIsEncrypted" role="switch" checked aria-label="Canal cifrado AES-128"  data-i18n-aria-label="ui.static_385"/>
@@ -2172,24 +2172,24 @@
             <input type="text" id="contactModalName" placeholder="Ej: Carlos Heltec, Base Operador..." maxlength="31" required  data-i18n-placeholder="ui.static_395"/>
           </div>
 
-          <div class="form-row-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin-bottom: 0;">
+          <div class="form-row-2">
+            <div class="form-group">
               <label for="contactModalLat" data-i18n="ui.static_396">Latitud GPS (Opcional):</label>
               <input type="number" step="any" id="contactModalLat" placeholder="Ej: 20.1500"  data-i18n-placeholder="ui.static_397"/>
             </div>
-            <div class="form-group" style="margin-bottom: 0;">
+            <div class="form-group">
               <label for="contactModalLon" data-i18n="ui.static_398">Longitud GPS (Opcional):</label>
               <input type="number" step="any" id="contactModalLon" placeholder="Ej: -75.2000"  data-i18n-placeholder="ui.static_399"/>
             </div>
           </div>
 
-          <div class="form-group toggle-field-group" style="margin-bottom: 12px;">
+          <div class="form-group toggle-field-group">
             <div class="toggle-field-row">
               <div class="toggle-field-info">
                 <span class="toggle-field-title" data-i18n="ui.static_400">Marcar como Favorito</span>
                 <span class="toggle-field-desc" data-i18n="ui.static_401">Destacar en la libreta y en el filtro rápido</span>
               </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="settings-toggle-controls">
                 <span class="toggle-state-badge" id="contactModalFavBadge">NO</span>
                 <label class="toggle-switch toggle-sm" for="contactModalFavorite" title="Marcar como contacto favorito" data-i18n-title="ui.static_402">
                   <input type="checkbox" id="contactModalFavorite" role="switch" aria-label="Marcar como favorito"  data-i18n-aria-label="nodes.add_fav"/>
@@ -2218,8 +2218,8 @@
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareContactModalInstruction" data-i18n="ui.static_403">Selecciona un contacto de tu libreta para compartir su enlace oficial en esta conversación:</p>
-          <input type="search" id="shareContactSearch" class="search-input" placeholder="Buscar contacto por nombre o clave..." aria-label="Buscar contacto a compartir" style="margin-bottom: 12px; width: 100%;"  data-i18n-placeholder="ui.static_404" data-i18n-aria-label="ui.static_405"/>
-          <div class="share-picker-list" id="shareContactList" role="group" aria-labelledby="modalShareContactTitle" style="max-height: 260px; overflow-y: auto;">
+          <input type="search" id="shareContactSearch" class="search-input w-100 mb-3" placeholder="Buscar contacto por nombre o clave..." aria-label="Buscar contacto a compartir" data-i18n-placeholder="ui.static_404" data-i18n-aria-label="ui.static_405"/>
+          <div class="share-picker-list" id="shareContactList" role="group" aria-labelledby="modalShareContactTitle">
             <!-- Renderizado dinámico de contactos cliente -->
           </div>
         </div>
@@ -2241,7 +2241,7 @@
         </div>
         <div class="modal-body">
           <p class="modal-instruction-text" id="shareChannelModalInstruction" data-i18n="ui.static_407">Selecciona un canal para compartir sus parámetros de conexión y clave en esta conversación:</p>
-          <div class="share-picker-list" id="shareChannelList" role="group" aria-labelledby="modalShareChannelTitle" style="max-height: 260px; overflow-y: auto;">
+          <div class="share-picker-list" id="shareChannelList" role="group" aria-labelledby="modalShareChannelTitle">
             <!-- Renderizado dinámico de canales disponibles -->
           </div>
           <div class="callout-box warning-callout">
@@ -2323,7 +2323,7 @@
             <p data-i18n="rep.restricted_desc">Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.</p>
             
             <form id="repeaterGateForm" class="auth-gate-form" onsubmit="return false;" aria-labelledby="repeaterAdminTitle">
-              <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario"  data-i18n-aria-label="ui.static_352"/>
+              <input type="text" name="username" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario" data-i18n-aria-label="ui.static_352"/>
               <div class="auth-gate-input-wrapper">
                 <label for="repeaterGatePassword" class="auth-gate-label" data-i18n="rep.pin_label">Contraseña de Administración (PIN):</label>
                 <div class="auth-gate-input-row">
@@ -2338,7 +2338,7 @@
                 <button type="button" class="btn btn-primary btn-block" id="btnRepeaterGateSubmit" data-i18n="rep.unlock_btn">
                   <i class="bi bi-unlock button-icon" aria-hidden="true"></i> Desbloquear & Autenticar Repetidor
                 </button>
-                <button type="button" class="btn btn-secondary btn-block" id="btnRepeaterGateCancel" style="margin-top: 8px;" data-i18n="modal.cancel">
+                <button type="button" class="btn btn-secondary btn-block" id="btnRepeaterGateCancel" data-i18n="modal.cancel">
                   Cancelar
                 </button>
               </div>
@@ -2508,7 +2508,7 @@
 
             <!-- Comando Manual Directo / Consola Rápida RF -->
             <div class="card-panel rep-quick-cmd-panel">
-              <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div class="panel-header-row">
                 <h4 class="direct-rf-cmd-header" data-i18n="ui.static_452">
                   <i class="bi bi-terminal" aria-hidden="true"></i> Comando RF Directo
                 </h4>
@@ -2622,7 +2622,7 @@
                         <span class="toggle-field-title" data-i18n="ui.static_463">Modo Repetidor</span>
                         <span class="toggle-field-desc" data-i18n="ui.static_464">Reenvía paquetes de malla en este nodo remoto</span>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 8px;">
+                      <div class="settings-toggle-controls">
                         <span class="toggle-state-badge is-active-purple" id="radioRepeatBadge">ON</span>
                         <label class="toggle-switch toggle-purple" for="radioRepeatMode" title="Activar/desactivar reenvío de paquetes repetidor" data-i18n-title="ui.static_221">
                           <input type="checkbox" id="radioRepeatMode" role="switch" checked aria-label="Modo repetidor activo"  data-i18n-aria-label="ui.static_465"/>
@@ -2648,9 +2648,9 @@
             <div class="card-panel">
               <form id="repOwnerPosForm" class="grid-form-2col" aria-labelledby="repeaterAdminTitle">
                 <p id="remoteOwnerSupportHint" class="form-hint span-full" data-i18n="repeater.config_support_hint">Los controles deshabilitados no tienen comandos compatibles en el firmware oficial. Los cambios de radio requieren reinicio y una lectura posterior bajo demanda.</p>
-                <div class="form-section-title span-full" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="form-section-title form-section-title--split span-full">
                   <span data-i18n="ui.static_467"><i class="bi bi-person section-icon" aria-hidden="true"></i> Información del Propietario (Owner Info)</span>
-                  <div style="display: flex; gap: 6px;">
+                  <div class="form-section-actions">
                     <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepOwner" title="Consultar propietario remoto por RF (req_owner)" data-i18n-title="ui.static_468" data-i18n="ui.static_469"><i class="bi bi-person-check" aria-hidden="true"></i> Consultar Propietario (req_owner)</button>
                     <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepRegions" title="Consultar regiones configuradas (req_regions)" data-i18n-title="ui.static_470" data-i18n="ui.static_471"><i class="bi bi-globe" aria-hidden="true"></i> Regiones (req_regions)</button>
                   </div>
@@ -2683,7 +2683,7 @@
                       <span class="toggle-field-title" data-i18n="ui.static_483">Posición Fija</span>
                       <span class="toggle-field-desc" data-i18n="ui.static_484">Transmitir coordenadas configuradas (ON) o GPS dinámico (OFF)</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="settings-toggle-controls">
                       <span class="toggle-state-badge is-active" id="repPosFixedBadge">FIJA</span>
                       <label class="toggle-switch" for="repPosFixed" title="Alternar entre coordenadas fijas o GPS dinámico" data-i18n-title="ui.static_485">
                         <input type="checkbox" id="repPosFixed" role="switch" checked aria-label="Posición GPS fija del repetidor"  data-i18n-aria-label="ui.static_486" disabled aria-describedby="remoteOwnerSupportHint"/>
@@ -2704,7 +2704,7 @@
             <div class="card-panel">
               <form id="repSecurityForm" class="grid-form-2col" aria-labelledby="repeaterAdminTitle">
                 <p id="remoteSecuritySupportHint" class="form-hint span-full" data-i18n="repeater.config_support_hint">Los controles deshabilitados no tienen comandos compatibles en el firmware oficial. Los cambios de radio requieren reinicio y una lectura posterior bajo demanda.</p>
-                <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario"  data-i18n-aria-label="ui.static_352"/>
+                <input type="text" name="username" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario" data-i18n-aria-label="ui.static_352"/>
                 <div class="form-section-title span-full" data-i18n="ui.static_487"><i class="bi bi-lock section-icon" aria-hidden="true"></i> Contraseñas de Administración y Acceso</div>
                 <div class="form-group">
                   <label for="secNewAdminPwd" data-i18n="ui.static_488">Nueva Contraseña de Administrador (Admin Password):</label>
@@ -2715,7 +2715,7 @@
                   <input type="password" id="secNewGuestPwd" placeholder="Dejar vacío para no modificar" autocomplete="new-password"  data-i18n-placeholder="ui.static_489"/>
                 </div>
 
-                <div class="form-section-title span-full" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="form-section-title form-section-title--split span-full">
                   <span data-i18n="ui.static_491"><i class="bi bi-shield-check section-icon" aria-hidden="true"></i> Control de Acceso de Malla (Access Control - ACL)</span>
                   <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepAcl" title="Consultar tabla de control de acceso remota por RF (req_acl)" data-i18n-title="ui.static_492" data-i18n="ui.static_493"><i class="bi bi-shield-check" aria-hidden="true"></i> Consultar ACL (req_acl)</button>
                 </div>
@@ -2741,9 +2741,9 @@
           <!-- Subpanel 5: Vecinos & Tabla de Enrutamiento -->
           <div id="rep-neighbors" class="repeater-subpanel">
             <div class="card-panel">
-              <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="panel-header-row">
                 <h4 data-i18n="ui.static_501"><i class="bi bi-hdd-network" aria-hidden="true"></i> Vecinos Zero-Hop Detectados por Radio (req_neighbours)</h4>
-                <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="panel-btn-group">
                   <span id="neighborsCountBadge" class="badge-pill badge-primary">0 vecinos</span>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnDiscoverNeighbors"><i class="bi bi-wifi" aria-hidden="true"></i> Sondear Vecinos (req_neighbours)</button>
                 </div>
@@ -2792,7 +2792,7 @@
               <div id="terminalHelpDrawer" class="terminal-help-drawer hidden">
                 <div class="help-drawer-header">
                   <strong data-i18n="ui.static_517"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Referencia Oficial de Comandos MeshCore (RF Remoto)</strong>
-                  <button type="button" class="btn-icon btn-xs" id="btnCloseCmdHelp" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help">✕</button>
+                  <button type="button" class="btn-icon btn-xs" id="btnCloseCmdHelp" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                 </div>
                 <div class="help-cmd-grid">
                   <button type="button" class="help-cmd-item" data-cmd="ver">
@@ -2905,7 +2905,7 @@
           </div>
 
           <!-- Tabla de Desglose de Saltos -->
-          <div class="table-responsive" style="margin-top: 14px;">
+          <div class="table-responsive">
             <table class="table table-hover table-striped table-sm align-middle data-table trace-breakdown-table">
               <thead>
                 <tr>
@@ -2940,9 +2940,9 @@
           <div class="form-group">
             <label for="importPayloadInput" data-i18n="ui.static_550">Pega aquí el enlace URI (meshcore://...), formato de mensaje (&lt;pubkey:type:name&gt;) o JSON:</label>
             <textarea id="importPayloadInput" placeholder='{"type":"channel","index":1,"name":"Táctico","psk":"..."} o &lt;8d5accef...:1:Nombre&gt; o meshcore://...' rows="5" required class="code-textarea" data-i18n-placeholder="ui.static_551"></textarea>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+            <div class="import-file-toolbar">
               <span class="field-hint" data-i18n="ui.static_552">Soporta enlaces exportados desde MeshCore App, CLI o Web Station.</span>
-              <button type="button" id="btnSelectImportFile" class="btn btn-secondary btn-xs" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin: 0;" data-i18n="ui.static_553">
+              <button type="button" id="btnSelectImportFile" class="btn btn-secondary btn-xs" data-i18n="ui.static_553">
                 <i class="bi bi-upload" aria-hidden="true"></i> Cargar Archivo
               </button>
               <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" aria-label="Seleccionar archivo de respaldo o configuración" />
@@ -2963,8 +2963,8 @@
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content modal-card packet-inspector-card bg-body-tertiary border-secondary">
         <div class="modal-header">
-          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <h3 id="packetInspectorTitle" style="margin: 0;" data-i18n="ui.static_555"><i class="bi bi-qr-code-scan modal-title-icon" aria-hidden="true"></i> Trama LoRa <span id="inspectorPktIdDisplay" class="badge-pill badge-primary font-mono">#0</span></h3>
+          <div class="header-badge-row">
+            <h3 id="packetInspectorTitle" data-i18n="ui.static_555"><i class="bi bi-qr-code-scan modal-title-icon" aria-hidden="true"></i> Trama LoRa <span id="inspectorPktIdDisplay" class="badge-pill badge-primary font-mono">#0</span></h3>
             <span id="inspectorDirBadge" class="badge-pill badge-info">RX</span>
             <span id="inspectorTypeBadge" class="badge-pill badge-secondary">CHAT</span>
           </div>
@@ -2972,7 +2972,7 @@
         </div>
         <div class="modal-body packet-inspector-body">
           <!-- Barra de Pestañas del Inspector -->
-          <div class="subtabs-nav-bar" aria-labelledby="packetInspectorTitle" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
+          <div class="subtabs-nav-bar" aria-labelledby="packetInspectorTitle">
             <button type="button" class="subtab-btn active" id="inspectorTabSemantic" data-panel="inspectorPanelSemantic" data-i18n="ui.static_558">
               <i class="bi bi-layers" aria-hidden="true"></i> Estructura Semántica
             </button>
@@ -2989,7 +2989,7 @@
             <div class="table-responsive">
               <table class="table table-hover table-striped table-sm align-middle data-table">
                 <tbody>
-                  <tr><th style="width: 160px;" data-i18n="ui.static_561">Timestamp ISO</th><td id="inspFieldTime" class="font-mono">--</td></tr>
+                  <tr><th class="col-w-160" data-i18n="ui.static_561">Timestamp ISO</th><td id="inspFieldTime" class="font-mono">--</td></tr>
                   <tr><th data-i18n="ui.static_562">Dirección / Flujo</th><td id="inspFieldDir">--</td></tr>
                   <tr><th data-i18n="ui.static_563">Canal LoRa</th><td id="inspFieldChannel">--</td></tr>
                   <tr><th data-i18n="ui.static_564">Tipo de Trama</th><td id="inspFieldType">--</td></tr>
@@ -2997,7 +2997,7 @@
                   <tr><th data-i18n="ui.static_566">Destinatario</th><td id="inspFieldTarget" class="font-mono">--</td></tr>
                   <tr><th data-i18n="ui.static_567">Métricas RF</th><td id="inspFieldRf">SNR: -- | RSSI: -- | LQI: --</td></tr>
                   <tr><th data-i18n="ui.static_569">Tamaño Payload</th><td id="inspFieldSize">0 bytes</td></tr>
-                  <tr><th data-i18n="ui.static_570">Contenido / Decodificación</th><td><div id="inspFieldDecoded" style="white-space: pre-wrap; font-family: var(--font-mono); background: var(--bg-tertiary); padding: 8px; border-radius: 6px;">--</div></td></tr>
+                  <tr><th data-i18n="ui.static_570">Contenido / Decodificación</th><td><div id="inspFieldDecoded" class="inspector-decoded-box">--</div></td></tr>
                 </tbody>
               </table>
             </div>
@@ -3005,7 +3005,7 @@
 
           <!-- Panel 2: Hex Dump Wireshark Style -->
           <div id="inspectorPanelHex" class="inspector-panel hidden">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <div class="inspector-dump-toolbar inspector-dump-toolbar--split">
               <span class="text-xs text-muted font-mono" data-i18n="ui.static_571">Offset: 00000000  00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f  |ASCII|</span>
               <button type="button" class="btn btn-outline btn-xs" id="btnCopyHexDump">Copiar Hex</button>
             </div>
@@ -3014,7 +3014,7 @@
 
           <!-- Panel 3: JSON Crudo -->
           <div id="inspectorPanelJson" class="inspector-panel hidden">
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+            <div class="inspector-dump-toolbar">
               <button type="button" class="btn btn-outline btn-xs" id="btnCopyJsonDump">Copiar JSON</button>
             </div>
             <pre id="inspJsonDumpView" class="json-dump-view"></pre>

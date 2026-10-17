@@ -8,6 +8,7 @@ import {
   REGION_FREQUENCIES,
   parseMeshCoreUri,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
+  formatUptimeSecs,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 import { FormFeedback } from "../core/form_feedback.js";
@@ -112,13 +113,7 @@ export class SettingsModule {
         const elUptime = document.getElementById("localUptimeValue");
         if (elUptime) {
           const elapsedSec = Math.floor((Date.now() - this._deviceUptimeHostBase) / 1000);
-          const totalSec = this._deviceUptime + elapsedSec;
-          const days = Math.floor(totalSec / 86400);
-          const hours = Math.floor((totalSec % 86400) / 3600);
-          const mins = Math.floor((totalSec % 3600) / 60);
-          elUptime.textContent = days > 0
-            ? `${days}d ${hours}h ${mins}m`
-            : (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
+          elUptime.textContent = formatUptimeSecs(this._deviceUptime + elapsedSec);
         }
       }
     }, 1000);
@@ -1399,6 +1394,7 @@ export class SettingsModule {
     listEl.textContent = "";
 
     const activeIdx = this.ctx.activeChannelIdx ?? 0;
+    const frag = document.createDocumentFragment();
 
     channels.forEach((ch) => {
       const li = document.createElement("li");
@@ -1501,8 +1497,9 @@ export class SettingsModule {
         });
       }
 
-      listEl.appendChild(li);
+      frag.appendChild(li);
     });
+    listEl.appendChild(frag);
     if (focusedControl) {
       const replacementRow = Array.from(listEl.children).find((row) => row.dataset.channelIdx === focusedIndex);
       (replacementRow?.querySelector(focusedSelector) || listEl.querySelector(".channel-select"))?.focus({ preventScroll: true });
@@ -1793,8 +1790,6 @@ export class SettingsModule {
         if (isAdvOn) this._setFieldIfNotDirty("localAdvertInterval", advIntVal);
         else if (!advIntInput.value) this._setFieldIfNotDirty("localAdvertInterval", "300");
       }
-    } else if (advIntVal != null) {
-      this._setFieldIfNotDirty("localAdvertInterval", advIntVal);
     }
 
     const telemIntVal = cfg.telemetry_interval;
@@ -1813,8 +1808,6 @@ export class SettingsModule {
         if (Number(telemIntVal) > 0) this._setFieldIfNotDirty("localTelemetryInterval", telemIntVal);
         else if (!telemIntInput.value) this._setFieldIfNotDirty("localTelemetryInterval", "60");
       }
-    } else if (telemIntVal != null) {
-      this._setFieldIfNotDirty("localTelemetryInterval", telemIntVal);
     }
 
     // Resumen de Configuración Actual (Pills superiores)
@@ -2000,24 +1993,12 @@ export class SettingsModule {
     if (elUptime) {
       if (this._deviceUptime != null && this._deviceUptimeHostBase) {
         const elapsedSec = Math.floor((Date.now() - this._deviceUptimeHostBase) / 1000);
-        const totalSec = this._deviceUptime + elapsedSec;
-        const days = Math.floor(totalSec / 86400);
-        const hours = Math.floor((totalSec % 86400) / 3600);
-        const mins = Math.floor((totalSec % 3600) / 60);
-        elUptime.textContent = days > 0
-          ? `${days}d ${hours}h ${mins}m`
-          : (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
+        elUptime.textContent = formatUptimeSecs(this._deviceUptime + elapsedSec);
       } else if (cfg.uptime_str != null || cfg.uptime != null) {
         if (cfg.uptime_str) {
           elUptime.textContent = cfg.uptime_str;
         } else {
-          const totalSec = Number(cfg.uptime) || 0;
-          const days = Math.floor(totalSec / 86400);
-          const hours = Math.floor((totalSec % 86400) / 3600);
-          const mins = Math.floor((totalSec % 3600) / 60);
-          elUptime.textContent = days > 0
-            ? `${days}d ${hours}h ${mins}m`
-            : (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
+          elUptime.textContent = formatUptimeSecs(cfg.uptime);
         }
       }
     }
@@ -2272,7 +2253,6 @@ export class SettingsModule {
       if (generation !== this._firmwareCliGeneration) return;
       if (response.status === 503) {
         this._firmwareCliNeedsSnapshot = true;
-        this._renderFirmwareCliCapability();
         this._firmwareCadOutcome = "settings.firmware_cad_unavailable";
         this._renderFirmwareCliCapability();
         return;
@@ -2326,7 +2306,6 @@ export class SettingsModule {
       if (generation !== this._firmwareCliGeneration) return;
       if (response.status === 503) {
         this._firmwareCliNeedsSnapshot = true;
-        this._renderFirmwareCliCapability();
         this._firmwareWifiOutcome = "settings.firmware_wifi_unavailable";
         this._renderFirmwareCliCapability();
         return;
@@ -2370,7 +2349,6 @@ export class SettingsModule {
       if (generation !== this._firmwareCliGeneration) return;
       if (response.status === 503) {
         this._firmwareCliNeedsSnapshot = true;
-        this._renderFirmwareCliCapability();
         this._firmwareWifiOutcome = "settings.firmware_wifi_unavailable";
         this._renderFirmwareCliCapability();
         return;
@@ -2620,6 +2598,7 @@ export class SettingsModule {
     }
 
     tbody.innerHTML = "";
+    const frag = document.createDocumentFragment();
     entries.forEach(([k, v]) => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -2636,8 +2615,9 @@ export class SettingsModule {
       if (delBtn) {
         delBtn.addEventListener("click", () => this.deleteCustomVar(k));
       }
-      tbody.appendChild(tr);
+      frag.appendChild(tr);
     });
+    tbody.appendChild(frag);
   }
 
   async saveCustomVar(key = "", val = "") {
@@ -3120,19 +3100,21 @@ export class SettingsModule {
     if (!sel) return;
     sel.innerHTML = "";
 
+    const frag = document.createDocumentFragment();
     const optCustom = document.createElement("option");
     optCustom.value = "custom";
     optCustom.textContent = "Personalizado / Manual";
-    sel.appendChild(optCustom);
+    frag.appendChild(optCustom);
 
     presets.forEach((p) => {
       const opt = document.createElement("option");
       opt.value = p.id;
       const icon = p.is_system ? "🔒" : "⭐";
       opt.textContent = `${icon} ${p.name}`;
-      sel.appendChild(opt);
+      frag.appendChild(opt);
     });
 
+    sel.appendChild(frag);
     sel.value = selectedId || "custom";
     this._updatePresetBadgeAndButtons(sel.value);
   }

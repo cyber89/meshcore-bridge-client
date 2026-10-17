@@ -823,7 +823,7 @@ export class SnifferModule {
 
     this.dom.systemLogsFeed.textContent = "";
     if (filtered.length === 0) {
-      this.dom.systemLogsFeed.innerHTML = `<div style="color: var(--text-muted); padding: 14px; text-align: center;">${I18n.t('sniffer.no_logs_filter')}</div>`;
+      this.dom.systemLogsFeed.innerHTML = `<div class="logs-empty-state">${I18n.t('sniffer.no_logs_filter')}</div>`;
       return;
     }
 
@@ -871,7 +871,7 @@ export class SnifferModule {
 
   appendLogEntryToDom(log) {
     if (!this.dom.systemLogsFeed || !this.matchesLogFilter(log)) return;
-    if (this.dom.systemLogsFeed.querySelector("div[style]")) {
+    if (this.dom.systemLogsFeed.querySelector(".logs-empty-state, div[style]")) {
       this.dom.systemLogsFeed.textContent = "";
     }
     const el = this.createLogElement(log);

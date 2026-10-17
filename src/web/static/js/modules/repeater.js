@@ -353,32 +353,6 @@ export class RepeaterModule {
       });
     });
 
-    // Botón Probar Autenticación en Modal
-    if (this.dom.btnModalAuthTest) {
-      this.dom.btnModalAuthTest.addEventListener("click", async () => {
-        const target = this.selectedRepeaterTarget;
-        const password = this.getRepeaterPassword(target);
-        if (!target) {
-          const msg = I18n.t("repeater.select_repeater");
-          if (this.ctx.showAlert) {
-            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
-          } else if (this.ctx.showToast) {
-            this.ctx.showToast(msg, "warning");
-          }
-          return;
-        }
-        if (!password) {
-          const msg = I18n.t("repeater.enter_pin");
-          if (this.ctx.showAlert) {
-            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
-          } else if (this.ctx.showToast) {
-            this.ctx.showToast(msg, "warning");
-          }
-          return;
-        }
-        await this.authenticateRepeater(target, password);
-      });
-    }
 
     // Formulario de Parámetros RF
     const radioForm = document.getElementById("repRadioForm");
@@ -937,7 +911,6 @@ export class RepeaterModule {
     const canonicalPk = this.resolveCanonicalPubkey(target);
     return this.getStoredRepeaterPassword(canonicalPk) ||
       this.getStoredRepeaterPassword(target) ||
-      (this.repeaterPasswords && (this.repeaterPasswords.get(canonicalPk) || this.repeaterPasswords.get(target))) ||
       (this.dom.repeaterGatePassword ? this.dom.repeaterGatePassword.value : "");
   }
 
@@ -1205,8 +1178,6 @@ export class RepeaterModule {
   }
 
   populateRepeaterModalData(node) {
-    const pubkey = node.public_key || this.selectedRepeaterTarget;
-
     let calcBat = node.battery_pct != null ? Number(node.battery_pct) : (node.battery != null ? Number(node.battery) : (node.batt != null ? Number(node.batt) : null));
     let calcVolt = node.voltage_v != null ? Number(node.voltage_v) : (node.voltage != null ? Number(node.voltage) : (node.battery_mv ? Number(node.battery_mv) / 1000 : null));
 
@@ -1849,8 +1820,7 @@ export class RepeaterModule {
     } finally {
       if (btn && revision === this._modalRevision) {
         btn.disabled = false;
-        btn.innerHTML = `<i class="bi bi-wifi me-1" aria-hidden="true"></i> ${I18n.t('repeater.discover_neighbors')}`;
-        I18n.setText(btn, 'repeater.discover_neighbors');
+        btn.innerHTML = `<i class="bi bi-wifi me-1" aria-hidden="true"></i> <span>${I18n.t('repeater.discover_neighbors')}</span>`;
       }
     }
   }
@@ -1865,6 +1835,7 @@ export class RepeaterModule {
     }
 
     tbody.innerHTML = "";
+    const frag = document.createDocumentFragment();
     neighbours.forEach((nb) => {
       const tr = document.createElement("tr");
       const pk = String(nb.public_key || nb.pubkey || nb.node || "").toLowerCase();
@@ -1892,8 +1863,9 @@ export class RepeaterModule {
           this.pingZero(pk, name);
         });
       }
-      tbody.appendChild(tr);
+      frag.appendChild(tr);
     });
+    tbody.appendChild(frag);
   }
 
   async fetchRepeaterOwner(target) {

@@ -75,7 +75,6 @@ body.auth-pending > #app { display: none !important; }
 .auth-form { display: grid; gap: var(--space-md); }
 .auth-form .form-group { min-width: 0; margin: 0; gap: 0; }
 .auth-form label { display: block; margin-bottom: var(--space-xs); }
-.auth-form .form-check-label { display: inline; }
 .auth-form .form-control { min-height: 44px; font-size: 1rem; }
 .auth-card .form-control, .auth-card .auth-submit { min-height: 44px; }
 .auth-form .form-group input.form-control { min-height: 44px; font-size: 1rem; color: var(--text-main); background-color: var(--bg-surface-elevated); border-color: var(--control-border); border-radius: var(--radius-sm); }
@@ -140,8 +139,7 @@ body.auth-pending > #app { display: none !important; }
   .auth-card h2 { grid-column: 1; grid-row: 3; font-size: 1.25rem; margin: 0; }
   .auth-login-description { grid-column: 1; grid-row: 4; margin: 0; }
   .auth-first-login { grid-column: 1; grid-row: 5; margin: 0; }
-  .auth-form, .auth-loading { grid-column: 2; grid-row: 1 / span 5; align-self: center; }
-  .auth-form { gap: var(--space-sm); }
+  .auth-form, .auth-loading { grid-column: 2; grid-row: 1 / span 5; align-self: center; gap: var(--space-sm); }
   .auth-first-login summary { padding-block: var(--space-xs); }
   .auth-form .field-error { margin-top: 0; line-height: 1.35; }
 }
@@ -961,8 +959,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 .inspector-panel.hidden {
   display: none !important;
 }
-.repeater-subpanel.active,
-.local-settings-subpanel.active {
+.repeater-subpanel.active {
   display: block;
 }
 
@@ -2155,8 +2152,20 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   border: 2px solid var(--bs-body-bg);
 }
 
-.avatar-status-dot.online { background-color: var(--bs-success); }
-.avatar-status-dot.offline { background-color: var(--bs-secondary); }
+.avatar-status-dot.online,
+.avatar-status-dot.status-online {
+  background-color: var(--bs-success);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.55);
+}
+
+.avatar-status-dot.status-idle {
+  background-color: var(--bs-warning);
+}
+
+.avatar-status-dot.offline,
+.avatar-status-dot.status-offline {
+  background-color: var(--bs-secondary);
+}
 
 .stat-pill {
   display: inline-flex;
@@ -2184,15 +2193,6 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   margin-top: auto;
   padding-top: 0.5rem;
   border-top: 1px solid var(--bs-border-color-translucent);
-}
-
-.contact-card-actions .contact-primary-actions,
-.contact-card-actions .node-primary-actions {
-  display: flex;
-  flex: 1 1 10rem;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
 }
 
 .contact-card-actions .btn-card-action {
@@ -2400,7 +2400,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 /* Terminales y Consola de Comandos */
-.system-logs-box, .linux-term-window pre, .linux-term-body {
+.system-logs-box, .linux-term-body {
   font-family: var(--bs-font-monospace);
   font-size: 12px;
   line-height: 1.5;
@@ -2412,6 +2412,28 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   overflow-y: auto;
   max-height: 520px;
 }
+
+.logs-empty-state {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 8px;
+}
+
+.term-line {
+  padding: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--bs-font-monospace);
+  font-size: 0.775rem;
+  line-height: 1.45;
+}
+.term-sys { color: #94a3b8; font-style: italic; }
+.term-cmd { color: #38bdf8; font-weight: 600; }
+.term-resp { color: #e2e8f0; }
+.term-info { color: #93c5fd; }
+.term-success { color: #4ade80; }
+.term-warning { color: #fbbf24; }
+.term-error { color: #f87171; font-weight: 600; }
 
 .linux-term-window {
   border: 1px solid var(--bs-border-color);
@@ -2720,9 +2742,9 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 
 /* Hex Dump y JSON Crudo en Wireshark Inspector */
 .hex-dump-view, .json-dump-view {
-  font-family: var(--bs-font-monospace);
-  font-size: 12px;
-  background: var(--bs-tertiary-bg);
+  font-family: var(--font-mono, var(--bs-font-monospace));
+  font-size: 0.75rem;
+  background: var(--bg-canvas, var(--bs-tertiary-bg));
   color: var(--bs-body-color);
   padding: 12px;
   border-radius: 6px;
@@ -2733,6 +2755,10 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 
 .hex-dump-view {
   color: var(--bs-primary);
+}
+
+.json-dump-view {
+  max-height: 350px;
 }
 
 /* Subpestañas Dual Sniffer / Logs */
@@ -3466,7 +3492,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 .settings-card,
-.settings-view-container .card-panel {
+.card-panel {
   padding: var(--card-padding);
   display: flex;
   flex-direction: column;
@@ -3699,7 +3725,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   color: var(--bs-secondary-color);
 }
 
-.toggle-switch {
+.toggle-switch,
+.switch-toggle {
   position: relative;
   display: inline-block;
   width: 44px;
@@ -3709,15 +3736,15 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   margin: 0;
 }
 
-.switch-toggle { margin: 0; }
-
-.toggle-switch input {
+.toggle-switch input,
+.switch-toggle input {
   opacity: 0;
   width: 0;
   height: 0;
 }
 
-.toggle-slider {
+.toggle-slider,
+.switch-toggle .slider {
   position: absolute;
   top: 0;
   left: 0;
@@ -3729,7 +3756,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.toggle-slider::before {
+.toggle-slider::before,
+.switch-toggle .slider::before {
   position: absolute;
   content: "";
   height: 18px;
@@ -3742,16 +3770,19 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-.toggle-switch input:checked + .toggle-slider {
+.toggle-switch input:checked + .toggle-slider,
+.switch-toggle input:checked + .slider {
   background-color: var(--bs-primary);
   border-color: var(--bs-primary);
 }
 
-.toggle-switch input:checked + .toggle-slider::before {
+.toggle-switch input:checked + .toggle-slider::before,
+.switch-toggle input:checked + .slider::before {
   transform: translateX(20px);
 }
 
-.toggle-switch input:focus-visible + .toggle-slider {
+.toggle-switch input:focus-visible + .toggle-slider,
+.switch-toggle input:focus-visible + .slider {
   outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
@@ -3759,6 +3790,16 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 .toggle-purple input:checked + .toggle-slider {
   background-color: #8b5cf6;
   border-color: #8b5cf6;
+}
+
+.toggle-switch.toggle-success input:checked + .toggle-slider {
+  background-color: var(--bs-success);
+  border-color: var(--bs-success);
+}
+
+.toggle-switch.toggle-blue input:checked + .toggle-slider {
+  background-color: var(--bs-info);
+  border-color: var(--bs-info);
 }
 
 .toggle-state-badge {
@@ -3769,6 +3810,29 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   background: var(--bs-tertiary-bg);
   border: 1px solid var(--bs-border-color);
   color: var(--bs-secondary-color);
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.toggle-state-badge.is-active {
+  background: var(--bs-primary-bg-subtle);
+  border-color: var(--bs-primary-border-subtle, var(--bs-primary));
+  color: var(--bs-primary-text-emphasis);
+}
+
+.toggle-state-badge.is-active-success {
+  background: var(--bs-success-bg-subtle);
+  border-color: var(--bs-success-border-subtle, var(--bs-success));
+  color: var(--bs-success-text-emphasis);
+}
+
+.toggle-state-badge.is-active-purple {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.35);
+  color: #c4b5fd;
+}
+
+body.light-theme .toggle-state-badge.is-active-purple {
+  color: #6d28d9;
 }
 
 /* Barra Compacta de Acciones de Hardware */
@@ -4011,6 +4075,11 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   background: var(--bg-surface);
 }
 
+.modal-body > .modal-footer {
+  margin: 8px -1.5rem -1.5rem;
+  border-radius: 0 0 var(--radius-dialog) var(--radius-dialog);
+}
+
 .modal-footer .btn { min-height: 40px; }
 
 /* Grillas de los formularios existentes */
@@ -4052,7 +4121,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 .node-card,
 .contact-card,
 .settings-card,
-.settings-view-container .card-panel,
+.card-panel,
 .analytics-card,
 .analytics-kpi-card {
   background: var(--bg-surface, var(--bs-body-bg)) !important;
@@ -4125,7 +4194,6 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 .system-dialog-icon-badge.badge-danger,
-.system-dialog-icon-badge.badge-error,
 .system-dialog-card.is-danger .system-dialog-icon-badge {
   background: var(--bs-danger-bg-subtle, rgba(220, 53, 69, 0.12));
   border-color: var(--bs-danger-border-subtle, rgba(220, 53, 69, 0.35));
@@ -4257,7 +4325,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   font-size: 0.875rem;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.15)) !important;
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
 }
 
@@ -4757,6 +4825,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
     display: grid !important;
     grid-template-columns: repeat(3, auto);
     justify-content: end;
+    gap: 4px !important;
   }
 
   .header-right > .auth-account-button {
@@ -4775,6 +4844,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   .header-left {
     flex-direction: column;
     align-items: flex-start !important;
+    gap: 6px !important;
+    flex-shrink: 0;
   }
 
   .connection-status {
@@ -4902,10 +4973,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   .form-group textarea,
   .settings-form input:not([type="checkbox"]):not([type="range"]):not([type="hidden"]),
   .settings-form select,
-  .settings-form textarea,
   .settings-card input:not([type="checkbox"]):not([type="range"]):not([type="hidden"]),
   .settings-card select,
-  .settings-card textarea,
   .search-input,
   .select-input,
   .modal-card input:not([type="checkbox"]):not([type="range"]):not([type="hidden"]),
@@ -4922,15 +4991,6 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
     font-size: 0.95rem !important;
     letter-spacing: -0.02em;
     white-space: nowrap;
-  }
-
-  .header-left {
-    gap: 6px !important;
-    flex-shrink: 0;
-  }
-
-  .header-right {
-    gap: 4px !important;
   }
 
   .btn-header-action {
@@ -4955,17 +5015,24 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  .logo-badge { gap: 6px; }
+  .brand-mark { width: 26px; height: 26px; border-radius: 8px; }
+  .system-dialog-card { border-radius: var(--radius-lg) !important; }
+  .system-dialog-header { padding: 20px 18px 0 !important; }
+  .system-dialog-body { padding: 18px !important; }
+  .system-dialog-footer { padding: 0 18px 20px !important; }
 }
 
 /* Área Táctil Mejorada en Pantallas Táctiles (Pointer Coarse) */
 @media (pointer: coarse) {
   .btn { min-height: 44px !important; }
-  .btn-term-send,
   .linux-term-input {
     min-height: 44px;
   }
   .btn-term-send {
     min-width: 44px;
+    min-height: 44px;
   }
   .modal-header .btn-close {
     width: 44px;
@@ -4980,7 +5047,6 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   .btn-range,
   .btn-compact-action,
   .map-layer-btn,
-  .btn-toggle-fav,
   .route-accordion-summary,
   .settings-choice-row,
   .form-group input:not([type="checkbox"]):not([type="range"]):not([type="hidden"]),
@@ -5026,15 +5092,6 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   .btn-sidebar-toggle {
     display: none;
   }
-}
-
-@media (max-width: 640px) {
-  .logo-badge { gap: 6px; }
-  .brand-mark { width: 26px; height: 26px; border-radius: 8px; }
-  .system-dialog-card { border-radius: var(--radius-lg) !important; }
-  .system-dialog-header { padding: 20px 18px 0 !important; }
-  .system-dialog-body { padding: 18px !important; }
-  .system-dialog-footer { padding: 0 18px 20px !important; }
 }
 
 @media (max-width: 360px) {
@@ -5157,7 +5214,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   white-space: nowrap;
 }
 
-.card-sub {
+:is(.chat-contact-card, .chat-channel-card) .card-sub {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -5219,10 +5276,6 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 /* 2. Estandarización Semántica de Iconos y Elementos Gráficos */
-.modal-title-icon {
-  font-size: 1.125rem;
-}
-
 .subtab-icon {
   font-size: 0.9375rem;
 }
@@ -5245,10 +5298,6 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 
 .auth-gate-shield i {
   font-size: 2.25rem;
-}
-
-.discovery-icon {
-  font-size: 1.25rem;
 }
 
 .filter-pill i {
@@ -5284,23 +5333,6 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   font-size: 0.8125rem;
 }
 
-.hex-dump-view,
-.json-dump-view {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.75rem;
-  background: var(--bg-canvas, var(--bs-body-bg));
-  color: var(--bs-body-color);
-  padding: 12px;
-  border-radius: 6px;
-  overflow-x: auto;
-  line-height: 1.5;
-  border: 1px solid var(--bs-border-color);
-}
-
-.json-dump-view {
-  max-height: 350px;
-}
-
 .chat-empty-icon {
   font-size: 1.75rem;
   margin-bottom: 8px;
@@ -5326,4 +5358,343 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   align-items: center;
   gap: 6px;
 }
+
+/* ==========================================================================
+   3. Sniffer RF Badges, Airtime Progress, Sensor Badges & Layout Utilities
+   ========================================================================== */
+
+/* Sniffer RF Direction & Packet Type Badges */
+.badge-dir-rx,
+.badge-dir-tx,
+.badge-type-chat,
+.badge-type-advert,
+.badge-type-telemetry,
+.badge-type-admin,
+.badge-type-ack,
+.badge-type-default {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge-dir-rx {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.badge-dir-tx {
+  background: rgba(59, 130, 246, 0.14);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.badge-type-chat {
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.badge-type-advert {
+  background: rgba(14, 165, 233, 0.15);
+  color: #7dd3fc;
+  border: 1px solid rgba(14, 165, 233, 0.35);
+}
+
+.badge-type-telemetry {
+  background: rgba(168, 85, 247, 0.15);
+  color: #d8b4fe;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.badge-type-admin {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.badge-type-ack {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-type-default {
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-secondary-color);
+  border: 1px solid var(--bs-border-color);
+}
+
+body.light-theme .badge-dir-rx { background: rgba(16, 185, 129, 0.12); color: #047857; border-color: rgba(16, 185, 129, 0.35); }
+body.light-theme .badge-dir-tx { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; border-color: rgba(37, 99, 235, 0.35); }
+body.light-theme .badge-type-chat { background: rgba(79, 70, 229, 0.12); color: #4338ca; border-color: rgba(79, 70, 229, 0.35); }
+body.light-theme .badge-type-advert { background: rgba(2, 132, 199, 0.12); color: #0369a1; border-color: rgba(2, 132, 199, 0.35); }
+body.light-theme .badge-type-telemetry { background: rgba(147, 51, 234, 0.12); color: #7e22ce; border-color: rgba(147, 51, 234, 0.35); }
+body.light-theme .badge-type-admin { background: rgba(217, 119, 6, 0.12); color: #b45309; border-color: rgba(217, 119, 6, 0.35); }
+body.light-theme .badge-type-ack { background: rgba(5, 150, 105, 0.12); color: #047857; border-color: rgba(5, 150, 105, 0.35); }
+
+.sniffer-table td.truncate {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Header Metrics & Airtime Progress Bars */
+.header-metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.header-airtime-track {
+  display: inline-block;
+  width: 48px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bs-secondary-bg);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.header-airtime-fill,
+.airtime-progress-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--bs-success);
+  transition: width 0.3s ease, background-color 0.25s ease;
+}
+
+.header-airtime-fill.warning,
+.airtime-progress-bar-fill.warning {
+  background: var(--bs-warning);
+}
+
+.header-airtime-fill.danger,
+.header-airtime-fill.airtime-cutoff,
+.airtime-progress-bar-fill.danger,
+.airtime-progress-bar-fill.airtime-cutoff {
+  background: var(--bs-danger);
+}
+
+.airtime-progress-bar-bg {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.kbd-shortcut {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  margin-left: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 4px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+}
+
+/* Sensor Subscription Status Badges */
+.sensor-subscription-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-secondary-color);
+}
+.sensor-subscription-badge.status-active {
+  background: var(--bs-success-bg-subtle);
+  border-color: var(--bs-success-border-subtle, var(--bs-success));
+  color: var(--bs-success-text-emphasis);
+}
+.sensor-subscription-badge.status-idle {
+  background: var(--bs-warning-bg-subtle);
+  border-color: var(--bs-warning-border-subtle, var(--bs-warning));
+  color: var(--bs-warning-text-emphasis);
+}
+.sensor-subscription-badge.status-expired,
+.sensor-subscription-badge.status-offline {
+  background: var(--bs-danger-bg-subtle);
+  border-color: var(--bs-danger-border-subtle, var(--bs-danger));
+  color: var(--bs-danger-text-emphasis);
+}
+
+/* Chat & Button Utilities */
+.chat-char-counter.is-warning { color: var(--bs-warning) !important; font-weight: 700; }
+.chat-char-counter.is-danger { color: var(--bs-danger) !important; font-weight: 700; }
+
+.channel-item .channel-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.empty-hint {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  font-size: var(--font-meta);
+  color: var(--bs-secondary-color);
+  font-style: italic;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+.btn-outline:hover {
+  background: var(--bs-tertiary-bg);
+  border-color: var(--bs-primary);
+  color: var(--bs-primary);
+}
+.btn-danger-hover:hover {
+  background: var(--bs-danger-bg-subtle) !important;
+  border-color: var(--bs-danger) !important;
+  color: var(--bs-danger-text-emphasis) !important;
+}
+.btn-block {
+  display: inline-flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Layout & Component Classes Replacing Inline HTML Styles */
+.sniffer-table-scroll {
+  max-height: 550px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.col-w-50 { width: 50px; }
+.col-w-60 { width: 60px; }
+.col-w-70 { width: 70px; }
+.col-w-80 { width: 80px; }
+.col-w-85 { width: 85px; }
+.col-w-95 { width: 95px; }
+.col-w-100 { width: 100px; }
+.col-w-110 { width: 110px; }
+.col-w-130 { width: 130px; }
+.col-w-140 { width: 140px; }
+.col-w-160 { width: 160px; }
+.col-w-20p { width: 20%; }
+.col-w-35p { width: 35%; }
+.col-w-45p { width: 45%; }
+
+.modal-dialog-narrow {
+  max-width: 480px;
+}
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.form-row-2 > .form-group {
+  margin-bottom: 0;
+}
+
+.share-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.panel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.panel-header-row h4 {
+  margin: 0;
+}
+
+.form-section-title--split {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.form-section-actions,
+.panel-btn-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.import-file-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.inspector-decoded-box {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  background: var(--bs-tertiary-bg);
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.inspector-dump-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.inspector-dump-toolbar--split {
+  justify-content: space-between;
+}
+
 

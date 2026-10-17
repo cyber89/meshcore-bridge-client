@@ -13,15 +13,6 @@
 import { escapeHtml } from "./utils.js";
 
 /**
- * Obtiene el valor computado de una variable CSS o un fallback seguro.
- */
-function getCssVar(varName, fallback = "#3b82f6") {
-  if (typeof window === "undefined" || !document.documentElement) return fallback;
-  const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-  return val || fallback;
-}
-
-/**
  * Formatea una marca de tiempo epoch a formato de hora legible (HH:mm).
  */
 function formatTime(epochSec) {

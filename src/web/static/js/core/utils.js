@@ -664,4 +664,18 @@ export function formatTimeAgo(epochSec) {
   return isEs ? `hace ${days} días` : `${days} days ago`;
 }
 
-
+/**
+ * Formatea segundos de uptime en formato compacto (Xd Xh Xm / Xh Xm / Xm).
+ * @param {number|string|null} secs Segundos de tiempo activo
+ * @returns {string} Cadena legible o '--'
+ */
+export function formatUptimeSecs(secs) {
+  const s = Number(secs);
+  if (!Number.isFinite(s) || s < 0) return "--";
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}

@@ -29,8 +29,6 @@ export class ChatModule {
     this.channelFeeds = new Map();
     this._renderGeneration = 0;
     this._feedGenerations = new Map();
-    this.conversationsWithMessages = new Set();
-    this.unreadCounts = new Map();
     this.activeChannelIdx = 0;
     this.activeDmTarget = null;
     this.activeDmName = null;
@@ -97,8 +95,6 @@ export class ChatModule {
       this._historyStates.clear();
       this._visibleFeedKey = null;
       this.pendingOutgoingAcks.clear();
-      this.conversationsWithMessages.clear();
-      this.unreadCounts.clear();
       if (this.dom.dmListUi) this.dom.dmListUi.textContent = "";
       if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
       this._paintConversation(this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`);
@@ -157,7 +153,7 @@ export class ChatModule {
       chatTargetName: document.getElementById("chatActiveTitle"),
       chatTargetAvatar: document.getElementById("chatTargetAvatar"),
       btnBackToChannelsMobile: document.getElementById("btnBackToChannelsMobile"),
-      btnToggleChannelsMobile: document.getElementById("btnBackToChannelsMobile"),
+      btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       dmListUi: document.getElementById("dmListUi"),
       btnCloseChat: document.getElementById("btnCloseChat"),
       clearChatBtn: document.getElementById("clearChatBtn"),
@@ -202,7 +198,7 @@ export class ChatModule {
     if (this.dom.btnBackToChannelsMobile) {
       this.dom.btnBackToChannelsMobile.addEventListener("click", handleMobileBack);
     }
-    if (this.dom.btnToggleChannelsMobile) {
+    if (this.dom.btnToggleChannelsMobile && this.dom.btnToggleChannelsMobile !== this.dom.btnBackToChannelsMobile) {
       this.dom.btnToggleChannelsMobile.addEventListener("click", handleMobileBack);
     }
 
@@ -1148,6 +1144,20 @@ export class ChatModule {
     }
   }
 
+  _isGenericOrHexNodeName(name, pubkey = null) {
+    if (!name || typeof name !== "string") return true;
+    const clean = name.trim();
+    const lower = clean.toLowerCase();
+    if (!clean || lower === "unknown" || lower === "anónimo" || lower === "anonimo" || lower === "anonymous") return true;
+    if (pubkey) {
+      const pk = String(pubkey).toLowerCase().trim();
+      if (lower === pk || lower === pk.slice(0, 8)) return true;
+    }
+    if (clean.startsWith("Nodo [") || clean.startsWith("Node [") || lower.startsWith("node_unknow")) return true;
+    if (lower.includes("local station") || (window.I18n && clean.includes(I18n.t("chat.local_name")))) return true;
+    return false;
+  }
+
   addDmContact(pubkey, name) {
     if (!pubkey || !this.dom.dmListUi) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
@@ -1158,15 +1168,7 @@ export class ChatModule {
     const roleUpper = String(node?.role || "").toUpperCase();
     if (roleUpper === "REPEATER" || roleUpper === "ROUTER") return;
 
-    const isHexOrFallback = !name ||
-      name.toLowerCase() === "unknown" ||
-      name.toLowerCase() === "anónimo" ||
-      name.toLowerCase() === "anonimo" ||
-      name === canonicalPk ||
-      name === canonicalPk.slice(0, 8) ||
-      name.startsWith("Nodo [") ||
-      name.includes(I18n.t("chat.local_name")) ||
-      name.includes("Local Station");
+    const isHexOrFallback = this._isGenericOrHexNodeName(name, canonicalPk);
 
     let cleanDisplayName = (isHexOrFallback && (node?.name || node?.alias))
       ? (node.alias || node.name)
@@ -1388,12 +1390,7 @@ export class ChatModule {
       const senderPk = msg.sender ? this.resolveCanonicalPubkey(msg.sender) : null;
       if (senderPk) {
         const node = this.ctx.knownNodes?.get(senderPk.toLowerCase());
-        const isHexOrFallback = sender === senderPk ||
-          sender === senderPk.slice(0, 8) ||
-          sender.startsWith("Nodo [") ||
-          sender.toLowerCase() === "unknown" ||
-          sender.toLowerCase() === "anónimo" ||
-          sender.toLowerCase() === "anonimo";
+        const isHexOrFallback = this._isGenericOrHexNodeName(sender, senderPk);
         if (isHexOrFallback && (node?.name || node?.alias)) {
           sender = node.alias || node.name;
         }

@@ -341,21 +341,25 @@ class MeshCoreApp {
           }
         }
 
-        matchedNodes.forEach((node) => {
-          const item = document.createElement("div");
-          item.className = "cmd-item cmd-node-match";
-          item.setAttribute("role", "option");
-          item.setAttribute("tabindex", "0");
-          item.setAttribute("aria-selected", "false");
-          item.setAttribute("data-action", "select-node");
-          item.setAttribute("data-pubkey", node.public_key || "");
-          const name = node.name || (node.public_key ? node.public_key.slice(0, 8) : I18n.t("app.node_fallback"));
-          item.setAttribute("data-name", name);
-          const role = String(node.role || "CLIENT").toUpperCase().replace(/^ROUTER$/, "REPEATER");
-          const roleKey = "node.role_" + (["CLIENT", "REPEATER", "ROOM", "SENSOR", "LOCAL"].includes(role) ? role.toLowerCase() : "unknown");
-          item.innerHTML = `<i class="bi bi-broadcast me-1" style="font-size: 14px;" aria-hidden="true"></i> <span data-i18n="app.node_match">${escapeHtml(I18n.t("app.node_match"))}</span>: <strong>${escapeHtml(name)}</strong> [<span data-i18n="${roleKey}">${escapeHtml(I18n.t(roleKey))}</span>]`;
-          cmdPaletteResults.appendChild(item);
-        });
+        if (matchedNodes.length > 0) {
+          const frag = document.createDocumentFragment();
+          matchedNodes.forEach((node) => {
+            const item = document.createElement("div");
+            item.className = "cmd-item cmd-node-match";
+            item.setAttribute("role", "option");
+            item.setAttribute("tabindex", "0");
+            item.setAttribute("aria-selected", "false");
+            item.setAttribute("data-action", "select-node");
+            item.setAttribute("data-pubkey", node.public_key || "");
+            const name = node.name || (node.public_key ? node.public_key.slice(0, 8) : I18n.t("app.node_fallback"));
+            item.setAttribute("data-name", name);
+            const role = String(node.role || "CLIENT").toUpperCase().replace(/^ROUTER$/, "REPEATER");
+            const roleKey = "node.role_" + (["CLIENT", "REPEATER", "ROOM", "SENSOR", "LOCAL"].includes(role) ? role.toLowerCase() : "unknown");
+            item.innerHTML = `<i class="bi bi-broadcast me-1" aria-hidden="true"></i> <span data-i18n="app.node_match">${escapeHtml(I18n.t("app.node_match"))}</span>: <strong>${escapeHtml(name)}</strong> [<span data-i18n="${roleKey}">${escapeHtml(I18n.t(roleKey))}</span>]`;
+            frag.appendChild(item);
+          });
+          cmdPaletteResults.appendChild(frag);
+        }
       }
     };
 

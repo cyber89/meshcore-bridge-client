@@ -22,7 +22,6 @@ export class NodesModule {
     this._subscribeBus();
     this.initPresenceTicker();
     this.initContactDiscovery();
-    this.initAnalytics();
     this.fetchNodes();
   }
 
@@ -38,6 +37,15 @@ export class NodesModule {
       nodesSearchInput: document.getElementById("nodesSearchInput"),
       headerNodeCount: document.getElementById("headerNodeCount"),
       btnRefreshContacts: document.getElementById("btnRefreshContacts"),
+      countAllNodes: document.getElementById("countAllNodes"),
+      countRepeaters: document.getElementById("countRepeaters"),
+      countSensors: document.getElementById("countSensors"),
+      countRooms: document.getElementById("countRooms"),
+      countClients: document.getElementById("countClients"),
+      countAllContacts: document.getElementById("countAllContacts"),
+      countFavContacts: document.getElementById("countFavContacts"),
+      countOnlineContacts: document.getElementById("countOnlineContacts"),
+      countGpsContacts: document.getElementById("countGpsContacts"),
     };
   }
 
@@ -261,7 +269,7 @@ export class NodesModule {
     return null;
   }
 
-  _renderTelemetryMetricsHtml(node, isLocal) {
+  _renderTelemetryMetricsHtml(node, isLocal, localCoords = undefined) {
     // 1. Distance away
     let distHtml = "";
     if (isLocal) {
@@ -278,9 +286,9 @@ export class NodesModule {
       if (!hasNodeGps) {
         distHtml = `<span class="color-dim">${escapeHtml(I18n.t('nodes.dist_no_remote_gps'))}</span>`;
       } else {
-        const localCoords = this._getLocalCoordinates();
-        if (localCoords) {
-          const d = calculateDistanceM(localCoords.lat, localCoords.lon, fLat, fLon);
+        const coords = localCoords !== undefined ? localCoords : this._getLocalCoordinates();
+        if (coords) {
+          const d = calculateDistanceM(coords.lat, coords.lon, fLat, fLon);
           distHtml = d != null ? `<strong>${escapeHtml(formatDistance(d))}</strong>` : `<span class="color-dim">--</span>`;
         } else {
           distHtml = `<span class="color-dim">${escapeHtml(I18n.t('nodes.dist_no_local_gps'))}</span>`;
@@ -508,9 +516,10 @@ export class NodesModule {
    * Elimina duplicación de marcado y eventos entre las vistas de libreta y malla.
    * @param {Object} node Objeto de información de nodo.
    * @param {"contact"|"node"} mode Modo de renderizado: "contact" (libreta) o "node" (malla).
+   * @param {Object|null} [localCoords] Coordenadas locales precalculadas para evitar llamadas redundantes en bucle.
    * @returns {HTMLElement} Elemento DOM de la tarjeta configurado con listeners.
    */
-  createNodeCard(node, mode = "node") {
+  createNodeCard(node, mode = "node", localCoords = undefined) {
     const isContact = mode === "contact";
     const isLocal = Boolean(node.is_local);
     const isRepeater = node.role === "REPEATER" || node.role === "ROUTER";
@@ -755,7 +764,7 @@ export class NodesModule {
         </div>
         `}
 
-        ${this._renderTelemetryMetricsHtml(node, isLocal)}
+        ${this._renderTelemetryMetricsHtml(node, isLocal, localCoords)}
 
         <div class="node-actions-bar directory-card-actions">
           <div class="node-primary-actions">
@@ -936,6 +945,7 @@ export class NodesModule {
     if (contactsGrid) contactsGrid.textContent = "";
     if (unifiedNodesGrid) unifiedNodesGrid.textContent = "";
 
+    const localCoords = this._getLocalCoordinates();
     const contactsFrag = document.createDocumentFragment();
     const nodesFrag = document.createDocumentFragment();
 
@@ -955,41 +965,42 @@ export class NodesModule {
       if (contactsGrid && !isLocal && !isRepeater && (node.role === "CLIENT" || isClient)) {
         cntContacts++;
         if (node.is_favorite) cntFavContacts++;
+        if (getPresenceState(node.last_seen, false) === "status-online") cntOnlineContacts++;
         const cRawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
         const cRawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
         const cfLat = cRawLat != null ? parseFloat(cRawLat) : NaN;
         const cfLon = cRawLon != null ? parseFloat(cRawLon) : NaN;
         if (!isNaN(cfLat) && !isNaN(cfLon) && (cfLat !== 0 || cfLon !== 0)) cntGpsContacts++;
 
-        const cCard = this.createNodeCard(node, "contact");
+        const cCard = this.createNodeCard(node, "contact", localCoords);
         contactsFrag.appendChild(cCard);
       }
 
       // 2. Tarjetas para Nodos Unificados (Todos los nodos descubiertos en la malla)
       if (unifiedNodesGrid) {
-        const nCard = this.createNodeCard(node, "node");
+        const nCard = this.createNodeCard(node, "node", localCoords);
         const accordion = nCard.querySelector(".node-route-accordion");
         if (accordion) accordion.open = Boolean(openRoutes.get(node.public_key.toLowerCase()));
         nodesFrag.appendChild(nCard);
       }
     }
 
-    // Actualizar contadores en badges de filtros de UI
-    const cAll = document.getElementById("countAllNodes");
-    const cRep = document.getElementById("countRepeaters");
-    const cSen = document.getElementById("countSensors");
-    const cRoo = document.getElementById("countRooms");
-    const cCli = document.getElementById("countClients");
+    // Actualizar contadores en badges de filtros de UI (usando elementos cacheados)
+    const cAll = this.dom.countAllNodes || document.getElementById("countAllNodes");
+    const cRep = this.dom.countRepeaters || document.getElementById("countRepeaters");
+    const cSen = this.dom.countSensors || document.getElementById("countSensors");
+    const cRoo = this.dom.countRooms || document.getElementById("countRooms");
+    const cCli = this.dom.countClients || document.getElementById("countClients");
     if (cAll) cAll.textContent = String(deduplicatedNodes.length);
     if (cRep) cRep.textContent = String(cntRepeaters);
     if (cSen) cSen.textContent = String(cntSensors);
     if (cRoo) cRoo.textContent = String(cntRooms);
     if (cCli) cCli.textContent = String(cntClients);
 
-    const cCAll = document.getElementById("countAllContacts");
-    const cCFav = document.getElementById("countFavContacts");
-    const cCOnl = document.getElementById("countOnlineContacts");
-    const cCGps = document.getElementById("countGpsContacts");
+    const cCAll = this.dom.countAllContacts || document.getElementById("countAllContacts");
+    const cCFav = this.dom.countFavContacts || document.getElementById("countFavContacts");
+    const cCOnl = this.dom.countOnlineContacts || document.getElementById("countOnlineContacts");
+    const cCGps = this.dom.countGpsContacts || document.getElementById("countGpsContacts");
     if (cCAll) cCAll.textContent = String(cntContacts);
     if (cCFav) cCFav.textContent = String(cntFavContacts);
     if (cCOnl) cCOnl.textContent = String(cntOnlineContacts);
@@ -1015,7 +1026,10 @@ export class NodesModule {
     this._presenceInterval = setInterval(() => {
       if (document.hidden) return; // Ahorro de CPU: no actualizar DOM si la pestaña está en segundo plano u oculta
       // Actualización visual periódica de estados en línea/inactivo/desconectado
-      document.querySelectorAll(".node-card, .contact-card").forEach((card) => {
+      const cards = [];
+      if (this.dom.contactsGridUi) cards.push(...this.dom.contactsGridUi.querySelectorAll(".contact-card"));
+      if (this.dom.nodesUnifiedGridUi) cards.push(...this.dom.nodesUnifiedGridUi.querySelectorAll(".node-card"));
+      cards.forEach((card) => {
         const pk = card.getAttribute("data-pk");
         if (!pk) return;
         const node = this.knownNodes.get(pk.toLowerCase());
@@ -1055,7 +1069,6 @@ export class NodesModule {
   }
 
   initContactDiscovery() {
-    this.fetchDiscoveredContacts();
     const banner = document.getElementById("discoveryBanner");
     const countEl = document.getElementById("discoveryCount");
     const acceptBtn = document.getElementById("btnAcceptAllDiscovered");
@@ -1080,22 +1093,10 @@ export class NodesModule {
     }
   }
 
-  async fetchDiscoveredContacts() {
-    try {
-      const res = await fetch("/api/contacts", {
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
-      });
-      const data = await res.json();
-      if (data.status === "ok" && Array.isArray(data.data)) {
-        // Contactos guardados
-      }
-    } catch (_) {}
-  }
-
   filterContactsGrid(query) {
     const q = (query || "").toLowerCase().trim();
     const filter = this.activeContactsFilter || "all";
-    const cards = document.querySelectorAll("#contactsGridUi .contact-card");
+    const cards = this.dom.contactsGridUi ? this.dom.contactsGridUi.querySelectorAll(".contact-card") : [];
     let visibleCount = 0;
 
     cards.forEach((card) => {
@@ -1145,7 +1146,7 @@ export class NodesModule {
   filterNodesGrid(query) {
     const q = (query || "").toLowerCase().trim();
     const roleFilter = (this.activeNodesFilter || "all").toUpperCase();
-    const cards = document.querySelectorAll("#nodesUnifiedGridUi .node-card");
+    const cards = this.dom.nodesUnifiedGridUi ? this.dom.nodesUnifiedGridUi.querySelectorAll(".node-card") : [];
     let visibleCount = 0;
 
     cards.forEach((card) => {
@@ -1172,22 +1173,6 @@ export class NodesModule {
         emptyMsg.remove();
       }
     }
-  }
-
-  initAnalytics() {
-    this.fetchAnalytics();
-  }
-
-  async fetchAnalytics() {
-    try {
-      const res = await fetch("/api/analytics", {
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
-      });
-      const data = await res.json();
-      if (data.status === "ok" && data.data) {
-        // Renderizar analítica
-      }
-    } catch (_) {}
   }
 
   updateNodeInDom(arg1, arg2) {

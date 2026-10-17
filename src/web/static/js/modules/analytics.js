@@ -4,7 +4,7 @@
  * de tipos de paquetes, eficiencia de enrutamiento (Flood vs Direct), diagnóstico de fallos y airtime.
  */
 
-import { escapeHtml } from "../core/utils.js";
+import { escapeHtml, formatUptimeSecs } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 import {
   renderAreaChart,
@@ -12,20 +12,6 @@ import {
   renderHorizontalBarChart,
   renderSparkline,
 } from "../core/chart_engine.js";
-
-/**
- * Formatea segundos de uptime en un formato compacto legible: Xd Xh Xm.
- */
-function formatUptimeSecs(secs) {
-  if (secs == null || isNaN(secs) || secs < 0) return "--";
-  const s = Math.floor(secs);
-  const days = Math.floor(s / 86400);
-  const hours = Math.floor((s % 86400) / 3600);
-  const minutes = Math.floor((s % 3600) / 60);
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m ${s % 60}s`;
-}
 
 export class AnalyticsModule {
   constructor(context) {
