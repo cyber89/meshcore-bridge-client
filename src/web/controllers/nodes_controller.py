@@ -5,6 +5,7 @@ Handles /api/nodes, /api/lqi, /api/analytics, /api/rf/heatmap, and /api/airtime/
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
@@ -18,6 +19,17 @@ class NodesController(BaseController):
         """Devuelve el listado paginado de nodos de la red Mesh."""
         all_nodes = self.ctx.bridge.node_registry.list_nodes()
         nodes_page = all_nodes[offset : offset + limit]
+        db = getattr(self.ctx.bridge.node_registry, "database", None)
+        if (
+            db is not None
+            and hasattr(db, "list_sensor_subscriptions")
+            and any(str(n.get("role", "")).upper() == "SENSOR" for n in nodes_page)
+        ):
+            subs_by_key = await asyncio.to_thread(db.list_sensor_subscriptions)
+            for node in nodes_page:
+                if str(node.get("role", "")).upper() == "SENSOR":
+                    pk = str(node.get("public_key", "")).strip().lower()
+                    node["sensor_subscription"] = subs_by_key.get(pk, {"status": "none"})
 
         return 200, {
             "status": "ok",

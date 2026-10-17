@@ -14,7 +14,7 @@ import struct
 from binascii import crc_hqx
 from dataclasses import asdict, dataclass
 from enum import IntEnum
-from typing import Any, Protocol, Self
+from typing import Any, Final, Protocol, Self
 
 # ================= Constantes y Alias de Tipos (PEP 695) =================
 
@@ -193,13 +193,121 @@ class CommandType(IntEnum):
 
 
 class BinaryReqType(IntEnum):
-    """Tipos de solicitud binaria (SDK packets.py)."""
+    """Tipos de solicitud binaria (SDK packets.py / MeshCore 1.18 Companion v14)."""
     STATUS = 0x01
     KEEP_ALIVE = 0x02
     TELEMETRY = 0x03
     MMA = 0x04
     ACL = 0x05
     NEIGHBOURS = 0x06
+    SUBSCRIBE = 0x08
+    UNSUBSCRIBE = 0x09
+
+
+SENSOR_SUBSCRIBE_BALANCED_TIMEOUT_S: Final[int] = 3600
+# CayenneLPP min_deltas: ch1 temperature (0x67) 0.5 C (0x0005), ch1 voltage (0x74) 0.10 V (0x000a)
+SENSOR_SUBSCRIBE_BALANCED_DELTAS: Final[bytes] = b"\x01\x67\x00\x05\x01\x74\x00\x0a"
+
+
+def build_sensor_subscribe_payload(
+    push_tag: bytes | str,
+    timeout_s: int = SENSOR_SUBSCRIBE_BALANCED_TIMEOUT_S,
+    min_deltas: bytes = SENSOR_SUBSCRIBE_BALANCED_DELTAS,
+) -> bytes:
+    """Build REQ_TYPE_SUBSCRIBE (0x08) payload per SensorMesh.cpp (Companion v14 / 1.18).
+
+    Wire layout:
+      push_tag (4B) | timeout_secs (uint16 LE) | reserved (0x00) | min_deltas_len (uint8, 3..14) | min_deltas
+    """
+    if isinstance(push_tag, str):
+        clean_tag = push_tag.strip().lower().removeprefix("0x")
+        if len(clean_tag) != 8:
+            raise ValueError("Sensor subscription push_tag must be 4 bytes (8 hex chars)")
+        tag_bytes = bytes.fromhex(clean_tag)
+    elif isinstance(push_tag, (bytes, bytearray)):
+        tag_bytes = bytes(push_tag)
+    else:
+        raise TypeError("Sensor subscription push_tag must be bytes or hex str")
+
+    if len(tag_bytes) != 4 or tag_bytes == b"\x00\x00\x00\x00":
+        raise ValueError("Sensor subscription push_tag must be 4 non-zero bytes")
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, int) or not 1 <= timeout_s <= 0xFFFF:
+        raise ValueError("Sensor subscription timeout_s must be an integer in 1..65535")
+    if not isinstance(min_deltas, (bytes, bytearray)) or not 3 <= len(min_deltas) <= 14:
+        raise ValueError("Sensor subscription min_deltas must be 3..14 CayenneLPP bytes")
+
+    deltas_bytes = bytes(min_deltas)
+    return tag_bytes + struct.pack("<HBB", timeout_s, 0, len(deltas_bytes)) + deltas_bytes
+
+
+def parse_sensor_subscribe_reply(response_data: bytes | str) -> dict[str, Any]:
+    """Parse BINARY_RESPONSE data for REQ_TYPE_SUBSCRIBE (0x08) after tag extraction.
+
+    SensorMesh.cpp replies with:
+      sender_timestamp/tag (4B, stripped by SDK reader) | actual_timeout_secs (uint16 LE) | 0x0000 (2B) | scope_name
+    On rejection, actual_timeout_secs is 0 (2B b'\\x00\\x00').
+    """
+    try:
+        raw = bytes.fromhex(response_data.strip()) if isinstance(response_data, str) else bytes(response_data)
+    except (ValueError, TypeError):
+        return {"ok": False, "actual_timeout_s": 0, "scope_name": "", "error": "invalid_hex"}
+
+    if len(raw) < 2:
+        return {"ok": False, "actual_timeout_s": 0, "scope_name": "", "error": "short_reply"}
+
+    actual_timeout_s = int.from_bytes(raw[0:2], "little", signed=False)
+    if actual_timeout_s == 0:
+        return {"ok": False, "actual_timeout_s": 0, "scope_name": "", "error": "subscription_rejected"}
+
+    if len(raw) < 4:
+        return {"ok": False, "actual_timeout_s": 0, "scope_name": "", "error": "malformed_subscribe_reply"}
+
+    reserved = int.from_bytes(raw[2:4], "little", signed=False)
+    if reserved != 0:
+        return {"ok": False, "actual_timeout_s": 0, "scope_name": "", "error": "non_zero_reserved"}
+
+    scope_raw = raw[4:].split(b"\x00", 1)[0]
+    scope_name = scope_raw.decode("utf-8", errors="replace").strip()
+    return {
+        "ok": True,
+        "actual_timeout_s": actual_timeout_s,
+        "scope_name": scope_name,
+    }
+
+
+def parse_sensor_unsubscribe_reply(response_data: bytes | str) -> bool:
+    """Validate BINARY_RESPONSE data for REQ_TYPE_UNSUBSCRIBE (0x09) after tag extraction.
+
+    SensorMesh.cpp replies with:
+      sender_timestamp/tag (4B, stripped by SDK reader) | zeros (8B) | random (2B)
+    """
+    try:
+        raw = bytes.fromhex(response_data.strip()) if isinstance(response_data, str) else bytes(response_data)
+    except (ValueError, TypeError):
+        return False
+    return len(raw) == 10 and raw[:8] == b"\x00" * 8
+
+
+def parse_sensor_push_payload(response_data: bytes | str) -> dict[str, Any] | None:
+    """Extract (sample_timestamp, lpp_bytes) from an incoming 0x8C sensor push payload.
+
+    SensorMesh.cpp sendPushToSubscriber sends:
+      push_tag (4B, stripped into event.payload['tag'] by SDK reader) | timestamp (uint32 LE) | CayenneLPP bytes
+    """
+    try:
+        raw = bytes.fromhex(response_data.strip()) if isinstance(response_data, str) else bytes(response_data)
+    except (ValueError, TypeError):
+        return None
+    # Need 4-byte uint32 LE sample_timestamp + at least 3 bytes for one CayenneLPP entry (ch, type, val).
+    if len(raw) < 7:
+        return None
+    sample_timestamp = int.from_bytes(raw[0:4], "little", signed=False)
+    lpp_bytes = raw[4:]
+    return {
+        "sample_timestamp": sample_timestamp,
+        "lpp_bytes": lpp_bytes,
+    }
+
 
 
 class ControlType(IntEnum):

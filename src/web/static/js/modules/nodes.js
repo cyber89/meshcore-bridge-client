@@ -730,6 +730,7 @@ export class NodesModule {
             </div>
             <div class="node-card-sub-row node-card-badges-group directory-card-badges">
               ${batInfo ? `<span class="contact-battery-chip ${batInfo.levelClass}" title="${escapeHtml(batInfo.tooltip)}"><i class="bi bi-battery-half button-icon" aria-hidden="true"></i> ${escapeHtml(batInfo.chipText)}</span>` : ""}
+              ${this._renderSensorSubscriptionBadgeHtml(node, isSensor)}
               <span class="node-card-activity" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
             </div>
           </div>
@@ -761,6 +762,14 @@ export class NodesModule {
           ${isRepeater ? `
             <button type="button" class="btn btn-primary btn-sm btn-card-action btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
               <i class="bi bi-sliders button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.manage_btn')}</span>
+            </button>
+          ` : ""}
+          ${!isLocal && isSensor ? `
+            <button type="button" class="btn btn-primary btn-sm btn-card-action btn-subscribe-sensor" title="${escapeHtml(I18n.t('nodes.sensor_subscribe_title'))}">
+              <i class="bi bi-broadcast-pin button-icon" aria-hidden="true"></i><span>${escapeHtml(I18n.t('nodes.sensor_subscribe_btn'))}</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm btn-card-action btn-unsubscribe-sensor ${this._getSensorSubStatus(node) === "active" ? "" : "hidden"}" title="${escapeHtml(I18n.t('nodes.sensor_unsubscribe_title'))}">
+              <i class="bi bi-slash-circle button-icon" aria-hidden="true"></i><span>${escapeHtml(I18n.t('nodes.sensor_unsubscribe_btn'))}</span>
             </button>
           ` : ""}
           ${!isLocal && !isRepeater && !isSensor ? `
@@ -795,6 +804,14 @@ export class NodesModule {
       if (isRepeater) {
         card.querySelector(".btn-manage-repeater")?.addEventListener("click", () => {
           if (this.ctx.openRepeaterAdminModal) this.ctx.openRepeaterAdminModal(node.public_key, cleanName);
+        });
+      }
+      if (!isLocal && isSensor) {
+        card.querySelector(".btn-subscribe-sensor")?.addEventListener("click", (e) => {
+          this.manageSensorSubscription(node.public_key, cleanName, "subscribe_sensor", e.currentTarget);
+        });
+        card.querySelector(".btn-unsubscribe-sensor")?.addEventListener("click", (e) => {
+          this.manageSensorSubscription(node.public_key, cleanName, "unsubscribe_sensor", e.currentTarget);
         });
       }
       if (!isLocal && !isRepeater && !isSensor) {
@@ -1307,7 +1324,106 @@ export class NodesModule {
           }
         }
       }
+
+      if (String(node.role || "").toUpperCase() === "SENSOR") {
+        const subStatus = this._getSensorSubStatus(node);
+        const badgesRow = card.querySelector(".directory-card-badges");
+        const existingBadge = card.querySelector(".sensor-subscription-badge");
+        const badgeHtml = this._renderSensorSubscriptionBadgeHtml(node, true);
+        if (badgeHtml) {
+          const temp = document.createElement("span");
+          temp.innerHTML = badgeHtml;
+          const nextBadge = temp.firstElementChild;
+          if (existingBadge && nextBadge) {
+            existingBadge.replaceWith(nextBadge);
+          } else if (badgesRow && nextBadge) {
+            badgesRow.insertBefore(nextBadge, badgesRow.querySelector(".node-card-activity"));
+          }
+        } else if (existingBadge) {
+          existingBadge.remove();
+        }
+        const unsubBtn = card.querySelector(".btn-unsubscribe-sensor");
+        if (unsubBtn) {
+          unsubBtn.classList.toggle("hidden", subStatus !== "active");
+        }
+      }
     });
+  }
+
+  _getSensorSubStatus(node) {
+    const sub = node?.sensor_subscription;
+    if (!sub || typeof sub !== "object") return "none";
+    const nowSec = Date.now() / 1000;
+    if (sub.status === "active") {
+      if (typeof sub.expires_at === "number" && sub.expires_at <= nowSec) {
+        return "expired";
+      }
+      return "active";
+    }
+    if (sub.status === "expired") return "expired";
+    return "none";
+  }
+
+  _renderSensorSubscriptionBadgeHtml(node, isSensor) {
+    if (!isSensor) return "";
+    const status = this._getSensorSubStatus(node);
+    if (status === "active") {
+      return `<span class="node-metric-tag sensor-subscription-badge status-active" data-sub-status="active"><i class="bi bi-broadcast-pin button-icon" aria-hidden="true"></i> ${escapeHtml(I18n.t('nodes.sensor_sub_active'))}</span>`;
+    }
+    if (status === "expired") {
+      return `<span class="node-metric-tag sensor-subscription-badge status-expired" data-sub-status="expired"><i class="bi bi-clock-history button-icon" aria-hidden="true"></i> ${escapeHtml(I18n.t('nodes.sensor_sub_expired'))}</span>`;
+    }
+    return "";
+  }
+
+  async manageSensorSubscription(pubkey, name, action, btnEl) {
+    if (!pubkey || (action !== "subscribe_sensor" && action !== "unsubscribe_sensor")) return;
+    const cleanKey = pubkey.toLowerCase().trim();
+    const cleanName = name || cleanKey.slice(0, 8);
+    if (!this._sensorSubPending) this._sensorSubPending = new Set();
+    if (this._sensorSubPending.has(cleanKey)) return;
+    this._sensorSubPending.add(cleanKey);
+
+    const originalHtml = btnEl ? btnEl.innerHTML : null;
+    if (btnEl) {
+      btnEl.disabled = true;
+      const busyLabel = action === "subscribe_sensor"
+        ? I18n.t("nodes.sensor_subscribing")
+        : I18n.t("nodes.sensor_unsubscribing");
+      btnEl.innerHTML = `<i class="bi bi-arrow-repeat spin button-icon" aria-hidden="true"></i><span>${escapeHtml(busyLabel)}</span>`;
+    }
+
+    try {
+      const res = await fetch("/api/repeater/remote/action", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: cleanKey, action }),
+      });
+      const body = await res.json().catch(() => ({}));
+      const payload = body?.data && typeof body.data === "object" ? body.data : body;
+      if (res.ok && body.status === "ok" && payload.status !== "error") {
+        const nextSub = payload.sensor_subscription || (action === "subscribe_sensor" ? { status: "active" } : { status: "none" });
+        const prev = this.knownNodes.get(cleanKey) || { public_key: cleanKey, name: cleanName, role: "SENSOR" };
+        const updated = { ...prev, sensor_subscription: nextSub };
+        this.knownNodes.set(cleanKey, updated);
+        this.updateNodeInDom(cleanKey, updated);
+        const toastMsg = action === "subscribe_sensor"
+          ? I18n.t("toast.sensor_subscribed", { name: cleanName })
+          : I18n.t("toast.sensor_unsubscribed", { name: cleanName });
+        this.ctx.showToast?.(toastMsg, "success");
+      } else {
+        const errMsg = payload?.message || body?.detail || body?.message || I18n.t("common.unknown_error");
+        this.ctx.showToast?.(I18n.t("toast.sensor_sub_error", { name: cleanName, error: errMsg }), "warning");
+      }
+    } catch (err) {
+      this.ctx.showToast?.(I18n.t("toast.sensor_sub_error", { name: cleanName, error: err.message }), "error");
+    } finally {
+      this._sensorSubPending.delete(cleanKey);
+      if (btnEl && originalHtml) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+      }
+    }
   }
 
   async pingNode(pubkey, name, btnEl) {

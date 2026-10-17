@@ -31,6 +31,12 @@ from src.contact_manager import (
 from src.protocol_types import (
     LORA_MAX_FREQ_MHZ,
     LORA_MIN_FREQ_MHZ,
+    SENSOR_SUBSCRIBE_BALANCED_DELTAS,
+    SENSOR_SUBSCRIBE_BALANCED_TIMEOUT_S,
+    BinaryReqType,
+    build_sensor_subscribe_payload,
+    parse_sensor_subscribe_reply,
+    parse_sensor_unsubscribe_reply,
     redact_command_str,
     redact_sensitive_mapping,
 )
@@ -284,10 +290,272 @@ class RepeaterAdminExecutor:
                 return {"status": "error", "code": 422, "message": "El lote de administración requiere un repetidor"}
             return await self._execute_batch_telemetry_query(req, target_info, res)
 
+        if req.action.strip().lower() in ("subscribe_sensor", "unsubscribe_sensor"):
+            return await self._execute_sensor_subscription(req, target_info, res)
+
         if is_client_only:
             return {"status": "error", "message": "Los comandos de administración remota son exclusivos para repetidores"}
 
         return await self._dispatch_rf_command(req, target_info, res)
+
+    async def _broadcast_sensor_subscription_update(
+        self,
+        canonical_key: str,
+        sensor_subscription: dict[str, Any],
+    ) -> None:
+        contact = self._ctx.node_registry.get_contact(canonical_key)
+        if contact is None or not self._ctx.web_server or not hasattr(self._ctx.web_server, "broadcast_event"):
+            return
+        try:
+            contact_dict = contact.to_dict()
+            contact_dict["sensor_subscription"] = sensor_subscription
+            coro = self._ctx.web_server.broadcast_event({
+                "type": "contact_updated",
+                "event_type": "contact_updated",
+                "contact": contact_dict,
+            })
+            if asyncio.iscoroutine(coro):
+                await coro
+        except Exception:
+            pass
+
+    async def _execute_sensor_subscription(
+        self,
+        req: RemoteRepeaterRequest,
+        target_info: dict[str, Any] | None,
+        res: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Execute manual REQ_TYPE_SUBSCRIBE (0x08) or REQ_TYPE_UNSUBSCRIBE (0x09) on a SENSOR node."""
+        action_clean = req.action.strip().lower()
+        requested_info = self._collect_target_info(str(req.target_node))
+        dest_target = self._request_target(req)
+        resolved_key = self._target_field(dest_target, "public_key")
+        canonical = str(resolved_key or (dest_target if isinstance(dest_target, str) else "")).strip().lower()
+        if len(canonical) != 64 or not is_valid_node_key(canonical):
+            return {
+                "status": "error",
+                "code": 422,
+                "reason": "invalid_sensor_target",
+                "message": "La suscripción de sensor requiere la clave pública completa (64 hex)",
+            }
+        if requested_info and str(requested_info.get("public_key", "")).lower() != canonical:
+            return {
+                "status": "error",
+                "code": 422,
+                "reason": "conflicting_sensor_target",
+                "message": "El identificador del nodo sensor es ambiguo o contradictorio",
+            }
+        local_key = str(self._get_local_config().get("public_key", "")).strip().lower()
+        if canonical == local_key or self._ctx.node_registry.is_local_key(canonical):
+            return {
+                "status": "error",
+                "code": 422,
+                "reason": "local_sensor_target",
+                "message": "Bucle local prohibido: el destino es la estación base",
+            }
+
+        info = self._collect_target_info(canonical) or target_info
+        role = str((info or {}).get("role", "")).upper()
+        observed_types = [self._target_field(dest_target, f) for f in ("type", "adv_type")]
+        if role != "SENSOR" or any(
+            obs is not None and (type(getattr(obs, "value", obs)) is not int or getattr(obs, "value", obs) != 4)
+            for obs in observed_types
+        ):
+            return {
+                "status": "error",
+                "code": 422,
+                "reason": "sensor_role_required",
+                "message": "Las suscripciones 0x08/0x09 son exclusivas para nodos con rol SENSOR",
+            }
+
+        mc = req.mc
+        if not mc or not hasattr(mc, "commands") or not hasattr(mc.commands, "send_binary_req"):
+            return {
+                "status": "error",
+                "code": 503,
+                "message": "El transceptor no soporta solicitudes binarias (send_binary_req)",
+            }
+        dispatcher = getattr(mc, "dispatcher", None)
+        if dispatcher is None or not hasattr(dispatcher, "wait_for_event"):
+            return {
+                "status": "error",
+                "code": 503,
+                "message": "El despachador de eventos del SDK no está disponible",
+            }
+        db = getattr(self._ctx.node_registry, "database", None)
+        if db is None:
+            return {
+                "status": "error",
+                "code": 503,
+                "message": "Base de datos de estación no disponible para suscripciones",
+            }
+
+        if not req.manual:
+            can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(canonical, is_full_query=False)
+            if not can_send:
+                return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
+
+        if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_command_sent"):
+            self._ctx.repeater_manager.record_command_sent(canonical, is_full_query=False)
+            await self._flush_cooldowns()
+
+        target_name = str((info.get("name") or info.get("alias")) if info else f"Sensor {canonical[:8]}")
+        await self._ensure_radio_contact(mc, dest_target, target_name, advert_type_override=4)
+
+        if req.password:
+            waiter_keys = [canonical, canonical[:8], canonical[:4]]
+            async with self._waiters.expect_response(waiter_keys) as login_fut:
+                login_ctx = RfExecutionContext(req, dest_target, dest_target, waiter_keys, login_fut, res)
+                authenticated, auth_msg = await self._authenticate_repeater(login_ctx, min_timeout=4.0)
+            if not authenticated:
+                res.update({"status": "error", "code": 403, "authenticated": False, "message": auth_msg})
+                return res
+            await asyncio.sleep(0.35)
+
+        push_tag = ""
+        if action_clean == "subscribe_sensor":
+            push_tag = await asyncio.to_thread(db.allocate_sensor_push_tag, canonical)
+            req_payload = build_sensor_subscribe_payload(
+                push_tag,
+                timeout_s=SENSOR_SUBSCRIBE_BALANCED_TIMEOUT_S,
+                min_deltas=SENSOR_SUBSCRIBE_BALANCED_DELTAS,
+            )
+            req_type = BinaryReqType.SUBSCRIBE
+        else:
+            req_payload = b""
+            req_type = BinaryReqType.UNSUBSCRIBE
+
+        send_res = await run_sdk_command(
+            self._ctx,
+            mc,
+            "send_binary_req",
+            dest_target,
+            req_type,
+            data=req_payload,
+        )
+        require_success(send_res, "send_binary_req")
+
+        send_payload = (
+            send_res.get("payload", send_res)
+            if isinstance(send_res, dict)
+            else getattr(send_res, "payload", {})
+        )
+        if not isinstance(send_payload, dict):
+            send_payload = {}
+        raw_ack = send_payload.get("expected_ack")
+        if isinstance(raw_ack, (bytes, bytearray)):
+            expected_ack = bytes(raw_ack).hex().lower()
+        else:
+            expected_ack = str(raw_ack or "").strip().lower().removeprefix("0x")
+        if len(expected_ack) != 8 or any(c not in "0123456789abcdef" for c in expected_ack) or all(c == "0" for c in expected_ack):
+            return {
+                "status": "error",
+                "code": 502,
+                "action": action_clean,
+                "target_node": canonical,
+                "message": "El transceptor no devolvió un tag de correlación válido (expected_ack)",
+            }
+
+        suggested_ms = float(send_payload.get("suggested_timeout", 0) or 0)
+        wait_timeout = max(4.0, min(15.0, suggested_ms / 800.0))
+
+        try:
+            from meshcore.events import EventType as SdkEventType
+            bin_event_type: Any = SdkEventType.BINARY_RESPONSE
+        except Exception:
+            bin_event_type = "binary_response"
+
+        reply_event = await dispatcher.wait_for_event(
+            bin_event_type,
+            attribute_filters={"tag": expected_ack},
+            timeout=wait_timeout,
+        )
+        if reply_event is None:
+            res.update({
+                "status": "error",
+                "code": 504,
+                "action": action_clean,
+                "target_node": canonical,
+                "timeout": True,
+                "message": "Sin respuesta binaria del nodo sensor",
+            })
+            return res
+
+        reply_payload = (
+            reply_event.get("payload", reply_event)
+            if isinstance(reply_event, dict)
+            else getattr(reply_event, "payload", {})
+        )
+        if not isinstance(reply_payload, dict):
+            reply_payload = {}
+        reply_tag = str(reply_payload.get("tag") or expected_ack).strip().lower().removeprefix("0x")
+        if reply_tag != expected_ack:
+            return {
+                "status": "error",
+                "code": 400,
+                "action": action_clean,
+                "target_node": canonical,
+                "message": "El tag de respuesta binaria no coincide con la solicitud enviada",
+            }
+        reply_data = reply_payload.get("data", b"")
+
+        if action_clean == "subscribe_sensor":
+            parsed = parse_sensor_subscribe_reply(reply_data)
+            if not parsed.get("ok"):
+                res.update({
+                    "status": "error",
+                    "code": 400,
+                    "action": "subscribe_sensor",
+                    "target_node": canonical,
+                    "reason": str(parsed.get("error") or "subscription_rejected"),
+                    "message": "El nodo sensor rechazó la suscripción o devolvió una respuesta inválida",
+                })
+                return res
+
+            await asyncio.to_thread(
+                db.save_sensor_subscription,
+                canonical,
+                push_tag=push_tag,
+                requested_timeout_s=SENSOR_SUBSCRIBE_BALANCED_TIMEOUT_S,
+                actual_timeout_s=int(parsed["actual_timeout_s"]),
+                min_deltas_hex=SENSOR_SUBSCRIBE_BALANCED_DELTAS.hex(),
+                scope_name=str(parsed.get("scope_name") or ""),
+            )
+            public_sub = db.get_sensor_subscription_public_view(canonical)
+            await self._broadcast_sensor_subscription_update(canonical, public_sub)
+            res.update({
+                "status": "ok",
+                "action": "subscribe_sensor",
+                "target_node": canonical,
+                "sensor_subscription": public_sub,
+                "message": f"Suscripción manual activa ({max(1, int(parsed['actual_timeout_s']) // 60)} min)",
+            })
+            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{canonical}/sensor_subscription", json.dumps(res), 1)
+            return res
+
+        if not parse_sensor_unsubscribe_reply(reply_data):
+            res.update({
+                "status": "error",
+                "code": 400,
+                "action": "unsubscribe_sensor",
+                "target_node": canonical,
+                "reason": "invalid_unsubscribe_reply",
+                "message": "El nodo sensor no confirmó la cancelación de suscripción",
+            })
+            return res
+
+        await asyncio.to_thread(db.remove_sensor_subscription, canonical)
+        public_sub = {"status": "none"}
+        await self._broadcast_sensor_subscription_update(canonical, public_sub)
+        res.update({
+            "status": "ok",
+            "action": "unsubscribe_sensor",
+            "target_node": canonical,
+            "sensor_subscription": public_sub,
+            "message": "Suscripción de sensor cancelada",
+        })
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{canonical}/sensor_subscription", json.dumps(res), 1)
+        return res
 
     def _collect_target_info(self, target_node: str) -> dict[str, Any] | None:
         """Select exact or uniquely known registry metadata, never a first match."""

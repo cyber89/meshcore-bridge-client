@@ -1587,6 +1587,11 @@ class NodeRegistry:
             node_dict["measured_lqi_status"] = c.lqi_status
             if c.max_tx_power is not None:
                 node_dict["max_tx_power"] = c.max_tx_power
+            if str(c.role).upper() == "SENSOR":
+                if self.database is not None and hasattr(self.database, "get_sensor_subscription_public_view"):
+                    node_dict["sensor_subscription"] = self.database.get_sensor_subscription_public_view(c.public_key)
+                else:
+                    node_dict["sensor_subscription"] = {"status": "none"}
             result.append(node_dict)
 
         return result

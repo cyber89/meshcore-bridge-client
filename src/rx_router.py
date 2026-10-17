@@ -582,7 +582,18 @@ class RxEventRouter:
                     text = candidate_clean
 
         ev_upper_cand = ev_type_str.upper()
-        if not sender:
+        is_binary_response = (
+            ev_upper_cand.replace("EVENTTYPE.", "").strip() == "BINARY_RESPONSE"
+            or str(payload_dict.get("event_type", "")).strip().lower() == "binary_response"
+        )
+        if is_binary_response:
+            # 0x8C BINARY_RESPONSE frames only carry (tag, data) on the Companion wire;
+            # sender attribution is exclusively authorized by SystemHandler tag correlation.
+            sender = ""
+            sender_name = ""
+            payload_dict.pop("sender", None)
+            payload_dict.pop("sender_name", None)
+        elif not sender:
             if any(k in ev_upper_cand for k in (
                 "SELF", "BATTERY", "DEVICE_INFO", "LOCAL", "STATS", "TUNING", "CUSTOM_VARS", "TIME", "STATUS"
             )):
@@ -648,8 +659,9 @@ class RxEventRouter:
         )
 
         specialized_route_event = (
-            meta.ev_upper in ("PATH_UPDATE", "RX_LOG_DATA", "LOG_DATA")
-            or payload_dict.get("event_type") in ("path_update", "rx_log_data", "log_data")
+            is_binary_response
+            or meta.ev_upper in ("PATH_UPDATE", "RX_LOG_DATA", "LOG_DATA", "BINARY_RESPONSE")
+            or payload_dict.get("event_type") in ("path_update", "rx_log_data", "log_data", "binary_response")
         )
         if sender and is_valid_node_key(sender) and not specialized_route_event:
             self._update_node_registry_presence(meta, payload_dict)
@@ -1155,10 +1167,14 @@ class RxEventRouter:
             )
             updated_telem_contact = self._ctx.node_registry.add_or_update(sender, telem_update)
             if updated_telem_contact and not is_local_telem:
+                contact_dict = updated_telem_contact.to_dict()
+                db = getattr(self._ctx.node_registry, "database", None)
+                if str(updated_telem_contact.role).upper() == "SENSOR" and db is not None and hasattr(db, "get_sensor_subscription_public_view"):
+                    contact_dict["sensor_subscription"] = db.get_sensor_subscription_public_view(updated_telem_contact.public_key)
                 self._spawn_broadcast_task({
                     "type": "contact_updated",
                     "event_type": "contact_updated",
-                    "contact": updated_telem_contact.to_dict(),
+                    "contact": contact_dict,
                 })
 
         # Sanitizar cualquier otro campo bytes restante
@@ -1169,13 +1185,23 @@ class RxEventRouter:
         payload_dict["timestamp"] = datetime.now(UTC).isoformat()
         evt_json = json.dumps(payload_dict, sort_keys=True)
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-        if any(k in payload_dict for k in ("battery", "battery_pct", "battery_mv", "voltage", "voltage_v", "temperature", "temperature_c", "humidity_pct", "pressure_hpa", "solar_v")):
+        is_telemetry_payload = (
+            payload_dict.get("telemetry_source") == "sensor_subscription"
+            or any(
+                k in payload_dict
+                for k in (
+                    "battery", "battery_pct", "battery_mv", "voltage", "voltage_v",
+                    "temperature", "temperature_c", "humidity_pct", "pressure_hpa",
+                    "solar_v", "lpp_readings",
+                )
+            )
+        )
+        if is_telemetry_payload:
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
         self._spawn_broadcast_task(payload_dict)
 
         if not is_self_info:
-            is_telemetry = any(k in payload_dict for k in ("battery", "battery_pct", "battery_mv", "voltage", "voltage_v", "temperature", "temperature_c", "humidity_pct", "pressure_hpa", "solar_v"))
-            ev_type = "telemetry" if is_telemetry else "node"
+            ev_type = "telemetry" if is_telemetry_payload else "node"
             self._forward_to_external_mqtt(
                 event_type=ev_type,
                 payload_data=payload_dict,

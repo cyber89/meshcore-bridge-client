@@ -329,8 +329,8 @@ class AdminCommandHandler:
         except RuntimeError:
             return {"status": "error", "code": 400, "message": "El firmware no confirmó la operación"}
 
-    def _manual_remote_target(self, target_node: Any) -> Any:
-        """Freeze an unambiguous infrastructure destination from trusted metadata."""
+    def _manual_remote_target(self, target_node: Any, *, action: str = "") -> Any:
+        """Freeze an unambiguous infrastructure or sensor destination from trusted metadata."""
         if not target_node or str(target_node).strip().lower() in ("local", "000000000000") or self._ctx.node_registry.is_local_key(str(target_node)):
             return None
         resolved = self._resolve_target(str(target_node), 12)
@@ -343,16 +343,23 @@ class AdminCommandHandler:
             return None
         info = self._repeater_executor._collect_target_info(key)
         role = str((info or {}).get("role", "")).upper()
-        if role and role not in ("REPEATER", "ROUTER", "ROOM"):
-            return None
         advert = field(resolved, "type")
         if advert is None:
             advert = field(resolved, "adv_type")
         advert = getattr(advert, "value", advert)
-        if advert is not None and (type(advert) is not int or advert not in (2, 3)):
-            return None
-        if role not in ("REPEATER", "ROUTER", "ROOM") and advert not in (2, 3):
-            return None
+        is_sensor_action = action.strip().lower() in ("subscribe_sensor", "unsubscribe_sensor")
+        if is_sensor_action:
+            if role != "SENSOR":
+                return None
+            if advert is not None and (type(advert) is not int or advert != 4):
+                return None
+        else:
+            if role and role not in ("REPEATER", "ROUTER", "ROOM"):
+                return None
+            if advert is not None and (type(advert) is not int or advert not in (2, 3)):
+                return None
+            if role not in ("REPEATER", "ROUTER", "ROOM") and advert not in (2, 3):
+                return None
         # SDK contact mappings contain routing data as well as identity. A copy
         # prevents a later contact-book refresh from changing this operation.
         if isinstance(resolved, dict):
@@ -412,13 +419,13 @@ class AdminCommandHandler:
             res["request_id"] = req_id
 
         mc = self._ctx.mc_provider()
-        manual_target = self._manual_remote_target(target_node) if manual else None
+        manual_target = self._manual_remote_target(target_node, action=action) if manual else None
 
         # 1. Caso especial: Traceroute Multi-Salto (se ejecuta con o sin target_node)
         if action in ("traceroute", "trace", "trace_route", "send_trace"):
             return await self._handle_traceroute(admin_data, action, target_node, res, mc, manual_target=manual_target)
 
-        # 2. Comandos dirigidos a un repetidor remoto (solo si target_node no es la estación local)
+        # 2. Comandos dirigidos a un repetidor o sensor remoto (solo si target_node no es la estación local)
         is_local_target = bool(target_node and (self._ctx.node_registry.is_local_key(str(target_node)) or str(target_node).lower() in ("local", "000000000000")))
         if target_node and not is_local_target:
             req = RemoteRepeaterRequest(

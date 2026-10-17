@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import secrets
 import sqlite3
 import threading
 import time
@@ -76,6 +77,7 @@ class StationDatabase:
         self.path = Path(path)
         self._lock = threading.RLock()
         self._initialized = False
+        self._sensor_subscriptions_cache: dict[str, dict[str, Any]] = {}
 
     def _restrict_files(self) -> None:
         for path in (self.path, Path(f"{self.path}-wal"), Path(f"{self.path}-shm")):
@@ -122,6 +124,7 @@ class StationDatabase:
             os.close(descriptor)
             self._restrict_files()
             connection = sqlite3.connect(self.path, timeout=30)
+            connection.row_factory = sqlite3.Row
             try:
                 version = int(connection.execute("PRAGMA user_version").fetchone()[0])
                 if version > _SCHEMA_VERSION:
@@ -146,7 +149,24 @@ class StationDatabase:
                 connection.execute("""CREATE TABLE IF NOT EXISTS pending_acks (
                     ack_code TEXT PRIMARY KEY, req_id TEXT NOT NULL, target TEXT NOT NULL,
                     timestamp REAL NOT NULL)""")
+                connection.execute("""CREATE TABLE IF NOT EXISTS sensor_subscriptions (
+                    public_key TEXT PRIMARY KEY,
+                    push_tag TEXT NOT NULL UNIQUE,
+                    requested_timeout_s INTEGER NOT NULL,
+                    actual_timeout_s INTEGER NOT NULL,
+                    min_deltas_hex TEXT NOT NULL,
+                    scope_name TEXT NOT NULL DEFAULT '',
+                    subscribed_at REAL NOT NULL,
+                    expires_at REAL NOT NULL,
+                    status TEXT NOT NULL,
+                    last_sample_timestamp INTEGER,
+                    last_push_at REAL)""")
+                connection.execute("CREATE INDEX IF NOT EXISTS sensor_subscriptions_tag ON sensor_subscriptions(push_tag)")
                 connection.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
+                sub_rows = connection.execute("SELECT * FROM sensor_subscriptions").fetchall()
+                self._sensor_subscriptions_cache = {
+                    str(row["public_key"]): dict(row) for row in sub_rows
+                }
                 connection.commit()
                 self._initialized = True
             except BaseException:
@@ -492,3 +512,255 @@ class StationDatabase:
             finally:
                 target.close()
                 os.chmod(destination, 0o600)
+
+    @staticmethod
+    def _format_sensor_subscription(
+        row_data: sqlite3.Row | dict[str, Any],
+        *,
+        now: float | None = None,
+        include_tag: bool = True,
+    ) -> dict[str, Any]:
+        curr_now = float(now if now is not None else time.time())
+        expires_at = float(row_data["expires_at"])
+        stored_status = str(row_data["status"] or "expired").strip().lower()
+        effective_status = (
+            "active" if stored_status == "active" and curr_now < expires_at else "expired"
+        )
+        raw_sample_ts = row_data["last_sample_timestamp"]
+        raw_push_at = row_data["last_push_at"]
+        result: dict[str, Any] = {
+            "public_key": str(row_data["public_key"]),
+            "requested_timeout_s": int(row_data["requested_timeout_s"]),
+            "actual_timeout_s": int(row_data["actual_timeout_s"]),
+            "min_deltas_hex": str(row_data["min_deltas_hex"]),
+            "scope_name": str(row_data["scope_name"] or ""),
+            "subscribed_at": float(row_data["subscribed_at"]),
+            "expires_at": expires_at,
+            "status": effective_status,
+            "last_sample_timestamp": int(raw_sample_ts) if raw_sample_ts is not None else None,
+            "last_push_at": float(raw_push_at) if raw_push_at is not None else None,
+        }
+        if include_tag:
+            result["push_tag"] = str(row_data["push_tag"])
+        return result
+
+    def allocate_sensor_push_tag(self, public_key: str) -> str:
+        """Allocate a unique 4-byte non-zero hex tag for manual sensor subscription."""
+        pk = str(public_key or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", pk):
+            raise ValueError("Sensor subscription target must be a 64-hex public key")
+        with self._connection() as connection:
+            for _ in range(32):
+                candidate = _ack(secrets.token_hex(4))
+                if len(candidate) != 8:
+                    continue
+                collision = connection.execute(
+                    "SELECT 1 FROM sensor_subscriptions WHERE push_tag = ? AND public_key != ?",
+                    (candidate, pk),
+                ).fetchone()
+                if collision is None:
+                    return candidate
+        raise RuntimeError("Unable to allocate unique sensor subscription push_tag")
+
+    def save_sensor_subscription(
+        self,
+        public_key: str,
+        *,
+        push_tag: str,
+        requested_timeout_s: int,
+        actual_timeout_s: int,
+        min_deltas_hex: str,
+        scope_name: str = "",
+        subscribed_at: float | None = None,
+    ) -> dict[str, Any]:
+        """Persist a confirmed manual sensor subscription without automatic renewal."""
+        pk = str(public_key or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", pk):
+            raise ValueError("Sensor subscription target must be a 64-hex public key")
+        tag = _ack(push_tag)
+        if len(tag) != 8:
+            raise ValueError("Sensor subscription push_tag must be 8 non-zero hex chars")
+        if isinstance(requested_timeout_s, bool) or not isinstance(requested_timeout_s, int) or requested_timeout_s <= 0:
+            raise ValueError("Invalid requested_timeout_s")
+        if isinstance(actual_timeout_s, bool) or not isinstance(actual_timeout_s, int) or actual_timeout_s <= 0:
+            raise ValueError("Invalid actual_timeout_s")
+        deltas_clean = str(min_deltas_hex or "").strip().lower().removeprefix("0x")
+        if not re.fullmatch(r"(?:[0-9a-f]{2}){3,14}", deltas_clean):
+            raise ValueError("Invalid min_deltas_hex")
+
+        sub_ts = float(subscribed_at if subscribed_at is not None else time.time())
+        exp_ts = sub_ts + float(actual_timeout_s)
+        clean_scope = str(scope_name or "").strip()[:64]
+
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """INSERT INTO sensor_subscriptions (
+                    public_key, push_tag, requested_timeout_s, actual_timeout_s,
+                    min_deltas_hex, scope_name, subscribed_at, expires_at,
+                    status, last_sample_timestamp, last_push_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, NULL)
+                ON CONFLICT(public_key) DO UPDATE SET
+                    push_tag = excluded.push_tag,
+                    requested_timeout_s = excluded.requested_timeout_s,
+                    actual_timeout_s = excluded.actual_timeout_s,
+                    min_deltas_hex = excluded.min_deltas_hex,
+                    scope_name = excluded.scope_name,
+                    subscribed_at = excluded.subscribed_at,
+                    expires_at = excluded.expires_at,
+                    status = 'active',
+                    last_sample_timestamp = NULL,
+                    last_push_at = NULL""",
+                (pk, tag, requested_timeout_s, actual_timeout_s, deltas_clean, clean_scope, sub_ts, exp_ts),
+            )
+            row = connection.execute(
+                "SELECT * FROM sensor_subscriptions WHERE public_key = ?",
+                (pk,),
+            ).fetchone()
+            assert row is not None
+            row_dict = dict(row)
+            self._sensor_subscriptions_cache[pk] = row_dict
+            return self._format_sensor_subscription(row_dict, now=sub_ts, include_tag=True)
+
+    def resolve_sensor_subscription_by_tag(
+        self,
+        push_tag: str,
+        *,
+        now: float | None = None,
+        sample_timestamp: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Resolve an active non-expired sensor subscription by 4-byte push_tag.
+
+        Expired subscriptions are marked 'expired' in SQLite and never auto-renewed.
+        """
+        tag = _ack(push_tag)
+        if len(tag) != 8:
+            return None
+        curr_now = float(now if now is not None else time.time())
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM sensor_subscriptions WHERE push_tag = ?",
+                (tag,),
+            ).fetchone()
+            if row is None:
+                return None
+            pk = str(row["public_key"])
+            expires_at = float(row["expires_at"])
+            stored_status = str(row["status"] or "").strip().lower()
+            if stored_status != "active" or curr_now >= expires_at:
+                if stored_status == "active" and curr_now >= expires_at:
+                    connection.execute(
+                        "UPDATE sensor_subscriptions SET status = 'expired' WHERE public_key = ?",
+                        (pk,),
+                    )
+                    expired_dict = dict(row)
+                    expired_dict["status"] = "expired"
+                    self._sensor_subscriptions_cache[pk] = expired_dict
+                return None
+
+            if sample_timestamp is not None:
+                connection.execute(
+                    """UPDATE sensor_subscriptions
+                       SET last_sample_timestamp = ?, last_push_at = ?
+                       WHERE public_key = ?""",
+                    (int(sample_timestamp), curr_now, pk),
+                )
+                row = connection.execute(
+                    "SELECT * FROM sensor_subscriptions WHERE public_key = ?",
+                    (pk,),
+                ).fetchone()
+                assert row is not None
+
+            row_dict = dict(row)
+            self._sensor_subscriptions_cache[pk] = row_dict
+            return self._format_sensor_subscription(row_dict, now=curr_now, include_tag=True)
+
+    def remove_sensor_subscription(self, public_key: str) -> bool:
+        """Delete a sensor subscription record from SQLite."""
+        pk = str(public_key or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", pk):
+            return False
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            cursor = connection.execute(
+                "DELETE FROM sensor_subscriptions WHERE public_key = ?",
+                (pk,),
+            )
+            self._sensor_subscriptions_cache.pop(pk, None)
+            return cursor.rowcount > 0
+
+    def get_sensor_subscription(
+        self,
+        public_key: str,
+        *,
+        now: float | None = None,
+        include_tag: bool = True,
+    ) -> dict[str, Any] | None:
+        """Return the stored subscription for public_key, marking expired rows."""
+        pk = str(public_key or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", pk):
+            return None
+        curr_now = float(now if now is not None else time.time())
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM sensor_subscriptions WHERE public_key = ?",
+                (pk,),
+            ).fetchone()
+            if row is None:
+                self._sensor_subscriptions_cache.pop(pk, None)
+                return None
+            row_dict = dict(row)
+            if str(row_dict.get("status")) == "active" and curr_now >= float(row_dict["expires_at"]):
+                connection.execute(
+                    "UPDATE sensor_subscriptions SET status = 'expired' WHERE public_key = ?",
+                    (pk,),
+                )
+                row_dict["status"] = "expired"
+            self._sensor_subscriptions_cache[pk] = row_dict
+            return self._format_sensor_subscription(row_dict, now=curr_now, include_tag=include_tag)
+
+    def get_sensor_subscription_public_view(
+        self,
+        public_key: str,
+        *,
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        """Return non-sensitive subscription metadata from the in-memory cache."""
+        pk = str(public_key or "").strip().lower()
+        with self._lock:
+            cached = self._sensor_subscriptions_cache.get(pk)
+            if cached is None:
+                return {"status": "none"}
+            return self._format_sensor_subscription(cached, now=now, include_tag=False)
+
+    def list_sensor_subscriptions(
+        self,
+        *,
+        now: float | None = None,
+        include_tag: bool = False,
+    ) -> dict[str, dict[str, Any]]:
+        """Return all stored sensor subscriptions keyed by public_key."""
+        curr_now = float(now if now is not None else time.time())
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute("SELECT * FROM sensor_subscriptions").fetchall()
+            result: dict[str, dict[str, Any]] = {}
+            new_cache: dict[str, dict[str, Any]] = {}
+            for row in rows:
+                row_dict = dict(row)
+                pk = str(row_dict["public_key"])
+                if str(row_dict.get("status")) == "active" and curr_now >= float(row_dict["expires_at"]):
+                    connection.execute(
+                        "UPDATE sensor_subscriptions SET status = 'expired' WHERE public_key = ?",
+                        (pk,),
+                    )
+                    row_dict["status"] = "expired"
+                new_cache[pk] = row_dict
+                result[pk] = self._format_sensor_subscription(
+                    row_dict, now=curr_now, include_tag=include_tag
+                )
+            self._sensor_subscriptions_cache = new_cache
+            return result
+

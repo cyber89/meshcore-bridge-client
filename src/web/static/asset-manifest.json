@@ -184,12 +184,12 @@
     },
     "js/i18n.js": {
       "file": "js/i18n.min.js",
-      "source_sha256": "4ac33e7fb46b0744a1e7abf7da7b1cbfdc4d3538fafccde59e263520a6b22d17",
-      "sha256": "3dea3871f8c8aa8d47b39fa5500d0e9b2644285f80b55be602d82a4312771d2b",
-      "gzip_sha256": "2cd004c387db1683dd1fae6396bc3216354d6d3b3ea13ef51f0a17d865165331",
-      "source_bytes": 227426,
-      "bytes": 186739,
-      "gzip_bytes": 55968
+      "source_sha256": "6abe4ac79f19bf9c3d935642c4a5f9db2ec6ba4994993b46515ea0b0844c5c9d",
+      "sha256": "6a0d8da4f6c9a2da86ce312b2bd7e3d10dcf541a183308993da34eea9510576e",
+      "gzip_sha256": "759ea2f8a1a07ba253b0344fc92d2bbd3987b266e1e7eae751e693908c53931d",
+      "source_bytes": 229018,
+      "bytes": 188155,
+      "gzip_bytes": 56342
     },
     "js/leaflet.js": {
       "file": "js/leaflet.min.js",
@@ -229,12 +229,12 @@
     },
     "js/modules/nodes.js": {
       "file": "js/modules/nodes.min.js",
-      "source_sha256": "6ce79934a027abccd1e7ae206548d57daa1c47c4d1e59a6dd443f7f89138f30c",
-      "sha256": "0ef832ba63325d6de6af0d54012544d9201afc771be0bfa336fa172bfd63099a",
-      "gzip_sha256": "d37553271e08bff4d2e32b99657b9da976fac9f2cae48bbe2de3860c5fd584a6",
-      "source_bytes": 70149,
-      "bytes": 45244,
-      "gzip_bytes": 10706
+      "source_sha256": "3927ce4ccc8c9ff626aa2e56968839512612e02f2bed627e3189bb396a6fa39a",
+      "sha256": "1aa7bc57943df9097a61ad06bfeeb31053fd2bef2f210c5b48b3527390d38d3b",
+      "gzip_sha256": "cfceafb05b70c0aff32bb06ddbb69a4d90052afc7edf05841bd0fb68fe3c97c1",
+      "source_bytes": 76195,
+      "bytes": 49286,
+      "gzip_bytes": 11509
     },
     "js/modules/repeater.js": {
       "file": "js/modules/repeater.min.js",
