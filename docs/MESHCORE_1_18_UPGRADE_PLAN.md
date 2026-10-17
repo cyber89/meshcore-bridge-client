@@ -44,7 +44,7 @@ real, cambio de firmware, instalación operativa ni nuevos valores de timers.
 | 1 Compatibilidad mínima | Enum66, respuesta29, parser4dígitos y secretos WiFi; QA virtual en ledger2/3 | Evidencia global y cierre web documentados por separado; interoperabilidad física pendiente. |
 | 2 Capacidades/adaptador | Implementada; aceptación virtual en ledger2/3 | Capacidad desconocida/ausente/presente; dos getters seguros; serialización y errores semánticos. |
 | 3 API/web | Diagnóstico manual y selector Serial/TCP implementados; QA del selector pendiente | Contratos REST existentes ampliados, controles por capacidad y QA de navegador; sin nuevo WS. |
-| 4 Configuración avanzada | Guarda ROOM, pausa manual0 y preferencia CAD local on/off implementadas; QA CAD pendiente | RX gain sólo lectura por decisión del usuario; controles remotos por hardware pendientes. |
+| 4 Configuración avanzada | Guarda ROOM, pausa manual0 y CAD local/remoto on/off implementados; QA de preferencias pendiente | RX gain sólo lectura; WiFi y otros controles por hardware pendientes. |
 | 5 Sensor/binario | Diseñada, pendiente | Asociación de identidad durable y decisiones de expiración/deltas/presupuesto. |
 | 6 Aceptación | Pendiente | Matriz completa aprobada y verificación física autorizada por separado. |
 
@@ -190,6 +190,15 @@ Se descarta el setter RX en esta entrega porque el firmware puede persistir el
 valor incluso respondiendo `Error: unsupported`. El snapshot informa permiso de
 escritura de preferencia, nunca capacidad CAD física. Evidencia y aceptación
 pendiente: [preferencias locales](audits/2026-10-17-firmware-preferences.md).
+
+Extensión remota2026-10-17: acciones unitarias `get_cad`, `get_rx_gain` y
+`set_cad` para infraestructura REPEATER/ROOM inequívoca, con validación anterior
+a alta/login/cooldown y destino congelado. Se reutiliza la política manual HTTP0
+ya acordada; no se amplían lotes ni se crean lecturas, topics o reintentos
+automáticos. Respuestas `preferences`/`saved_preferences` separadas de telemetría
+y `applied`, siempre `hardware_verified:false`. La web exige lectura CAD previa
+y posterior manual, descarta respuestas de otro modal/destino y no guarda las
+preferencias en el registro como estado RF activo. [Plan y entrega remota](audits/2026-10-17-remote-firmware-preferences.md).
 
 Archivos previstos: builders en `src/repeater_manager.py`, ejecutores
 `src/admin/repeater_executor.py`, ejecutor local y controladores/SPA. Los controles

@@ -2442,6 +2442,30 @@
 
           <!-- Subpanel 2: Radio RF y Parámetros -->
           <div id="rep-radio" class="repeater-subpanel">
+            <section class="card-panel settings-panel-spaced" aria-labelledby="remotePreferencesTitle">
+              <h4 id="remotePreferencesTitle" data-i18n="repeater.preferences_title">Preferencias remotas CAD y RX gain</h4>
+              <p id="remotePreferencesHint" class="form-hint" data-i18n="repeater.preferences_hint">Cada botón envía una orden RF al destino seleccionado, con posible login y respuesta. Consulta CAD antes de cambiarlo y después de guardar. Las preferencias no acreditan soporte o aplicación física. RX gain es sólo lectura.</p>
+              <dl class="grid-form-2col">
+                <div><dt data-i18n="repeater.cad_observed">Última lectura CAD</dt><dd id="remoteCadObserved">—</dd></div>
+                <div><dt data-i18n="repeater.rxgain_observed">Última lectura RX gain</dt><dd id="remoteRxGainObserved">—</dd></div>
+              </dl>
+              <div class="settings-inline-controls">
+                <button id="remoteCadRead" type="button" class="btn btn-secondary" disabled data-i18n="repeater.cad_read">Consultar CAD</button>
+                <button id="remoteRxGainRead" type="button" class="btn btn-secondary" disabled data-i18n="repeater.rxgain_read">Consultar RX gain</button>
+              </div>
+              <form id="remoteCadForm" class="grid-form-2col" aria-describedby="remotePreferencesHint">
+                <div class="form-group">
+                  <label for="remoteCadValue" data-i18n="settings.firmware_cad_label">Preferencia CAD (detección de actividad del canal)</label>
+                  <select id="remoteCadValue" disabled>
+                    <option value="" data-i18n="common.unverified">Sin verificar</option>
+                    <option value="on" data-i18n="settings.firmware_cad_on">Activado</option>
+                    <option value="off" data-i18n="settings.firmware_cad_off">Desactivado</option>
+                  </select>
+                </div>
+                <div class="form-group"><button id="remoteCadSave" type="submit" class="btn btn-secondary" disabled data-i18n="settings.firmware_cad_save">Guardar preferencia CAD</button></div>
+              </form>
+              <p id="remotePreferencesStatus" class="form-hint" role="status" aria-live="polite" data-i18n="repeater.preferences_read_first">Consulta CAD manualmente para habilitar el guardado.</p>
+            </section>
             <div class="card-panel">
               <form id="repRadioForm" class="grid-form-3col" aria-labelledby="repeaterAdminTitle">
                 <p id="remoteConfigSupportHint" class="form-hint span-full" data-i18n="repeater.config_support_hint">Los controles deshabilitados no tienen comandos compatibles en el firmware oficial. Los cambios de radio requieren reinicio y una lectura posterior bajo demanda.</p>

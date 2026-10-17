@@ -10,6 +10,7 @@ Descompone el método monolítico anterior en ejecutores específicos:
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import re
@@ -54,6 +55,8 @@ class RemoteRepeaterRequest:
     resolved_target_key: str | None = None
     manual: bool = False
     resolved_target: Any = None
+    preference_command: str | None = None
+    preference_advert_type: int | None = None
 
 
 @dataclass(slots=True)
@@ -160,6 +163,10 @@ class RepeaterAdminExecutor:
 
     async def execute(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
         try:
+            if RepeaterManager.is_firmware_preference_action(req.action):
+                failure = self._prepare_firmware_preference(req)
+                if failure is not None:
+                    return failure
             state_loader = getattr(self._ctx.repeater_manager, "load_state", None)
             if callable(state_loader):
                 loading = state_loader()
@@ -173,6 +180,40 @@ class RepeaterAdminExecutor:
             return {"status": "error", "code": 422, "message": "Destino o comando remoto inválido"}
         except Exception as error:
             return {"status": "error", "target_node": str(req.target_node), "message": str(error)}
+
+    def _prepare_firmware_preference(self, req: RemoteRepeaterRequest) -> dict[str, Any] | None:
+        """Validate and freeze the infrastructure destination before any RF side effect."""
+        command = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
+        if command is None:
+            return {"status": "error", "code": 422, "message": "Comando remoto no compatible o parámetros inválidos"}
+        requested_info = self._collect_target_info(str(req.target_node))
+        target = self._request_target(req)
+        key = self._target_field(target, "public_key")
+        canonical = str(key or (target if isinstance(target, str) else "")).strip().lower()
+        if len(canonical) != 64 or not is_valid_node_key(canonical):
+            raise ValueError("invalid_preference_target")
+        info = self._collect_target_info(canonical)
+        if requested_info and str(requested_info.get("public_key", "")).lower() != canonical:
+            raise ValueError("conflicting_preference_target")
+        local = str(self._get_local_config().get("public_key", "")).strip().lower()
+        if canonical == local or self._ctx.node_registry.is_local_key(canonical):
+            raise ValueError("local_preference_target")
+        role = str((info or {}).get("role", "")).upper()
+        registry_type = {"REPEATER": 2, "ROUTER": 2, "ROOM": 3}.get(role)
+        if registry_type is None:
+            raise ValueError("unsupported_preference_role")
+        observed_types = [self._target_field(target, field) for field in ("type", "adv_type")]
+        for observed in observed_types:
+            if observed is None:
+                continue
+            value = getattr(observed, "value", observed)
+            if type(value) is not int or value != registry_type:
+                raise ValueError("conflicting_preference_role")
+        req.resolved_target_key = canonical
+        req.resolved_target = dict(target) if isinstance(target, dict) else copy.copy(target)
+        req.preference_command = command
+        req.preference_advert_type = registry_type
+        return None
 
     async def _flush_cooldowns(self) -> None:
         writer = getattr(self._ctx.repeater_manager, "flush_state", None)
@@ -996,7 +1037,10 @@ class RepeaterAdminExecutor:
             waiter_keys.append(str(target_info["name"]).lower())
 
         async with self._waiters.expect_response(waiter_keys, include_ping=False) as fut:
-            await self._ensure_radio_contact(req.mc, dest_target, "Repeater")
+            if req.preference_command is not None:
+                await self._ensure_radio_contact(req.mc, dest_target, "Repeater", advert_type_override=req.preference_advert_type)
+            else:
+                await self._ensure_radio_contact(req.mc, dest_target, "Repeater")
 
             rf_ctx = RfExecutionContext(
                 req=req,
@@ -1318,7 +1362,7 @@ class RepeaterAdminExecutor:
     async def _execute_unit_command(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
         """Ejecuta un comando unitario con protección de Airtime LoRa."""
         req = rf_ctx.req
-        cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
+        cmd_text = req.preference_command or self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
         if not cmd_text:
             rf_ctx.res.update({
                 "status": "error",
@@ -1365,6 +1409,9 @@ class RepeaterAdminExecutor:
         elapsed = round((time.perf_counter() - t_start) * 1000, 1)
         raw_resp = resp_data.get("text") or resp_data.get("message") or ""
         resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
+
+        if req.preference_command is not None:
+            return self._firmware_preference_response(rf_ctx, cmd_text, raw_resp, elapsed)
 
         is_error = self._ctx.repeater_manager.response_is_error(raw_resp)
 
@@ -1415,6 +1462,38 @@ class RepeaterAdminExecutor:
         self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(rf_ctx.res), 1)
         return rf_ctx.res
 
+    def _firmware_preference_response(
+        self, rf_ctx: RfExecutionContext, command: str, raw_response: str, elapsed: float,
+    ) -> dict[str, Any]:
+        """Expose saved preferences without claiming hardware support or changing telemetry."""
+        result = rf_ctx.res
+        for field in ("applied", "saved", "saved_preferences", "preferences", "preferences_source", "telemetry", "pending_reboot", "acknowledged", "error"):
+            result.pop(field, None)
+        result.update({"target_node": rf_ctx.req.resolved_target_key, "cmd_dispatched": command,
+                       "hardware_verified": False, "rtt_ms": elapsed})
+        text = raw_response.strip()
+        safe_text = ""
+        if not text:
+            result["status"] = "dispatched"
+        elif self._ctx.repeater_manager.response_is_error(text):
+            result.update({"status": "error", "error": "El firmware rechazó la operación de preferencia"})
+        elif command in ("get cad", "get radio.rxgain"):
+            preferences = self._ctx.repeater_manager.parse_command_response(command, raw_response)
+            if preferences:
+                result.update({"status": "ok", "preferences": preferences, "preferences_source": "saved_preferences"})
+                safe_text = "> on" if next(iter(preferences.values())) else "> off"
+            else:
+                result.update({"status": "error", "error": "Respuesta de preferencia inválida"})
+        elif text == "OK":
+            result.update({"status": "ok", "saved_preferences": {"cad": command == "set cad on"}, "acknowledged": True})
+            safe_text = "OK"
+        else:
+            result.update({"status": "error", "error": "Acuse de preferencia inválido"})
+        result["response"] = safe_text
+        result["message"] = str(result.get("error") or safe_text or "Comando transmitido; preferencia sin confirmar")
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/status", json.dumps(result), 1)
+        return result
+
     @staticmethod
     def _setter_response_confirmed(command: str, text: str) -> bool:
         clean = text.removeprefix("> ").strip().lower()
@@ -1443,6 +1522,7 @@ class RepeaterAdminExecutor:
         target_name: str,
         out_path_override: str | None = None,
         out_path_len_override: int | None = None,
+        advert_type_override: int | None = None,
     ) -> None:
         """Asegura que el nodo destino esté presente en la tabla del firmware."""
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):
@@ -1485,6 +1565,9 @@ class RepeaterAdminExecutor:
                     lon = float(getattr(dest_target, "longitude", 0.0) or 0.0)
                 elif isinstance(dest_target, str):
                     pubkey = dest_target.strip()
+
+                if advert_type_override is not None:
+                    node_type = advert_type_override
 
                 if out_path_override is not None:
                     out_path = out_path_override

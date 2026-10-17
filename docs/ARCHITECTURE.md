@@ -40,6 +40,22 @@ o soporte universal. RX gain permanece sólo en lectura por decisión del usuari
 y hash mantiene su editor binario existente. La [entrega de preferencias](audits/2026-10-17-firmware-preferences.md)
 documenta las limitaciones y QA pendiente.
 
+### Preferencias remotas de infraestructura (2026-10-17)
+
+La administración remota añade botones propios CAD/RX gain en el panel Radio del
+modal, utilizando POST `/api/repeater/remote/action`: `get_cad`, `get_rx_gain` y
+`set_cad` con `params:{enabled:boolean}`. El builder rechaza argumentos en getters
+y setters de RX gain. El ejecutor precompila estas operaciones y congela un
+destino canónico REPEATER/ROOM antes de alta/login/cooldown; conserva las claves
+históricas de timestamps y la correlación por tag/emisor. Las respuestas válidas
+se proyectan como `preferences` o `saved_preferences`, con `hardware_verified:false`,
+sin mezclarlas con telemetría o `applied` ni atribuirlas al registro de nodos.
+No se amplía el lote de configuración/telemetría ni se hace readback automático;
+sin respuesta se conserva `dispatched`. El guardado invalida la lectura CAD web y
+requiere otra consulta manual. Los cambios de modal, autenticación o WS descartan
+respuestas tardías. Se conserva la publicación administrativa de estado existente,
+sin topics o ciclos nuevos. [Alcance y evidencia](audits/2026-10-17-remote-firmware-preferences.md).
+
 ### Selección del transporte Companion desde la SPA (2026-10-17)
 
 En Ajustes → Servicios & Red, el formulario de conexión guarda `companion_port`

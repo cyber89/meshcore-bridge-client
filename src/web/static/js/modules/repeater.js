@@ -26,6 +26,11 @@ export class RepeaterModule {
     this._isSavingRadio = false;
     this._isSavingOwnerPos = false;
     this._isSavingSecurity = false;
+    this._remotePreferences = {};
+    this._remotePreferencesBusy = false;
+    this._remotePreferencesEpoch = 0;
+    this._remotePreferencesOutcome = "";
+    this._remoteCadDraft = false;
   }
 
   init() {
@@ -38,6 +43,7 @@ export class RepeaterModule {
     if (this._neighbors) this.renderNeighborsTable(this._neighbors);
     const submit = this.dom.btnRepeaterGateSubmit;
     if (submit) I18n.setText(submit.querySelector(".btn-text") || submit, submit.disabled ? 'repeater.verify' : 'repeater.unlock');
+    this._renderRemotePreferences();
   }
 
   _setFieldIfNotDirty(id, value, isChecked = null) {
@@ -52,6 +58,7 @@ export class RepeaterModule {
   }
 
   _resetModalInputs() {
+    this._clearRemotePreferences();
     ++this._modalRevision;
     ++this._observationRevision;
     this.dirtyFields.clear();
@@ -131,6 +138,20 @@ export class RepeaterModule {
   }
 
   _bindEvents() {
+    document.getElementById("remoteCadRead")?.addEventListener("click", () => this._requestRemotePreference("get_cad"));
+    document.getElementById("remoteRxGainRead")?.addEventListener("click", () => this._requestRemotePreference("get_rx_gain"));
+    document.getElementById("remoteCadForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this._requestRemotePreference("set_cad");
+    });
+    document.getElementById("remoteCadValue")?.addEventListener("change", () => {
+      this._remoteCadDraft = true;
+      this._remotePreferencesOutcome = "";
+      this._renderRemotePreferences();
+    });
+    for (const event of ["meshcore:auth_expired", "meshcore:credentials_changed", "meshcore:station_changed"]) {
+      window.addEventListener(event, () => this._clearRemotePreferences());
+    }
     // Rastreo de campos en borrador del modal de repetidor (F01, F11)
     const markDirty = (e) => {
       if (e.target && e.target.id) {
@@ -846,6 +867,9 @@ export class RepeaterModule {
 
   _subscribeBus() {
     if (!this.ctx.eventBus) return;
+    this.ctx.eventBus.on(EVENTS.WS_STATUS_CHANGE, (status) => {
+      if (status !== "connected") this._clearRemotePreferences();
+    });
     this.ctx.eventBus.on(EVENTS.RX_PACKET, (payload) => {
       if (!payload || typeof payload !== "object" || !this.selectedRepeaterTarget) return;
       const type = payload.type || payload.event_type;
@@ -918,6 +942,7 @@ export class RepeaterModule {
   }
 
   lockRepeaterAdminView(pubkey, errorMessage = null) {
+    this._clearRemotePreferences();
     const card = this.dom.repeaterAdminModalCard || document.getElementById("repeaterAdminModalCard");
     if (card) {
       card.classList.remove("unlocked");
@@ -978,6 +1003,7 @@ export class RepeaterModule {
       statusEl.className = "auth-gate-status hidden";
       statusEl.textContent = "";
     }
+    this._renderRemotePreferences();
   }
 
   handleRepeaterAuthError(pubkey, message = I18n.t('rep.auth_err')) {
@@ -1413,6 +1439,115 @@ export class RepeaterModule {
       this._setFieldIfNotDirty("secAclMode", node.acl_mode);
     }
     if (Object.keys(this._remoteRadioPreferences).length) this._populateRemoteSavedRadio(this._remoteRadioPreferences);
+    this._renderRemotePreferences();
+  }
+
+  _clearRemotePreferences() {
+    ++this._remotePreferencesEpoch;
+    this._remotePreferences = {};
+    this._remotePreferencesBusy = false;
+    this._remotePreferencesOutcome = "";
+    this._remoteCadDraft = false;
+    const select = document.getElementById("remoteCadValue");
+    if (select) select.value = "";
+    this._renderRemotePreferences();
+  }
+
+  _remotePreferenceTarget() {
+    if (!this.selectedRepeaterTarget) return null;
+    const target = this.resolveCanonicalPubkey(this.selectedRepeaterTarget);
+    if (!target || !/^[a-f\d]{64}$/i.test(target) || target === this.ctx.localNodePubkey) return null;
+    const node = this.ctx.knownNodes?.get(target);
+    const role = String(node?.role || "").toUpperCase();
+    const advert = node?.advert_type ?? node?.adv_type ?? node?.type;
+    if (!node || !["REPEATER", "ROUTER", "ROOM"].includes(role) || node.is_local) return null;
+    if (advert != null && (![2, 3].includes(advert) || (advert === 3) !== (role === "ROOM"))) return null;
+    if (!this.authenticatedRepeaters.has(target)) return null;
+    return target;
+  }
+
+  _renderRemotePreferences() {
+    const target = this._remotePreferenceTarget();
+    const enabled = Boolean(target) && !this._remotePreferencesBusy;
+    for (const id of ["remoteCadRead", "remoteRxGainRead"]) {
+      const button = document.getElementById(id);
+      if (button) button.disabled = !enabled;
+    }
+    for (const [id, preference] of [["remoteCadObserved", "cad"], ["remoteRxGainObserved", "rx_gain"]]) {
+      const value = this._remotePreferences[preference];
+      const element = document.getElementById(id);
+      if (element) element.textContent = typeof value === "boolean" ? I18n.t(value ? "common.on" : "common.off") : "—";
+    }
+    const canSave = enabled && typeof this._remotePreferences.cad === "boolean";
+    const select = document.getElementById("remoteCadValue");
+    if (select) select.disabled = !canSave;
+    const save = document.getElementById("remoteCadSave");
+    if (save) save.disabled = !canSave || !["on", "off"].includes(select?.value);
+    const status = document.getElementById("remotePreferencesStatus");
+    if (status) I18n.setText(status, this._remotePreferencesOutcome || (target
+      ? "repeater.preferences_read_first" : "repeater.preferences_unavailable"));
+  }
+
+  async _requestRemotePreference(action) {
+    if (this._remotePreferencesBusy || !["get_cad", "get_rx_gain", "set_cad"].includes(action)) return;
+    this._renderRemotePreferences();
+    const target = this._remotePreferenceTarget();
+    const saving = action === "set_cad";
+    if (!target || (saving && document.getElementById("remoteCadSave")?.disabled !== false)) return;
+    const value = document.getElementById("remoteCadValue")?.value === "on";
+    const revision = this._modalRevision;
+    const epoch = this._remotePreferencesEpoch;
+    if (saving || action === "get_cad") delete this._remotePreferences.cad;
+    if (action === "get_rx_gain") delete this._remotePreferences.rx_gain;
+    this._remotePreferencesBusy = true;
+    this._remotePreferencesOutcome = "repeater.preferences_waiting";
+    this._renderRemotePreferences();
+    try {
+      const response = await fetch("/api/repeater/remote/action", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: target, action, params: saving ? { enabled: value } : {}, password: this.getRepeaterPassword(target) || "" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (epoch !== this._remotePreferencesEpoch || revision !== this._modalRevision || target !== this._remotePreferenceTarget()) return;
+      const result = body.data;
+      if (!response.ok || body.status !== "ok" || !result || result.target_node !== target) {
+        this._remotePreferencesOutcome = "repeater.preferences_failed";
+        if (response.status === 401 || result?.authenticated === false) this.handleRepeaterAuthError(target);
+        return;
+      }
+      if (result.status !== "ok" || result.hardware_verified !== false) {
+        this._remotePreferencesOutcome = "repeater.preferences_unconfirmed";
+        return;
+      }
+      if (saving) {
+        if (result.acknowledged !== true || result.saved_preferences?.cad !== value) {
+          this._remotePreferencesOutcome = "repeater.preferences_unconfirmed";
+          return;
+        }
+        this._remoteCadDraft = false;
+        this._remotePreferencesOutcome = "repeater.preferences_accepted";
+      } else {
+        const field = action === "get_cad" ? "cad" : "rx_gain";
+        if (result.preferences_source !== "saved_preferences" || typeof result.preferences?.[field] !== "boolean") {
+          this._remotePreferencesOutcome = "repeater.preferences_unconfirmed";
+          return;
+        }
+        this._remotePreferences[field] = result.preferences[field];
+        if (field === "cad" && !this._remoteCadDraft) {
+          const select = document.getElementById("remoteCadValue");
+          if (select) select.value = result.preferences.cad ? "on" : "off";
+        }
+        this._remotePreferencesOutcome = "repeater.preferences_observed";
+      }
+    } catch {
+      if (epoch === this._remotePreferencesEpoch) this._remotePreferencesOutcome = "repeater.preferences_failed";
+    } finally {
+      if (epoch === this._remotePreferencesEpoch && revision === this._modalRevision) {
+        this._remotePreferencesBusy = false;
+        this._renderRemotePreferences();
+      }
+    }
   }
 
   appendTerminalLine(text, cssClass = "term-info") {

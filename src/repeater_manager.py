@@ -320,6 +320,19 @@ class RepeaterManager:
         if any(ord(char) < 32 for char in action) or len(action.encode("utf-8")) > 160:
             return None
 
+        if self.is_firmware_preference_action(action):
+            queries = {"get_cad": "get cad", "get cad": "get cad",
+                       "get_rx_gain": "get radio.rxgain", "get radio.rxgain": "get radio.rxgain"}
+            if act in queries:
+                return queries[act] if not params else None
+            if act == "set_cad":
+                if set(params) != {"enabled"} or type(params["enabled"]) is not bool:
+                    return None
+                return "set cad on" if params["enabled"] else "set cad off"
+            if act in ("set cad on", "set cad off") and not params:
+                return act
+            return None
+
         # Si se pasan parámetros con valor, intentar primero los builders con parámetros
         # para evitar que aliases como 'radio', 'lat', 'lon' se interpreten como queries (P08)
         has_params = bool(params and any(v is not None for v in params.values()))
@@ -355,6 +368,14 @@ class RepeaterManager:
 
         # Rechazar acciones desconocidas para evitar despachar basura a la radio (B09)
         return None
+
+    @staticmethod
+    def is_firmware_preference_action(action: str) -> bool:
+        """Keep preference commands on the validated path, including rejected setters."""
+        clean = action.strip().lower()
+        return clean in {"get_cad", "get_rx_gain", "set_cad", "set_rx_gain", "set_rxgain"} or re.match(
+            r"^(?:get|set)\s+(?:cad|radio\.rxgain)\b", clean
+        ) is not None
 
     def _build_preformatted_command(self, command: str) -> str | None:
         """Apply the same validation to CLI aliases as to structured configuration."""
@@ -727,6 +748,10 @@ class RepeaterManager:
         """CommonCLI GETs return scalars; their field comes from the corresponding command."""
         if self.response_is_error(text):
             return {}
+        if command in ("get cad", "get radio.rxgain"):
+            match = re.fullmatch(r">\s*(on|off)\s*", text.strip())
+            preference_field = "cad" if command == "get cad" else "rx_gain"
+            return {preference_field: match.group(1) == "on"} if match else {}
         clean = text.removeprefix("> ").strip()
         if command == "get pwrmgt.bootmv":
             # A historical startup reading must never overwrite live battery.
