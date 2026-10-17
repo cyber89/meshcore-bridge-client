@@ -518,7 +518,7 @@ Fuente fijada: [MyMesh.cpp 1.18](https://github.com/meshcore-dev/MeshCore/blob/8
 - Datagrama62, raw65, WiFi y rango sintáctico150–2500MHz ya existían en1.17.1. SDK2.3.16 incorpora modo hash en ruta de datagramas; límite SDK163bytes frente a165 del handler firmware. Validar modo, hops, divisibilidad y frame total antes de cualquier integración.
 - Los layouts anteriores son secuencias serializadas sin padding C++ ni CRC propio añadido. El framing Companion externo conserva dirección y longitud uint16 LE gestionadas por SDK; no mezclarlo con el framing AA/55 interno.
 
-El firmware1.18 rechaza `set repeat on` en ROOM. Esto es una restricción del dispatcher nuevo, no una guarda ya implementada por todos los ejecutores del bridge. La administración por rol y los setters avanzados siguen en capas posteriores del [plan de actualización](MESHCORE_1_18_UPGRADE_PLAN.md).
+El firmware1.18 rechaza `set repeat on` en ROOM. Desde la entrega del2026-10-16, el ejecutor administrativo del bridge lo bloquea para todos los ROOM por política explícita del usuario, incluidas versiones antiguas/desconocidas. La prevalidación cubre aliases, texto con prefijo y lotes antes de login, alta de contacto, cooldown o envío; existe una segunda guarda junto al envío. Se conserva `repeat off` y la activación en REPEATER. La guarda usa registro canónico/tipo advert oficial, no rol suministrado en la petición. Los setters avanzados siguen en capas posteriores del [plan de actualización](MESHCORE_1_18_UPGRADE_PLAN.md).
 
 ### 15.1 Lecturas locales permitidas (2026-10-16)
 

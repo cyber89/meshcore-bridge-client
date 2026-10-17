@@ -659,6 +659,52 @@ La primera entrega incorpora enum66, respuesta terminal29 en el proxy raw, lectu
 
 QA añadió reparaciones acotadas fuera del protocolo: tolerar desaparición comprobada de sidecars SQLite al ajustar permisos de autenticación, situar el menú móvil sobre su backdrop mediante el token Bootstrap y limitar la altura del panel remoto al viewport. No cambia el esquema SQLite ni sus datos; los errores de permisos reales y de la base principal se siguen propagando.
 
-Quedan diseñadas, pendientes de implementación: capacidades explícitas para protocolo14, CLI local de sólo lectura con comandos permitidos, diagnóstico web manual, configuración avanzada por hardware, control ROOM1.18 y asociaciones durables de suscripciones sensor. La consola del bridge conserva sus comandos propios; no se reenvía automáticamente todo su texto al firmware. La futura lectura de credenciales necesita sensibilidad desde la petición y protección del logging SDK, además de redacción del resultado.
+Estado histórico de la preparación del2026-10-15: estaban pendientes capacidades explícitas para protocolo14, CLI local de lectura, diagnóstico web, configuración avanzada, control ROOM1.18 y asociaciones de sensor. La entrega del2026-10-16 descrita abajo implementa capacidades, diagnóstico y la primera guarda ROOM. La consola del bridge conserva sus comandos propios; no se reenvía automáticamente todo su texto al firmware. Una futura operación con credenciales necesita sensibilidad desde la petición y protección del logging SDK, además de redacción del resultado.
 
 El [ledger de integración](audits/2026-10-15-meshcore-1.18-integration.md) registra evidencia de QA virtual y limitaciones; no declara interoperabilidad física. Para estado persistido prevalecen CONTEXT.md y ADR0017/0018 sobre descripciones históricas de JSON en este documento.
+
+## MeshCore 1.18: capacidades y diagnóstico local (2026-10-16)
+
+Las capas2/3 incorporan un snapshot observado en
+`GET /api/config` (también `/api/node/config`), bajo
+`data.capabilities.firmware_cli`. El catálogo previo de capacidades permanece
+vigente. Adaptadores sin soporte declaran estado desconocido y lista vacía.
+No se deduce soporte del nombre de placa ni de una versión textual.
+
+El endpoint administrativo existente `POST /api/admin` y su alias
+`/api/admin/command` admiten `{action:"cli",scope:"firmware",command:"get radio"}`
+o `get freq`. El handler separa ese ámbito antes de coerción y despacho remoto;
+rechaza destinos, aliases ambiguos y parámetros adicionales de configuración.
+`CliCommandExecutor.execute_firmware` delega al adaptador sin publicar MQTT ni
+añadir configuración a la respuesta. La consola habitual conserva sus comandos
+del bridge y no reenvía texto desconocido al firmware.
+
+El sobre HTTP200 conserva `status`, `result`, `response` y `message`;
+`result` incluye `status:"ok"`, `scope:"firmware"`, `action:"cli"`, `command` y
+`result` textual. Entrada inválida produce422; falta de capacidad/conexión y
+timeout503; rechazo semántico400. Los errores no reflejan excepciones SDK.
+Se reutilizan autenticación, CSRF, Origin y permisos administrativos existentes;
+el catálogo OpenAPI describe este ámbito sin agregar rutas ni WebSockets.
+
+La web muestra protocolo, versión de firmware/SDK, modelo y transporte observados
+y permite seleccionar dos lecturas manuales. Deshabilita la acción con soporte
+desconocido/ausente o sesión invalidada; descarta respuestas de una identidad
+anterior y conserva formularios editados. Usa texto DOM seguro y traducciones.
+No agrega sondeo, timer de red ni consultas CLI por apertura/reconexión.
+La selección TCP en web, setters, WiFi y suscripciones sensor siguen pendientes.
+No cambian SQLite, roles, colas, límites RF ni dependencias de producción.
+
+## MeshCore 1.18: primera guarda de administración ROOM (2026-10-16)
+
+Por decisión explícita del usuario, `RepeaterAdminExecutor` rechaza activar
+repetición en cualquier ROOM, sin consulta activa ni comparación de versiones.
+La validación usa metadatos del destino y advert oficial3, cubre aliases,
+preformateados y lotes completos y precede alta de contacto, login, cooldown y
+TX. Una guarda final protege llamadas internas. La resolución del destino se
+fija aparte del identificador original para conservar las claves persistidas de
+cooldown. No cambia el catálogo de RepeaterManager ni añade paquetes, timers,
+reintentos, notificaciones o presupuestos. Repeat off y REPEATER conservan sus
+caminos existentes; contactos y chat mantienen las restricciones por rol.
+
+Los controles avanzados de administración remota son la siguiente prioridad;
+su diseño y decisiones pendientes están en el [plan remoto](audits/2026-10-16-meshcore-1.18-remote-plan.md).

@@ -51,6 +51,7 @@ class RemoteRepeaterRequest:
     password: str = ""
     res: dict[str, Any] | None = None
     mc: Any = None
+    resolved_target_key: str | None = None
 
 
 @dataclass(slots=True)
@@ -166,6 +167,8 @@ class RepeaterAdminExecutor:
             lock = self._request_locks.setdefault(target, asyncio.Lock())
             async with lock:
                 return await self._execute_request(req)
+        except ValueError:
+            return {"status": "error", "code": 422, "message": "Destino o comando remoto inválido"}
         except Exception as error:
             return {"status": "error", "target_node": str(req.target_node), "message": str(error)}
 
@@ -187,6 +190,23 @@ class RepeaterAdminExecutor:
         )
 
         target_info = self._collect_target_info(str(req.target_node))
+        if self._repeat_enable_requested(req):
+            # Resolve once before metadata: an alias/prefix must not borrow the
+            # role of another node, or change destination after an await.
+            resolved = self._resolve_target(str(req.target_node), 12)
+            resolved_key = self._target_field(resolved, "public_key")
+            if not resolved_key:
+                resolved_key = resolved if isinstance(resolved, str) else (target_info or {}).get("public_key", "")
+            canonical = str(resolved_key).strip().lower()
+            resolved_info = self._collect_target_info(canonical) if canonical else None
+            if self._is_room_target(resolved, resolved_info or target_info):
+                return {"status": "error", "code": 422, "reason": "room_repeat_unsupported",
+                        "message": "Los servidores ROOM no permiten activar repetición"}
+            if canonical:
+                # Preserve the request's cooldown/persistence key; freeze only
+                # destination resolution so existing alias cooldowns stay valid.
+                req.resolved_target_key = canonical
+                target_info = resolved_info
         if target_info and target_info.get("public_key"):
             canonical_target = str(target_info["public_key"]).strip().lower()
         else:
@@ -221,24 +241,53 @@ class RepeaterAdminExecutor:
         return await self._dispatch_rf_command(req, target_info, res)
 
     def _collect_target_info(self, target_node: str) -> dict[str, Any] | None:
-        """Obtiene la información del nodo destino desde el NodeRegistry por pubkey, prefijo o alias/nombre."""
+        """Select exact or uniquely known registry metadata, never a first match."""
         tgt = str(target_node).strip()
         tgt_lower = tgt.lower()
-        # 1. Búsqueda por clave pública exacta o prefijo hexadecimal
-        for n in self._ctx.node_registry.list_nodes():
-            pk = str(n.get("public_key", "")).lower()
-            if pk == tgt_lower or (len(pk) >= 8 and (pk.startswith(tgt_lower) or tgt_lower.startswith(pk))):
-                return n
-        # 2. Búsqueda por nombre o alias (B12: evita que pasar nombre de cliente ignore el guard de rol)
-        found = self._ctx.node_registry.find_by_name(tgt)
-        if found is not None:
-            return found.to_dict()
-        for n in self._ctx.node_registry.list_nodes():
-            n_name = str(n.get("name", "")).strip().lower()
-            n_alias = str(n.get("alias", "")).strip().lower()
-            if n_name == tgt_lower or n_alias == tgt_lower:
-                return n
-        return None
+        nodes = self._ctx.node_registry.list_nodes()
+        matches = [node for node in nodes if str(node.get("public_key", "")).lower() == tgt_lower]
+        if not matches and tgt_lower and all(char in "0123456789abcdef" for char in tgt_lower):
+            matches = [node for node in nodes if (
+                str(node.get("public_key", "")).lower().startswith(tgt_lower)
+                or tgt_lower.startswith(str(node.get("public_key", "")).lower())
+            )]
+        if not matches:
+            matches = [node for node in nodes if tgt_lower and any(
+                str(node.get(field, "")).strip().lower() == tgt_lower for field in ("name", "alias")
+            )]
+        if len(matches) > 1:
+            raise ValueError("ambiguous_remote_target")
+        return matches[0] if matches else None
+
+    @staticmethod
+    def _target_field(target: Any, field: str) -> Any:
+        return target.get(field) if isinstance(target, dict) else getattr(target, field, None)
+
+    @classmethod
+    def _is_room_target(cls, target: Any, registry_info: dict[str, Any] | None) -> bool:
+        advert_type = cls._target_field(target, "type")
+        if advert_type is None:
+            advert_type = cls._target_field(target, "adv_type")
+        advert_type = getattr(advert_type, "value", advert_type)
+        return str((registry_info or {}).get("role", "")).upper() == "ROOM" or (
+            type(advert_type) is int and advert_type == 3
+        )
+
+    @staticmethod
+    def _repeat_enable_command(command: str) -> bool:
+        clean = command.lstrip()
+        if len(clean) > 4 and clean[2] == "|":
+            clean = clean[3:].lstrip()
+        return re.match(r"set\s+repeat\s+on", clean, re.IGNORECASE) is not None
+
+    def _repeat_enable_requested(self, req: RemoteRepeaterRequest) -> bool:
+        if req.action in ("remote_repeater_set_config", "set_remote_config"):
+            params = req.admin_data.get("params")
+            return isinstance(params, dict) and any(
+                RepeaterManager._boolean(params.get(field)) is True for field in ("repeat", "repeat_enabled")
+            )
+        command = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
+        return self._repeat_enable_command(command or req.action)
 
     async def _execute_batch_config(self, req: RemoteRepeaterRequest, res: dict[str, Any]) -> dict[str, Any]:
         """Aplica múltiples parámetros de configuración remota en el repetidor."""
@@ -474,8 +523,8 @@ class RepeaterAdminExecutor:
                 async with self._waiters.expect_response(waiter_keys) as fut:
                     rf_ctx = RfExecutionContext(
                         req=req,
-                        dest_target=self._resolve_target(str(req.target_node), 12),
-                        dest_login_target=self._resolve_target(str(req.target_node), 12),
+                        dest_target=self._resolve_target(req.resolved_target_key or str(req.target_node), 12),
+                        dest_login_target=self._resolve_target(req.resolved_target_key or str(req.target_node), 12),
                         waiter_keys=waiter_keys,
                         fut=fut,
                         res=res,
@@ -493,7 +542,7 @@ class RepeaterAdminExecutor:
             waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
             for cmd_str in commands:
                 async with self._waiters.expect_response(waiter_keys) as command_fut:
-                    await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id, response_future=command_fut)
+                    await self._send_rf_command(req.mc, self._resolve_target(req.resolved_target_key or str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id, response_future=command_fut)
                     reply = await self._wait_for_repeater_response(req.mc, command_fut, timeout=6.0) or {}
                 dispatched.append(redact_command_str(cmd_str))
                 text = str(reply.get("text") or reply.get("message") or "").removeprefix("> ").strip()
@@ -919,8 +968,8 @@ class RepeaterAdminExecutor:
         if req.action in ("refresh_telemetry", "full_telemetry", "refresh_repeater_telemetry", "get_telemetry_batch"):
             return await self._execute_batch_telemetry_query(req, target_info, res)
 
-        dest_target = self._resolve_target(str(req.target_node), 12)
-        dest_login_target = self._resolve_target(str(req.target_node), 12)
+        dest_target = self._resolve_target(req.resolved_target_key or str(req.target_node), 12)
+        dest_login_target = self._resolve_target(req.resolved_target_key or str(req.target_node), 12)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
 
         # Guarda contra bucle local (Regla Inmutable SSoT 1.1)
@@ -1493,6 +1542,13 @@ class RepeaterAdminExecutor:
 
     async def _send_rf_command(self, mc: Any, dest_target: Any, cmd_text: str, target_node: str, req_id: Any, response_future: asyncio.Future[dict[str, Any]] | None = None) -> None:
         """Envía un comando RF aplicando Pre-Send Delay si el nodo está a múltiples saltos."""
+        if self._repeat_enable_command(cmd_text):
+            resolved_key = self._target_field(dest_target, "public_key")
+            if not resolved_key and isinstance(dest_target, str):
+                resolved_key = dest_target
+            target_info = self._collect_target_info(str(resolved_key or target_node)) or {}
+            if self._is_room_target(dest_target, target_info):
+                raise ValueError("room_repeat_unsupported")
         hops = self._determine_target_hops(dest_target, target_node)
         if getattr(config, "REPEATER_PRE_SEND_DELAY_ENABLED", True) and hops >= 1:
             delay_s = float(getattr(config, "REPEATER_PRE_SEND_DELAY_S", 2.5))

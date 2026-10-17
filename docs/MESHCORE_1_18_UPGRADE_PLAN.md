@@ -1,8 +1,11 @@
 # Actualización por capas a MeshCore 1.18
 
-Fecha: 2026-10-15. Estado: preparación de la actualización; capa 1 implementada
-con el alcance indicado abajo. Investigación: [new1.18.md](../new1.18.md).
+Fecha inicial: 2026-10-15. Actualización: 2026-10-17. Capas1,2 y diagnóstico
+manual de capa3 implementados con el alcance indicado abajo. Primera guarda de
+capa4: bloquear repeat on en todos los ROOM, por decisión del usuario.
+Investigación: [new1.18.md](../new1.18.md).
 Evidencia de integración y QA: [ledger de la entrega](audits/2026-10-15-meshcore-1.18-integration.md).
+Evolución: [capas2/3 y verificación](audits/2026-10-16-meshcore-1.18-layers-2-3.md).
 
 ## Objetivo y alcance verificable
 
@@ -38,10 +41,10 @@ real, cambio de firmware, instalación operativa ni nuevos valores de timers.
 | Capa | Estado en esta entrega | Criterio para avanzar |
 | --- | --- | --- |
 | 0 Fuentes | Investigación corregida y ampliada | Diferenciar novedades de funciones previas; contratos con fuente por SHA. |
-| 1 Compatibilidad mínima | Enum66, respuesta29, parser4dígitos y secretos WiFi; QA por tandas | Regresiones específicas, suite general y revisión de diff; aceptación global pendiente y fallos registrados en ledger. |
-| 2 Capacidades/adaptador | Diseñada, pendiente de implementación | Capacidad desconocida/ausente/presente; getters seguros; serialización y errores semánticos. |
-| 3 API/web | Diseñada, pendiente | Contratos REST/WS documentados, controles por capacidad y QA de navegador. |
-| 4 Configuración avanzada | Diseñada, pendiente | Decisiones RF del usuario, validación por comando y lectura posterior fiable. |
+| 1 Compatibilidad mínima | Enum66, respuesta29, parser4dígitos y secretos WiFi; QA virtual en ledger2/3 | Evidencia global y cierre web documentados por separado; interoperabilidad física pendiente. |
+| 2 Capacidades/adaptador | Implementada; aceptación virtual en ledger2/3 | Capacidad desconocida/ausente/presente; dos getters seguros; serialización y errores semánticos. |
+| 3 API/web | Diagnóstico manual implementado; selector TCP pendiente | Contratos REST existentes ampliados, controles por capacidad y QA de navegador; sin nuevo WS. |
+| 4 Configuración avanzada | Guarda ROOM implementada; controles avanzados pendientes | Administración remota de repetidores y ROOM priorizada por el usuario; nuevas emisiones requieren decisiones RF y lectura posterior fiable. |
 | 5 Sensor/binario | Diseñada, pendiente | Asociación de identidad durable y decisiones de expiración/deltas/presupuesto. |
 | 6 Aceptación | Pendiente | Matriz completa aprobada y verificación física autorizada por separado. |
 
@@ -76,6 +79,12 @@ y secretos anidados. Los minificados deben corresponder a su fuente y manifest.
 Rollback: revertir los hunks propios de esta capa, sin sobrescribir trabajo ajeno.
 
 ## Capa 2 — capacidades y CLI local de lectura
+
+Implementación2026-10-16: `firmware_capabilities` y `run_firmware_cli` en el
+adaptador, catálogo de configuración ampliado y ámbito administrativo separado.
+Allowlist inicial exacta: `get radio`, `get freq`. El bloqueo tras respuesta
+incierta se conserva hasta reconexión; no se generan prefijos ni reintentos.
+Los puntos siguientes conservan los criterios de diseño y aceptación.
 
 Archivos previstos: `src/serial/sdk_adapter.py`, protocolo del adaptador y
 `src/admin/cli_command_executor.py`; mantener `src/admin_handler.py` como punto
@@ -113,6 +122,12 @@ secretos; intercalado de pushes. En navegador posterior sólo se habilita el bot
 si la capacidad es positiva.
 
 ## Capa 3 — API, WebSocket y diagnóstico web manual
+
+Implementación2026-10-16: snapshot bajo configuración existente y ámbito
+`scope:"firmware"` en POST `/api/admin`; bloque manual ES/EN en Ajustes,
+Telemetría y Estado. No se añadió endpoint ni evento WebSocket. El selector TCP
+de la segunda parte de esta capa continúa pendiente. Aceptación y límites en
+el ledger2/3 enlazado al inicio; no certificar implementación integral de capa3.
 
 Archivos previstos: `src/web/controllers/config_controller.py`, catálogo/rutas y
 OpenAPI ASGI, `src/web/static/js/modules/settings.js`, plantilla e i18n.
@@ -155,8 +170,11 @@ reinicio. Un rango convertido a uint8 no equivale a un rango operativo seguro.
 Archivos previstos: builders en `src/repeater_manager.py`, ejecutores
 `src/admin/repeater_executor.py`, ejecutor local y controladores/SPA. Los controles
 remotos comparten validación con comandos unitarios, preformateados y lotes.
-Bloquear `set repeat on` para ROOM1.18 por rol/capacidad conocida, también con
-prefijo; conservar una política explícita para versiones antiguas/desconocidas.
+La primera entrega bloquea `set repeat on` para todos los ROOM, también con
+prefijo y en lotes completos antes de efectos secundarios. Es la política
+explícita elegida por el usuario para versiones antiguas/desconocidas y1.18.
+Conserva repeat off y repeat on para REPEATER; no consulta versiones por RF.
+Evidencia y diseño restante: [administración remota](audits/2026-10-16-meshcore-1.18-remote-plan.md).
 Nunca convertir esa guarda en permiso de chat a REPEATER o LOCAL.
 
 `set radio` informa reinicio requerido. Conservar el valor anterior observado
@@ -205,9 +223,12 @@ companion tipo3 y permiso0x10 queda fuera de la activación inicial.
 | Datagramas, raw o retries | Depende de tamaño/ruta/nodos; no aprobado un nuevo presupuesto | Deben pasar admisión TX y límites definidos | No timers de reenvío en RAM ni replay al arrancar. |
 
 Decisiones pendientes que se solicitarán antes de esas implementaciones: lista
-de controles RF que se desean, política de ROOM antiguo/desconocido, presupuesto
-de tráfico nuevo y, para sensores, expiración/renovación/deltas. No se ha elegido
-ningún umbral o intervalo nuevo unilateralmente.
+de controles RF que se desean y, para sensores, expiración/renovación/deltas y
+presupuesto de suscripciones. Las políticas ROOM y de pausa manual ya están
+resueltas: el usuario eligió bloquear repeat on en todos los ROOM y cero pausa
+mínima entre órdenes manuales de infraestructura. La segunda decisión se integra
+en una entrega posterior separada, conservando los controles de automatizaciones.
+No se ha elegido ningún umbral o intervalo nuevo unilateralmente.
 
 ## Capa 6 — matriz de aceptación y despliegue
 

@@ -1,6 +1,6 @@
 # MeshCore 1.18.0 — investigación contrastada y actualización por capas
 
-Fecha de revisión: 2026-10-15. Estado: investigación corregida, preparación de la migración y primeras reparaciones acotadas. La compatibilidad integral sigue pendiente de los criterios de aceptación del [plan](docs/MESHCORE_1_18_UPGRADE_PLAN.md); este documento no es una certificación de interoperabilidad ni sustituye CONTEXT.md o la pila oficial.
+Investigación: 2026-10-15. Implementación ampliada: 2026-10-16, capacidades de capa2, diagnóstico manual de capa3 y guarda de repetición ROOM de capa4. La compatibilidad integral sigue pendiente de los criterios de aceptación del [plan](docs/MESHCORE_1_18_UPGRADE_PLAN.md); este documento no es una certificación de interoperabilidad ni sustituye CONTEXT.md o la pila oficial.
 
 Esta revisión reemplaza las conclusiones inexactas del borrador inicial. El equipo separó firmware/protocolo, backend y web/seguridad, y contrastó las afirmaciones con los tags oficiales y los consumidores reales de la aplicación. Los informes detallados están en [protocolo](docs/audits/2026-10-15-meshcore-1.18-protocol.md), [backend](docs/audits/2026-10-15-meshcore-1.18-backend.md) y [web](docs/audits/2026-10-15-meshcore-1.18-web.md). La [entrega conjunta](docs/audits/2026-10-15-meshcore-1.18-integration.md) registra cambios, QA y límites.
 
@@ -33,7 +33,7 @@ Los tres [releases oficiales](https://github.com/meshcore-dev/MeshCore/releases/
 | Binario espontáneo0x8C nuevo | Opcode previo;1.18 reenvía más respuestas no correlacionadas. | SDK y bridge ya conservan evento genérico; falta modelo tipado/correlación para ciertas aplicaciones. |
 |0x8C incluye emisor | No incluye pubkey. | Nunca atribuirlo a un sensor por conjetura ni interpretar cualquier binario como LPP. |
 | Scope0 wildcard | Confirmado en RegionMap. | Mejora interna del firmware; sin parche de retransmisión host. |
-| ROOM `set repeat on` deprecado | Confirmado en dispatcher1.18. | Futuro bloqueo por rol/capacidad en ejecutor, también lotes; no existe builder ROOM separado en la app. |
+| ROOM `set repeat on` deprecado | Confirmado en dispatcher1.18. | El ejecutor ya lo bloquea en todos los ROOM por decisión del usuario, también con prefijos/lotes antes de efectos. No existe builder ROOM separado en la app. |
 | ACK/multipart con delay directo | Confirmado en firmware. | No demuestra reducción de colisiones medida ni requiere reintentos host nuevos. |
 | LPPReader sustituido totalmente | Se comparten helpers LPPData; lector y escritor permanecen. | No asumir mayor precisión del parser Python sin comparación de fixtures. |
 | DTR/RTS invertidos en2.3.16 | Ya en2.3.15: un reintento con DTR invertido; RTS se conserva. | Bridge usa constructor directo, no hereda automáticamente ese camino de factory. |
@@ -70,7 +70,26 @@ Salida binaria canal: `0x3E | canal | packed_path_len | ruta | tipo_u16_LE | dat
 
 CLI remota explícita usa texto tipo3 y permiso de contacto0x10. Es distinto de CLI_DATA1 usada por administración existente. No activar permisos de contactos ni convertir chat en administración automáticamente.
 
-## 4. Cambios aplicados en esta entrega inicial
+### Mensajes largos: comprobación adicional (2026-10-17)
+
+El firmware oficial1.18 y el SDK instalado2.3.15 no fragmentan automáticamente
+un texto de chat largo. El SDK codifica el texto completo en UTF-8 y emite un
+comando por envío. En firmware, `MAX_TEXT_LEN` es160 **bytes**, no160 caracteres
+([definición](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/src/helpers/BaseChatMesh.h#L8)).
+`composeMsgPacket` rechaza el exceso en DM; los intentos extendidos reservan
+otros2 bytes. `sendGroupMessage` descuenta el prefijo `nombre: ` y recorta el
+texto que no cabe, pudiendo responder éxito después del recorte
+([implementación](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/src/helpers/BaseChatMesh.cpp#L451)).
+
+Por ello se conserva la validación por bytes y el margen de prefijo del bridge.
+Quitarla sin segmentación explícita puede perder texto. El soporte de mensajes
+largos observado en otro cliente podría proceder de ese cliente; eso requiere
+verificar su implementación concreta. Una futura segmentación en nuestra web
+debe conservar UTF-8, orden, ACK e historial por fragmento y pasar por la cola y
+airtime existentes. Multiplica los paquetes y necesita decisiones de tráfico
+antes de habilitarla; no se incorpora en esta entrega.
+
+## 4. Cambios de la entrega inicial (2026-10-15)
 
 - `CommandType.RUN_CLI_COMMAND=66` y respuesta terminal raw `66->{29}`; conserva la propiedad de respuesta, pushes, errores y timeout sin reintento.
 - Parser administrativo de radio admite frecuencias de tres y cuatro dígitos. No cambia parámetros RF ni bandas configuradas.
@@ -80,6 +99,20 @@ CLI remota explícita usa texto tipo3 y permiso de contacto0x10. Es distinto de 
 - La auditoría móvil encontró el menú por debajo de su fondo oscuro y un panel remoto más alto que la pantalla horizontal. Se corrigieron con el token de superposición de Bootstrap y un límite de altura del panel, con pruebas sobre el menú real. El estado offline conserva contraste y añade borde discontinuo. No se rediseñó la interfaz.
 
 La reparación de respuesta raw no añade una nueva API web CLI: el proxy ya transmitía el comando. No se añadió polling, suscripción, setter, automatización MQTT ni cambio de datos persistidos. Se mantienen los pins SDK de producción y el checkout de referencias. Los resultados de QA y las reparaciones adicionales justificadas se registran en el informe de integración.
+
+### 4.1 Capacidades y diagnóstico manual (2026-10-16)
+
+La siguiente entrega incorpora capacidades por sesión observadas desde DEVICE_INFO
+y lecturas locales exactas `get radio`/`get freq`. El ámbito `firmware` del endpoint
+administrativo existente conserva la consola del bridge y no publica MQTT. El
+panel web muestra protocolo, versiones, modelo y transporte; permite lectura
+manual con soporte confirmado. Invalida sesiones/resultados obsoletos y bloquea
+CLI tras timeout, cancelación o transporte incierto hasta reconexión.
+
+Ambos getters leen preferencias de firmware, que pueden estar pendientes de
+reinicio. No se añaden setters, tráfico RF, timers ni consultas de secretos.
+La selección TCP en web y las capas avanzadas siguen pendientes. Evidencia,
+contratos y límites: [ledger de capas2/3](docs/audits/2026-10-16-meshcore-1.18-layers-2-3.md).
 
 ## 5. Uso desde la web y orden de actualización
 
