@@ -12,7 +12,7 @@ from playwright.async_api import Page, Route, expect
 
 async def open_remote_preferences(page: Page, requests: list[dict[str, Any]], *, dispatched: bool = False) -> None:
     async def remote(route: Route) -> None:
-        body = route.request.post_data_json
+        body = route.request.post_data_json or {}
         action = body.get("action")
         target = body.get("target_node", "")
         data: dict[str, Any] = {"status": "ok", "target_node": target, "telemetry": {"tx_power": 17}}
@@ -24,7 +24,7 @@ async def open_remote_preferences(page: Page, requests: list[dict[str, Any]], *,
             if dispatched and action == "set_cad":
                 data["status"] = "dispatched"
             elif action == "set_cad":
-                data.update({"saved_preferences": {"cad": body["params"]["enabled"]}, "acknowledged": True})
+                data.update({"saved_preferences": {"cad": body.get("params", {}).get("enabled")}, "acknowledged": True})
             else:
                 data.update({"preferences": {"cad" if action == "get_cad" else "rx_gain": False}, "preferences_source": "saved_preferences"})
         await route.fulfill(json={"status": "ok", "data": data})
@@ -35,9 +35,25 @@ async def open_remote_preferences(page: Page, requests: list[dict[str, Any]], *,
     if not await nav.is_visible():
         await page.locator('[data-bs-toggle="offcanvas"][data-bs-target="#appSidebar"]').click()
     await nav.click()
+    await expect(page.locator("#tab-nodes")).to_be_visible()
     if page.viewport_size is not None and page.viewport_size["width"] < 992:
         await expect(sidebar).not_to_be_visible()
-    await page.locator(".btn-manage-repeater").first.click()
+    await expect(page.locator(".btn-manage-repeater").first).to_be_visible()
+    canonical_key = "a1b2c3d4e5f6" + "0" * 52
+    await page.evaluate("""(key) => {
+        const app = window.bridgeApp;
+        if (!app) return;
+        const updated = {
+            public_key: key,
+            name: "QA Repeater Alpha",
+            role: "REPEATER",
+            advert_type: 2,
+            is_local: false,
+        };
+        app.knownNodes.set(key, updated);
+        app.nodesModule.renderNodesDirectory();
+    }""", canonical_key)
+    await page.locator(f'[data-pk="{canonical_key}"] .btn-manage-repeater').click()
     await page.locator("#repeaterGatePassword").fill("virtualpass")
     await page.locator("#btnRepeaterGateSubmit").click()
     await expect(page.locator("#repeaterAdminModalCard")).to_have_class(re.compile(r".*\bunlocked\b.*"))
@@ -91,11 +107,11 @@ async def test_late_cad_reply_does_not_reenable_closed_modal(browser_page: Page)
     sent = asyncio.Event()
 
     async def delayed(route: Route) -> None:
-        body = route.request.post_data_json
+        body = route.request.post_data_json or {}
         sent.set()
         await gate.wait()
         await route.fulfill(json={"status": "ok", "data": {
-            "status": "ok", "target_node": body["target_node"], "preferences": {"cad": True},
+            "status": "ok", "target_node": body.get("target_node", ""), "preferences": {"cad": True},
             "preferences_source": "saved_preferences", "hardware_verified": False,
         }})
 

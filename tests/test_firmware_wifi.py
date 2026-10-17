@@ -157,18 +157,14 @@ def test_redaction_strips_sdk_cli_and_raw_packet_wifi_secrets() -> None:
     assert secret not in redact_command_str(cli_log)
     assert secret not in redact_command_str(pkt_log)
 
-    loop = asyncio.new_event_loop()
-    try:
-        handler = SystemLogHandler(loop)
-        record = logging.LogRecord(
-            name="meshcore", level=logging.DEBUG, pathname=__file__, lineno=1,
-            msg="Sending cli command: %s", args=(f"set wifi.pwd {secret}",), exc_info=None,
-        )
-        handler.emit(record)
-        assert len(handler.buffer) == 1
-        assert secret not in handler.buffer[0]["msg"]
-    finally:
-        loop.close()
+    handler = SystemLogHandler(level=logging.DEBUG)
+    record = logging.LogRecord(
+        name="meshcore", level=logging.DEBUG, pathname=__file__, lineno=1,
+        msg="Sending cli command: %s", args=(f"set wifi.pwd {secret}",), exc_info=None,
+    )
+    handler.emit(record)
+    assert len(handler.buffer) == 1
+    assert secret not in handler.buffer[0].message
 
 
 @dataclass

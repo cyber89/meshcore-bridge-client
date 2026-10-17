@@ -160,7 +160,6 @@ class CliCommandExecutor:
             not isinstance(reply, dict)
             or "password" in reply
             or type(reply.get("cleared")) is not bool
-            or type(reply.get("ssid_updated")) is not bool
             or type(reply.get("password_updated")) is not bool
             or reply.get("acknowledged") is not True
             or reply.get("reboot_required") is not True
@@ -170,13 +169,13 @@ class CliCommandExecutor:
             "status": "ok",
             "scope": "firmware",
             "action": "set_wifi",
-            "cleared": reply["cleared"],
             "ssid": reply.get("ssid"),
-            "ssid_updated": reply["ssid_updated"],
             "password_updated": reply["password_updated"],
             "enabled": reply.get("enabled"),
-            "acknowledged": True,
+            "cleared": reply["cleared"],
             "reboot_required": True,
+            "acknowledged": True,
+            "hardware_verified": False,
         }
 
     async def execute(

@@ -15,9 +15,6 @@ async def connection_settings(page: Page, posts: list[dict[str, Any]], *, failur
         nonlocal configured
         if route.request.method == "POST":
             posts.append({"body": route.request.post_data_json, "csrf": bool(route.request.headers.get("x-csrf-token"))})
-            if failure:
-                await route.fulfill(status=422, json={"detail": "Rejected <b>literal</b>"})
-                return
             configured = route.request.post_data_json.get("companion_port", configured)
         await route.fulfill(json={"status": "ok", "data": {
             "companion_port": configured,
@@ -29,6 +26,22 @@ async def connection_settings(page: Page, posts: list[dict[str, Any]], *, failur
 
     await page.route("**/api/services/config", services)
     await page.reload()
+    if failure:
+        await page.evaluate("""() => {
+            const orig = window.fetch;
+            window.fetch = async (url, opts = {}) => {
+                if (String(url).includes('/api/services/config') && opts.method === 'POST') {
+                    const body = opts.body ? JSON.parse(opts.body) : {};
+                    window.__qaFailurePosts = window.__qaFailurePosts || [];
+                    window.__qaFailurePosts.push({body, csrf: Boolean(opts.headers && (opts.headers['X-CSRF-Token'] || opts.headers['x-csrf-token']))});
+                    return new Response(JSON.stringify({detail: "Rejected <b>literal</b>"}), {
+                        status: 422,
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                }
+                return orig(url, opts);
+            };
+        }""")
     menu = page.locator('[data-bs-toggle="offcanvas"][data-bs-target="#appSidebar"]')
     if await menu.is_visible():
         await menu.click()

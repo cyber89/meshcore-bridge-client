@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -132,11 +133,15 @@ async def test_rx_router_correlates_active_sensor_push_and_isolates_unassociated
     web_mock = MagicMock()
     web_mock.broadcast_event = AsyncMock()
     router_ctx = RxRouterContext(
-        mqtt_client=mqtt_mock,
+        mqtt=mqtt_mock,
         serial_adapter=MagicMock(),
         node_registry=registry,
         repeater_manager=RepeaterManager(),
+        deduplicator=MagicMock(),
         web_server=web_mock,
+        loop=asyncio.get_running_loop(),
+        background_tasks=set(),
+        counters=SimpleNamespace(rx_count=0, tx_count=0, tx_error_count=0, err_count=0),
     )
     router = RxEventRouter(router_ctx)
 
@@ -151,7 +156,8 @@ async def test_rx_router_correlates_active_sensor_push_and_isolates_unassociated
             "sender_name": "SpoofedSensor",
         },
     )
-    await router._on_rx_event(uncorrelated_ev)
+    router.handle_event(uncorrelated_ev)
+    await router.drain()
     assert registry.get_contact(spoofed_key) is None
     published_topics = [c.args[0] for c in mqtt_mock.publish_safe.call_args_list]
     assert config.TOPIC_RX_TELEMETRY not in published_topics
@@ -182,7 +188,8 @@ async def test_rx_router_correlates_active_sensor_push_and_isolates_unassociated
         type="BINARY_RESPONSE",
         payload={"tag": push_tag, "data": push_data_hex, "rssi": -88, "snr": 6.5},
     )
-    await router._on_rx_event(correlated_ev)
+    router.handle_event(correlated_ev)
+    await router.drain()
 
     sensor_node = registry.get_contact(SENSOR_KEY)
     assert sensor_node is not None
@@ -206,7 +213,7 @@ async def test_manual_sensor_subscription_enforces_sensor_role_and_handles_ack_c
     registry.add_or_update(ROOM_KEY, NodeContactUpdate(name="TownRoom", role="ROOM"))
     registry.add_or_update(CLIENT_KEY, NodeContactUpdate(name="Alice", role="CLIENT"))
 
-    mc = MagicMock()
+    mc = MagicMock(contacts={})
     mc._contacts = {}
     mc.commands.add_contact = AsyncMock(return_value={"type": "OK"})
     mc.commands.send_binary_req = AsyncMock(
@@ -224,10 +231,11 @@ async def test_manual_sensor_subscription_enforces_sensor_role_and_handles_ack_c
     )
 
     admin_ctx = AdminContext(
-        mqtt_client=MagicMock(),
+        mqtt=MagicMock(),
         mc_provider=lambda: mc,
         node_registry=registry,
         repeater_manager=RepeaterManager(),
+        execute_tx=AsyncMock(),
         web_server=SimpleNamespace(broadcast_event=AsyncMock()),
     )
     handler = AdminCommandHandler(admin_ctx)

@@ -349,18 +349,25 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if clear:
             if ssid is not None or password is not None or enabled is not None:
                 raise ValueError("invalid_firmware_wifi")
-            reply = await self._run_firmware_cli_command("set wifi.clear")
+            try:
+                reply = await self._run_firmware_cli_command("wifi.clear")
+            except RuntimeError as err:
+                if str(err) == "firmware_cli_rejected":
+                    raise RuntimeError("firmware_wifi_rejected") from None
+                raise
             normalized = reply["text"].lstrip().removeprefix(">").strip().lower()
             if not normalized.startswith("wifi config cleared"):
+                if "error" in normalized or "err" in normalized:
+                    raise RuntimeError("firmware_wifi_rejected")
                 raise RuntimeError("firmware_wifi_unconfirmed")
             return {
-                "cleared": True,
                 "ssid": None,
-                "ssid_updated": False,
                 "password_updated": False,
-                "enabled": True,
-                "acknowledged": True,
+                "enabled": False,
+                "cleared": True,
                 "reboot_required": True,
+                "acknowledged": True,
+                "hardware_verified": False,
             }
 
         if ssid is None and password is None and enabled is None:
@@ -378,31 +385,42 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if enabled is not None and type(enabled) is not bool:
             raise ValueError("invalid_firmware_wifi")
 
-        if clean_ssid is not None:
-            ssid_reply = await self._run_firmware_cli_command(f"set wifi.ssid {clean_ssid}")
-            ssid_norm = ssid_reply["text"].lstrip().removeprefix(">").strip().lower()
-            if not ssid_norm.startswith("wifi.ssid is now "):
-                raise RuntimeError("firmware_wifi_unconfirmed")
-        if clean_pwd is not None:
-            pwd_reply = await self._run_firmware_cli_command(f"set wifi.pwd {clean_pwd}")
-            pwd_norm = pwd_reply["text"].lstrip().removeprefix(">").strip().lower()
-            if not pwd_norm.startswith("wifi.pwd updated"):
-                raise RuntimeError("firmware_wifi_unconfirmed")
-        if enabled is not None:
-            flag_str = "1" if enabled else "0"
-            en_reply = await self._run_firmware_cli_command(f"set wifi.enabled {flag_str}")
-            en_norm = en_reply["text"].lstrip().removeprefix(">").strip().lower()
-            if not en_norm.startswith(f"wifi.enabled is now {flag_str}"):
-                raise RuntimeError("firmware_wifi_unconfirmed")
+        try:
+            if clean_ssid is not None:
+                ssid_reply = await self._run_firmware_cli_command(f"set wifi.ssid {clean_ssid}")
+                ssid_norm = ssid_reply["text"].lstrip().removeprefix(">").strip().lower()
+                if not ssid_norm.startswith("wifi.ssid is now "):
+                    if "error" in ssid_norm or "err" in ssid_norm:
+                        raise RuntimeError("firmware_wifi_rejected")
+                    raise RuntimeError("firmware_wifi_unconfirmed")
+            if clean_pwd is not None:
+                pwd_reply = await self._run_firmware_cli_command(f"set wifi.pwd {clean_pwd}")
+                pwd_norm = pwd_reply["text"].lstrip().removeprefix(">").strip().lower()
+                if not pwd_norm.startswith("wifi.pwd updated"):
+                    if "error" in pwd_norm or "err" in pwd_norm:
+                        raise RuntimeError("firmware_wifi_rejected")
+                    raise RuntimeError("firmware_wifi_unconfirmed")
+            if enabled is not None:
+                flag_str = "on" if enabled else "off"
+                en_reply = await self._run_firmware_cli_command(f"set wifi.enabled {flag_str}")
+                en_norm = en_reply["text"].lstrip().removeprefix(">").strip().lower()
+                if not (en_norm.startswith(f"wifi.enabled is now {flag_str}") or en_norm.startswith(f"wifi.enabled is now {'1' if enabled else '0'}")):
+                    if "error" in en_norm or "err" in en_norm:
+                        raise RuntimeError("firmware_wifi_rejected")
+                    raise RuntimeError("firmware_wifi_unconfirmed")
+        except RuntimeError as err:
+            if str(err) == "firmware_cli_rejected":
+                raise RuntimeError("firmware_wifi_rejected") from None
+            raise
 
         return {
-            "cleared": False,
             "ssid": clean_ssid,
-            "ssid_updated": clean_ssid is not None,
             "password_updated": clean_pwd is not None,
             "enabled": enabled,
-            "acknowledged": True,
+            "cleared": False,
             "reboot_required": True,
+            "acknowledged": True,
+            "hardware_verified": False,
         }
 
     async def _run_firmware_cli_command(self, command: str) -> dict[str, str]:

@@ -9,6 +9,7 @@ from playwright.async_api import Page, Route, expect
 
 
 async def wifi_settings(page: Page) -> None:
+    await page.reload()
     menu = page.locator('[data-bs-toggle="offcanvas"][data-bs-target="#appSidebar"]')
     if await menu.is_visible():
         await menu.click()

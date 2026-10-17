@@ -2105,6 +2105,7 @@ export class SettingsModule {
       this._firmwareCadObservation = null;
       this._firmwareCadDraft = false;
       this._firmwareCadOutcome = "";
+      this._firmwareWifiObservation = null;
       this._firmwareWifiOutcome = "";
       this._firmwareWifiSsidDraft = false;
       this._firmwareWifiEnabledDraft = false;
@@ -2152,7 +2153,7 @@ export class SettingsModule {
     if (cadStatus) I18n.setText(cadStatus, this._firmwareCadOutcome || (this._firmwareCadObservation === null
       ? "settings.firmware_cad_read_first" : "settings.firmware_cad_observed"));
 
-    const canEditWifi = wifiWritable && !this._firmwareCliBusy;
+    const canEditWifi = wifiWritable && this._firmwareWifiObservation !== null && !this._firmwareCliBusy;
     const wifiSsid = document.getElementById("firmwareWifiSsid");
     if (wifiSsid) wifiSsid.disabled = !canEditWifi;
     const wifiPwd = document.getElementById("firmwareWifiPassword");
@@ -2169,7 +2170,8 @@ export class SettingsModule {
     const wifiClear = document.getElementById("firmwareWifiClear");
     if (wifiClear) wifiClear.disabled = !canEditWifi;
     const wifiStatus = document.getElementById("firmwareWifiStatus");
-    if (wifiStatus) I18n.setText(wifiStatus, this._firmwareWifiOutcome || "settings.firmware_wifi_ready");
+    if (wifiStatus) I18n.setText(wifiStatus, this._firmwareWifiOutcome || (this._firmwareWifiObservation === null
+      ? "settings.firmware_wifi_ready" : "settings.firmware_wifi_observed"));
   }
 
   async _readFirmwareDiagnostic() {
@@ -2216,20 +2218,24 @@ export class SettingsModule {
           const value = document.getElementById("firmwareCadValue");
           if (value && !this._firmwareCadDraft) value.value = observation[1];
         }
-      } else if (command === "get wifi.ssid") {
-        const observation = /^>\s*(.+?)\s*$/.exec(result.result.trim());
-        if (observation) {
-          const ssidInput = document.getElementById("firmwareWifiSsid");
-          if (ssidInput && !this._firmwareWifiSsidDraft) {
-            ssidInput.value = observation[1] === "(not set)" ? "" : observation[1];
+      } else if (command.startsWith("get wifi.")) {
+        this._firmwareWifiObservation = command;
+        if (command === "get wifi.ssid") {
+          const observation = /^>\s*(.+?)\s*$/.exec(result.result.trim());
+          if (observation) {
+            const ssidInput = document.getElementById("firmwareWifiSsid");
+            if (ssidInput && !this._firmwareWifiSsidDraft) {
+              ssidInput.value = observation[1] === "(not set)" ? "" : observation[1];
+            }
           }
-        }
-      } else if (command === "get wifi.enabled") {
-        const observation = /^>\s*([01])\s*$/.exec(result.result.trim());
-        if (observation) {
-          const enInput = document.getElementById("firmwareWifiEnabled");
-          if (enInput && !this._firmwareWifiEnabledDraft) {
-            enInput.value = observation[1] === "1" ? "on" : "off";
+        } else if (command === "get wifi.enabled") {
+          const observation = /^>\s*(0|1|on|off)\s*$/i.exec(result.result.trim());
+          if (observation) {
+            const enInput = document.getElementById("firmwareWifiEnabled");
+            if (enInput && !this._firmwareWifiEnabledDraft) {
+              const val = observation[1].toLowerCase();
+              enInput.value = (val === "1" || val === "on") ? "on" : "off";
+            }
           }
         }
       }
@@ -2307,6 +2313,7 @@ export class SettingsModule {
     if (!("ssid" in payload) && !("password" in payload) && !("enabled" in payload)) return;
     const generation = this._firmwareCliGeneration;
     this._firmwareCliBusy = true;
+    this._firmwareWifiObservation = null;
     this._firmwareWifiOutcome = "settings.firmware_wifi_saving";
     this._renderFirmwareCliCapability();
     try {
@@ -2350,6 +2357,7 @@ export class SettingsModule {
     if (pwdEl) pwdEl.value = "";
     const generation = this._firmwareCliGeneration;
     this._firmwareCliBusy = true;
+    this._firmwareWifiObservation = null;
     this._firmwareWifiOutcome = "settings.firmware_wifi_saving";
     this._renderFirmwareCliCapability();
     try {

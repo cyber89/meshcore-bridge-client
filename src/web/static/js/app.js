@@ -109,7 +109,8 @@ class MeshCoreApp {
     this.chatModule.init();
     this.analyticsModule.init();
 
-    // Exponer helpers globales de diálogos del sistema
+    // Exponer instancia global y helpers de diálogos del sistema
+    window.bridgeApp = this;
     window.showConfirm = (msg, opts) => this.showConfirm(msg, opts);
     window.showAlert = (msg, opts) => this.showAlert(msg, opts);
     window.showPrompt = (msg, defVal, opts) => this.showPrompt(msg, defVal, opts);

@@ -960,7 +960,7 @@ _SENSITIVE_COMMAND = re.compile(
 )
 _SENSITIVE_PACKET_LOG = re.compile(
     r"^(?P<prefix>sending\s+pkt\s*:\s*b['\"].*?(?:(?:password|login)\s+|set(?:\s+|_)(?:password|admin\.password|guest\.password|"
-    r"wifi\.(?:pwd|password)|prv\.key|prv_key|pin|ble_pin|blepin|devicepin)\s+)).*?(?P<quote>['\"])$",
+    r"wifi\.(?:pwd|password)|prv\.key|prv_key|pin|ble_pin|blepin|devicepin)\s+)).*?(?P<quote>['\"][^\r\n]*)$",
     re.IGNORECASE | re.DOTALL,
 )
 
