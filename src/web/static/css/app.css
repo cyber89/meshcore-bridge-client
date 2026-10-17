@@ -3653,6 +3653,12 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   padding-top: 1rem;
 }
 
+.form-section-title.first-section {
+  margin-top: 0;
+  border-top: none;
+  padding-top: 0;
+}
+
 .field-hint {
   font-size: var(--font-meta);
   color: var(--bs-secondary-color);

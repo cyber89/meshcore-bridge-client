@@ -839,76 +839,14 @@
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
             <div id="local-telemetry" class="local-settings-subpanel active">
-              <section id="firmwareCompatibilityPanel" class="card-panel settings-panel-spaced" aria-labelledby="firmwareCompatibilityTitle" data-state="unknown" aria-busy="false">
-                <div class="panel-header-modern">
-                  <div>
-                    <h3 id="firmwareCompatibilityTitle" data-i18n="settings.firmware_cli_title">Compatibilidad y diagnóstico del firmware</h3>
-                    <p class="panel-desc" data-i18n="settings.firmware_cli_description">Lectura manual de la configuración informada por el firmware. Puede contener preferencias pendientes de reinicio.</p>
-                  </div>
-                  <span id="firmwareCliState" class="badge-pill badge-outline" data-i18n="settings.firmware_cli_unknown">Sin verificar</span>
+              <!-- Métricas en Tiempo Real y Estado Operativo -->
+              <div class="panel-header-modern">
+                <div>
+                  <h3 data-i18n="settings.live_telemetry_title">Métricas en Tiempo Real &amp; Estado Operativo</h3>
+                  <p class="panel-desc" data-i18n="settings.live_telemetry_desc">Monitoreo continuo de alimentación, reloj RTC, tiempo activo, ciclo de trabajo y contadores de paquetes del transceptor.</p>
                 </div>
-                <p id="firmwareCliReason" class="form-hint" data-i18n="settings.firmware_cli_reason_awaiting_device_info">Esperando información del transceptor.</p>
-                <dl class="grid-form-3col">
-                  <div><dt data-i18n="settings.firmware_cli_protocol">Protocolo Companion</dt><dd id="firmwareCliProtocol">—</dd></div>
-                  <div><dt data-i18n="settings.firmware_cli_version">Versión del firmware</dt><dd id="firmwareCliVersion">—</dd></div>
-                  <div><dt data-i18n="settings.firmware_cli_sdk">SDK</dt><dd id="firmwareCliSdkVersion">—</dd></div>
-                  <div><dt data-i18n="settings.firmware_cli_model">Modelo informado</dt><dd id="firmwareCliModel">—</dd></div>
-                  <div><dt data-i18n="settings.firmware_cli_transport">Transporte</dt><dd id="firmwareCliTransport">—</dd></div>
-                </dl>
-                <form id="firmwareCliReadForm" class="grid-form-2col" aria-labelledby="firmwareCompatibilityTitle">
-                  <div class="form-group">
-                    <label for="firmwareCliCommand" data-i18n="settings.firmware_cli_query">Consulta de firmware</label>
-                    <select id="firmwareCliCommand" disabled>
-                      <option value="get radio" data-i18n="settings.firmware_cli_radio">Configuración de radio informada</option>
-                      <option value="get freq" data-i18n="settings.firmware_cli_freq">Frecuencia informada</option>
-                      <option value="get cad" data-i18n="settings.firmware_cli_cad">Preferencia CAD informada</option>
-                      <option value="get radio.rxgain" data-i18n="settings.firmware_cli_rxgain">Preferencia de ganancia RX informada</option>
-                      <option value="get path.hash.mode" data-i18n="settings.firmware_cli_hash">Hash de ruta informado</option>
-                      <option value="get wifi.ssid" data-i18n="settings.firmware_cli_wifi_ssid">SSID WiFi informado</option>
-                      <option value="get wifi.enabled" data-i18n="settings.firmware_cli_wifi_enabled">Habilitación WiFi informada</option>
-                      <option value="get wifi.status" data-i18n="settings.firmware_cli_wifi_status">Estado de enlace WiFi informado</option>
-                      <option value="get wifi.ip" data-i18n="settings.firmware_cli_wifi_ip">Dirección IP WiFi informada</option>
-                    </select>
-                  </div>
-                  <div class="form-group"><button id="firmwareCliReadButton" type="submit" class="btn btn-secondary" disabled data-i18n="settings.firmware_cli_read">Consultar firmware</button></div>
-                </form>
-                <p id="firmwareCliOutput" class="form-hint font-mono" role="status" aria-live="polite"></p>
-                <form id="firmwareCadForm" class="grid-form-2col" aria-describedby="firmwareCadHint">
-                  <div class="form-group">
-                    <label for="firmwareCadValue" data-i18n="settings.firmware_cad_label">Preferencia CAD (detección de actividad del canal)</label>
-                    <select id="firmwareCadValue" disabled>
-                      <option value="" data-i18n="common.unverified">Sin verificar</option>
-                      <option value="on" data-i18n="settings.firmware_cad_on">Activado</option>
-                      <option value="off" data-i18n="settings.firmware_cad_off">Desactivado</option>
-                    </select>
-                  </div>
-                  <div class="form-group"><button id="firmwareCadSave" class="btn btn-secondary" type="submit" disabled data-i18n="settings.firmware_cad_save">Guardar preferencia CAD</button></div>
-                  <p id="firmwareCadHint" class="form-hint span-full" data-i18n="settings.firmware_cad_hint">Consulta CAD antes de cambiarlo. El acuse y la lectura confirman preferencias; el soporte y la aplicación en hardware siguen sin verificar. RX gain se ofrece sólo en lectura; el hash conserva su editor actual.</p>
-                </form>
-                <p id="firmwareCadStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.firmware_cad_read_first">Consulta CAD manualmente para habilitar este ajuste.</p>
-                <form id="firmwareWifiForm" class="grid-form-3col" aria-describedby="firmwareWifiHint">
-                  <div class="form-group">
-                    <label for="firmwareWifiSsid" data-i18n="settings.firmware_wifi_ssid_label">SSID WiFi Companion</label>
-                    <input id="firmwareWifiSsid" type="text" maxlength="32" autocomplete="off" spellcheck="false" disabled placeholder="SSID (1-32 bytes UTF-8)" data-i18n-placeholder="settings.firmware_wifi_ssid_placeholder" />
-                  </div>
-                  <div class="form-group">
-                    <label for="firmwareWifiPassword" data-i18n="settings.firmware_wifi_password_label">Contraseña WiFi (sólo escritura)</label>
-                    <input id="firmwareWifiPassword" type="password" maxlength="63" autocomplete="new-password" spellcheck="false" disabled placeholder="Contraseña WPA2 (1-63 bytes)" data-i18n-placeholder="settings.firmware_wifi_password_placeholder" />
-                  </div>
-                  <div class="form-group">
-                    <label for="firmwareWifiEnabled" data-i18n="settings.firmware_wifi_enabled_label">Interfaz WiFi Companion</label>
-                    <select id="firmwareWifiEnabled" disabled>
-                      <option value="" data-i18n="common.unverified">Sin verificar</option>
-                      <option value="on" data-i18n="settings.firmware_cad_on">Activado</option>
-                      <option value="off" data-i18n="settings.firmware_cad_off">Desactivado</option>
-                    </select>
-                  </div>
-                  <div class="form-group"><button id="firmwareWifiSave" class="btn btn-secondary" type="submit" disabled data-i18n="settings.firmware_wifi_save">Guardar WiFi Companion</button></div>
-                  <div class="form-group"><button id="firmwareWifiClear" class="btn btn-outline" type="button" disabled data-i18n="settings.firmware_wifi_clear">Borrar configuración WiFi</button></div>
-                  <p id="firmwareWifiHint" class="form-hint span-full" data-i18n="settings.firmware_wifi_hint">La contraseña es de sólo escritura y nunca se lee del firmware. Requiere compilación con ENABLE_WIFI_INTERFACE y reiniciar el nodo para aplicar cambios.</p>
-                </form>
-                <p id="firmwareWifiStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.firmware_wifi_ready">Introduce SSID, contraseña o estado para guardar la configuración WiFi local.</p>
-              </section>
+              </div>
+
               <div class="info-grid info-grid-extended">
                 <div class="metric-card">
                   <div class="card-icon"><i class="bi bi-lightning" aria-hidden="true"></i></div>
@@ -1008,12 +946,105 @@
                   </button>
                 </div>
               </div>
+
+              <!-- Diagnóstico de Firmware y Preferencias Avanzadas -->
+              <section id="firmwareCompatibilityPanel" class="card-panel settings-panel-spaced" aria-labelledby="firmwareCompatibilityTitle" data-state="unknown" aria-busy="false">
+                <div class="panel-header-modern">
+                  <div>
+                    <h3 id="firmwareCompatibilityTitle" data-i18n="settings.firmware_cli_title">Compatibilidad y diagnóstico del firmware</h3>
+                    <p class="panel-desc" data-i18n="settings.firmware_cli_description">Lectura manual de la configuración informada por el firmware. Puede contener preferencias pendientes de reinicio.</p>
+                  </div>
+                  <span id="firmwareCliState" class="badge-pill badge-outline" data-i18n="settings.firmware_cli_unknown">Sin verificar</span>
+                </div>
+                <p id="firmwareCliReason" class="form-hint" data-i18n="settings.firmware_cli_reason_awaiting_device_info">Esperando información del transceptor.</p>
+                <dl class="grid-form-3col">
+                  <div><dt data-i18n="settings.firmware_cli_protocol">Protocolo Companion</dt><dd id="firmwareCliProtocol">—</dd></div>
+                  <div><dt data-i18n="settings.firmware_cli_version">Versión del firmware</dt><dd id="firmwareCliVersion">—</dd></div>
+                  <div><dt data-i18n="settings.firmware_cli_sdk">SDK</dt><dd id="firmwareCliSdkVersion">—</dd></div>
+                  <div><dt data-i18n="settings.firmware_cli_model">Modelo informado</dt><dd id="firmwareCliModel">—</dd></div>
+                  <div><dt data-i18n="settings.firmware_cli_transport">Transporte</dt><dd id="firmwareCliTransport">—</dd></div>
+                </dl>
+                <form id="firmwareCliReadForm" class="grid-form-2col" aria-labelledby="firmwareCompatibilityTitle">
+                  <div class="form-group">
+                    <label for="firmwareCliCommand" data-i18n="settings.firmware_cli_query">Consulta de firmware</label>
+                    <select id="firmwareCliCommand" disabled>
+                      <option value="get radio" data-i18n="settings.firmware_cli_radio">Configuración de radio informada</option>
+                      <option value="get freq" data-i18n="settings.firmware_cli_freq">Frecuencia informada</option>
+                      <option value="get cad" data-i18n="settings.firmware_cli_cad">Preferencia CAD informada</option>
+                      <option value="get radio.rxgain" data-i18n="settings.firmware_cli_rxgain">Preferencia de ganancia RX informada</option>
+                      <option value="get path.hash.mode" data-i18n="settings.firmware_cli_hash">Hash de ruta informado</option>
+                      <option value="get wifi.ssid" data-i18n="settings.firmware_cli_wifi_ssid">SSID WiFi informado</option>
+                      <option value="get wifi.enabled" data-i18n="settings.firmware_cli_wifi_enabled">Habilitación WiFi informada</option>
+                      <option value="get wifi.status" data-i18n="settings.firmware_cli_wifi_status">Estado de enlace WiFi informado</option>
+                      <option value="get wifi.ip" data-i18n="settings.firmware_cli_wifi_ip">Dirección IP WiFi informada</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><button id="firmwareCliReadButton" type="submit" class="btn btn-secondary" disabled data-i18n="settings.firmware_cli_read">Consultar firmware</button></div>
+                </form>
+                <p id="firmwareCliOutput" class="form-hint font-mono" role="status" aria-live="polite"></p>
+
+                <div class="form-section-title span-full">
+                  <i class="bi bi-soundwave section-icon" aria-hidden="true"></i>
+                  <span data-i18n="settings.firmware_cad_section_title">Detección de Actividad en Canal (CAD)</span>
+                </div>
+                <p class="field-hint span-full" data-i18n="settings.firmware_cad_section_desc">Detección por hardware previa a transmisión para evitar colisiones con otros nodos cercanos.</p>
+
+                <form id="firmwareCadForm" class="grid-form-2col" aria-describedby="firmwareCadHint">
+                  <div class="form-group">
+                    <label for="firmwareCadValue" data-i18n="settings.firmware_cad_label">Preferencia CAD (detección de actividad del canal)</label>
+                    <select id="firmwareCadValue" disabled>
+                      <option value="" data-i18n="common.unverified">Sin verificar</option>
+                      <option value="on" data-i18n="settings.firmware_cad_on">Activado</option>
+                      <option value="off" data-i18n="settings.firmware_cad_off">Desactivado</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><button id="firmwareCadSave" class="btn btn-secondary" type="submit" disabled data-i18n="settings.firmware_cad_save">Guardar preferencia CAD</button></div>
+                  <p id="firmwareCadHint" class="form-hint span-full" data-i18n="settings.firmware_cad_hint">Consulta CAD antes de cambiarlo. El acuse y la lectura confirman preferencias; el soporte y la aplicación en hardware siguen sin verificar. RX gain se ofrece sólo en lectura; el hash conserva su editor actual.</p>
+                </form>
+                <p id="firmwareCadStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.firmware_cad_read_first">Consulta CAD manualmente para habilitar este ajuste.</p>
+
+                <div class="form-section-title span-full">
+                  <i class="bi bi-wifi section-icon" aria-hidden="true"></i>
+                  <span data-i18n="settings.firmware_wifi_section_title">Interfaz WiFi Companion del Transceptor</span>
+                </div>
+                <p class="field-hint span-full" data-i18n="settings.firmware_wifi_section_desc">Punto de acceso o cliente WiFi integrado en el microcontrolador del transceptor (ESP32).</p>
+
+                <form id="firmwareWifiForm" class="grid-form-3col" aria-describedby="firmwareWifiHint">
+                  <div class="form-group">
+                    <label for="firmwareWifiSsid" data-i18n="settings.firmware_wifi_ssid_label">SSID WiFi Companion</label>
+                    <input id="firmwareWifiSsid" type="text" maxlength="32" autocomplete="off" spellcheck="false" disabled placeholder="SSID (1-32 bytes UTF-8)" data-i18n-placeholder="settings.firmware_wifi_ssid_placeholder" />
+                  </div>
+                  <div class="form-group">
+                    <label for="firmwareWifiPassword" data-i18n="settings.firmware_wifi_password_label">Contraseña WiFi (sólo escritura)</label>
+                    <input id="firmwareWifiPassword" type="password" maxlength="63" autocomplete="new-password" spellcheck="false" disabled placeholder="Contraseña WPA2 (1-63 bytes)" data-i18n-placeholder="settings.firmware_wifi_password_placeholder" />
+                  </div>
+                  <div class="form-group">
+                    <label for="firmwareWifiEnabled" data-i18n="settings.firmware_wifi_enabled_label">Interfaz WiFi Companion</label>
+                    <select id="firmwareWifiEnabled" disabled>
+                      <option value="" data-i18n="common.unverified">Sin verificar</option>
+                      <option value="on" data-i18n="settings.firmware_cad_on">Activado</option>
+                      <option value="off" data-i18n="settings.firmware_cad_off">Desactivado</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><button id="firmwareWifiSave" class="btn btn-secondary" type="submit" disabled data-i18n="settings.firmware_wifi_save">Guardar WiFi Companion</button></div>
+                  <div class="form-group"><button id="firmwareWifiClear" class="btn btn-outline" type="button" disabled data-i18n="settings.firmware_wifi_clear">Borrar configuración WiFi</button></div>
+                  <p id="firmwareWifiHint" class="form-hint span-full" data-i18n="settings.firmware_wifi_hint">La contraseña es de sólo escritura y nunca se lee del firmware. Requiere compilación con ENABLE_WIFI_INTERFACE y reiniciar el nodo para aplicar cambios.</p>
+                </form>
+                <p id="firmwareWifiStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.firmware_wifi_ready">Introduce SSID, contraseña o estado para guardar la configuración WiFi local.</p>
+              </section>
             </div>
 
             <!-- Subpanel 2: Parámetros RF & Radio -->
             <div id="local-radio" class="local-settings-subpanel">
               <div class="card-panel">
                 <form id="localRadioForm" class="grid-form-3col" aria-label="Parámetros de radio" data-i18n-aria-label="ui.form_radio">
+                  <!-- Grupo 1: Modulación LoRa & Espectro RF -->
+                  <div class="form-section-title span-full first-section">
+                    <i class="bi bi-broadcast-pin section-icon" aria-hidden="true"></i>
+                    <span data-i18n="settings.section_radio_rf">Capa Física LoRa &amp; Espectro RF</span>
+                  </div>
+                  <p class="field-hint span-full" data-i18n="settings.section_radio_rf_desc">Parámetros de modulación, frecuencia central, potencia de emisión y ancho de banda del canal de radio.</p>
+
                   <div class="form-group">
                     <label for="localFreq" data-i18n="ui.static_194">Frecuencia RF (MHz):</label>
                     <input type="number" id="localFreq" step="any" value="915.000" required />
@@ -1032,10 +1063,6 @@
                   <div class="form-group">
                     <label for="localTxPower" data-i18n="ui.static_202">Potencia TX LoRa: <span id="localTxPowerVal" class="val-badge">20 dBm</span></label>
                     <input type="range" id="localTxPower" min="2" max="22" value="20" step="1" />
-                  </div>
-                  <div class="form-group">
-                    <label for="localHopLimit" data-i18n="ui.static_203">Límite de Saltos (Hop Limit):</label>
-                    <input type="number" id="localHopLimit" min="1" max="7" value="3" required />
                   </div>
                   <div class="form-group">
                     <label for="localSf" data-i18n="ui.static_204">Spreading Factor (SF):</label>
@@ -1074,6 +1101,14 @@
                       <option value="4/8" data-i18n="ui.static_218">4/8 (Máxima corrección)</option>
                     </select>
                   </div>
+
+                  <!-- Grupo 2: Topología de Red & Enrutamiento en Malla -->
+                  <div class="form-section-title span-full">
+                    <i class="bi bi-diagram-3 section-icon" aria-hidden="true"></i>
+                    <span data-i18n="settings.section_mesh_routing">Topología de Red &amp; Enrutamiento en Malla</span>
+                  </div>
+                  <p class="field-hint span-full" data-i18n="settings.section_mesh_routing_desc">Políticas de propagación por inundación, límites de saltos y algoritmos de ruta multi-salto.</p>
+
                   <div class="form-group toggle-field-group">
                     <div class="toggle-field-row">
                       <div class="toggle-field-info">
@@ -1089,7 +1124,117 @@
                       </div>
                     </div>
                   </div>
-                  <!-- Sección: Balizas & Transmisiones Periódicas -->
+                  <div class="form-group">
+                    <label for="localHopLimit" data-i18n="ui.static_203">Límite de Saltos (Hop Limit):</label>
+                    <input type="number" id="localHopLimit" min="1" max="7" value="3" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="localPathHashMode" data-i18n="ui.static_239">Modo Path Hash:</label>
+                    <select id="localPathHashMode" class="form-select form-select-sm select-input">
+                      <option value="0" data-i18n="ui.static_240">0 - Desactivado (Ruta Completa)</option>
+                      <option value="1" data-i18n="ui.static_241">1 - Hash de 1 Byte (Compacto)</option>
+                      <option value="2" data-i18n="ui.static_242">2 - Hash de 2 Bytes (Recomendado)</option>
+                    </select>
+                  </div>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title" data-i18n="ui.static_257">Multi-ACKs</span>
+                        <span class="toggle-field-desc" data-i18n="ui.static_258">Permite confirmaciones múltiples</span>
+                      </div>
+                      <div class="settings-toggle-controls">
+                        <span class="toggle-state-badge" id="localMultiAcksBadge">OFF</span>
+                        <label class="toggle-switch toggle-blue" for="localMultiAcks" title="Habilitar confirmaciones multi-ack" data-i18n-title="ui.static_259">
+                          <input type="checkbox" id="localMultiAcks" role="switch" aria-label="Habilitar multi-acks"  data-i18n-aria-label="ui.static_260"/>
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Grupo 3: Privacidad, Permisos & Telemetría Compartida -->
+                  <div class="form-section-title span-full">
+                    <i class="bi bi-shield-lock section-icon" aria-hidden="true"></i>
+                    <span data-i18n="settings.section_privacy_telemetry">Privacidad, Permisos &amp; Telemetría Compartida</span>
+                  </div>
+                  <p class="field-hint span-full" data-i18n="settings.section_privacy_telemetry_desc">Control de acceso sobre la telemetría del nodo, divulgación de ubicación y aprobación de contactos.</p>
+
+                  <div class="form-group">
+                    <label for="localTelemBase" data-i18n="ui.static_245">Modo Telemetría Base:</label>
+                    <select id="localTelemBase" class="form-select form-select-sm select-input">
+                      <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
+                      <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
+                      <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="localTelemLoc" data-i18n="ui.static_249">Modo Telemetría Ubicación:</label>
+                    <select id="localTelemLoc" class="form-select form-select-sm select-input">
+                      <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
+                      <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
+                      <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="localTelemEnv" data-i18n="ui.static_250">Modo Telemetría Ambiental:</label>
+                    <select id="localTelemEnv" class="form-select form-select-sm select-input">
+                      <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
+                      <option value="1" selected data-i18n="ui.static_251">1 - Solo Contactos</option>
+                      <option value="2" data-i18n="ui.static_252">2 - Todos los Nodos</option>
+                    </select>
+                  </div>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title" data-i18n="ui.static_253">Compartir Ubicación en Anuncio</span>
+                        <span class="toggle-field-desc" data-i18n="ui.static_254">Incluye coordenadas en paquetes Advert</span>
+                      </div>
+                      <div class="settings-toggle-controls">
+                        <span class="toggle-state-badge" id="localAdvLocBadge">OFF</span>
+                        <label class="toggle-switch toggle-blue" for="localAdvLocPolicy" title="Compartir coordenadas en balizas advert" data-i18n-title="ui.static_255">
+                          <input type="checkbox" id="localAdvLocPolicy" role="switch" aria-label="Compartir ubicación en anuncios"  data-i18n-aria-label="ui.static_256"/>
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title" data-i18n="ui.static_261">Aprobación Manual de Contactos</span>
+                        <span class="toggle-field-desc" data-i18n="ui.static_262">Confirmación manual de contactos</span>
+                      </div>
+                      <div class="settings-toggle-controls">
+                        <span class="toggle-state-badge" id="localManualAddBadge">OFF</span>
+                        <label class="toggle-switch toggle-blue" for="localManualAddContacts" title="Aprobación manual de contactos entrantes" data-i18n-title="ui.static_263">
+                          <input type="checkbox" id="localManualAddContacts" role="switch" aria-label="Aprobación manual de contactos"  data-i18n-aria-label="ui.static_264"/>
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="localDevicePin" data-i18n="ui.static_237">PIN del Dispositivo (BLE/Emparejamiento):</label>
+                    <input type="number" id="localDevicePin" min="0" max="999999" placeholder="0 = Desactivado"  data-i18n-placeholder="ui.static_238"/>
+                  </div>
+
+                  <!-- Grupo 4: Sintonización Avanzada & Temporización LoRa -->
+                  <div class="form-section-title span-full">
+                    <i class="bi bi-clock-history section-icon" aria-hidden="true"></i>
+                    <span data-i18n="settings.section_radio_tuning">Sintonización Avanzada &amp; Temporización LoRa</span>
+                  </div>
+                  <p class="field-hint span-full" data-i18n="settings.section_radio_tuning_desc">Factores de ventana de contención, retardo de procesamiento en recepción y factor de tiempo en el aire.</p>
+
+                  <div class="form-group">
+                    <label for="localRxDelay" data-i18n="ui.static_243">Tuning: Factor de retardo RX:</label>
+                    <input type="number" id="localRxDelay" step="0.001" min="0" max="20" placeholder="0" />
+                  </div>
+                  <div class="form-group">
+                    <label for="localAirtimeFactor" data-i18n="ui.static_244">Tuning: Factor Tiempo Aire (AF):</label>
+                    <input type="number" id="localAirtimeFactor" step="0.001" min="0" max="9" placeholder="0" />
+                  </div>
+
+                  <!-- Grupo 5: Balizas & Transmisiones Periódicas -->
                   <div class="form-section-title settings-form-section span-full" data-i18n="ui.static_223">
                     <i class="bi bi-broadcast section-icon" aria-hidden="true"></i> Balizas &amp; Transmisiones Periódicas
                   </div>
@@ -1137,99 +1282,6 @@
                     </div>
                   </div>
 
-                  <!-- Sección de Parámetros Avanzados del Firmware MeshCore -->
-                  <div class="form-section-title settings-form-section span-full" data-i18n="ui.static_236">
-                    <i class="bi bi-cpu section-icon" aria-hidden="true"></i> Parámetros Avanzados &amp; Firmware MeshCore
-                  </div>
-                  <div class="form-group">
-                    <label for="localDevicePin" data-i18n="ui.static_237">PIN del Dispositivo (BLE/Emparejamiento):</label>
-                    <input type="number" id="localDevicePin" min="0" max="999999" placeholder="0 = Desactivado"  data-i18n-placeholder="ui.static_238"/>
-                  </div>
-                  <div class="form-group">
-                    <label for="localPathHashMode" data-i18n="ui.static_239">Modo Path Hash:</label>
-                    <select id="localPathHashMode" class="form-select form-select-sm select-input">
-                      <option value="0" data-i18n="ui.static_240">0 - Desactivado (Ruta Completa)</option>
-                      <option value="1" data-i18n="ui.static_241">1 - Hash de 1 Byte (Compacto)</option>
-                      <option value="2" data-i18n="ui.static_242">2 - Hash de 2 Bytes (Recomendado)</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="localRxDelay" data-i18n="ui.static_243">Tuning: Factor de retardo RX:</label>
-                    <input type="number" id="localRxDelay" step="0.001" min="0" max="20" placeholder="0" />
-                  </div>
-                  <div class="form-group">
-                    <label for="localAirtimeFactor" data-i18n="ui.static_244">Tuning: Factor Tiempo Aire (AF):</label>
-                    <input type="number" id="localAirtimeFactor" step="0.001" min="0" max="9" placeholder="0" />
-                  </div>
-                  <div class="form-group">
-                    <label for="localTelemBase" data-i18n="ui.static_245">Modo Telemetría Base:</label>
-                    <select id="localTelemBase" class="form-select form-select-sm select-input">
-                      <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
-                      <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
-                      <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="localTelemLoc" data-i18n="ui.static_249">Modo Telemetría Ubicación:</label>
-                    <select id="localTelemLoc" class="form-select form-select-sm select-input">
-                      <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
-                      <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
-                      <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="localTelemEnv" data-i18n="ui.static_250">Modo Telemetría Ambiental:</label>
-                    <select id="localTelemEnv" class="form-select form-select-sm select-input">
-                      <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
-                      <option value="1" selected data-i18n="ui.static_251">1 - Solo Contactos</option>
-                      <option value="2" data-i18n="ui.static_252">2 - Todos los Nodos</option>
-                    </select>
-                  </div>
-                  <div class="form-group toggle-field-group">
-                    <div class="toggle-field-row">
-                      <div class="toggle-field-info">
-                        <span class="toggle-field-title" data-i18n="ui.static_253">Compartir Ubicación en Anuncio</span>
-                        <span class="toggle-field-desc" data-i18n="ui.static_254">Incluye coordenadas en paquetes Advert</span>
-                      </div>
-                      <div class="settings-toggle-controls">
-                        <span class="toggle-state-badge" id="localAdvLocBadge">OFF</span>
-                        <label class="toggle-switch toggle-blue" for="localAdvLocPolicy" title="Compartir coordenadas en balizas advert" data-i18n-title="ui.static_255">
-                          <input type="checkbox" id="localAdvLocPolicy" role="switch" aria-label="Compartir ubicación en anuncios"  data-i18n-aria-label="ui.static_256"/>
-                          <span class="toggle-slider"></span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group toggle-field-group">
-                    <div class="toggle-field-row">
-                      <div class="toggle-field-info">
-                        <span class="toggle-field-title" data-i18n="ui.static_257">Multi-ACKs</span>
-                        <span class="toggle-field-desc" data-i18n="ui.static_258">Permite confirmaciones múltiples</span>
-                      </div>
-                      <div class="settings-toggle-controls">
-                        <span class="toggle-state-badge" id="localMultiAcksBadge">OFF</span>
-                        <label class="toggle-switch toggle-blue" for="localMultiAcks" title="Habilitar confirmaciones multi-ack" data-i18n-title="ui.static_259">
-                          <input type="checkbox" id="localMultiAcks" role="switch" aria-label="Habilitar multi-acks"  data-i18n-aria-label="ui.static_260"/>
-                          <span class="toggle-slider"></span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group toggle-field-group">
-                    <div class="toggle-field-row">
-                      <div class="toggle-field-info">
-                        <span class="toggle-field-title" data-i18n="ui.static_261">Aprobación Manual de Contactos</span>
-                        <span class="toggle-field-desc" data-i18n="ui.static_262">Confirmación manual de contactos</span>
-                      </div>
-                      <div class="settings-toggle-controls">
-                        <span class="toggle-state-badge" id="localManualAddBadge">OFF</span>
-                        <label class="toggle-switch toggle-blue" for="localManualAddContacts" title="Aprobación manual de contactos entrantes" data-i18n-title="ui.static_263">
-                          <input type="checkbox" id="localManualAddContacts" role="switch" aria-label="Aprobación manual de contactos"  data-i18n-aria-label="ui.static_264"/>
-                          <span class="toggle-slider"></span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
                   <div class="form-actions-full">
                     <button type="submit" class="btn btn-primary" id="btnSaveLocalRadio" data-i18n="modal.save"><i class="bi bi-floppy button-icon" aria-hidden="true"></i> Guardar</button>
                   </div>
@@ -1282,7 +1334,8 @@
             <div id="local-owner-pos" class="local-settings-subpanel">
               <div class="card-panel">
                 <form id="localOwnerPosForm" class="grid-form-2col" aria-label="Identidad y ubicación" data-i18n-aria-label="ui.form_identity">
-                  <div class="form-section-title span-full" data-i18n="ui.static_276"><i class="bi bi-person section-icon" aria-hidden="true"></i> Identidad del Nodo Local</div>
+                  <div class="form-section-title span-full first-section" data-i18n="ui.static_276"><i class="bi bi-person section-icon" aria-hidden="true"></i> Identidad del Nodo Local</div>
+                  <p class="field-hint span-full" data-i18n="settings.section_identity_desc">Identificador único en la red, clave pública criptográfica e información del operador.</p>
                   <div class="form-group">
                     <label for="localNodeName" data-i18n="ui.static_277">Nombre del Nodo / Alias:</label>
                     <input type="text" id="localNodeName" placeholder="MeshCore_Base" required  data-i18n-placeholder="ui.static_278"/>
@@ -1300,6 +1353,7 @@
                   </div>
 
                   <div class="form-section-title span-full" data-i18n="ui.static_283"><i class="bi bi-geo-alt section-icon" aria-hidden="true"></i> Coordenadas Geográficas Fijas (GPS / Mapa)</div>
+                  <p class="field-hint span-full" data-i18n="settings.section_gps_desc">Coordenadas geográficas estáticas difundidas a la malla para ubicación en mapa y cálculo de distancia.</p>
                   <div class="form-group">
                     <label for="localGpsLat" data-i18n="ui.static_284">Latitud (°):</label>
                     <input type="number" id="localGpsLat" step="0.000001" min="-90" max="90" placeholder="Ej: 23.1136"  data-i18n-placeholder="ui.static_285"/>
