@@ -1051,6 +1051,7 @@ export class RepeaterModule {
         this.unlockRepeaterAdminView(canonicalPk);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_auth_ok'), "success");
 
+        // Al desbloquear explícitamente el gate de administración, solicitar telemetría inicial
         this.refreshRepeaterFullTelemetry(canonicalPk, password);
         return true;
       } else {
@@ -1171,10 +1172,8 @@ export class RepeaterModule {
 
     if (this.authenticatedRepeaters.has(canonicalPk) || this.authenticatedRepeaters.has(pubkey)) {
       this.unlockRepeaterAdminView(canonicalPk);
-      const pwd = this.getRepeaterPassword(canonicalPk);
-      if (pwd) {
-        this.refreshRepeaterFullTelemetry(canonicalPk, pwd);
-      }
+      // No disparar ráfagas de comandos RF automáticamente al abrir el modal;
+      // el operador puede actualizar datos en vivo pulsando el botón "#btnRefreshRepeaterTelem" ("Stats Core").
     } else {
       const savedPwd = this.getStoredRepeaterPassword(canonicalPk);
       if (savedPwd) {

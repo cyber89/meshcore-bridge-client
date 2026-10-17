@@ -1349,7 +1349,7 @@
                   </div>
                   <div class="form-group span-full">
                     <label for="localOwnerInfo" data-i18n="ui.static_281">Información del Propietario / Contacto (Owner Info):</label>
-                    <input type="text" id="localOwnerInfo" placeholder="Ej: Operador Base - Canal 0 / TG-LoRa"  data-i18n-placeholder="ui.static_282"/>
+                    <input type="text" id="localOwnerInfo" placeholder="Ej: Operador Base - Canal 0 / TG-LoRa" disabled data-i18n-placeholder="ui.static_282"/>
                   </div>
 
                   <div class="form-section-title span-full" data-i18n="ui.static_283"><i class="bi bi-geo-alt section-icon" aria-hidden="true"></i> Coordenadas Geográficas Fijas (GPS / Mapa)</div>
@@ -2033,30 +2033,35 @@
 
     <!-- Modal: Guardar Preset Personalizado -->
     <div id="modalSavePreset" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalSavePresetTitle">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content modal-card bg-body-tertiary border-secondary" style="max-width: 480px;">
-        <div class="modal-header">
-          <h3 id="modalSavePresetTitle" style="display: flex; align-items: center; gap: 8px;">
-            <i class="bi bi-bookmark-plus" aria-hidden="true"></i> <span data-i18n="services.modal_save_title">Guardar como Preset</span>
-          </h3>
-          <button type="button" class="btn-close modal-close-btn" data-bs-dismiss="modal" id="btnCloseSavePresetModal">&times;</button>
-        </div>
-        <div class="modal-body" style="padding: 16px;">
-          <div class="form-group">
-            <label for="inputNewPresetName" data-i18n="services.preset_name">Nombre del Perfil:</label>
-            <input type="text" id="inputNewPresetName" class="form-control" placeholder="ej: LetsMesh US o Mi Broker" />
+      <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+        <div class="modal-content modal-card">
+          <div class="modal-header">
+            <h3 id="modalSavePresetTitle">
+              <i class="bi bi-bookmark-plus" aria-hidden="true"></i>
+              <span data-i18n="services.modal_save_title">Guardar como Preset</span>
+            </h3>
+            <button type="button" class="btn-close modal-close-btn" data-bs-dismiss="modal" id="btnCloseSavePresetModal" aria-label="Cerrar" data-i18n-aria-label="modal.close"></button>
           </div>
-          <div class="form-group" style="margin-top: 12px;">
-            <label for="inputNewPresetDesc" data-i18n="services.preset_desc">Descripción (Opcional):</label>
-            <textarea id="inputNewPresetDesc" class="form-control" rows="2" placeholder="Notas sobre el broker o servidor..."></textarea>
+          <div class="modal-body">
+            <div class="form-group mb-3">
+              <label for="inputNewPresetName" class="form-label" data-i18n="services.preset_name">Nombre del Perfil:</label>
+              <input type="text" id="inputNewPresetName" class="form-control" placeholder="ej: LetsMesh US o Mi Broker" />
+            </div>
+            <div class="form-group">
+              <label for="inputNewPresetDesc" class="form-label" data-i18n="services.preset_desc">Descripción (Opcional):</label>
+              <textarea id="inputNewPresetDesc" class="form-control" rows="2" placeholder="Notas sobre el broker o servidor..."></textarea>
+            </div>
           </div>
-        </div>
-        <div class="modal-footer" style="padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px;">
-          <button type="button" class="btn btn-secondary" id="btnCancelSavePreset" data-i18n="modal.cancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btnConfirmSavePreset" data-i18n="modal.save">Guardar Perfil</button>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="btnCancelSavePreset" data-i18n="modal.cancel">
+              <i class="bi bi-x-circle me-1" aria-hidden="true"></i><span>Cancelar</span>
+            </button>
+            <button type="button" class="btn btn-primary" id="btnConfirmSavePreset" data-i18n="modal.save">
+              <i class="bi bi-check2-circle me-1" aria-hidden="true"></i><span>Guardar Perfil</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
     </div>
 
     <!-- Modal: Paleta de Comandos (Ctrl+K / Cmd+K) -->

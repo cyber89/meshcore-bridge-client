@@ -276,6 +276,30 @@ class WebAPIRouter:
         else:
             sender_id_str = "nodo anónimo"
 
+        registry = getattr(self.bridge, "node_registry", None)
+        local_pk = getattr(registry, "local_pubkey", None)
+        local_pk_str = str(local_pk).strip().lower() if isinstance(local_pk, str) else ""
+
+        is_local_by_reg = False
+        if registry and hasattr(registry, "is_local_key") and sender_raw:
+            try:
+                is_local_by_reg = bool(registry.is_local_key(sender_raw))
+            except Exception:
+                is_local_by_reg = False
+
+        is_local_node = (
+            data.get("is_local") is True
+            or is_local_by_reg
+            or ev_type in (
+                "stats_core", "stats_radio", "stats_packets", "self_info",
+                "battery", "battery_info", "device_info", "tuning", "time", "clock", "custom_vars"
+            )
+            or (bool(local_pk_str) and bool(sender_raw) and sender_raw.lower() == local_pk_str)
+            or (node_info is not None and (getattr(node_info, "is_local", None) is True or getattr(node_info, "role", None) == "LOCAL"))
+            or sender_raw.lower() in ("local", "self")
+            or (bool(sender_name) and (sender_name.startswith("Estación Base Local") or (bool(local_pk_str) and sender_raw and sender_raw.lower() == local_pk_str)))
+        )
+
         rssi = data.get("rssi", data.get("RSSI", data.get("last_rssi")))
         snr = data.get("snr", data.get("SNR", data.get("last_snr")))
 
@@ -288,45 +312,47 @@ class WebAPIRouter:
         ):
             self.recent_telemetry.append(data)
 
-            readings = []
-            if "temperature_c" in extracted_telem:
-                readings.append(f"🌡️ {extracted_telem['temperature_c']}°C")
-            if "humidity_pct" in extracted_telem:
-                readings.append(f"💧 {extracted_telem['humidity_pct']}%")
-            if "pressure_hpa" in extracted_telem:
-                readings.append(f"🌀 {extracted_telem['pressure_hpa']} hPa")
+            # Evitar duplicar en logs eventos de la estación local ya registrados por rx_router
+            if not is_local_node:
+                readings = []
+                if "temperature_c" in extracted_telem:
+                    readings.append(f"🌡️ {extracted_telem['temperature_c']}°C")
+                if "humidity_pct" in extracted_telem:
+                    readings.append(f"💧 {extracted_telem['humidity_pct']}%")
+                if "pressure_hpa" in extracted_telem:
+                    readings.append(f"🌀 {extracted_telem['pressure_hpa']} hPa")
 
-            bat = extracted_telem.get("battery_pct")
-            volt = extracted_telem.get("voltage_v")
-            bat_mv = extracted_telem.get("battery_mv")
-            if bat is not None and volt is not None:
-                readings.append(f"🔋 {bat}% ({volt}V)")
-            elif bat is not None:
-                readings.append(f"🔋 {bat}%")
-            elif volt is not None:
-                readings.append(f"⚡ {volt}V")
-            elif bat_mv is not None:
-                readings.append(f"🔋 {bat_mv}mV")
+                bat = extracted_telem.get("battery_pct")
+                volt = extracted_telem.get("voltage_v")
+                bat_mv = extracted_telem.get("battery_mv")
+                if bat is not None and volt is not None:
+                    readings.append(f"🔋 {bat}% ({volt}V)")
+                elif bat is not None:
+                    readings.append(f"🔋 {bat}%")
+                elif volt is not None:
+                    readings.append(f"⚡ {volt}V")
+                elif bat_mv is not None:
+                    readings.append(f"🔋 {bat_mv}mV")
 
-            if "solar_v" in extracted_telem:
-                readings.append(f"☀️ {extracted_telem['solar_v']}V")
-            if "uptime" in extracted_telem:
-                readings.append(f"⏱️ {extracted_telem['uptime']}")
-            elif "uptime_secs" in extracted_telem:
-                readings.append(f"⏱️ {extracted_telem['uptime_secs']}s")
+                if "solar_v" in extracted_telem:
+                    readings.append(f"☀️ {extracted_telem['solar_v']}V")
+                if "uptime" in extracted_telem:
+                    readings.append(f"⏱️ {extracted_telem['uptime']}")
+                elif "uptime_secs" in extracted_telem:
+                    readings.append(f"⏱️ {extracted_telem['uptime_secs']}s")
 
-            if "packet_errors" in extracted_telem:
-                readings.append(f"⚠️ {extracted_telem['packet_errors']} err")
-            if "queue_len" in extracted_telem:
-                readings.append(f"📦 Cola: {extracted_telem['queue_len']}")
+                if "packet_errors" in extracted_telem:
+                    readings.append(f"⚠️ {extracted_telem['packet_errors']} err")
+                if "queue_len" in extracted_telem:
+                    readings.append(f"📦 Cola: {extracted_telem['queue_len']}")
 
-            if snr is not None:
-                readings.append(f"📶 SNR {snr}dB")
-            if rssi is not None:
-                readings.append(f"📡 {rssi}dBm")
+                if snr is not None:
+                    readings.append(f"📶 SNR {snr}dB")
+                if rssi is not None:
+                    readings.append(f"📡 {rssi}dBm")
 
-            detail_str = f" [{', '.join(readings)}]" if readings else ""
-            self.log_system_event("INFO", f"Telemetría recibida de {sender_id_str}{detail_str}", source="telemetry")
+                detail_str = f" [{', '.join(readings)}]" if readings else ""
+                self.log_system_event("INFO", f"Telemetría recibida de {sender_id_str}{detail_str}", source="telemetry")
 
         elif ev_type in ("public", "channel", "direct"):
             text_val = str(data.get("text", data.get("message", "")))
@@ -339,7 +365,8 @@ class WebAPIRouter:
             from src.rx_router import is_common_chat_message
             if is_common_chat_message(text_val, txt_type=txt_type, event_type=ev_type):
                 self.recent_messages.append(data)
-                self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender_id_str}: {text_val[:30]}", source="mesh_rx")
+                if not is_local_node:
+                    self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender_id_str}: {text_val[:30]}", source="mesh_rx")
 
     async def handle_request(
         self,

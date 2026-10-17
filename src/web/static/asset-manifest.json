@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "d9a4a41b0227cef86165893f955e9319f37ea5154aae2723226c710da57a5ec6",
-      "sha256": "8d16be73b0f9b69ed4058a9f1f85cf436584ce70b2532fe77db55c11c1d14e65",
-      "gzip_sha256": "f86abd61e3ddc36c31306b7c641db901699e17226e5267b2bee745ef0634be02",
-      "source_bytes": 130437,
-      "bytes": 103822,
-      "gzip_bytes": 18827
+      "source_sha256": "1c232655b4c6aea582ec257570bc6185a72b79a9c0d1c455a9bb9375764ee816",
+      "sha256": "022eba1a936b7e4726c8bc0e1788fb8df83ebdba4ba593afd5b88d7b684b6d2b",
+      "gzip_sha256": "e1e7dedecf919e37d50bfced9f94ef5191477e585c350a107ab53f831c6d1774",
+      "source_bytes": 133200,
+      "bytes": 106073,
+      "gzip_bytes": 19120
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
@@ -58,12 +58,12 @@
     },
     "index.html": {
       "file": "index.html",
-      "source_sha256": "fc0ce99da1b8b2f312171f764aecbc85db8c7422ee88bee388b48c764bbaf8d7",
-      "sha256": "fc0ce99da1b8b2f312171f764aecbc85db8c7422ee88bee388b48c764bbaf8d7",
-      "gzip_sha256": "773a88ac4af0ccb990b10ef659dacbf5d069b85bbd888239235b24b4456102b4",
-      "source_bytes": 245579,
-      "bytes": 245579,
-      "gzip_bytes": 43818
+      "source_sha256": "72ea4603bdd32fd785f2476625c53d1e6b02ba989d3ca7dc264a742d51c07088",
+      "sha256": "72ea4603bdd32fd785f2476625c53d1e6b02ba989d3ca7dc264a742d51c07088",
+      "gzip_sha256": "67e029341c7b20dbeba01e3b633ba94695d6abc46ec5a2b4a788cf2d0aa93da3",
+      "source_bytes": 245723,
+      "bytes": 245723,
+      "gzip_bytes": 43843
     },
     "js/app.js": {
       "file": "js/app.min.js",
@@ -238,12 +238,12 @@
     },
     "js/modules/repeater.js": {
       "file": "js/modules/repeater.min.js",
-      "source_sha256": "8b4df755c38334ad297d9ab78d0f13336ee9046736a6df64349e2a43108613da",
-      "sha256": "f849517a705cdf9b76ef5e29db7e56b3b6caa63c858fbae4878094e5337fd130",
-      "gzip_sha256": "8ab02c3a59012b059b0de0daf78063b50e5b1506d37401af59b611b080dc5203",
-      "source_bytes": 96788,
-      "bytes": 61166,
-      "gzip_bytes": 14328
+      "source_sha256": "7fed378c15e139a65e091f063ee8bf6425031b1d792ed80aaf3be63c7d67d2f9",
+      "sha256": "6487b90cb3a57e5ad38fcd7a5395871f08f970cf1a50d16a2cd9f55efc67dbba",
+      "gzip_sha256": "a24d57f2826fbb9fe081b6adc07ed9fe44472035af02137616e6af1132722df0",
+      "source_bytes": 96939,
+      "bytes": 61087,
+      "gzip_bytes": 14324
     },
     "js/modules/settings.js": {
       "file": "js/modules/settings.min.js",
