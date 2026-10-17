@@ -167,6 +167,7 @@ async def test_read_exposes_unsupported_periodic_telemetry_without_hiding_histor
         "telemetry_interval": False, "beacon_interval": False, "advert_interval": False,
         "hop_limit": False, "owner_info": False, "altitude": False,
         "fixed_position": False,
+        "firmware_cli": {"state": "unknown", "reason": "adapter_unsupported", "safe_commands": []},
     }
 
 

@@ -512,10 +512,32 @@ de ventana con último intervalo partial y includes_current_minute.
 Fuente fijada: [MyMesh.cpp 1.18](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/examples/companion_radio/MyMesh.cpp). La revisión detallada y sus límites están en [investigación1.18](../new1.18.md) y [auditoría de protocolo](audits/2026-10-15-meshcore-1.18-protocol.md).
 
 - `CMD_RUN_CLI_COMMAND=66 (0x42)` lleva texto; responde `CLI_REPLY=29 (0x1D)` con texto sin NUL transmitido. No responde OK como éxito normal. El bridge identifica ese contrato en enum y tabla de transacciones raw. Recibir29 acredita respuesta de transporte, no éxito semántico del texto.
-- El código numérico14 se obtiene de DEVICE_INFO (`fw ver`), no de SELF_INFO. La presencia del opcode no habilita una consola web nativa; su API segura está pendiente según el plan.
+- El código numérico14 se obtiene de DEVICE_INFO (`fw ver`), no de SELF_INFO. La presencia del opcode por sí sola no habilita CLI; las capas2/3 siguientes requieren también sesión vigente y método SDK disponible.
 - No hay un límite uniforme de160bytes demostrado para CLI. `cli_command[80]` es rescue USB; `reply_buf[166]` incluye NUL. Validar gramática y límite específico de cada operación antes de exponerla.
 - Push binario `0x8C | reservado_u8 | tag_4bytes | datos` no contiene pubkey. Sin asociación previa verificable conservar origen desconocido; no interpretar cualquier push como LPP. Los pushes sensor de suscripciones incluyen timestamp antes de LPP.
 - Datagrama62, raw65, WiFi y rango sintáctico150–2500MHz ya existían en1.17.1. SDK2.3.16 incorpora modo hash en ruta de datagramas; límite SDK163bytes frente a165 del handler firmware. Validar modo, hops, divisibilidad y frame total antes de cualquier integración.
 - Los layouts anteriores son secuencias serializadas sin padding C++ ni CRC propio añadido. El framing Companion externo conserva dirección y longitud uint16 LE gestionadas por SDK; no mezclarlo con el framing AA/55 interno.
 
 El firmware1.18 rechaza `set repeat on` en ROOM. Esto es una restricción del dispatcher nuevo, no una guarda ya implementada por todos los ejecutores del bridge. La administración por rol y los setters avanzados siguen en capas posteriores del [plan de actualización](MESHCORE_1_18_UPGRADE_PLAN.md).
+
+### 15.1 Lecturas locales permitidas (2026-10-16)
+
+`firmware_capabilities` deriva su protocolo exclusivamente de `DEVICE_INFO['fw ver']`
+entero uint8 y del método `commands.run_cli_command` del SDK conectado. Publica
+`state` (`unknown`, `absent`, `present`), `reason`, `connected`,
+`companion_protocol`, `firmware_version`, `sdk_version`, `model`, `transport` y
+`safe_commands`. No incorpora `ble_pin` ni el payload DEVICE_INFO completo.
+Desconexión, cambio de SDK e identidad retiran observaciones de la sesión anterior.
+
+La allowlist inicial contiene exclusivamente los textos ASCII exactos `get radio`
+y `get freq`: sin normalizar espacios, prefijos, controles, setters ni secretos.
+Ambos leen NodePrefs y responden localmente por Companion, sin RF. Informan
+preferencias guardadas; no acreditan aplicación al chip tras un setter que exige
+reinicio. El resultado interno es `{command, text}` de un `CLI_REPLY` válido;
+`Error`, `ERR`, `Unknown command`, respuestas vacías o tipos ajenos fallan.
+
+La espera comparte el lock SDK existente y comprueba propiedad de sesión antes
+y después de enviar. No hay fallback ni reintento. Un timeout/cancelación de CLI
+deja su respuesta sin correlación fiable: deshabilita nuevas lecturas hasta una
+reconexión, aunque llegue otro DEVICE_INFO en la misma sesión. No se incorpora
+un intervalo nuevo; se conserva el presupuesto temporal del adaptador.

@@ -9,7 +9,9 @@ import hashlib
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from src.protocol_types import MeshCoreSDKProtocol, normalize_tx_power
@@ -31,6 +33,8 @@ __all__ = ["MeshcoreSDKAdapter", "MeshCore", "EventType", "Event"]
 MAX_TEXT_BYTES = 160
 # Firmware stores channel names in char[32], with a trailing NUL.
 MAX_CHANNEL_NAME_BYTES = 31
+# Verified local NodePrefs getters: no RF request or setter is accepted here.
+_FIRMWARE_READ_COMMANDS = ("get radio", "get freq")
 
 # Terminal synchronous response codes from Companion MyMesh.cpp. Pushes remain
 # asynchronous; GET_CONTACTS additionally forwards START/CONTACT until END.
@@ -174,6 +178,123 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self._serialized_commands: Any = None
         self._raw_command_future: asyncio.Future[bool] | None = None
         self._raw_command_opcode: int | None = None
+        self._firmware_device_info: dict[str, Any] = {}
+        self._firmware_mc: Any = None
+        self._firmware_identity: str | None = None
+        self._firmware_generation = 0
+        self._firmware_cli_uncertain = False
+        # A task-local lease reaches the existing SDK send wrapper without
+        # acquiring its response lock twice or affecting unrelated commands.
+        self._firmware_cli_lease: ContextVar[int | None] = ContextVar("firmware_cli_lease", default=None)
+        try:
+            self._sdk_version: str | None = version("meshcore")
+        except PackageNotFoundError:
+            self._sdk_version = None
+
+    def _reset_firmware_observations(self, *, new_session: bool = False) -> None:
+        self._firmware_generation += 1
+        self._firmware_device_info = {}
+        self._firmware_mc = self.mc
+        if new_session:
+            self._firmware_cli_uncertain = False
+            self._firmware_identity = None
+
+    @property
+    def firmware_capabilities(self) -> dict[str, Any]:
+        """Return only capabilities observed on this connection, never SDK secrets."""
+        if self._firmware_mc is not self.mc:
+            self._reset_firmware_observations(new_session=True)
+        connected = bool(self.is_connected and self.mc is not None)
+        observed = self._firmware_device_info if connected else {}
+        protocol = observed.get("fw ver")
+        commands = getattr(self.mc, "commands", None)
+        if not connected:
+            state, reason = "unknown", "disconnected"
+        elif self._firmware_cli_uncertain:
+            state, reason = "absent", "cli_timeout_reconnect_required"
+        elif protocol is None:
+            state, reason = "unknown", "awaiting_device_info"
+        elif protocol < 14:
+            state, reason = "absent", "protocol_unsupported"
+        elif not callable(getattr(commands, "run_cli_command", None)):
+            state, reason = "absent", "sdk_unsupported"
+        else:
+            state, reason = "present", "available"
+        return {
+            "state": state, "reason": reason, "connected": connected,
+            "companion_protocol": protocol, "firmware_version": observed.get("ver"),
+            "sdk_version": self._sdk_version, "model": observed.get("model"),
+            "transport": "tcp" if self.port.startswith("tcp://") else "serial",
+            "safe_commands": list(_FIRMWARE_READ_COMMANDS) if state == "present" else [],
+        }
+
+    def _require_firmware_cli(self, generation: int) -> None:
+        capability = self.firmware_capabilities
+        if not capability["connected"]:
+            raise ConnectionError("disconnected")
+        if generation != self._firmware_generation:
+            raise ConnectionError("connection_changed")
+        if capability["state"] != "present":
+            raise NotImplementedError(capability["reason"])
+
+    async def _call_with_firmware_lease(self, call: Callable[[], Awaitable[Any]]) -> Any:
+        """Check the lease and poison timed-out CLI waits before unlocking send."""
+        generation = self._firmware_cli_lease.get()
+        if generation is None:
+            return await call()
+        self._require_firmware_cli(generation)
+        try:
+            async with asyncio.timeout(self.timeout_sec):
+                response = await call()
+        except (TimeoutError, asyncio.CancelledError):
+            # A late reply has no request ID. Do not let the next getter claim it.
+            if generation == self._firmware_generation:
+                self._firmware_cli_uncertain = True
+            raise
+        except Exception:
+            # An I/O failure can occur after bytes were accepted by the radio.
+            if generation == self._firmware_generation:
+                self._firmware_cli_uncertain = True
+            raise ConnectionError("firmware_cli_failed") from None
+        self._require_firmware_cli(generation)
+        payload = getattr(response, "payload", None)
+        if response is None or (
+            getattr(response, "type", None) == getattr(EventType, "ERROR", None)
+            and isinstance(payload, dict) and payload.get("reason") in ("timeout", "no_event_received")
+        ):
+            self._firmware_cli_uncertain = True
+            raise TimeoutError("firmware_cli_timeout")
+        return response
+
+    async def run_firmware_cli(self, command: str) -> dict[str, str]:
+        """Read the firmware's reported preferences through two exact local getters."""
+        if type(command) is not str or command not in _FIRMWARE_READ_COMMANDS:
+            raise ValueError("invalid_firmware_command")
+        # Refresh session ownership before taking the task-local lease.
+        _ = self.firmware_capabilities
+        generation = self._firmware_generation
+        self._require_firmware_cli(generation)
+        token = self._firmware_cli_lease.set(generation)
+        try:
+            response = await self.run_sdk_command("run_cli_command", command)
+            self._require_firmware_cli(generation)
+        except TimeoutError:
+            raise TimeoutError("firmware_cli_timeout") from None
+        except (ConnectionError, NotImplementedError, asyncio.CancelledError):
+            raise
+        except Exception:
+            raise RuntimeError("firmware_cli_failed") from None
+        finally:
+            self._firmware_cli_lease.reset(token)
+        payload = getattr(response, "payload", None)
+        if getattr(response, "type", None) != getattr(EventType, "CLI_REPLY", None):
+            raise RuntimeError("firmware_cli_rejected")
+        text = payload.get("text") if isinstance(payload, dict) else None
+        if not isinstance(text, str) or not text.strip():
+            raise RuntimeError("firmware_cli_invalid_reply")
+        if text.lstrip().removeprefix(">").lstrip().lower().startswith(("error", "err", "unknown command")):
+            raise RuntimeError("firmware_cli_rejected")
+        return {"command": command, "text": text}
 
     def _observe_companion_frame(self, data: bytes) -> None:
         """Route pushes and the current raw transaction, never internal SDK replies.
@@ -245,7 +366,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         async with self._command_lock:
             if self.mc is None or not self.is_connected:
                 raise ConnectionError("MeshCore SDK no conectado")
-            return await getattr(commands, command)(*args, **kwargs)
+            return await self._call_with_firmware_lease(lambda: getattr(commands, command)(*args, **kwargs))
 
     def _serialize_sdk_response_waits(self) -> None:
         """Wrap only this SDK instance, including its internal auto-fetch calls.
@@ -266,7 +387,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         async def serialized_send(*args: Any, **kwargs: Any) -> Any:
             async with self._command_lock:
-                return await original_send(*args, **kwargs)
+                return await self._call_with_firmware_lease(lambda: original_send(*args, **kwargs))
 
         commands._meshcore_bridge_serialized_owner = self
         commands.send = serialized_send
@@ -287,13 +408,21 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return self._self_info
         info = getattr(self.mc, "self_info", None) if self.mc else None
         if isinstance(info, dict):
-            self._self_info = _copy_self_info_snapshot(info)
+            self.self_info = info
             return self._self_info
         return info
 
     @self_info.setter
     def self_info(self, value: Any) -> None:
+        if self._firmware_mc is not self.mc:
+            self._reset_firmware_observations(new_session=True)
         if isinstance(value, dict):
+            identity = value.get("public_key")
+            if isinstance(identity, str) and identity:
+                identity = identity.lower()
+                if self._firmware_identity is not None and self._firmware_identity != identity:
+                    self._reset_firmware_observations()
+                self._firmware_identity = identity
             self._self_info = _copy_self_info_snapshot(value)
         else:
             self._self_info = value
@@ -416,6 +545,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def disconnect(self) -> None:
         self.is_connected = False
+        self._reset_firmware_observations(new_session=True)
         if self._raw_command_future and not self._raw_command_future.done():
             self._raw_command_future.set_result(False)
         if self._initial_sync_task and not self._initial_sync_task.done():
@@ -555,8 +685,9 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             original_handle_rx = self.mc._reader.handle_rx
 
             async def _hooked_handle_rx(data: bytearray) -> None:
-                self.heartbeat()
-                self._observe_companion_frame(bytes(data))
+                if self.is_connected and self.mc is owning_mc:
+                    self.heartbeat()
+                    self._observe_companion_frame(bytes(data))
                 await original_handle_rx(data)
 
             self.mc._reader.handle_rx = _hooked_handle_rx
@@ -577,7 +708,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         def schedule() -> None:
                             if not self.is_connected or self.mc is not owning_mc or loop is None or loop.is_closed():
                                 return
-                            task = loop.create_task(self._on_sdk_event(et, event))
+
+                            async def dispatch_if_current() -> None:
+                                # A replacement can happen after scheduling but
+                                # before the coroutine gets its first loop turn.
+                                if self.is_connected and self.mc is owning_mc:
+                                    await self._on_sdk_event(et, event)
+
+                            task = loop.create_task(dispatch_if_current())
                             self._background_tasks.add(task)
                             def completed(done: asyncio.Task[Any]) -> None:
                                 self._background_tasks.discard(done)
@@ -731,6 +869,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             if event_type == getattr(EventType, "DISCONNECTED", None):
                 logging.warning("SDK disconnected")
                 self.is_connected = False
+                self._reset_firmware_observations(new_session=True)
                 return
 
         # Otros eventos - enviar al handler genérico
@@ -878,7 +1017,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def _handle_device_info(self, data: Any) -> None:
         """Maneja información del dispositivo."""
-        logging.debug(f"Device info: {data}")
+        logging.debug("Device info received")
         info_dict: dict[str, Any] = {}
         if isinstance(data, dict):
             info_dict = data
@@ -886,6 +1025,15 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             info_dict = data.payload
 
         if info_dict:
+            if self.is_connected and self.mc is not None:
+                if self._firmware_mc is not self.mc:
+                    self._reset_firmware_observations(new_session=True)
+                protocol = info_dict.get("fw ver")
+                self._firmware_device_info = {
+                    key: info_dict[key] for key in ("ver", "model") if isinstance(info_dict.get(key), str)
+                }
+                if type(protocol) is int and 0 <= protocol <= 255:
+                    self._firmware_device_info["fw ver"] = protocol
             target_info: dict[str, Any] = {}
             if hasattr(self, "_self_info") and isinstance(self._self_info, dict):
                 target_info = self._self_info
@@ -921,7 +1069,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def _handle_self_info(self, data: Any) -> None:
         """Maneja información del nodo local."""
-        logging.debug(f"Self info: {data}")
+        logging.debug("Self info received")
         payload = getattr(data, "payload", data)
         if isinstance(payload, dict):
             update = _copy_self_info_snapshot(payload)
@@ -1014,6 +1162,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             async with self._command_lock:
                 if not self.is_connected or not self.mc:
                     return False
+                if data[0] == 66 and self._firmware_cli_uncertain:
+                    return False
                 connection = getattr(self.mc, "cx", None) or getattr(self.mc, "connection", None)
                 if connection is None or not hasattr(connection, "send"):
                     return False
@@ -1026,6 +1176,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         return True
                     async with asyncio.timeout(self.timeout_sec):
                         return bool(await pending)
+                except (Exception, asyncio.CancelledError):
+                    if data[0] == 66 and self.is_connected:
+                        # The next high-level or raw CLI waiter must not claim
+                        # an orphaned reply from this timed-out transaction.
+                        self._firmware_cli_uncertain = True
+                    raise
                 finally:
                     if not pending.done():
                         pending.cancel()

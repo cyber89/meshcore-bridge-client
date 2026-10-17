@@ -16,6 +16,7 @@ import logging
 import math
 import time
 from collections.abc import Callable
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, cast
 
 from meshcore.events import EventType
@@ -166,6 +167,11 @@ class LocalConfigExecutor:
             "telemetry_interval": False, "beacon_interval": False, "advert_interval": False,
             "hop_limit": False, "owner_info": False, "altitude": False,
             "fixed_position": False,
+        }
+        adapter = getattr(self._ctx, "serial_adapter", None)
+        firmware = getattr(adapter, "firmware_capabilities", None)
+        cfg["capabilities"]["firmware_cli"] = deepcopy(firmware) if isinstance(firmware, dict) else {
+            "state": "unknown", "reason": "adapter_unsupported", "safe_commands": [],
         }
         return cfg
 

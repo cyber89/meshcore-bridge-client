@@ -330,6 +330,18 @@ class AdminCommandHandler:
 
     async def _handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
+        # Firmware reads stay local before remote dispatch or string coercion.
+        scope = admin_data.get("scope")
+        cli_action = admin_data.get("action", "")
+        if scope == "firmware" and cli_action != "set_flood_scope":
+            if cli_action not in ("", "cli") or any(
+                key in admin_data for key in ("target_node", "repeater", "target", "to", "cmd", "params", "password")
+            ):
+                raise ValueError("invalid_firmware_request")
+            return await self._cli_executor.execute_firmware(admin_data.get("command"))
+        normalized_cli_action = cli_action.strip().lower() if isinstance(cli_action, str) else ""
+        if normalized_cli_action in ("", "cli", "terminal", "cmd", "exec", "run") and scope not in (None, "bridge"):
+            raise ValueError("invalid_cli_scope")
         raw_cmd = str(admin_data.get("command", admin_data.get("cmd", ""))).strip()
         raw_act = str(admin_data.get("action", "")).strip()
         if raw_act.lower() in ("cmd", "exec", "terminal", "cli", "run") and raw_cmd:

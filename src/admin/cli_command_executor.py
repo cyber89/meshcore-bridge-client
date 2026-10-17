@@ -97,6 +97,23 @@ class CliCommandExecutor:
 
         return mapping
 
+    async def execute_firmware(self, command: Any) -> dict[str, Any]:
+        """Run one vetted Companion getter without publishing or bridge fallback."""
+        if not isinstance(command, str):
+            raise ValueError("invalid_firmware_command")
+        adapter = getattr(self._ctx, "serial_adapter", None)
+        operation = getattr(adapter, "run_firmware_cli", None)
+        if not callable(operation):
+            raise NotImplementedError("adapter_unsupported")
+        try:
+            reply = await operation(command)
+        except TimeoutError:
+            return {"status": "error", "scope": "firmware", "code": 503,
+                    "message": "Lectura agotada; reconecta el transceptor antes de repetir"}
+        # Adapter owns command validation, response type and semantic checks.
+        return {"status": "ok", "scope": "firmware", "action": "cli",
+                "command": reply["command"], "result": reply["text"]}
+
     async def execute(
         self,
         action: str,
