@@ -1,6 +1,6 @@
 # MeshCore 1.18.0 — investigación contrastada y actualización por capas
 
-Investigación: 2026-10-15. Implementación ampliada: 2026-10-17, capacidades de capa2, diagnóstico manual de capa3, guarda de repetición ROOM y pausa manual0 de capa4. La compatibilidad integral sigue pendiente de los criterios de aceptación del [plan](docs/MESHCORE_1_18_UPGRADE_PLAN.md); este documento no es una certificación de interoperabilidad ni sustituye CONTEXT.md o la pila oficial.
+Investigación: 2026-10-15. Implementación completada por capas (1 a 5) y consolidada en documentación (Capa 6) el 2026-10-17: capacidades de capa 2, diagnóstico manual y selector Serial/TCP de capa 3, guarda de repetición `ROOM`, pausa manual 0, preferencias `CAD`/`RX gain` y WiFi Companion local de capa 4, y suscripciones manuales de sensores (`0x08`/`0x09`) con correlación segura de `BINARY_RESPONSE (0x8C)` de capa 5. La ejecución de suites automatizadas y la interoperabilidad en radio física requieren orden explícita por separado conforme al [plan](docs/MESHCORE_1_18_UPGRADE_PLAN.md); este documento no es una certificación de interoperabilidad ni sustituye `CONTEXT.md` o la pila oficial.
 
 Esta revisión reemplaza las conclusiones inexactas del borrador inicial. El equipo separó firmware/protocolo, backend y web/seguridad, y contrastó las afirmaciones con los tags oficiales y los consumidores reales de la aplicación. Los informes detallados están en [protocolo](docs/audits/2026-10-15-meshcore-1.18-protocol.md), [backend](docs/audits/2026-10-15-meshcore-1.18-backend.md) y [web](docs/audits/2026-10-15-meshcore-1.18-web.md). La [entrega conjunta](docs/audits/2026-10-15-meshcore-1.18-integration.md) registra cambios, QA y límites.
 
@@ -111,20 +111,21 @@ CLI tras timeout, cancelación o transporte incierto hasta reconexión.
 
 Ambos getters leen preferencias de firmware, que pueden estar pendientes de
 reinicio. No se añaden setters, tráfico RF, timers ni consultas de secretos.
-La selección TCP en web y las capas avanzadas siguen pendientes. Evidencia,
-contratos y límites: [ledger de capas2/3](docs/audits/2026-10-16-meshcore-1.18-layers-2-3.md).
+Evidencia, contratos y límites: [ledger de capas2/3](docs/audits/2026-10-16-meshcore-1.18-layers-2-3.md).
 
-### 4.2 Administración manual (2026-10-17)
+### 4.2 Administración manual, transporte TCP, preferencias y WiFi (2026-10-17)
 
-El usuario eligió cero pausa mínima entre órdenes de administración manual.
-Se aplica a infraestructura REPEATER/ROOM inequívoca desde HTTP autenticado;
-los handlers MQTT/internos conservan su default y la persistencia de timestamps.
-No se añaden comandos automáticos, fragmentación de chat ni límites de trama
-nuevos. El [gate dirigido](docs/audits/2026-10-17-meshcore-1.18-manual-admin.md)
-registra273 pruebas aprobadas sobre el cambio posterior a las capas2/3.
+- **Pausa manual 0**: Se aplica cero pausa mínima entre órdenes de administración manual sobre infraestructura `REPEATER`/`ROOM` inequívoca desde HTTP autenticado ([gate dirigido](docs/audits/2026-10-17-meshcore-1.18-manual-admin.md)).
+- **Selector de conexión Serial/TCP**: En Ajustes → Servicios & Red se permite guardar `companion_port` (`tcp://host:port` o puerto serial) para el próximo arranque ([selector de transporte](docs/audits/2026-10-17-companion-connection.md)).
+- **Preferencias locales/remotas (`CAD` y `RX gain`) y WiFi Companion**: Se amplía la allowlist a 9 getters (`get radio`, `get freq`, `get cad`, `get radio.rxgain`, `get path.hash.mode`, `get wifi.ssid`, `get wifi.enabled`, `get wifi.status`, `get wifi.ip`), añadiendo escritura estructurada local/remota de `CAD` (`on`/`off`), lectura de `RX gain` y configuración WiFi Companion local write-only con redacción integral en logs ([preferencias locales](docs/audits/2026-10-17-firmware-preferences.md), [preferencias remotas](docs/audits/2026-10-17-remote-firmware-preferences.md), [WiFi Companion](docs/audits/2026-10-17-firmware-wifi.md)).
+
+### 4.3 Suscripciones de sensores (`0x08`/`0x09`) y correlación `0x8C` (2026-10-17)
+
+- **Normalización segura de `BINARY_RESPONSE (0x8C)`**: `RxEventRouter` mantiene `sender=None` y `sender_known=False` para cualquier trama `0x8C` no correlacionada.
+- **Suscripción manual equilibrada**: Acciones `subscribe_sensor` (`0x08`, `timeout=3600 s`, deltas de $0.5\,^\circ\text{C}$ y $0.10\,\text{V}$) y `unsubscribe_sensor` (`0x09`) exclusivamente para nodos `SENSOR` (`adv_type == 4`), persistidas en la tabla SQLite `sensor_subscriptions` sin auto-renovación y con `push_tag` oculto en las vistas públicas ([suscripciones de sensores](docs/audits/2026-10-17-sensor-subscriptions.md)).
 
 ## 5. Uso desde la web y orden de actualización
 
-El [plan por capas](docs/MESHCORE_1_18_UPGRADE_PLAN.md) especifica archivos, contratos, dependencias, aceptación y reversión. Prioridad: capacidades visibles y diagnóstico local manual; después preferencias avanzadas y WiFi con seguridad y reinicio observado; más adelante sensores y datagramas con decisiones de airtime.
+El [plan por capas](docs/MESHCORE_1_18_UPGRADE_PLAN.md) especifica archivos, contratos, dependencias, aceptación y reversión. Todas las capas funcionales acordadas (1 a 5) y la reconciliación documental/estática (Capa 6) han sido completadas.
 
-Una versión1.18 no hace compatibles todas las placas con WiFi,2.4GHz o todos los parámetros. El objetivo verificable será la matriz de funciones acordadas para companion1.18/protocolo14 con SDK elegido, manteniendo las rutas existentes de1.17.1. No prometer compatibilidad del100% antes de pasar QA y una comprobación de interoperabilidad física autorizada por separado.
+Una versión 1.18 no hace compatibles todas las placas con WiFi, 2.4 GHz o todos los parámetros. El objetivo verificable es la matriz de funciones acordadas para companion 1.18 / protocolo 14 con el SDK instalado, manteniendo las rutas existentes de 1.17.1. La ejecución de suites automatizadas y la comprobación de interoperabilidad física permanecen sujetas a autorización explícita del usuario.

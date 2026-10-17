@@ -1,11 +1,17 @@
 # Actualización por capas a MeshCore 1.18
 
-Fecha inicial: 2026-10-15. Actualización: 2026-10-17. Capas1,2 y diagnóstico
-manual de capa3 implementados con el alcance indicado abajo. Primera guarda de
-capa4: bloquear repeat on en todos los ROOM, por decisión del usuario.
+Fecha inicial: 2026-10-15. Actualización: 2026-10-17. Capas 1, 2, 3, 4 y 5
+implementadas en su totalidad conforme a las decisiones del usuario; Capa 6
+consolidada a nivel documental y de verificación estática (ejecución de suites
+de pruebas y ensayo físico pendientes de orden explícita).
 Investigación: [new1.18.md](../new1.18.md).
 Evidencia de integración y QA: [ledger de la entrega](audits/2026-10-15-meshcore-1.18-integration.md).
-Evolución: [capas2/3 y verificación](audits/2026-10-16-meshcore-1.18-layers-2-3.md).
+Evolución: [capas 2/3 y verificación](audits/2026-10-16-meshcore-1.18-layers-2-3.md),
+[selector de transporte](audits/2026-10-17-companion-connection.md),
+[preferencias locales](audits/2026-10-17-firmware-preferences.md),
+[preferencias remotas](audits/2026-10-17-remote-firmware-preferences.md),
+[WiFi Companion](audits/2026-10-17-firmware-wifi.md) y
+[suscripciones de sensores](audits/2026-10-17-sensor-subscriptions.md).
 
 ## Objetivo y alcance verificable
 
@@ -42,11 +48,11 @@ real, cambio de firmware, instalación operativa ni nuevos valores de timers.
 | --- | --- | --- |
 | 0 Fuentes | Investigación corregida y ampliada | Diferenciar novedades de funciones previas; contratos con fuente por SHA. |
 | 1 Compatibilidad mínima | Enum66, respuesta29, parser4dígitos y secretos WiFi; QA virtual en ledger2/3 | Evidencia global y cierre web documentados por separado; interoperabilidad física pendiente. |
-| 2 Capacidades/adaptador | Implementada; aceptación virtual en ledger2/3 | Capacidad desconocida/ausente/presente; dos getters seguros; serialización y errores semánticos. |
-| 3 API/web | Diagnóstico manual y selector Serial/TCP implementados; QA del selector pendiente | Contratos REST existentes ampliados, controles por capacidad y QA de navegador; sin nuevo WS. |
-| 4 Configuración avanzada | Guarda ROOM, pausa manual0, CAD local/remoto on/off y WiFi Companion local implementados; QA pendiente | RX gain sólo lectura; WiFi local con password write-only e invalidación por sesión. |
-| 5 Sensor/binario | Diseñada, pendiente | Asociación de identidad durable y decisiones de expiración/deltas/presupuesto. |
-| 6 Aceptación | Pendiente | Matriz completa aprobada y verificación física autorizada por separado. |
+| 2 Capacidades/adaptador | Implementada (9 getters seguros + escrituras estructuradas); aceptación virtual en ledger2/3 | Capacidad desconocida/ausente/presente; getters seguros; serialización y errores semánticos. |
+| 3 API/web | Diagnóstico manual y selector Serial/TCP implementados; regresiones escritas | Contratos REST existentes ampliados, controles por capacidad y sin nuevo WS. |
+| 4 Configuración avanzada | Guarda ROOM, pausa manual0, CAD local/remoto on/off, RX gain sólo lectura y WiFi Companion local implementados; regresiones escritas | RX gain sólo lectura; WiFi local con password write-only e invalidación por sesión. |
+| 5 Sensor/binario | Implementada (`BINARY_RESPONSE 0x8C` seguro + suscripciones manuales `0x08`/`0x09` 1h con deltas equilibrados); regresiones escritas | Asociación de identidad durable en SQLite, sin auto-renovación y `push_tag` oculto en vistas públicas. |
+| 6 Aceptación | Documentación reconciliada y verificación estática completada (`mypy`, `ruff`, bundle, i18n, docs) | Ejecución de suites (`pytest`/Playwright) y verificación física sujetas a orden explícita del usuario. |
 
 ## Capa 0 — fuentes y reversibilidad
 
@@ -234,26 +240,38 @@ adverts ni rearmar cooldowns.
 
 ## Capa 5 — recepción binaria y sensores; datagramas opcionales
 
-Archivos previstos: `src/rx_router.py`, handlers/decoder de sensores,
-`src/station_database.py` o repositorio real de persistencia correspondiente,
-contratos REST/WS y módulos web de telemetría. Confirmar nombres exactos antes de
-asignar propiedad; no añadir migración hasta tener modelo de dominio aprobado.
+Implementación 2026-10-17: normalización pasiva segura de `BINARY_RESPONSE (0x8C)`
+y suscripciones manuales de sensores (`0x08` subscribe / `0x09` unsubscribe) con
+el preset equilibrado elegido por el usuario (`timeout = 3600 s`, deltas mínimos
+de temperatura $0.5\,^\circ\text{C}$ = `01670005` y voltaje $0.10\,\text{V}$ = `0174000a`),
+100 % manuales y sin renovación automática.
 
-Primero conservar `BINARY_RESPONSE` opaco sin identidad inventada, con origen
-desconocido y sin eco de MQTT a TX. Después modelar suscripción durable: tag,
-pubkey, tipo, timestamp/expiración, deltas y estado. Evitar colisiones de tag,
-rechazar muestras fuera de asociación, separar timestamp de LPP y no renovar
-suscripciones automáticamente tras guardar o reiniciar.
+Archivos implementados: `src/protocol_types.py`, `src/station_database.py` (tabla
+`sensor_subscriptions`), `src/rx_router.py`, `src/routers/system_handler.py`,
+`src/admin_handler.py`, `src/admin/repeater_executor.py`, `src/contact_manager.py`,
+`src/web/controllers/nodes_controller.py`, `src/web/static/js/modules/nodes.js` y
+`src/web/static/js/i18n.js`. Regresiones escritas en `tests/test_sensor_subscriptions.py`
+y `tests/test_sensor_subscriptions_browser.py`. Evidencia y contratos:
+[suscripciones de sensores](audits/2026-10-17-sensor-subscriptions.md).
 
-La UI de sensores puede mostrar observaciones y última muestra; la creación de
-suscripciones queda deshabilitada hasta que el usuario elija umbrales, expiración,
-renovación y presupuesto. No agregar polling para suplir asociaciones ausentes.
+`RxEventRouter._extract_normalized_meta` conserva `BINARY_RESPONSE` opaco sin
+identidad inventada (`sender=None`, `sender_known=False`). `SystemHandler`
+correlaciona únicamente los `push_tag` con suscripción activa y no expirada en
+SQLite (`resolve_sensor_subscription_by_tag`), separa `sample_timestamp (uint32 LE)`
+del sufijo CayenneLPP, actualiza la telemetría del nodo `SENSOR` y publica en
+`meshcore/rx/telemetry` sin eco a TX. Al vencer `expires_at`, la fila pasa a
+`expired` de forma perezosa sin iniciar renovaciones automáticas. El token
+`push_tag` nunca se expone en las vistas públicas (`get_sensor_subscription_public_view`).
 
-Datagramas de canal sólo si existe un caso de uso concreto en web. SDK2.3.16
-necesita guardas propias de ruta (modo, divisibilidad, hops, bytes totales) antes
-de delegar. Mantener163bytes SDK hasta verificar otra estrategia. Introducirlos
-en la cola/airtime existente, sin interfaz de inyección raw libre. CLI remota
-companion tipo3 y permiso0x10 queda fuera de la activación inicial.
+La tarjeta de cada nodo `SENSOR` (`adv_type == 4`) en `#nodesUnifiedGridUi`
+muestra el badge de suscripción (`Activa`/`Expirada`) y los botones manuales
+`Suscribir 1h` y `Cancelar suscripción` (POST `/api/admin` con
+`subscribe_sensor` y `unsubscribe_sensor`).
+
+Datagramas de canal (`SEND_CHANNEL_DATA = 62`) quedan fuera de la activación por
+defecto hasta que exista un caso de uso concreto en web, manteniendo las guardas
+de ruta y tamaño documentadas. CLI remota companion tipo 3 y permiso `0x10`
+permanece desactivada.
 
 ## Checklist obligatorio de impacto en malla
 
@@ -262,18 +280,18 @@ companion tipo3 y permiso0x10 queda fuera de la activación inicial.
 | Investigación, parser, redacción | Cero paquetes añadidos | Ningún publicador nuevo | No cambian estado ni timers. |
 | Respuesta raw66->29 | El proxy ya transmitía; sólo cambia su respuesta | Sin reintento añadido | No crea timer periódico ni cambia cooldown. |
 | Getters Companion locales permitidos | Cero RF sólo para getters comprobados | Manual; sin encadenar publicaciones TX | Sin polling ni renovación al guardar. |
-| Preferencia CAD local on/off elegida por el usuario | Cero paquetes en lectura/escritura; afecta acceso al canal en TX futuras | Una orden manual; sin reintento, MQTT ni readback automático | Persiste el firmware; no se añaden timers ni se alteran cooldowns/airtime del bridge. |
+| Preferencia CAD local y WiFi Companion | Cero paquetes RF en lectura/escritura local; CAD afecta acceso al canal en TX futuras | Una orden manual tras lectura previa; sin reintento, MQTT ni readback automático | Persiste el firmware; no se añaden timers ni se alteran cooldowns/airtime del bridge. |
 | Setters locales/remotos | Depende de comando; remotos pueden implicar login/comando/respuesta y hops | Gateway/locks SDK; cola TX donde exista, sin fallback doble ni temporizador nuevo | Preservar últimos disparos y cooldown SQLite; pausa manual0 elegida por usuario. |
-| Suscripciones sensor | Solicitud/renovación y pushes por suscriptor/deltas | Evitar suscripciones duplicadas y feedback MQTT | Persistir asociación y expiración antes de activar; no renovar implícitamente. |
-| Datagramas, raw o retries | Depende de tamaño/ruta/nodos; no aprobado un nuevo presupuesto | Deben pasar admisión TX y límites definidos | No timers de reenvío en RAM ni replay al arrancar. |
+| Suscripciones sensor (`0x08`/`0x09` + `0x8C`) | 1 paquete puntual por orden manual (`3600 s`) + pushes condicionados a deltas ($0.5\,^\circ\text{C}$, $0.10\,\text{V}$) | Sin feedback MQTT a TX; correlación por `push_tag` activo en SQLite | Persistido en tabla `sensor_subscriptions`; 100 % manual sin timers de auto-renovación. |
+| Datagramas, raw o retries | No activados en esta entrega | N/A | Sin timers de reenvío en RAM ni replay al arrancar. |
 
-Decisiones pendientes que se solicitarán antes de esas implementaciones: lista
-de controles RF que se desean y, para sensores, expiración/renovación/deltas y
-presupuesto de suscripciones. Las políticas ROOM y de pausa manual ya están
-resueltas: el usuario eligió bloquear repeat on en todos los ROOM y cero pausa
-mínima entre órdenes manuales de infraestructura. La segunda decisión ya está
-integrada en su entrega separada, conservando el default de flujos internos/MQTT.
-No se ha elegido ningún umbral o intervalo nuevo unilateralmente.
+Todas las decisiones de usuario para las Capas 1–5 han quedado resueltas e
+implementadas: bloqueo de `set repeat on` en todos los `ROOM`, cero pausa mínima
+entre órdenes HTTP manuales de infraestructura, `CAD` manual (`on`/`off`) con
+`RX gain` de sólo lectura, configuración WiFi Companion local write-only y
+suscripciones manuales de sensores de 1 hora con deltas equilibrados sin
+renovación automática. No se ha elegido ningún umbral o intervalo de forma
+unilateral.
 
 ## Capa 6 — matriz de aceptación y despliegue
 

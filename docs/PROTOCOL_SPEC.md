@@ -2,13 +2,13 @@
 
 > **Documento Oficial de Contrato de Interfaz**  
 > **Single Source of Truth (SSoT) de Protocolo para Agentes de Antigravity**  
-> **Versión**: 3.0.1 (Corrección documental contrastada con referencias locales, 2026-09-29)
+> **Versión**: 3.1.0 (Actualización MeshCore v1.18.0 / Companion Protocol v14, 2026-10-17)
 > **Fuentes Oficiales**:
 > - Documentación Oficial: [docs.meshcore.io](https://docs.meshcore.io/) | [meshcore.io](https://meshcore.io)
 > - Repositorio Oficial en GitHub: [github.com/meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore)
 > - SDK Oficial en Python: [github.com/meshcore-dev/meshcore_py](https://github.com/meshcore-dev/meshcore_py)
 > - CLI Oficial: [github.com/meshcore-dev/meshcore-cli](https://github.com/meshcore-dev/meshcore-cli)
-> **Firmware Target**: MeshCore Firmware v1.17+ / Companion USB  
+> **Firmware Target**: MeshCore Firmware v1.17.1+ / v1.18.0 (Companion Protocol v13–v14, USB/UART y TCP)  
 > **Microcontroladores Soportados**: ESP32-S3, ESP32-C3, nRF52840, RP2040, STM32 (ARM Cortex-M / RISC-V)  
 > **Módulos de Radio LoRa**: Semtech SX1262, SX1268, SX1276, LR1121  
 
@@ -300,7 +300,7 @@ Evidencia: `PUBLIC_GROUP_PSK` / `addChannel("Public", ...)` en `reference/meshco
 | `41` / `0x29` | `SET_CUSTOM_VAR` | Configura una variable personalizada (`clave:valor`) |
 | `42` / `0x2A` | `GET_ADVERT_PATH` | Consulta la ruta histórica registrada para un anuncio de nodo |
 | `43` / `0x2B` | `GET_TUNING_PARAMS` | Consulta parámetros de sintonización y retardo (`rx_delay`, `airtime_factor`) |
-| `50` / `0x32` | `SEND_BINARY_REQ` | Transmite solicitud binaria estructurada (Status, MMA, ACL, Neighbours) |
+| `50` / `0x32` | `SEND_BINARY_REQ` | Transmite solicitud binaria estructurada (`STATUS`, `KEEP_ALIVE`, `TELEMETRY`, `MMA`, `ACL`, `NEIGHBOURS`, `SUBSCRIBE=0x08`, `UNSUBSCRIBE=0x09`) |
 | `51` / `0x33` | `FACTORY_RESET` | Restablece el dispositivo a valores de fábrica y formatea filesystem |
 | `52` / `0x34` | `SEND_PATH_DISCOVERY_REQ` | Inicia descubrimiento activo de ruta de retorno mediante inundación |
 | `54` / `0x36` | `SET_FLOOD_SCOPE_KEY` | Configura clave de transporte o fuerza modo no restringido |
@@ -315,6 +315,7 @@ Evidencia: `PUBLIC_GROUP_PSK` / `addChannel("Public", ...)` en `reference/meshco
 | `63` / `0x3F` | `SET_DEFAULT_FLOOD_SCOPE` | Configura nombre y clave del ámbito de inundación por defecto |
 | `64` / `0x40` | `GET_DEFAULT_FLOOD_SCOPE` | Consulta nombre y clave del ámbito de inundación por defecto |
 | `65` / `0x41` | `SEND_RAW_PACKET` | Inyecta paquete de radio crudo en la cola de transmisión |
+| `66` / `0x42` | `RUN_CLI_COMMAND` | Ejecuta comando CLI local en el firmware Companion (`v1.18+`, protocolo 14); responde con `CLI_REPLY (29)` |
 
 ### Notificaciones Asíncronas Push y Respuestas (`PacketType` - Radio $\to$ Host):
 | Código (Dec / Hex) | Mnemónico | Descripción |
@@ -333,6 +334,7 @@ Evidencia: `PUBLIC_GROUP_PSK` / `addChannel("Public", ...)` en `reference/meshco
 | `16` / `0x10` | `CONTACT_MSG_RECV_V3` | Mensaje DM con cabeceras v3 y métricas RF |
 | `17` / `0x11` | `CHANNEL_MSG_RECV_V3` | Mensaje de canal v3 con métricas RF |
 | `18` / `0x12` | `CHANNEL_INFO` | Información de canal configurado |
+| `29` / `0x1D` | `CLI_REPLY` | Respuesta textual sin NUL a `RUN_CLI_COMMAND (66)` en Companion v1.18+ |
 | `128` / `0x80`| `ADVERTISEMENT` | Anuncio de presencia (*advert*) recibido por RF |
 | `129` / `0x81`| `PATH_UPDATE` | Actualización de ruta descubierta |
 | `130` / `0x82`| `ACK` | Reconocimiento de entrega punto a punto |
@@ -343,7 +345,7 @@ Evidencia: `PUBLIC_GROUP_PSK` / `addChannel("Public", ...)` en `reference/meshco
 | `137` / `0x89`| `TRACE_DATA` | Datos de salto del trazado de ruta (*Traceroute*) |
 | `138` / `0x8A`| `NEW_ADVERT` | Anuncio de nodo desconocido no presente en libreta |
 | `139` / `0x8B`| `TELEMETRY_RESPONSE`| Telemetría ambiental o hardware recibida |
-| `140` / `0x8C`| `BINARY_RESPONSE` | Respuesta a solicitud binaria, correlacionada por tag |
+| `140` / `0x8C`| `BINARY_RESPONSE` | Respuesta a solicitud binaria o push de suscripción sensor, correlacionada por `tag` de 4 bytes |
 | `143` / `0x8F`| `CONTACT_DELETED` | Notificación de contacto purgado |
 | `144` / `0x90`| `CONTACTS_FULL` | Libreta de contactos de hardware llena |
 
@@ -435,6 +437,7 @@ El adaptador mantiene una tabla de respuesta terminal por opcode derivada de
 | GET_BATT_AND_STORAGE | 20 | BATTERY (12) |
 | GET_CONTACT_BY_KEY | 30 | CONTACT/NEXT_CONTACT (3) |
 | GET_CONTACTS | 4 | END (4); START (2) y CONTACT (3) son elementos intermedios |
+| RUN_CLI_COMMAND | 66 | CLI_REPLY (29); nunca se acepta OK (0) como éxito CLI |
 
 ERROR (1) y DISABLED (15) terminan con fallo. Los pushes >=0x80 conservan su
 canal asíncrono; una respuesta síncrona de otro tipo no confirma ni se entrega
@@ -465,8 +468,8 @@ El protocolo opera en dos modalidades principales de enrutamiento:
 ### 13.3 Comandos Remotos de Repetidor (CommonCLI)
 La administración remota de nodos repetidores se ejecuta mediante tramas de texto cifradas dirigidas (`PAYLOAD_TYPE_REQ` / `PAYLOAD_TYPE_TXT_MSG`), soportando los siguientes comandos canónicos:
 - **Diagnóstico e Información**: `ver`, `board`, `clock`, `stats-core`, `stats-radio`, `stats-packets`, `clear stats`, `neighbors`.
-- **Lectura de Parámetros**: `get name`, `get freq`, `get tx`, `get advert.interval`, `get allow.read.only`, `get flood.max`, `get bat`.
-- **Configuración de Parámetros**: `set name <nombre>`, `set tx <dBm>`, `set advert.interval <minutos>`, `set radio <freq,bw,sf,cr>`, `set repeat on|off`, `password <nueva_clave>`.
+- **Lectura de Parámetros**: `get name`, `get freq`, `get tx`, `get advert.interval`, `get allow.read.only`, `get flood.max`, `get bat`, `get cad`, `get radio.rxgain`.
+- **Configuración de Parámetros**: `set name <nombre>`, `set tx <dBm>`, `set advert.interval <minutos>`, `set radio <freq,bw,sf,cr>`, `set repeat on|off`, `set cad on|off`, `password <nueva_clave>`.
 
 ---
 
@@ -497,47 +500,71 @@ de ventana con último intervalo partial y includes_current_minute.
 
 | Tipo de Nodo | Categoría de Parámetros | Parámetros Disponibles y Alcanzables en el Código | Vectores de Adquisición |
 | :--- | :--- | :--- | :--- |
-| **`LOCAL`** (Estación Base / Host) | Identidad, RF, Hardware, Rendimiento | `public_key`, `name`, `alias`, `role`, `is_local=True`, `hops=0`, `tx_power`, `min_tx_power`, `max_tx_power`, `default_tx_power`, `frequency`, `spreading_factor`, `bandwidth`, `coding_rate`, `hop_limit`, `repeat_enabled`, `hardware_board`, `firmware_version`, `uptime_secs`, `uptime_str`, `clock`, `airtime_ms`, `duty_cycle_pct`, `noise_floor_dbm`, `tx_count`, `rx_count`, `duplicate_packets`, `packet_errors`, `queue_len`, `battery_pct`, `voltage_v`, `latitude`, `longitude`, `altitude_m`, `fixed_position`, `owner_name`, `owner_info`, `advert_interval` | `fetch_device_config()`, `_cli_stats_core()`, `_cli_radio_info()`, `_cli_packets_info()`, `TxRateLimiter` |
+| **`LOCAL`** (Estación Base / Host) | Identidad, RF, Hardware, Rendimiento | `public_key`, `name`, `alias`, `role`, `is_local=True`, `hops=0`, `tx_power`, `min_tx_power`, `max_tx_power`, `default_tx_power`, `frequency`, `spreading_factor`, `bandwidth`, `coding_rate`, `hop_limit`, `repeat_enabled`, `hardware_board`, `firmware_version`, `uptime_secs`, `uptime_str`, `clock`, `airtime_ms`, `duty_cycle_pct`, `noise_floor_dbm`, `tx_count`, `rx_count`, `duplicate_packets`, `packet_errors`, `queue_len`, `battery_pct`, `voltage_v`, `latitude`, `longitude`, `altitude_m`, `fixed_position`, `owner_name`, `owner_info`, `advert_interval` | `fetch_device_config()`, `_cli_stats_core()`, `_cli_radio_info()`, `_cli_packets_info()`, `TxRateLimiter`, `run_firmware_cli()` (getters exactos en `fw ver >= 14`) |
 | **`CLIENT`** (Usuario / Chat) | Identidad, Ubicación, Calidad de Enlace, Mensajería | `public_key`, `key_prefix`, `name`, `alias`, `role="CLIENT"`, `hops`, `last_rssi`, `last_snr`, `battery_pct`, `voltage_v`, `latitude`, `longitude`, `altitude_m`, `owner_name`, `owner_info`, `is_favorite`, `verified_identity`, `lqi_score`, `lqi_status`, `best_route`, `rx_packets`, `tx_packets`, `total_packets`, `error_rate_pct`, `out_path` | `PAYLOAD_TYPE_ADVERT`, `CONTACT`, `CONTACT_MSG_RECV`, `CHANNEL_MSG_RECV`, `ACK` |
 | **`REPEATER`** (Router / Infraestructura) | RF, Enrutamiento, Telemetría, Comandos CLI | `public_key`, `name`, `alias`, `role="REPEATER"`, `hops`, `last_rssi`, `last_snr`, `noise_floor_dbm`, `battery_pct`, `voltage_v`, `uptime`, `firmware_version`, `hardware_board`, `frequency`, `spreading_factor`, `bandwidth`, `coding_rate`, `tx_power`, `min_tx_power`, `max_tx_power`, `default_tx_power`, `hop_limit`, `repeat_enabled=True`, `advert_interval`, `packets_sent`, `packets_recv`, `packet_errors`, `neighbors`, `lqi_score` | `PAYLOAD_TYPE_ADVERT`, `RepeaterManager.extract_all_repeater_params_from_text()`, `ping 0`, `traceroute` |
-| **`SENSOR`** (Sensor Ambiental) | Clima, Presión, Energía, GPS | `public_key`, `name`, `alias`, `role="SENSOR"`, `hops`, `last_rssi`, `last_snr`, `temperature_c` (0.1°C), `humidity_pct` (0.5%), `pressure_hpa` (0.1 hPa), `voltage_v`, `solar_v`, `battery_pct`, `latitude`, `longitude`, `altitude_m`, `gas_resistance_kohm`, `illuminance_lux` | Rol `ADV_TYPE_SENSOR`; eventos de telemetría y datos CayenneLPP (`0x67`, `0x68`, `0x73`, `0x02`, `0x88`) según formato recibido |
+| **`SENSOR`** (Sensor Ambiental) | Clima, Presión, Energía, GPS, Suscripción Push | `public_key`, `name`, `alias`, `role="SENSOR"`, `hops`, `last_rssi`, `last_snr`, `temperature_c` (0.1°C), `humidity_pct` (0.5%), `pressure_hpa` (0.1 hPa), `voltage_v`, `solar_v`, `battery_pct`, `latitude`, `longitude`, `altitude_m`, `gas_resistance_kohm`, `illuminance_lux`, `sensor_subscription` (`status`, `timeout_s`, `expires_at`, `sample_count`, `last_sample_timestamp`) | Rol `ADV_TYPE_SENSOR`; eventos `TELEMETRY_RESPONSE (0x8B)` y pushes `BINARY_RESPONSE (0x8C)` correlacionados por `push_tag` de suscripción activa (`0x08`/`0x09`) |
 | **`ROOM`** (Servidor de Sala / BBS) | Conectividad, Usuarios, GPS | `public_key`, `name`, `alias`, `role="ROOM"`, `hops`, `last_rssi`, `last_snr`, `battery_pct`, `voltage_v`, `connected_clients_count`, `owner_name`, `owner_info`, `latitude`, `longitude`, `altitude_m`, `room_name`, `topic` | Rol `ADV_TYPE_ROOM`; `PAYLOAD_TYPE_ADVERT` y mensajes/respuestas de la sala según operación |
 | **`NETWORK`** (Topología y Calidad) | LQI, Tráfico, Enrutamiento | `lqi_score` (EMA), `lqi_status` (EXCELLENT/GOOD/FAIR/POOR), `best_route`, `hops`, `rx_packets`, `tx_packets`, `total_packets`, `error_count`, `error_rate_pct`, `direct_dups`, `flood_dups` | `LinkQualityEngine`, `PacketDeduplicator`, `RxEventRouter` |
 
 
 
 
-## 15. Companion 1.18 / protocolo 14 (revisión 2026-10-15)
+## 15. Companion 1.18 / protocolo 14 (revisión 2026-10-17)
 
-Fuente fijada: [MyMesh.cpp 1.18](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/examples/companion_radio/MyMesh.cpp). La revisión detallada y sus límites están en [investigación1.18](../new1.18.md) y [auditoría de protocolo](audits/2026-10-15-meshcore-1.18-protocol.md).
+Fuente fijada: [MyMesh.cpp 1.18](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/examples/companion_radio/MyMesh.cpp). La revisión detallada y sus límites están en [investigación 1.18](../new1.18.md) y [auditoría de protocolo](audits/2026-10-15-meshcore-1.18-protocol.md).
 
-- `CMD_RUN_CLI_COMMAND=66 (0x42)` lleva texto; responde `CLI_REPLY=29 (0x1D)` con texto sin NUL transmitido. No responde OK como éxito normal. El bridge identifica ese contrato en enum y tabla de transacciones raw. Recibir29 acredita respuesta de transporte, no éxito semántico del texto.
-- El código numérico14 se obtiene de DEVICE_INFO (`fw ver`), no de SELF_INFO. La presencia del opcode por sí sola no habilita CLI; las capas2/3 siguientes requieren también sesión vigente y método SDK disponible.
-- No hay un límite uniforme de160bytes demostrado para CLI. `cli_command[80]` es rescue USB; `reply_buf[166]` incluye NUL. Validar gramática y límite específico de cada operación antes de exponerla.
-- Push binario `0x8C | reservado_u8 | tag_4bytes | datos` no contiene pubkey. Sin asociación previa verificable conservar origen desconocido; no interpretar cualquier push como LPP. Los pushes sensor de suscripciones incluyen timestamp antes de LPP.
-- Datagrama62, raw65, WiFi y rango sintáctico150–2500MHz ya existían en1.17.1. SDK2.3.16 incorpora modo hash en ruta de datagramas; límite SDK163bytes frente a165 del handler firmware. Validar modo, hops, divisibilidad y frame total antes de cualquier integración.
+- `CMD_RUN_CLI_COMMAND=66 (0x42)` lleva texto; responde `CLI_REPLY=29 (0x1D)` con texto sin NUL transmitido. No responde OK como éxito normal. El bridge identifica ese contrato en enum y tabla de transacciones raw. Recibir 29 acredita respuesta de transporte, no éxito semántico del texto.
+- El código numérico 14 se obtiene de `DEVICE_INFO['fw ver']`, no de `SELF_INFO`. La presencia del opcode por sí sola no habilita CLI; se requiere sesión vigente (`session_generation`), `fw ver >= 14` y método SDK `commands.run_cli_command` disponible.
+- No hay un límite uniforme de 160 bytes demostrado para CLI. `cli_command[80]` es rescue USB; `reply_buf[166]` incluye NUL. Validar gramática y límite específico de cada operación antes de exponerla.
+- Push binario `0x8C | reservado_u8 | tag_4bytes | datos` no contiene pubkey. Sin asociación previa verificable se conserva origen desconocido (`sender=None`, `sender_known=False`); no se interpreta cualquier push como LPP.
+- Datagrama 62, raw 65, WiFi y rango sintáctico 150–2500 MHz ya existían en 1.17.1. SDK 2.3.16 incorpora modo hash en ruta de datagramas; límite SDK 163 bytes frente a 165 del handler firmware. Validar modo, hops, divisibilidad y frame total antes de cualquier integración.
 - Los layouts anteriores son secuencias serializadas sin padding C++ ni CRC propio añadido. El framing Companion externo conserva dirección y longitud uint16 LE gestionadas por SDK; no mezclarlo con el framing AA/55 interno.
 
-El firmware1.18 rechaza `set repeat on` en ROOM. Desde la entrega del2026-10-16, el ejecutor administrativo del bridge lo bloquea para todos los ROOM por política explícita del usuario, incluidas versiones antiguas/desconocidas. La prevalidación cubre aliases, texto con prefijo y lotes antes de login, alta de contacto, cooldown o envío; existe una segunda guarda junto al envío. Se conserva `repeat off` y la activación en REPEATER. La guarda usa registro canónico/tipo advert oficial, no rol suministrado en la petición. Los setters avanzados siguen en capas posteriores del [plan de actualización](MESHCORE_1_18_UPGRADE_PLAN.md).
+El firmware 1.18 rechaza `set repeat on` en ROOM. Desde la entrega del 2026-10-16, el ejecutor administrativo del bridge lo bloquea para todos los ROOM por política explícita del usuario, incluidas versiones antiguas/desconocidas. La prevalidación cubre aliases, texto con prefijo y lotes antes de login, alta de contacto, cooldown o envío; existe una segunda guarda junto al envío. Se conserva `repeat off` y la activación en REPEATER. La guarda usa registro canónico/tipo advert oficial, no rol suministrado en la petición.
 
-### 15.1 Lecturas locales permitidas (2026-10-16)
+### 15.1 Lecturas y preferencias locales permitidas (2026-10-17)
 
 `firmware_capabilities` deriva su protocolo exclusivamente de `DEVICE_INFO['fw ver']`
 entero uint8 y del método `commands.run_cli_command` del SDK conectado. Publica
-`state` (`unknown`, `absent`, `present`), `reason`, `connected`,
-`companion_protocol`, `firmware_version`, `sdk_version`, `model`, `transport` y
-`safe_commands`. No incorpora `ble_pin` ni el payload DEVICE_INFO completo.
-Desconexión, cambio de SDK e identidad retiran observaciones de la sesión anterior.
+`state` (`unknown`, `absent`, `present`), `reason`, `connected`, `session_generation`,
+`companion_protocol`, `firmware_version`, `sdk_version`, `model`, `transport`,
+`safe_commands` y `writable_preferences` (`["cad", "wifi"]`). No incorpora `ble_pin`
+ni el payload `DEVICE_INFO` completo. Desconexión, cambio de SDK e identidad retiran
+observaciones de la sesión anterior.
 
-La allowlist inicial contiene exclusivamente los textos ASCII exactos `get radio`
-y `get freq`: sin normalizar espacios, prefijos, controles, setters ni secretos.
-Ambos leen NodePrefs y responden localmente por Companion, sin RF. Informan
-preferencias guardadas; no acreditan aplicación al chip tras un setter que exige
-reinicio. El resultado interno es `{command, text}` de un `CLI_REPLY` válido;
-`Error`, `ERR`, `Unknown command`, respuestas vacías o tipos ajenos fallan.
+La allowlist de lecturas locales contiene exclusivamente nueve textos ASCII exactos:
+`get radio`, `get freq`, `get cad`, `get radio.rxgain`, `get path.hash.mode`,
+`get wifi.ssid`, `get wifi.enabled`, `get wifi.status` y `get wifi.ip` (nunca
+`get wifi.pwd` ni `get wifi.password`). Todos leen `NodePrefs` y responden localmente
+por Companion, sin RF. Informan preferencias guardadas; no acreditan aplicación al chip
+tras un setter que exige reinicio. Las escrituras locales permitidas (`set_preference`
+para `cad` booleano y `set_wifi` para SSID/password write-only/enabled/clear) devuelven
+`acknowledged:true` y `hardware_verified:false` (`reboot_required:true` en WiFi),
+redactando `set wifi.pwd` en todos los filtros de log del SDK y del sistema.
 
 La espera comparte el lock SDK existente y comprueba propiedad de sesión antes
 y después de enviar. No hay fallback ni reintento. Un timeout/cancelación de CLI
-deja su respuesta sin correlación fiable: deshabilita nuevas lecturas hasta una
-reconexión, aunque llegue otro DEVICE_INFO en la misma sesión. No se incorpora
-un intervalo nuevo; se conserva el presupuesto temporal del adaptador.
+deja su respuesta sin correlación fiable: deshabilita nuevas lecturas/escrituras
+hasta una reconexión, aunque llegue otro `DEVICE_INFO` en la misma sesión.
+
+### 15.2 Suscripciones de Sensores (`0x08` / `0x09`) y Correlación de Push `BINARY_RESPONSE (0x8C)` (2026-10-17)
+
+Fuente en firmware 1.18: `examples/simple_sensor/SensorMesh.cpp` (`REQ_TYPE_SUBSCRIBE = 0x08`, `REQ_TYPE_UNSUBSCRIBE = 0x09`, `sendPushData`).
+
+- **Solicitud `BinaryReqType.SUBSCRIBE (0x08)`** (enviada vía `CMD_SEND_BINARY_REQ = 50`):
+  - Layout de `request_data` (después de `[0x32][pubkey 32B]` que construye el SDK):
+    `[0x08 (1B)][push_tag (4B)][timeout_s (uint32 LE, 4B)][deltas (N * 4B)]` (endianness Little-Endian en `timeout_s`, sin padding ni CRC adicional).
+  - Cada tupla de umbral mínimo de cambio (`delta`) ocupa 4 bytes: `[channel (1B)][lpp_type (1B)][min_delta (uint16 BE, 2B)]`.
+  - **Preset equilibrado implementado**: `timeout_s = 3600` (1 hora) y deltas `b"\x01\x67\x00\x05\x01\x74\x00\x0a"` (temperatura `0x67` con cambio mínimo de $0.5\,^\circ\text{C}$, voltaje `0x74` con cambio mínimo de $0.10\,\text{V}$).
+  - **Respuesta `BINARY_RESPONSE (0x8C)` a `SUBSCRIBE`**: `data` de 4 bytes `[err_code (uint8)][0x00][0x00][0x00]`, donde `err_code == 0` confirma registro o renovación.
+- **Solicitud `BinaryReqType.UNSUBSCRIBE (0x09)`**:
+  - Layout de `request_data`: `[0x09 (1B)][push_tag (4B)]` (5 bytes, sin padding ni CRC).
+  - **Respuesta `BINARY_RESPONSE (0x8C)` a `UNSUBSCRIBE`**: `data` de 1 byte `[err_code (uint8)]` (`0x00` = cancelada).
+- **Trama Push de Muestras de Sensor (`BINARY_RESPONSE = 0x8C`)**:
+  - Layout recibido desde la radio: `[0x8C (1B)][reserved (1B)][push_tag (4B)][sample_timestamp (uint32 LE, 4B)][CayenneLPP (N bytes)]`.
+  - **Regla estricta de atribución**: `BINARY_RESPONSE (0x8C)` carece de clave pública en su cabecera. `RxEventRouter` nunca infiere un emisor en `_extract_normalized_meta()`. `SystemHandler._handle_binary_response()` consulta la tabla SQLite `sensor_subscriptions` por `push_tag` activo y no expirado:
+    - Si existe una suscripción activa para ese `push_tag`, extrae `sample_timestamp (uint32 LE)`, decodifica el sufijo CayenneLPP con `SensorDecoder.decode_cayenne_lpp()`, actualiza la telemetría del nodo `SENSOR` y publica en `meshcore/rx/telemetry` con `source = "sensor_subscription_push"`.
+    - Si el `push_tag` es desconocido o su suscripción ha expirado, el paquete permanece opaco (`event_type = "binary_response"`, `sender = None`, `sender_known = False`) sin inventar identidad ni decodificar LPP.
+  - **Sin renovación automática y secreto de `push_tag`**: Las suscripciones son 100 % manuales (`subscribe_sensor` / `unsubscribe_sensor` exclusivamente para nodos `SENSOR` con `adv_type == 4`) y transicionan a `expired` al vencer `expires_at` sin timers de auto-renovación. El token `push_tag` se almacena en SQLite pero se excluye de todas las vistas públicas REST/WebSocket (`get_sensor_subscription_public_view`). Auditoría detallada: [suscripciones de sensores](audits/2026-10-17-sensor-subscriptions.md).
+

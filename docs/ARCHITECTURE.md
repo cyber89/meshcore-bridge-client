@@ -79,6 +79,30 @@ sesiones, CSRF, API key y Origin conservan las políticas del endpoint existente
 La [entrega del selector](audits/2026-10-17-companion-connection.md) separa
 comprobaciones estáticas y regresiones escritas de QA todavía no ejecutado.
 
+### Suscripciones manuales de sensores (`0x08`/`0x09`) y correlación `0x8C` (2026-10-17)
+
+Los nodos con rol canónico `SENSOR` (`FirmwareAdvertType.SENSOR = 4`) admiten
+suscripciones manuales de telemetría mediante POST `/api/admin` con
+`action:"subscribe_sensor"` (`BinaryReqType.SUBSCRIBE = 0x08`) y
+`action:"unsubscribe_sensor"` (`BinaryReqType.UNSUBSCRIBE = 0x09`). Se utiliza
+el preset equilibrado elegido por el usuario (`timeout_s = 3600`, deltas LPP
+`016700050174000a` correspondientes a $0.5\,^\circ\text{C}$ y $0.10\,\text{V}$),
+validando en `AdminCommandHandler`, `RepeaterAdminExecutor` y `NodesController`
+que el destino sea una clave pública hex de 64 caracteres no local con
+`adv_type == 4`.
+
+El estado se persiste en la tabla SQLite `sensor_subscriptions` de
+`StationDatabase`, asignando o reutilizando un `push_tag` aleatorio de 4 bytes
+sin colisiones. El token de capacidad `push_tag` se filtra de todas las vistas
+públicas (`get_sensor_subscription_public_view` en `GET /api/nodes` y eventos
+WebSocket). En recepción, `RxEventRouter._extract_normalized_meta()` mantiene
+cualquier `BINARY_RESPONSE (0x8C)` sin correlación como evento opaco
+(`sender=None`, `sender_known=False`), y `SystemHandler._handle_binary_response()`
+solo decodifica `sample_timestamp (uint32 LE) + CayenneLPP` cuando el `push_tag`
+coincide con una suscripción activa y no expirada en SQLite, transicionando
+filas vencidas a `expired` sin timers de auto-renovación.
+[Alcance y auditoría](audits/2026-10-17-sensor-subscriptions.md).
+
 ## 1.1 Mapas Interactivos de Arquitectura (Generados con Archify)
 El sistema cuenta con mapas interactivos de alta fidelidad compilados determinísticamente con el motor [**Archify** (`tt-a1i/archify`)](https://github.com/tt-a1i/archify). Estos artefactos son completamente autónomos en **HTML + SVG**, no requieren conexión a internet y cuentan con soporte para tema Claro/Oscuro, modos visuales (*classic*, *signal-flow*, *blueprint*), zoom, paneo, búsqueda y capítulos guiados:
 
