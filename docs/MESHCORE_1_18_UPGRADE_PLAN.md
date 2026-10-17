@@ -44,7 +44,7 @@ real, cambio de firmware, instalación operativa ni nuevos valores de timers.
 | 1 Compatibilidad mínima | Enum66, respuesta29, parser4dígitos y secretos WiFi; QA virtual en ledger2/3 | Evidencia global y cierre web documentados por separado; interoperabilidad física pendiente. |
 | 2 Capacidades/adaptador | Implementada; aceptación virtual en ledger2/3 | Capacidad desconocida/ausente/presente; dos getters seguros; serialización y errores semánticos. |
 | 3 API/web | Diagnóstico manual y selector Serial/TCP implementados; QA del selector pendiente | Contratos REST existentes ampliados, controles por capacidad y QA de navegador; sin nuevo WS. |
-| 4 Configuración avanzada | Guarda ROOM, pausa manual0 y CAD local/remoto on/off implementados; QA de preferencias pendiente | RX gain sólo lectura; WiFi y otros controles por hardware pendientes. |
+| 4 Configuración avanzada | Guarda ROOM, pausa manual0, CAD local/remoto on/off y WiFi Companion local implementados; QA pendiente | RX gain sólo lectura; WiFi local con password write-only e invalidación por sesión. |
 | 5 Sensor/binario | Diseñada, pendiente | Asociación de identidad durable y decisiones de expiración/deltas/presupuesto. |
 | 6 Aceptación | Pendiente | Matriz completa aprobada y verificación física autorizada por separado. |
 
@@ -219,10 +219,13 @@ rutas HTTP comparte la política. [Implementación y gate](audits/2026-10-17-mes
 Nunca convertir esa guarda en permiso de chat a REPEATER o LOCAL.
 
 `set radio` informa reinicio requerido. Conservar el valor anterior observado
-hasta lectura posterior; no mostrar guardado como aplicado por recibir29. Una
-futura configuración WiFi debe ser privada, sin lectura de password, sin guardar
-secreto en historial y cubriendo DEBUG del SDK antes de enviar. Si aplicar WiFi
-corta el enlace, conservar estado pendiente y recuperación manual documentada.
+hasta lectura posterior; no mostrar guardado como aplicado por recibir29. La
+configuración WiFi Companion local (`action:"set_wifi", scope:"firmware"`) es
+privada, con getters seguros (`get wifi.ssid`, `get wifi.enabled`,
+`get wifi.status`, `get wifi.ip`), sin lectura de password (`get wifi.pwd`
+bloqueado), limpiando el campo en DOM al enviar y redactando trazas DEBUG del
+SDK (`_MeshcoreLogRedactionFilter` y `SystemLogHandler`). Informa
+`reboot_required:true` y `hardware_verified:false`. [Evidencia WiFi](audits/2026-10-17-firmware-wifi.md).
 
 No migrar el presupuesto del bridge al dutycycle de firmware: son controles
 distintos. No cambiar defaults operativos, frecuencia, potencia, af, multi-ACK o

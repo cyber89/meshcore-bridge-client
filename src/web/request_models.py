@@ -201,6 +201,9 @@ class RepeaterBodyDTO(CompatibilityBodyDTO):
     scope: Any = None
     preference: Any = None
     value: Any = None
+    ssid: Any = None
+    enabled: Any = None
+    clear: Any = None
     target_node: Any = None
     repeater: Any = None
     target: Any = None

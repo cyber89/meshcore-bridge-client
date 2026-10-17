@@ -18,6 +18,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from src.protocol_types import redact_command_str
+
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class SystemLogRecord:
@@ -80,7 +82,8 @@ class SystemLogHandler(logging.Handler):
             if record.levelno < self.level:
                 return
 
-            msg = self.format(record) if self.formatter else record.getMessage()
+            raw_msg = self.format(record) if self.formatter else record.getMessage()
+            msg = redact_command_str(raw_msg)
 
             exc_text = None
             if record.exc_info:

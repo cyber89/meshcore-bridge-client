@@ -58,12 +58,12 @@
     },
     "index.html": {
       "file": "index.html",
-      "source_sha256": "aec0b4dabc9dd6b44be41e56d3f1243e63ae5abc8944c7ee18780db8e39415c1",
-      "sha256": "aec0b4dabc9dd6b44be41e56d3f1243e63ae5abc8944c7ee18780db8e39415c1",
-      "gzip_sha256": "fc5ea32319e957b525e250ca6ab83131d7c2d4ea7ed3227d83b1afd03fa7d4e3",
-      "source_bytes": 238560,
-      "bytes": 238560,
-      "gzip_bytes": 42573
+      "source_sha256": "0c4b20aff3b62aa4ecaf5a01c645802404777a2baa4cf44ba7d80f00dd322226",
+      "sha256": "0c4b20aff3b62aa4ecaf5a01c645802404777a2baa4cf44ba7d80f00dd322226",
+      "gzip_sha256": "295b210149fa5355156c60b886dc49f617310c9cc8f4229399d769b0130224fb",
+      "source_bytes": 241616,
+      "bytes": 241616,
+      "gzip_bytes": 43072
     },
     "js/app.js": {
       "file": "js/app.min.js",
@@ -184,12 +184,12 @@
     },
     "js/i18n.js": {
       "file": "js/i18n.min.js",
-      "source_sha256": "c9f3750a84bc9fb052587bf36e43fbc14b0d7876b0e11d8676d1927a8d67c3a6",
-      "sha256": "123e92e644a5a17a54f106fc8c43536ee871760c9f6edee8585bd21756455abc",
-      "gzip_sha256": "d147a214091b6780f3cc0888b75277116aa666850a5a70e0b37d42925f6ee659",
-      "source_bytes": 223890,
-      "bytes": 183491,
-      "gzip_bytes": 55233
+      "source_sha256": "4ac33e7fb46b0744a1e7abf7da7b1cbfdc4d3538fafccde59e263520a6b22d17",
+      "sha256": "3dea3871f8c8aa8d47b39fa5500d0e9b2644285f80b55be602d82a4312771d2b",
+      "gzip_sha256": "2cd004c387db1683dd1fae6396bc3216354d6d3b3ea13ef51f0a17d865165331",
+      "source_bytes": 227426,
+      "bytes": 186739,
+      "gzip_bytes": 55968
     },
     "js/leaflet.js": {
       "file": "js/leaflet.min.js",
@@ -247,12 +247,12 @@
     },
     "js/modules/settings.js": {
       "file": "js/modules/settings.min.js",
-      "source_sha256": "9e75661c42bfd590d5fb71bc0e7e1be9f7f8160498f4f309a95b2a7779268171",
-      "sha256": "73bdd4fbfac089195a0bcb8e6b6ddf4d839af6c326c8cf085cfafcfafcdc36bb",
-      "gzip_sha256": "2dd30f915be3a19755600a5ccda86786b730c91733f1bad95ea37e74e8a51503",
-      "source_bytes": 151901,
-      "bytes": 101809,
-      "gzip_bytes": 22427
+      "source_sha256": "0be3aeac111202059a8e149f109f94ec86d335f7a5e273e0992c3e19c12058cc",
+      "sha256": "b480870f5cac0c09ad4fc555b579b0fe2f32cc971fe55133bf73961123abe299",
+      "gzip_sha256": "bb1c0c7e5a91dcc150701a6af1cbbc685a8171a49d2bc7b71abf4a64559131d3",
+      "source_bytes": 160280,
+      "bytes": 107507,
+      "gzip_bytes": 23281
     },
     "js/modules/sniffer.js": {
       "file": "js/modules/sniffer.min.js",

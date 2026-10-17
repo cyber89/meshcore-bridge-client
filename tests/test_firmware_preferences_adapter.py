@@ -98,4 +98,4 @@ async def test_new_sdk_session_has_distinct_generation_even_with_identical_devic
     snapshot = adapter.firmware_capabilities
     assert type(snapshot["session_generation"]) is int
     assert snapshot["session_generation"] > previous
-    assert snapshot["writable_preferences"] == ["cad"]
+    assert snapshot["writable_preferences"] == ["cad", "wifi"]

@@ -846,8 +846,13 @@ SENSITIVE_CONFIG_KEYS: frozenset[str] = frozenset({
 
 _PIN_CONFIG_KEYS: frozenset[str] = frozenset({"pin", "devicepin", "ble_pin", "blepin"})
 _SENSITIVE_COMMAND = re.compile(
-    r"^(?P<prefix>(?:[^\r\n]{2}\|\s*)?(?:(?:password|login)\s+|set(?:\s+|_)(?:password|admin\.password|guest\.password|"
+    r"^(?P<prefix>(?:sending\s+cli\s+command:\s*)?(?:[^\r\n]{2}\|\s*)?(?:(?:password|login)\s+|set(?:\s+|_)(?:password|admin\.password|guest\.password|"
     r"wifi\.(?:pwd|password)|prv\.key|prv_key|pin|ble_pin|blepin|devicepin)\s+)).*$",
+    re.IGNORECASE | re.DOTALL,
+)
+_SENSITIVE_PACKET_LOG = re.compile(
+    r"^(?P<prefix>sending\s+pkt\s*:\s*b['\"].*?(?:(?:password|login)\s+|set(?:\s+|_)(?:password|admin\.password|guest\.password|"
+    r"wifi\.(?:pwd|password)|prv\.key|prv_key|pin|ble_pin|blepin|devicepin)\s+)).*?(?P<quote>['\"])$",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -861,6 +866,9 @@ def redact_command_str(cmd: str) -> str:
     match = _SENSITIVE_COMMAND.match(s)
     if match:
         return f"{match.group('prefix')}********"
+    pkt_match = _SENSITIVE_PACKET_LOG.match(s)
+    if pkt_match:
+        return f"{pkt_match.group('prefix')}********{pkt_match.group('quote')}"
     if "password changed to " in lower:
         idx = lower.find("password changed to ")
         return f"{s[:idx + len('password changed to ')]}********"

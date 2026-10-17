@@ -368,10 +368,25 @@ class AdminCommandHandler:
             if scope != "firmware" or set(admin_data) != {"action", "scope", "preference", "value"}:
                 raise ValueError("invalid_firmware_preference_request")
             return await self._cli_executor.set_firmware_preference(admin_data["preference"], admin_data["value"])
+        if cli_action == "set_wifi":
+            allowed_wifi_keys = {"action", "scope", "ssid", "password", "enabled", "clear"}
+            if (
+                scope != "firmware"
+                or not set(admin_data).issubset(allowed_wifi_keys)
+                or not (set(admin_data) & {"ssid", "password", "enabled", "clear"})
+            ):
+                raise ValueError("invalid_firmware_wifi_request")
+            return await self._cli_executor.set_firmware_wifi(
+                ssid=admin_data.get("ssid"),
+                password=admin_data.get("password"),
+                enabled=admin_data.get("enabled"),
+                clear=admin_data.get("clear", False),
+            )
         if scope == "firmware" and cli_action != "set_flood_scope":
             if cli_action not in ("", "cli") or any(
                 key in admin_data for key in (
-                    "target_node", "repeater", "target", "to", "cmd", "params", "password", "preference", "value",
+                    "target_node", "repeater", "target", "to", "cmd", "params", "password",
+                    "preference", "value", "ssid", "enabled", "clear",
                 )
             ):
                 raise ValueError("invalid_firmware_request")

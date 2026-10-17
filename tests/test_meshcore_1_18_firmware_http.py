@@ -133,8 +133,11 @@ async def test_firmware_http_config_exposes_capability_without_getter_or_pin(
     assert capabilities["state"] == "present"
     assert capabilities["companion_protocol"] == 14
     assert capabilities["firmware_version"] == "1.18.0"
-    assert capabilities["safe_commands"] == ["get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode"]
-    assert capabilities["writable_preferences"] == ["cad"]
+    assert capabilities["safe_commands"] == [
+        "get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode",
+        "get wifi.ssid", "get wifi.enabled", "get wifi.status", "get wifi.ip",
+    ]
+    assert capabilities["writable_preferences"] == ["cad", "wifi"]
     assert "654321" not in response.text
     assert "ble_pin" not in capabilities
     firmware_http.sdk_read.assert_not_awaited()

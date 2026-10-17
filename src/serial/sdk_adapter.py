@@ -14,9 +14,9 @@ from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
-from src.protocol_types import MeshCoreSDKProtocol, normalize_tx_power
+from src.protocol_types import MeshCoreSDKProtocol, normalize_tx_power, redact_command_str
 from src.serial.serial_base import BaseSerialAdapter
-from src.shared_utils import classify_device_role, is_empty_channel_slot
+from src.shared_utils import classify_device_role, derive_channel_secret, is_empty_channel_slot
 from src.target_resolver import TargetResolver
 
 try:
@@ -33,8 +33,45 @@ __all__ = ["MeshcoreSDKAdapter", "MeshCore", "EventType", "Event"]
 MAX_TEXT_BYTES = 160
 # Firmware stores channel names in char[32], with a trailing NUL.
 MAX_CHANNEL_NAME_BYTES = 31
-# Verified local NodePrefs getters: no RF request or setter is accepted here.
-_FIRMWARE_READ_COMMANDS = ("get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode")
+# Firmware Companion NodePrefs.h: char wifi_ssid[33], char wifi_pwd[64].
+MAX_WIFI_SSID_BYTES = 32
+MAX_WIFI_PASSWORD_BYTES = 63
+# Verified local NodePrefs getters: no RF request, setter or wifi.pwd is accepted here.
+_FIRMWARE_READ_COMMANDS = (
+    "get radio",
+    "get freq",
+    "get cad",
+    "get radio.rxgain",
+    "get path.hash.mode",
+    "get wifi.ssid",
+    "get wifi.enabled",
+    "get wifi.status",
+    "get wifi.ip",
+)
+
+
+class _MeshcoreLogRedactionFilter(logging.Filter):
+    """Redact sensitive CLI commands and packet payloads logged by meshcore_py."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            raw_msg = record.getMessage()
+            redacted = redact_command_str(raw_msg)
+            if redacted != raw_msg:
+                record.msg = redacted
+                record.args = ()
+        except Exception:
+            pass
+        return True
+
+
+def _ensure_meshcore_log_redaction() -> None:
+    sdk_logger = logging.getLogger("meshcore")
+    if not any(isinstance(flt, _MeshcoreLogRedactionFilter) for flt in sdk_logger.filters):
+        sdk_logger.addFilter(_MeshcoreLogRedactionFilter())
+
+
+_ensure_meshcore_log_redaction()
 
 # Terminal synchronous response codes from Companion MyMesh.cpp. Pushes remain
 # asynchronous; GET_CONTACTS additionally forwards START/CONTACT until END.
@@ -226,7 +263,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             "sdk_version": self._sdk_version, "model": observed.get("model"),
             "transport": "tcp" if self.port.startswith("tcp://") else "serial",
             "safe_commands": list(_FIRMWARE_READ_COMMANDS) if state == "present" else [],
-            "writable_preferences": ["cad"] if state == "present" else [],
+            "writable_preferences": ["cad", "wifi"] if state == "present" else [],
             "session_generation": self._firmware_generation,
         }
 
@@ -283,8 +320,94 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             raise RuntimeError("firmware_preference_unconfirmed")
         return {"preference": preference, "value": value, "acknowledged": True, "hardware_verified": False}
 
+    @staticmethod
+    def _validate_wifi_text_field(value: Any, *, max_bytes: int, trim_edges: bool) -> str:
+        if type(value) is not str or not value or not value.strip():
+            raise ValueError("invalid_firmware_wifi")
+        if trim_edges and value != value.strip():
+            raise ValueError("invalid_firmware_wifi")
+        if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+            raise ValueError("invalid_firmware_wifi")
+        encoded = value.encode("utf-8")
+        if not (1 <= len(encoded) <= max_bytes):
+            raise ValueError("invalid_firmware_wifi")
+        return value
+
+    async def set_firmware_wifi(
+        self,
+        *,
+        ssid: Any = None,
+        password: Any = None,
+        enabled: Any = None,
+        clear: Any = False,
+    ) -> dict[str, Any]:
+        """Write local Companion WiFi preferences without reading or echoing wifi.pwd."""
+        if clear is None:
+            clear = False
+        if type(clear) is not bool:
+            raise ValueError("invalid_firmware_wifi")
+        if clear:
+            if ssid is not None or password is not None or enabled is not None:
+                raise ValueError("invalid_firmware_wifi")
+            reply = await self._run_firmware_cli_command("set wifi.clear")
+            normalized = reply["text"].lstrip().removeprefix(">").strip().lower()
+            if not normalized.startswith("wifi config cleared"):
+                raise RuntimeError("firmware_wifi_unconfirmed")
+            return {
+                "cleared": True,
+                "ssid": None,
+                "ssid_updated": False,
+                "password_updated": False,
+                "enabled": True,
+                "acknowledged": True,
+                "reboot_required": True,
+            }
+
+        if ssid is None and password is None and enabled is None:
+            raise ValueError("invalid_firmware_wifi")
+        clean_ssid = (
+            self._validate_wifi_text_field(ssid, max_bytes=MAX_WIFI_SSID_BYTES, trim_edges=True)
+            if ssid is not None
+            else None
+        )
+        clean_pwd = (
+            self._validate_wifi_text_field(password, max_bytes=MAX_WIFI_PASSWORD_BYTES, trim_edges=False)
+            if password is not None
+            else None
+        )
+        if enabled is not None and type(enabled) is not bool:
+            raise ValueError("invalid_firmware_wifi")
+
+        if clean_ssid is not None:
+            ssid_reply = await self._run_firmware_cli_command(f"set wifi.ssid {clean_ssid}")
+            ssid_norm = ssid_reply["text"].lstrip().removeprefix(">").strip().lower()
+            if not ssid_norm.startswith("wifi.ssid is now "):
+                raise RuntimeError("firmware_wifi_unconfirmed")
+        if clean_pwd is not None:
+            pwd_reply = await self._run_firmware_cli_command(f"set wifi.pwd {clean_pwd}")
+            pwd_norm = pwd_reply["text"].lstrip().removeprefix(">").strip().lower()
+            if not pwd_norm.startswith("wifi.pwd updated"):
+                raise RuntimeError("firmware_wifi_unconfirmed")
+        if enabled is not None:
+            flag_str = "1" if enabled else "0"
+            en_reply = await self._run_firmware_cli_command(f"set wifi.enabled {flag_str}")
+            en_norm = en_reply["text"].lstrip().removeprefix(">").strip().lower()
+            if not en_norm.startswith(f"wifi.enabled is now {flag_str}"):
+                raise RuntimeError("firmware_wifi_unconfirmed")
+
+        return {
+            "cleared": False,
+            "ssid": clean_ssid,
+            "ssid_updated": clean_ssid is not None,
+            "password_updated": clean_pwd is not None,
+            "enabled": enabled,
+            "acknowledged": True,
+            "reboot_required": True,
+        }
+
     async def _run_firmware_cli_command(self, command: str) -> dict[str, str]:
         """Use the existing session lease and serialized SDK transport once."""
+        _ensure_meshcore_log_redaction()
         # Refresh session ownership before taking the task-local lease.
         _ = self.firmware_capabilities
         generation = self._firmware_generation
@@ -309,7 +432,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             raise RuntimeError("firmware_cli_invalid_reply")
         if text.lstrip().removeprefix(">").lstrip().lower().startswith(("error", "err", "unknown command")):
             raise RuntimeError("firmware_cli_rejected")
-        return {"command": command, "text": text}
+        return {"command": redact_command_str(command), "text": text}
 
     def _observe_companion_frame(self, data: bytes) -> None:
         """Route pushes and the current raw transaction, never internal SDK replies.
@@ -1506,19 +1629,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return {"status": "LOCAL_SAVED", "index": index, "name": name}
 
         # Convertir PSK a 16 bytes exactos (AES-128) según lo requerido por el SDK de MeshCore
-        secret_bytes: bytes | None = None
-        if name.startswith("#"):
-            secret_bytes = hashlib.sha256(name.encode("utf-8")).digest()[:16]
-        elif psk:
-            clean_psk = psk.strip()
-            if len(clean_psk) == 32 and all(c in "0123456789abcdefABCDEF" for c in clean_psk):
-                secret_bytes = bytes.fromhex(clean_psk)
-            elif len(clean_psk) == 16:
-                secret_bytes = clean_psk.encode("utf-8")
-            else:
-                secret_bytes = hashlib.sha256(clean_psk.encode("utf-8")).digest()[:16]
-        else:
-            secret_bytes = b"\x00" * 16
+        secret_bytes = derive_channel_secret(name, psk)
 
         chan_hash_hex = hashlib.sha256(secret_bytes).hexdigest()[:2]
 

@@ -138,6 +138,47 @@ class CliCommandExecutor:
         return {"status": "ok", "scope": "firmware", "action": "set_preference",
                 "preference": "cad", "value": value, "acknowledged": True, "hardware_verified": False}
 
+    async def set_firmware_wifi(
+        self,
+        *,
+        ssid: Any = None,
+        password: Any = None,
+        enabled: Any = None,
+        clear: Any = False,
+    ) -> dict[str, Any]:
+        """Request an explicit local Companion WiFi configuration write without echoing secrets."""
+        adapter = getattr(self._ctx, "serial_adapter", None)
+        operation = getattr(adapter, "set_firmware_wifi", None)
+        if not callable(operation):
+            raise NotImplementedError("adapter_unsupported")
+        try:
+            reply = await operation(ssid=ssid, password=password, enabled=enabled, clear=clear)
+        except TimeoutError:
+            return {"status": "error", "scope": "firmware", "code": 503,
+                    "message": "Confirmación WiFi agotada; reconecta y consulta el estado WiFi antes de reintentar"}
+        if (
+            not isinstance(reply, dict)
+            or "password" in reply
+            or type(reply.get("cleared")) is not bool
+            or type(reply.get("ssid_updated")) is not bool
+            or type(reply.get("password_updated")) is not bool
+            or reply.get("acknowledged") is not True
+            or reply.get("reboot_required") is not True
+        ):
+            raise RuntimeError("unconfirmed_firmware_wifi")
+        return {
+            "status": "ok",
+            "scope": "firmware",
+            "action": "set_wifi",
+            "cleared": reply["cleared"],
+            "ssid": reply.get("ssid"),
+            "ssid_updated": reply["ssid_updated"],
+            "password_updated": reply["password_updated"],
+            "enabled": reply.get("enabled"),
+            "acknowledged": True,
+            "reboot_required": True,
+        }
+
     async def execute(
         self,
         action: str,

@@ -422,13 +422,15 @@ OBSERVED_OPERATIONS: dict[tuple[str, str], ObservedOperation] = {
         False,
     ),
     ('POST', '/api/admin'): ObservedOperation(
-        ('action', 'command', 'cmd', 'scope', 'preference', 'value', 'request_id', 'id', 'target_node', 'repeater', 'params'),
+        ('action', 'command', 'cmd', 'scope', 'preference', 'value', 'ssid', 'password', 'enabled', 'clear', 'request_id', 'id', 'target_node', 'repeater', 'params'),
         (200, 400, 422, 503),
         'router_merged',
-        'scope=firmware: cli sólo getters exactos get radio/get freq/get cad/get radio.rxgain/get path.hash.mode; '
-        'set_preference admite exclusivamente action,scope,preference=cad,value booleano estricto; capacidad observada requerida',
+        'scope=firmware: cli sólo getters exactos get radio/get freq/get cad/get radio.rxgain/get path.hash.mode/get wifi.ssid/get wifi.enabled/get wifi.status/get wifi.ip; '
+        'set_preference admite exclusivamente action,scope,preference=cad,value booleano estricto; '
+        'set_wifi admite exclusivamente action,scope y al menos uno de ssid (1..32B UTF-8), password write-only (1..63B UTF-8), enabled booleano estricto o clear=true exclusivo; capacidad observada requerida',
         '200 OK result,response,message; firmware sin MQTT ni lectura automática: getters informan preferencias; '
         'set_preference devuelve acknowledged=true,hardware_verified=false sin acreditar aplicación física; '
+        'set_wifi devuelve acknowledged=true,reboot_required=true,password_updated booleano sin reflejar contraseña; '
         'timeout/indisponible503 sin reintento, entrada422, rechazo400',
         ('src/web/api_router.py:_dispatch_repeater', 'src/web/controllers/repeater_controller.py:execute_admin_command', 'src/admin_handler.py:_handle'),
         'serial/RF/MQTT según acción',

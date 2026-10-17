@@ -864,6 +864,10 @@
                       <option value="get cad" data-i18n="settings.firmware_cli_cad">Preferencia CAD informada</option>
                       <option value="get radio.rxgain" data-i18n="settings.firmware_cli_rxgain">Preferencia de ganancia RX informada</option>
                       <option value="get path.hash.mode" data-i18n="settings.firmware_cli_hash">Hash de ruta informado</option>
+                      <option value="get wifi.ssid" data-i18n="settings.firmware_cli_wifi_ssid">SSID WiFi informado</option>
+                      <option value="get wifi.enabled" data-i18n="settings.firmware_cli_wifi_enabled">Habilitación WiFi informada</option>
+                      <option value="get wifi.status" data-i18n="settings.firmware_cli_wifi_status">Estado de enlace WiFi informado</option>
+                      <option value="get wifi.ip" data-i18n="settings.firmware_cli_wifi_ip">Dirección IP WiFi informada</option>
                     </select>
                   </div>
                   <div class="form-group"><button id="firmwareCliReadButton" type="submit" class="btn btn-secondary" disabled data-i18n="settings.firmware_cli_read">Consultar firmware</button></div>
@@ -882,6 +886,28 @@
                   <p id="firmwareCadHint" class="form-hint span-full" data-i18n="settings.firmware_cad_hint">Consulta CAD antes de cambiarlo. El acuse y la lectura confirman preferencias; el soporte y la aplicación en hardware siguen sin verificar. RX gain se ofrece sólo en lectura; el hash conserva su editor actual.</p>
                 </form>
                 <p id="firmwareCadStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.firmware_cad_read_first">Consulta CAD manualmente para habilitar este ajuste.</p>
+                <form id="firmwareWifiForm" class="grid-form-3col" aria-describedby="firmwareWifiHint">
+                  <div class="form-group">
+                    <label for="firmwareWifiSsid" data-i18n="settings.firmware_wifi_ssid_label">SSID WiFi Companion</label>
+                    <input id="firmwareWifiSsid" type="text" maxlength="32" autocomplete="off" spellcheck="false" disabled placeholder="SSID (1-32 bytes UTF-8)" data-i18n-placeholder="settings.firmware_wifi_ssid_placeholder" />
+                  </div>
+                  <div class="form-group">
+                    <label for="firmwareWifiPassword" data-i18n="settings.firmware_wifi_password_label">Contraseña WiFi (sólo escritura)</label>
+                    <input id="firmwareWifiPassword" type="password" maxlength="63" autocomplete="new-password" spellcheck="false" disabled placeholder="Contraseña WPA2 (1-63 bytes)" data-i18n-placeholder="settings.firmware_wifi_password_placeholder" />
+                  </div>
+                  <div class="form-group">
+                    <label for="firmwareWifiEnabled" data-i18n="settings.firmware_wifi_enabled_label">Interfaz WiFi Companion</label>
+                    <select id="firmwareWifiEnabled" disabled>
+                      <option value="" data-i18n="common.unverified">Sin verificar</option>
+                      <option value="on" data-i18n="settings.firmware_cad_on">Activado</option>
+                      <option value="off" data-i18n="settings.firmware_cad_off">Desactivado</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><button id="firmwareWifiSave" class="btn btn-secondary" type="submit" disabled data-i18n="settings.firmware_wifi_save">Guardar WiFi Companion</button></div>
+                  <div class="form-group"><button id="firmwareWifiClear" class="btn btn-outline" type="button" disabled data-i18n="settings.firmware_wifi_clear">Borrar configuración WiFi</button></div>
+                  <p id="firmwareWifiHint" class="form-hint span-full" data-i18n="settings.firmware_wifi_hint">La contraseña es de sólo escritura y nunca se lee del firmware. Requiere compilación con ENABLE_WIFI_INTERFACE y reiniciar el nodo para aplicar cambios.</p>
+                </form>
+                <p id="firmwareWifiStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.firmware_wifi_ready">Introduce SSID, contraseña o estado para guardar la configuración WiFi local.</p>
               </section>
               <div class="info-grid info-grid-extended">
                 <div class="metric-card">

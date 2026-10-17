@@ -13,7 +13,17 @@ import { EVENTS } from "../core/eventbus.js";
 import { FormFeedback } from "../core/form_feedback.js";
 import { initManualTabs } from "../core/tabs.js";
 
-const FIRMWARE_READ_COMMANDS = ["get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode"];
+const FIRMWARE_READ_COMMANDS = [
+  "get radio",
+  "get freq",
+  "get cad",
+  "get radio.rxgain",
+  "get path.hash.mode",
+  "get wifi.ssid",
+  "get wifi.enabled",
+  "get wifi.status",
+  "get wifi.ip",
+];
 
 export class SettingsModule {
   constructor(context) {
@@ -40,6 +50,9 @@ export class SettingsModule {
     this._firmwareCadObservation = null;
     this._firmwareCadDraft = false;
     this._firmwareCadOutcome = "";
+    this._firmwareWifiOutcome = "";
+    this._firmwareWifiSsidDraft = false;
+    this._firmwareWifiEnabledDraft = false;
     this.servicesConfig = null;
     this.servicesPresets = [];
     this._isSavingServices = false;
@@ -268,6 +281,27 @@ export class SettingsModule {
     document.getElementById("firmwareCadValue")?.addEventListener("change", () => {
       this._firmwareCadDraft = true;
       this._firmwareCadOutcome = "";
+      this._renderFirmwareCliCapability();
+    });
+    document.getElementById("firmwareWifiForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this._saveFirmwareWifi();
+    });
+    document.getElementById("firmwareWifiClear")?.addEventListener("click", () => {
+      this._clearFirmwareWifi();
+    });
+    document.getElementById("firmwareWifiSsid")?.addEventListener("input", () => {
+      this._firmwareWifiSsidDraft = true;
+      this._firmwareWifiOutcome = "";
+      this._renderFirmwareCliCapability();
+    });
+    document.getElementById("firmwareWifiPassword")?.addEventListener("input", () => {
+      this._firmwareWifiOutcome = "";
+      this._renderFirmwareCliCapability();
+    });
+    document.getElementById("firmwareWifiEnabled")?.addEventListener("change", () => {
+      this._firmwareWifiEnabledDraft = true;
+      this._firmwareWifiOutcome = "";
       this._renderFirmwareCliCapability();
     });
     document.getElementById("companionConnectionForm")?.addEventListener("submit", (event) => {
@@ -2060,7 +2094,9 @@ export class SettingsModule {
       ? FIRMWARE_READ_COMMANDS.filter(command => snapshot.safe_commands.includes(command)) : [];
     const cadWritable = state === "present" && Number.isInteger(snapshot.session_generation)
       && Array.isArray(snapshot.writable_preferences) && snapshot.writable_preferences.includes("cad");
-    const signature = JSON.stringify([cfg.public_key || "", state, reason, snapshot.companion_protocol, snapshot.firmware_version, snapshot.sdk_version, snapshot.model, snapshot.transport, snapshot.session_generation, commands, cadWritable]);
+    const wifiWritable = state === "present" && Number.isInteger(snapshot.session_generation)
+      && Array.isArray(snapshot.writable_preferences) && snapshot.writable_preferences.includes("wifi");
+    const signature = JSON.stringify([cfg.public_key || "", state, reason, snapshot.companion_protocol, snapshot.firmware_version, snapshot.sdk_version, snapshot.model, snapshot.transport, snapshot.session_generation, commands, cadWritable, wifiWritable]);
     const output = document.getElementById("firmwareCliOutput");
     if (signature !== this._firmwareCliSignature) {
       this._firmwareCliSignature = signature;
@@ -2069,8 +2105,17 @@ export class SettingsModule {
       this._firmwareCadObservation = null;
       this._firmwareCadDraft = false;
       this._firmwareCadOutcome = "";
+      this._firmwareWifiOutcome = "";
+      this._firmwareWifiSsidDraft = false;
+      this._firmwareWifiEnabledDraft = false;
       const cadValue = document.getElementById("firmwareCadValue");
       if (cadValue) cadValue.value = "";
+      const wifiSsid = document.getElementById("firmwareWifiSsid");
+      if (wifiSsid) wifiSsid.value = "";
+      const wifiPwd = document.getElementById("firmwareWifiPassword");
+      if (wifiPwd) wifiPwd.value = "";
+      const wifiEnabled = document.getElementById("firmwareWifiEnabled");
+      if (wifiEnabled) wifiEnabled.value = "";
       if (output) {
         output.removeAttribute("data-i18n");
         output.textContent = "";
@@ -2106,6 +2151,25 @@ export class SettingsModule {
     const cadStatus = document.getElementById("firmwareCadStatus");
     if (cadStatus) I18n.setText(cadStatus, this._firmwareCadOutcome || (this._firmwareCadObservation === null
       ? "settings.firmware_cad_read_first" : "settings.firmware_cad_observed"));
+
+    const canEditWifi = wifiWritable && !this._firmwareCliBusy;
+    const wifiSsid = document.getElementById("firmwareWifiSsid");
+    if (wifiSsid) wifiSsid.disabled = !canEditWifi;
+    const wifiPwd = document.getElementById("firmwareWifiPassword");
+    if (wifiPwd) wifiPwd.disabled = !canEditWifi;
+    const wifiEnabled = document.getElementById("firmwareWifiEnabled");
+    if (wifiEnabled) wifiEnabled.disabled = !canEditWifi;
+    const hasWifiChange = Boolean(
+      (wifiSsid?.value || "").trim().length > 0
+      || (wifiPwd?.value || "").trim().length > 0
+      || ["on", "off"].includes(wifiEnabled?.value)
+    );
+    const wifiSave = document.getElementById("firmwareWifiSave");
+    if (wifiSave) wifiSave.disabled = !canEditWifi || !hasWifiChange;
+    const wifiClear = document.getElementById("firmwareWifiClear");
+    if (wifiClear) wifiClear.disabled = !canEditWifi;
+    const wifiStatus = document.getElementById("firmwareWifiStatus");
+    if (wifiStatus) I18n.setText(wifiStatus, this._firmwareWifiOutcome || "settings.firmware_wifi_ready");
   }
 
   async _readFirmwareDiagnostic() {
@@ -2151,6 +2215,22 @@ export class SettingsModule {
           this._firmwareCadObservation = observation[1] === "on";
           const value = document.getElementById("firmwareCadValue");
           if (value && !this._firmwareCadDraft) value.value = observation[1];
+        }
+      } else if (command === "get wifi.ssid") {
+        const observation = /^>\s*(.+?)\s*$/.exec(result.result.trim());
+        if (observation) {
+          const ssidInput = document.getElementById("firmwareWifiSsid");
+          if (ssidInput && !this._firmwareWifiSsidDraft) {
+            ssidInput.value = observation[1] === "(not set)" ? "" : observation[1];
+          }
+        }
+      } else if (command === "get wifi.enabled") {
+        const observation = /^>\s*([01])\s*$/.exec(result.result.trim());
+        if (observation) {
+          const enInput = document.getElementById("firmwareWifiEnabled");
+          if (enInput && !this._firmwareWifiEnabledDraft) {
+            enInput.value = observation[1] === "1" ? "on" : "off";
+          }
         }
       }
     } catch (error) {
@@ -2202,6 +2282,107 @@ export class SettingsModule {
       this._firmwareCadOutcome = "settings.firmware_cad_accepted";
     } catch {
       if (generation === this._firmwareCliGeneration) this._firmwareCadOutcome = "settings.firmware_cad_failed";
+    } finally {
+      if (generation === this._firmwareCliGeneration) {
+        this._firmwareCliBusy = false;
+        this._renderFirmwareCliCapability();
+      }
+    }
+  }
+
+  async _saveFirmwareWifi() {
+    this._renderFirmwareCliCapability();
+    if (document.getElementById("firmwareWifiSave")?.disabled !== false) return;
+    const ssidEl = document.getElementById("firmwareWifiSsid");
+    const pwdEl = document.getElementById("firmwareWifiPassword");
+    const enEl = document.getElementById("firmwareWifiEnabled");
+    const ssid = (ssidEl?.value || "").trim();
+    const password = pwdEl?.value || "";
+    const enabledVal = enEl?.value || "";
+    if (pwdEl) pwdEl.value = "";
+    const payload = { action: "set_wifi", scope: "firmware" };
+    if (ssid.length > 0) payload.ssid = ssid;
+    if (password.trim().length > 0) payload.password = password;
+    if (enabledVal === "on" || enabledVal === "off") payload.enabled = enabledVal === "on";
+    if (!("ssid" in payload) && !("password" in payload) && !("enabled" in payload)) return;
+    const generation = this._firmwareCliGeneration;
+    this._firmwareCliBusy = true;
+    this._firmwareWifiOutcome = "settings.firmware_wifi_saving";
+    this._renderFirmwareCliCapability();
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (generation !== this._firmwareCliGeneration) return;
+      if (response.status === 503) {
+        this._firmwareCliNeedsSnapshot = true;
+        this._renderFirmwareCliCapability();
+        this._firmwareWifiOutcome = "settings.firmware_wifi_unavailable";
+        this._renderFirmwareCliCapability();
+        return;
+      }
+      const result = body.result;
+      if (!response.ok || body.status !== "ok" || result?.status !== "ok" || result.scope !== "firmware"
+          || result.action !== "set_wifi" || result.acknowledged !== true || result.reboot_required !== true) {
+        this._firmwareWifiOutcome = "settings.firmware_wifi_failed";
+        return;
+      }
+      this._firmwareWifiSsidDraft = false;
+      this._firmwareWifiEnabledDraft = false;
+      this._firmwareWifiOutcome = "settings.firmware_wifi_saved_reboot";
+    } catch {
+      if (generation === this._firmwareCliGeneration) this._firmwareWifiOutcome = "settings.firmware_wifi_failed";
+    } finally {
+      if (generation === this._firmwareCliGeneration) {
+        this._firmwareCliBusy = false;
+        this._renderFirmwareCliCapability();
+      }
+    }
+  }
+
+  async _clearFirmwareWifi() {
+    this._renderFirmwareCliCapability();
+    if (document.getElementById("firmwareWifiClear")?.disabled !== false) return;
+    const pwdEl = document.getElementById("firmwareWifiPassword");
+    if (pwdEl) pwdEl.value = "";
+    const generation = this._firmwareCliGeneration;
+    this._firmwareCliBusy = true;
+    this._firmwareWifiOutcome = "settings.firmware_wifi_saving";
+    this._renderFirmwareCliCapability();
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_wifi", scope: "firmware", clear: true }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (generation !== this._firmwareCliGeneration) return;
+      if (response.status === 503) {
+        this._firmwareCliNeedsSnapshot = true;
+        this._renderFirmwareCliCapability();
+        this._firmwareWifiOutcome = "settings.firmware_wifi_unavailable";
+        this._renderFirmwareCliCapability();
+        return;
+      }
+      const result = body.result;
+      if (!response.ok || body.status !== "ok" || result?.status !== "ok" || result.scope !== "firmware"
+          || result.action !== "set_wifi" || result.cleared !== true || result.acknowledged !== true
+          || result.reboot_required !== true) {
+        this._firmwareWifiOutcome = "settings.firmware_wifi_failed";
+        return;
+      }
+      const ssidEl = document.getElementById("firmwareWifiSsid");
+      if (ssidEl) ssidEl.value = "";
+      const enEl = document.getElementById("firmwareWifiEnabled");
+      if (enEl) enEl.value = "";
+      this._firmwareWifiSsidDraft = false;
+      this._firmwareWifiEnabledDraft = false;
+      this._firmwareWifiOutcome = "settings.firmware_wifi_cleared_reboot";
+    } catch {
+      if (generation === this._firmwareCliGeneration) this._firmwareWifiOutcome = "settings.firmware_wifi_failed";
     } finally {
       if (generation === this._firmwareCliGeneration) {
         this._firmwareCliBusy = false;

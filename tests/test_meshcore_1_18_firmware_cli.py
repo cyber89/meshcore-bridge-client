@@ -83,13 +83,19 @@ async def test_capability_snapshot_exposes_only_safe_observations_and_is_copied(
         "state": "present", "reason": "available", "connected": True,
         "companion_protocol": 14, "firmware_version": "v1.18.0",
         "sdk_version": version("meshcore"), "model": "Fixture LR1121", "transport": "tcp",
-        "safe_commands": ["get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode"],
-        "writable_preferences": ["cad"],
+        "safe_commands": [
+            "get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode",
+            "get wifi.ssid", "get wifi.enabled", "get wifi.status", "get wifi.ip",
+        ],
+        "writable_preferences": ["cad", "wifi"],
         "session_generation": snapshot["session_generation"],
     }
     snapshot["safe_commands"].append("get wifi.pwd")
     snapshot["model"] = "Changed by caller"
-    assert adapter.firmware_capabilities["safe_commands"] == ["get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode"]
+    assert adapter.firmware_capabilities["safe_commands"] == [
+        "get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode",
+        "get wifi.ssid", "get wifi.enabled", "get wifi.status", "get wifi.ip",
+    ]
     assert adapter.firmware_capabilities["model"] == "Fixture LR1121"
 
 
