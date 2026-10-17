@@ -358,7 +358,7 @@ class MeshCoreApp {
       }
     };
 
-    window.addEventListener("mc:langchange", () => {
+    const refreshOpenPalette = () => {
       if (!commandPaletteModal || commandPaletteModal.classList.contains("hidden")) return;
       const focused = document.activeElement;
       const focusedItem = focused?.closest(".cmd-item");
@@ -371,7 +371,9 @@ class MeshCoreApp {
         if (index >= 0) updateSelection(index);
         else cmdPaletteInput?.focus();
       }
-    });
+    };
+    window.addEventListener("mc:langchange", refreshOpenPalette);
+    this.eventBus.on(EVENTS.NODE_UPDATED, refreshOpenPalette);
 
     const openPalette = () => {
       if (!commandPaletteModal) return;

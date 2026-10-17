@@ -839,6 +839,34 @@
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
             <div id="local-telemetry" class="local-settings-subpanel active">
+              <section id="firmwareCompatibilityPanel" class="card-panel settings-panel-spaced" aria-labelledby="firmwareCompatibilityTitle" data-state="unknown" aria-busy="false">
+                <div class="panel-header-modern">
+                  <div>
+                    <h3 id="firmwareCompatibilityTitle" data-i18n="settings.firmware_cli_title">Compatibilidad y diagnóstico del firmware</h3>
+                    <p class="panel-desc" data-i18n="settings.firmware_cli_description">Lectura manual de la configuración informada por el firmware. Puede contener preferencias pendientes de reinicio.</p>
+                  </div>
+                  <span id="firmwareCliState" class="badge-pill badge-outline" data-i18n="settings.firmware_cli_unknown">Sin verificar</span>
+                </div>
+                <p id="firmwareCliReason" class="form-hint" data-i18n="settings.firmware_cli_reason_awaiting_device_info">Esperando información del transceptor.</p>
+                <dl class="grid-form-3col">
+                  <div><dt data-i18n="settings.firmware_cli_protocol">Protocolo Companion</dt><dd id="firmwareCliProtocol">—</dd></div>
+                  <div><dt data-i18n="settings.firmware_cli_version">Versión del firmware</dt><dd id="firmwareCliVersion">—</dd></div>
+                  <div><dt data-i18n="settings.firmware_cli_sdk">SDK</dt><dd id="firmwareCliSdkVersion">—</dd></div>
+                  <div><dt data-i18n="settings.firmware_cli_model">Modelo informado</dt><dd id="firmwareCliModel">—</dd></div>
+                  <div><dt data-i18n="settings.firmware_cli_transport">Transporte</dt><dd id="firmwareCliTransport">—</dd></div>
+                </dl>
+                <form id="firmwareCliReadForm" class="grid-form-2col" aria-labelledby="firmwareCompatibilityTitle">
+                  <div class="form-group">
+                    <label for="firmwareCliCommand" data-i18n="settings.firmware_cli_query">Consulta de firmware</label>
+                    <select id="firmwareCliCommand" disabled>
+                      <option value="get radio" data-i18n="settings.firmware_cli_radio">Configuración de radio informada</option>
+                      <option value="get freq" data-i18n="settings.firmware_cli_freq">Frecuencia informada</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><button id="firmwareCliReadButton" type="submit" class="btn btn-secondary" disabled data-i18n="settings.firmware_cli_read">Consultar firmware</button></div>
+                </form>
+                <p id="firmwareCliOutput" class="form-hint font-mono" role="status" aria-live="polite"></p>
+              </section>
               <div class="info-grid info-grid-extended">
                 <div class="metric-card">
                   <div class="card-icon"><i class="bi bi-lightning" aria-hidden="true"></i></div>

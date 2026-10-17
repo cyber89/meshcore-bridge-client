@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from playwright.async_api import Page, expect
@@ -34,7 +35,19 @@ async def _open_remote(page: Page, password: str = "virtual-only-password") -> N
         return new Response(JSON.stringify({status:status >= 400 ? 'error':'ok',data,detail:status >= 400 ? 'QA partial <b>original</b>':undefined}), {status,headers:{'Content-Type':'application/json'}});
       };
     }""")
-    await page.locator('[data-tab="tab-nodes"]').click()
+    sidebar = page.locator('#appSidebar')
+    await sidebar.evaluate("""async element => {
+        await Promise.all(element.getAnimations({subtree:true})
+            .filter(animation => animation.effect.getComputedTiming().iterations !== Infinity)
+            .map(animation => animation.finished.catch(() => {})));
+    }""")
+    nodes = page.locator('[data-tab="tab-nodes"]')
+    if not await nodes.is_visible():
+        await page.locator('[data-bs-toggle="offcanvas"][data-bs-target="#appSidebar"]').click()
+    await nodes.click()
+    await expect(page.locator('#tab-nodes')).to_be_visible()
+    if page.viewport_size is not None and page.viewport_size['width'] < 992:
+        await expect(sidebar).not_to_be_visible()
     await page.locator('.btn-manage-repeater').first.click()
     await page.locator('#repeaterGatePassword').fill(password)
     await page.locator('#btnRepeaterGateSubmit').click()
@@ -50,8 +63,8 @@ async def _power(page: Page, value: str) -> None:
     await page.locator('#radioPower').evaluate("(element,value)=>{element.value=value;element.dispatchEvent(new Event('input',{bubbles:true}));}", value)
 
 
-async def _config_requests(page: Page) -> list[dict[str, object]]:
-    return await page.evaluate("window.remoteAuditRequests.filter(request=>request.path.endsWith('/config'))")
+async def _config_requests(page: Page) -> list[dict[str, Any]]:
+    return cast(list[dict[str, Any]], await page.evaluate("window.remoteAuditRequests.filter(request=>request.path.endsWith('/config'))"))
 
 
 async def test_remote_single_power_only_confirmed_values(page: Page) -> None:

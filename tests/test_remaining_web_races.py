@@ -5,7 +5,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 from urllib.parse import quote
 
+import httpx
 import pytest
+from http_station_owner import owner_client
 from playwright.async_api import Page
 
 from src.bridge_core import MeshCoreBridge
@@ -15,22 +17,17 @@ from src.bridge_core import MeshCoreBridge
 async def test_map_alias_only_authorized_post_reloads(
     virtual_bridge: MeshCoreBridge, monkeypatch: pytest.MonkeyPatch, path: str,
 ) -> None:
-    monkeypatch.setenv("BRIDGE_API_KEY", "synthetic-web-auth")
     server = virtual_bridge.web_server
     assert server is not None and server.server is not None
     calls: list[str] = []
     monkeypatch.setattr(server.tile_service, "reload_mbtiles", lambda: calls.append("reload"))
-    import asyncio
-    for method, key, expected in [("GET", "", 405), ("HEAD", "", 405), ("POST", "", 401), ("POST", "synthetic-web-auth", 200)]:
-        reader, writer = await asyncio.open_connection("127.0.0.1", server.server.sockets[0].getsockname()[1])
-        try:
-            writer.write(f"{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nX-API-Key: {key}\r\nContent-Length: 0\r\n\r\n".encode())
-            await writer.drain()
-            header = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
-            assert int(header.split()[1]) == expected
-        finally:
-            writer.close()
-            await writer.wait_closed()
+    origin = f"http://127.0.0.1:{server.server.sockets[0].getsockname()[1]}"
+    async with httpx.AsyncClient(base_url=origin) as anonymous:
+        for method in ("GET", "HEAD", "POST"):
+            assert (await anonymous.request(method, path)).status_code == 401
+    async with owner_client(origin) as client:
+        for method, expected in (("GET", 405), ("HEAD", 405), ("POST", 200)):
+            assert (await client.request(method, path)).status_code == expected
     assert calls == ["reload"]
 
 
@@ -92,21 +89,26 @@ async def test_ack_before_http_response_is_never_degraded_in_indexeddb(browser_p
       const {ChatModule} = await import('/js/modules/chat.js');
       const {MeshCoreStorage} = await import('/js/core/storage.js');
       const store=new MeshCoreStorage('ConcurrentAckQA'); await store.readyPromise;
+      await store.getHistoryPage('ch_0'); // Establish real authenticated station scope.
       const chat=new ChatModule({storage:store,knownNodes:new Map()});
       chat.dom={chatInputText:document.createElement('textarea'),chatMessageFeed:document.createElement('div')};
       chat.dom.chatInputText.value='ACK race';
       let release, started;
       const requested=new Promise(resolve=>started=resolve), originalFetch=window.fetch;
       try {
-        window.fetch=()=>{started();return new Promise(resolve=>release=resolve);};
+        window.fetch=(url,options)=>new URL(String(url),location.href).pathname==='/api/tx'
+          ? (started(),new Promise(resolve=>release=resolve)) : originalFetch(url,options);
         const sending=chat.sendMessage(); await requested;
         const msg=chat.channelFeeds.get('ch_0')[0];
         chat.handleDeliveryAck({msg_id:msg.msg_id,ack_code:'abc123'});
         release(new Response(JSON.stringify({status:'ok',data:{expected_ack:'abc123'}})));
         await sending;
         await store.updateMessageStatus(msg.msg_id,'failed');
-        const records=await store.getMessagesByFeed('ch_0');
-        return {memory:msg.status,stored:records[0].status,delivered:records[0].delivered,pending:chat.pendingOutgoingAcks.size};
+        const record=await new Promise((resolve,reject)=>{
+          const request=store.db.transaction('message_cache','readonly').objectStore('message_cache').get([store.stationId,msg.msg_id]);
+          request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+        });
+        return {memory:msg.status,stored:record.status,delivered:record.delivered,pending:chat.pendingOutgoingAcks.size};
       } finally {window.fetch=originalFetch;store.db.close();}
     }""")
     assert result == {"memory": "delivered", "stored": "delivered", "delivered": True, "pending": 0}
@@ -116,11 +118,11 @@ async def test_pending_chat_history_cannot_resurrect_clear(browser_page: Page) -
     result = await browser_page.evaluate("""async () => {
       const {ChatModule} = await import('/js/modules/chat.js');
       let release;
-      const chat=new ChatModule({storage:{getMessagesByFeed:()=>new Promise(resolve=>release=resolve),clearFeedMessages:async()=>{}}});
+      const chat=new ChatModule({storage:{stationId:'history-qa',getHistoryPage:()=>new Promise(resolve=>release=resolve),clearFeedMessages:async()=>{}}});
       chat.dom.chatMessageFeed=document.createElement('div');
       const loading=chat.renderCurrentConversation();
       await chat.clearCurrentChat();
-      release([{id:'old',text:'deleted history'}]);await loading;
+      release({station_id:'history-qa',messages:[{msg_id:'old',text:'deleted history'}]});await loading;
       return {text:chat.dom.chatMessageFeed.textContent,count:chat.channelFeeds.get('ch_0').length};
     }""")
     assert "deleted history" not in result["text"] and result["count"] == 0
@@ -130,11 +132,11 @@ async def test_history_merges_messages_received_while_loading(browser_page: Page
     result = await browser_page.evaluate("""async () => {
       const {ChatModule} = await import('/js/modules/chat.js');
       let release;
-      const chat=new ChatModule({storage:{getMessagesByFeed:()=>new Promise(resolve=>release=resolve),saveMessage:()=>{}}});
+      const chat=new ChatModule({storage:{stationId:'history-qa',getHistoryPage:()=>new Promise(resolve=>release=resolve),saveMessage:async()=>{}}});
       chat.chatSoundEnabled=false;chat.dom.chatMessageFeed=document.createElement('div');
       const loading=chat.renderCurrentConversation();
       await chat.handleIncomingChatMessage({msg_id:'live',text:'live message',from:'ce'.repeat(32),channel_idx:0});
-      release([{id:'old',text:'old history'}]);await loading;
+      release({station_id:'history-qa',messages:[{msg_id:'old',text:'old history'}]});await loading;
       return {text:chat.dom.chatMessageFeed.textContent,count:chat.channelFeeds.get('ch_0').length};
     }""")
     assert result["count"] == 2 and "old history" in result["text"] and "live message" in result["text"]

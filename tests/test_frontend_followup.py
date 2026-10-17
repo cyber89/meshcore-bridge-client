@@ -24,6 +24,8 @@ def test_virtual_map_resource_policy(url: str, allowed: bool) -> None:
 
 
 async def test_palette_search_uses_translated_roles(browser_page: Page) -> None:
+    # This case checks translation, after the asynchronous node directory exists.
+    await expect(browser_page.locator('#nodesUnifiedGridUi .node-card[data-role="REPEATER"]')).to_have_count(3)
     await browser_page.keyboard.press("Control+k")
     await browser_page.locator("#cmdPaletteInput").fill("repetidor")
     await expect(browser_page.locator(".cmd-node-match")).to_have_count(3)
@@ -45,11 +47,11 @@ async def test_palette_refilters_without_editing_query_on_language_change(
     await expect(browser_page.locator(".cmd-item:visible")).to_have_count(0)
 
 
-# Independent expected UI copy from the current UI contract. The original cases
-# predated the messages revised in f9efe01; do not derive expectations from I18n.
+# Independent UI copy: forms use inline network feedback since 0e656404;
+# remaining actions retain their toast/dialog contracts. Never derive from I18n.
 ERROR_CASES = [
-    ("channel_save", "/api/channels", "network", "⚠️ Error de red al guardar el canal", "⚠️ Network error while saving channel"),
-    ("contact_add", "/api/contacts", "network", "⚠️ Error de red al añadir el contacto", "⚠️ Network error while adding contact"),
+    ("channel_save", "/api/channels", "network", "No se pudo conectar con el servidor. Los valores se han conservado; vuelve a intentarlo.", "Could not connect to the server. Your values have been preserved; try again."),
+    ("contact_add", "/api/contacts", "network", "No se pudo conectar con el servidor. Los valores se han conservado; vuelve a intentarlo.", "Could not connect to the server. Your values have been preserved; try again."),
     ("channel_export", "/api/channels/export", "network", "⚠️ Error al leer los datos del canal", "⚠️ Error reading channel data"),
     ("channel_delete", "/api/channels", "network", "⚠️ Error de red al eliminar el canal", "⚠️ Network error while deleting channel"),
     ("radio", "/api/config/radio", "network", "⚠️ Error de red al guardar parámetros de radio", "⚠️ Network error while saving radio settings"),
@@ -82,7 +84,9 @@ async def test_error_messages_use_selected_language_and_preserve_detail(
         }""",
         {"endpoint": endpoint, "failure": failure, "detail": detail},
     )
-    expected = f"{es if lang == 'es' else en}: {detail}"
+    expected = es if lang == "es" else en
+    if action not in {"channel_save", "contact_add"}:
+        expected = f"{expected}: {detail}"
     if action == "channel_save":
         await browser_page.locator("#btnAddChannel").click()
         await browser_page.locator("#chModalName").fill("QA channel")
@@ -90,12 +94,28 @@ async def test_error_messages_use_selected_language_and_preserve_detail(
         await browser_page.locator('label[for="chModalIsEncrypted"]').click()
         await expect(browser_page.locator("#chModalIsEncrypted")).not_to_be_checked()
         await browser_page.locator("#btnSaveChannel").click()
+        message = browser_page.locator("#createChannelForm-feedback")
+        await expect(message).to_be_visible()
+        await expect(message).to_have_text(expected)
+        await expect(browser_page.locator("#createChannelModal")).to_be_visible()
+        await expect(browser_page.locator("#chModalName")).to_have_value("QA channel")
+        await expect(browser_page.locator("#chModalIsEncrypted")).not_to_be_checked()
+        await expect(browser_page.locator("#btnSaveChannel")).to_be_enabled()
+        await expect(browser_page.locator("#createChannelForm")).to_have_attribute("aria-busy", "false")
     elif action == "contact_add":
         await browser_page.locator('[data-tab="tab-contacts"]').click()
         await browser_page.locator("#btnHeaderAddContact").click()
         await browser_page.locator("#contactModalPubKey").fill("ad" * 32)
         await browser_page.locator("#contactModalName").fill("QA contact")
         await browser_page.locator("#btnSaveContact").click()
+        message = browser_page.locator("#createContactForm-feedback")
+        await expect(message).to_be_visible()
+        await expect(message).to_have_text(expected)
+        await expect(browser_page.locator("#createContactModal")).to_be_visible()
+        await expect(browser_page.locator("#contactModalPubKey")).to_have_value("ad" * 32)
+        await expect(browser_page.locator("#contactModalName")).to_have_value("QA contact")
+        await expect(browser_page.locator("#btnSaveContact")).to_be_enabled()
+        await expect(browser_page.locator("#createContactForm")).to_have_attribute("aria-busy", "false")
     elif action in ("channel_export", "channel_delete"):
         selector = ".btn-item-qr" if action == "channel_export" else ".btn-item-delete"
         await browser_page.locator(selector).first.click()
@@ -120,6 +140,11 @@ async def test_error_messages_use_selected_language_and_preserve_detail(
         await expect(message).to_have_text(expected)
         assert await message.locator("b").count() == 0
         await browser_page.locator("#btnConfirmSystemDialog").click()
+        return
+    if action in {"channel_save", "contact_add"}:
+        assert await message.locator("b").count() == 0
+        assert detail not in await browser_page.locator("body").inner_text()
+        await expect(browser_page.locator(".toast-message")).to_have_count(0)
         return
     message = browser_page.locator(".toast-message").last
     await expect(message).to_have_text(expected)

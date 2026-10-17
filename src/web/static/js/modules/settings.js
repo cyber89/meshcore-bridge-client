@@ -31,6 +31,10 @@ export class SettingsModule {
     this._localCliHistory = [];
     this._localCliHistoryIdx = -1;
     this._localCliTempInput = "";
+    this._firmwareCliGeneration = 0;
+    this._firmwareCliSignature = "";
+    this._firmwareCliBusy = false;
+    this._firmwareCliNeedsSnapshot = false;
     this.servicesConfig = null;
     this.servicesPresets = [];
     this._isSavingServices = false;
@@ -247,6 +251,18 @@ export class SettingsModule {
   }
 
   _bindEvents() {
+    document.getElementById("firmwareCliReadForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this._readFirmwareDiagnostic();
+    });
+    document.getElementById("firmwareCliCommand")?.addEventListener("change", () => this._renderFirmwareCliCapability());
+    for (const eventName of ["meshcore:credentials_changed", "meshcore:station_changed", "meshcore:auth_expired"]) {
+      window.addEventListener(eventName, () => {
+        ++this._configReadSequence;
+        this._firmwareCliNeedsSnapshot = true;
+        this._renderFirmwareCliCapability();
+      });
+    }
     // Rastreo de campos en borrador modificados por el usuario (F01)
     const markDirty = (e) => {
       if (e.target && e.target.id) {
@@ -1232,6 +1248,8 @@ export class SettingsModule {
       // Detectar desconexión / reconexión para resetear y re-obtener uptime del dispositivo
       const isConnected = payload.serial_connected ?? payload.radio_connected;
       if (isConnected === false) {
+        if (!this._deviceWasDisconnected) ++this._configReadSequence;
+        this._firmwareCliNeedsSnapshot = true;
         this._deviceWasDisconnected = true;
         this._deviceUptime = null;
         this._deviceClockHostBase = null;
@@ -1241,6 +1259,7 @@ export class SettingsModule {
         // Reconexión detectada: re-obtener uptime y configuración fresca del hardware
         this.fetchLocalNodeConfig(true);
       }
+      this._renderFirmwareCliCapability();
 
       if (payload.rx_count != null) this.cachedConfig.rx_count = payload.rx_count;
       if (payload.tx_count != null) this.cachedConfig.tx_count = payload.tx_count;
@@ -1552,6 +1571,13 @@ export class SettingsModule {
   populateLocalConfig(incoming) {
     if (!incoming || typeof incoming !== "object") return;
     if (!this.cachedConfig) this.cachedConfig = {};
+    if (incoming.public_key && this.cachedConfig.public_key && incoming.public_key !== this.cachedConfig.public_key) {
+      ++this._configReadSequence;
+      this._firmwareCliNeedsSnapshot = true;
+    }
+    if (incoming.capabilities?.firmware_cli && typeof incoming.capabilities.firmware_cli === "object") {
+      this._firmwareCliNeedsSnapshot = false;
+    }
 
     // Combinar de forma atómica ignorando propiedades undefined y null para evitar pérdida de estado
     for (const [k, v] of Object.entries(incoming)) {
@@ -1964,6 +1990,7 @@ export class SettingsModule {
   }
 
   _applyLocalConfigCapabilities() {
+    this._renderFirmwareCliCapability();
     const capabilities = this.cachedConfig.capabilities || {};
     for (const [key, ids] of [
       ["telemetry_interval", ["localTelemetryEnable", "localTelemetryInterval"]],
@@ -1986,6 +2013,98 @@ export class SettingsModule {
             badge.classList.remove("badge-active");
           }
         }
+      }
+    }
+  }
+
+  _renderFirmwareCliCapability() {
+    const panel = document.getElementById("firmwareCompatibilityPanel");
+    if (!panel) return;
+    const cfg = this.cachedConfig || {};
+    const snapshot = cfg.capabilities?.firmware_cli || {};
+    const disconnected = cfg.serial_connected === false || cfg.radio_connected === false || this._deviceWasDisconnected;
+    const state = disconnected || this._firmwareCliNeedsSnapshot ? "unknown" : (["present", "absent"].includes(snapshot.state) ? snapshot.state : "unknown");
+    const reason = disconnected ? "disconnected" : (this._firmwareCliNeedsSnapshot ? "awaiting_device_info" : snapshot.reason || "awaiting_device_info");
+    const commands = state === "present" && Array.isArray(snapshot.safe_commands)
+      ? ["get radio", "get freq"].filter(command => snapshot.safe_commands.includes(command)) : [];
+    const signature = JSON.stringify([cfg.public_key || "", state, reason, snapshot.companion_protocol, snapshot.firmware_version, snapshot.sdk_version, snapshot.model, snapshot.transport, commands]);
+    const output = document.getElementById("firmwareCliOutput");
+    if (signature !== this._firmwareCliSignature) {
+      this._firmwareCliSignature = signature;
+      ++this._firmwareCliGeneration;
+      this._firmwareCliBusy = false;
+      if (output) {
+        output.removeAttribute("data-i18n");
+        output.textContent = "";
+      }
+    }
+    panel.dataset.state = state;
+    panel.setAttribute("aria-busy", String(this._firmwareCliBusy));
+    const badge = document.getElementById("firmwareCliState");
+    if (badge) I18n.setText(badge, `settings.firmware_cli_${state}`);
+    const reasons = ["disconnected", "awaiting_device_info", "protocol_unsupported", "sdk_unsupported", "available", "cli_timeout_reconnect_required", "adapter_unsupported"];
+    const reasonElement = document.getElementById("firmwareCliReason");
+    if (reasonElement) I18n.setText(reasonElement, `settings.firmware_cli_reason_${reasons.includes(reason) ? reason : "awaiting_device_info"}`);
+    for (const [id, field] of [["firmwareCliProtocol", "companion_protocol"], ["firmwareCliVersion", "firmware_version"], ["firmwareCliSdkVersion", "sdk_version"], ["firmwareCliModel", "model"], ["firmwareCliTransport", "transport"]]) {
+      const element = document.getElementById(id);
+      if (element) {
+        const value = this._firmwareCliNeedsSnapshot ? null : snapshot[field];
+        element.textContent = (typeof value === "string" || typeof value === "number") && value !== "" ? String(value) : I18n.t("common.unverified");
+      }
+    }
+    const select = document.getElementById("firmwareCliCommand");
+    if (select) {
+      for (const option of select.options) option.disabled = !commands.includes(option.value);
+      if (!commands.includes(select.value) && commands.length) select.value = commands[0];
+      select.disabled = this._firmwareCliBusy || commands.length === 0;
+    }
+    const button = document.getElementById("firmwareCliReadButton");
+    if (button) button.disabled = this._firmwareCliBusy || !commands.includes(select?.value);
+  }
+
+  async _readFirmwareDiagnostic() {
+    this._renderFirmwareCliCapability();
+    const button = document.getElementById("firmwareCliReadButton");
+    if (!button || button.disabled) return;
+    const command = document.getElementById("firmwareCliCommand")?.value;
+    if (!["get radio", "get freq"].includes(command)) return;
+    const generation = this._firmwareCliGeneration;
+    const output = document.getElementById("firmwareCliOutput");
+    this._firmwareCliBusy = true;
+    this._renderFirmwareCliCapability();
+    if (output) I18n.setText(output, "settings.firmware_cli_loading");
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cli", scope: "firmware", command }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (generation !== this._firmwareCliGeneration) return;
+      if (response.status === 503) {
+        this._firmwareCliNeedsSnapshot = true;
+        this._renderFirmwareCliCapability();
+        if (output) output.textContent = body.detail || body.message || I18n.t("settings.firmware_cli_failed");
+        return;
+      }
+      const result = body.result;
+      if (!response.ok || body.status !== "ok" || !result || result.status !== "ok" || result.scope !== "firmware" || typeof result.result !== "string") {
+        throw new Error(body.detail || body.message || I18n.t("settings.firmware_cli_failed"));
+      }
+      if (output) {
+        output.removeAttribute("data-i18n");
+        output.textContent = result.result;
+      }
+    } catch (error) {
+      if (generation !== this._firmwareCliGeneration) return;
+      if (output) {
+        output.removeAttribute("data-i18n");
+        output.textContent = error.message || I18n.t("settings.firmware_cli_failed");
+      }
+    } finally {
+      if (generation === this._firmwareCliGeneration) {
+        this._firmwareCliBusy = false;
+        this._renderFirmwareCliCapability();
       }
     }
   }

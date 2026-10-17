@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from frontend_browser_resources import is_expected_remote_map_tile
-from playwright.async_api import Page, Route, expect
+from playwright.async_api import Locator, Page, Route, expect
 
 from src.bridge_core import MeshCoreBridge
 from src.contact_manager import NodeContactUpdate
@@ -19,24 +19,62 @@ ARTIFACTS = Path("tests/artifacts/frontend-ui")
 TABS = ("chat", "contacts", "nodes", "map", "analytics", "logs", "settings")
 
 
+async def _settle_motion(element: Locator) -> None:
+    await element.evaluate("""async element => {
+        await Promise.all(element.getAnimations({subtree: true})
+            .filter(animation => animation.effect.getComputedTiming().iterations !== Infinity)
+            .map(animation => animation.finished.catch(() => {})));
+    }""")
+
+
+async def _reload_after_startup(page: Page) -> None:
+    # Reload checks replace the document deliberately; first finish its API reads
+    # so the shared fixture can still reject every unexpected local failure.
+    await page.wait_for_load_state("networkidle")
+    await page.reload()
+
+
+async def _navigate(page: Page, tab: str) -> None:
+    sidebar = page.locator("#appSidebar")
+    await _settle_motion(sidebar)
+    button = page.locator(f'[data-tab="tab-{tab}"]')
+    if not await button.is_visible():
+        await page.locator('[data-bs-toggle="offcanvas"][data-bs-target="#appSidebar"]').click()
+        await expect(sidebar).to_be_visible()
+        await _settle_motion(sidebar)
+    await button.click()
+    await expect(page.locator(f"#tab-{tab}")).to_be_visible()
+    if page.viewport_size is not None and page.viewport_size["width"] < 992:
+        await expect(sidebar).not_to_be_visible()
+        await _settle_motion(sidebar)
+
+
+async def _apply_theme(page: Page, theme: str) -> None:
+    await page.evaluate("""async theme => {
+        const {applyThemePreference} = await import('/js/core/theme.js');
+        applyThemePreference(theme, false);
+    }""", theme)
+    await page.wait_for_function("""theme => {
+        const stylesheet = document.getElementById('themeStylesheet');
+        return stylesheet?.sheet && stylesheet.href.endsWith(
+            theme === 'dark' ? '/css/bootstrap-slate.min.css' : '/css/bootstrap-zephyr.min.css');
+    }""", arg=theme)
+
+
 @pytest.mark.parametrize("width,height", [(320, 740), (390, 844), (768, 1024), (844, 390), (1920, 1080)])
 @pytest.mark.parametrize("theme", ["dark", "light"])
 async def test_all_views_reflow_in_both_languages(
     browser_page: Page, width: int, height: int, theme: str
 ) -> None:
     await browser_page.set_viewport_size({"width": width, "height": height})
-    await browser_page.evaluate(
-        "theme => { document.body.classList.remove('dark-theme', 'light-theme'); document.body.classList.add(theme + '-theme'); }",
-        theme,
-    )
+    await _apply_theme(browser_page, theme)
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     evidence = []
     for lang in ("es", "en"):
         await browser_page.evaluate("lang => { if (I18n.lang !== lang) I18n.toggle(); }", lang)
         await expect(browser_page.locator("html")).to_have_attribute("lang", lang)
         for tab in TABS:
-            await browser_page.locator(f'.nav-btn[data-tab="tab-{tab}"]').click()
-            await expect(browser_page.locator(f"#tab-{tab}")).to_be_visible()
+            await _navigate(browser_page, tab)
             await browser_page.evaluate("document.fonts.ready")
             geometry = await browser_page.evaluate(r"""() => ({
                 width: innerWidth, scroll: document.documentElement.scrollWidth,
@@ -59,8 +97,16 @@ async def test_all_views_reflow_in_both_languages(
             assert not geometry["rawKeys"], evidence[-1]
             assert not geometry["unboundParameters"], evidence[-1]
             if tab == "chat" and width <= 640:
-                composer = await browser_page.locator("#chatInputText").bounding_box()
+                composer = await browser_page.locator("#chatInputForm").bounding_box()
                 assert composer is not None and composer["width"] >= width - 48, composer
+                text_input = browser_page.locator("#chatInputText")
+                draft = f"Draft {theme} {lang} {width}"
+                await text_input.fill(draft)
+                await expect(text_input).to_be_focused()
+                await expect(text_input).to_have_value(draft)
+                for control in ("#chatInputText", "#chatCharCounter", "#btnSendMsg", "#btnEmojiPicker", "#btnChatAttach"):
+                    bounds = await browser_page.locator(control).bounding_box()
+                    assert bounds is not None and bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= width, (control, bounds)
             if width in (390, 1920):
                 await browser_page.screenshot(
                     path=str(ARTIFACTS / f"{theme}-{lang}-{tab}-{width}.png"), animations="disabled"
@@ -93,10 +139,13 @@ async def test_language_changes_preserve_form_data_and_icons(browser_page: Page)
     await expect(browser_page.locator("#chatInputText")).to_have_value(
         "Mensaje propio / user draft <b>literal</b>"
     )
-    assert await browser_page.locator("#createChannelTitle svg").count() == 1
+    icon = browser_page.locator("#createChannelTitle .modal-title-icon")
+    await expect(icon).to_have_count(1)
+    await expect(icon).to_be_visible()
+    await expect(icon).to_have_attribute("aria-hidden", "true")
     await browser_page.keyboard.press("Escape")
     await expect(browser_page.locator("#createChannelModal")).not_to_be_visible()
-    await browser_page.reload()
+    await _reload_after_startup(browser_page)
     await expect(browser_page.locator("html")).to_have_attribute("lang", "en")
 
 
@@ -120,7 +169,7 @@ async def test_language_switch_keeps_nodes_and_user_names(
     virtual_bridge.node_registry.add_or_update(
         key, NodeContactUpdate(name="Sin GPS", role="CLIENT")
     )
-    await browser_page.reload()
+    await _reload_after_startup(browser_page)
     await browser_page.locator('[data-tab="tab-nodes"]').click()
     cards = browser_page.locator("#nodesUnifiedGridUi .node-card")
     user_node = browser_page.locator(f'#nodesUnifiedGridUi .node-card[data-pk="{key}"]')
@@ -138,7 +187,7 @@ async def test_client_role_is_independent_of_repeater_like_name(
     virtual_bridge.node_registry.add_or_update(
         key, NodeContactUpdate(name="REP-Legitimate Repeater fan", role="CLIENT")
     )
-    await browser_page.reload()
+    await _reload_after_startup(browser_page)
     await browser_page.locator('[data-tab="tab-nodes"]').click()
     card = browser_page.locator(f'#nodesUnifiedGridUi .node-card[data-pk="{key}"]')
     await expect(card).to_have_attribute("data-role", "CLIENT")
@@ -184,11 +233,8 @@ async def test_packet_inspector_language_preserves_payload_and_selected_tab(
 @pytest.mark.parametrize("theme", ["dark", "light"])
 async def test_mobile_modals_fit_viewport(browser_page: Page, theme: str) -> None:
     await browser_page.set_viewport_size({"width": 390, "height": 844})
-    await browser_page.evaluate(
-        "theme => { document.body.classList.remove('dark-theme', 'light-theme'); document.body.classList.add(theme + '-theme'); }",
-        theme,
-    )
-    await browser_page.locator('[data-tab="tab-contacts"]').click()
+    await _apply_theme(browser_page, theme)
+    await _navigate(browser_page, "contacts")
     openers = [
         ("#btnHeaderAddContact", "#createContactModal"),
         ("#btnHeaderImportContact", "#importModal"),
@@ -198,6 +244,7 @@ async def test_mobile_modals_fit_viewport(browser_page: Page, theme: str) -> Non
         await browser_page.locator(opener).first.click()
         modal = browser_page.locator(modal_id)
         await expect(modal).to_be_visible()
+        await _settle_motion(modal)
         for lang in ("es", "en"):
             await browser_page.evaluate("lang => { if (I18n.lang !== lang) I18n.toggle(); }", lang)
             card = await modal.locator(".modal-card").bounding_box()
@@ -209,7 +256,7 @@ async def test_mobile_modals_fit_viewport(browser_page: Page, theme: str) -> Non
             )
         await modal.locator(".modal-close").first.click()
         await expect(modal).not_to_be_visible()
-    await browser_page.locator('[data-tab="tab-nodes"]').click()
+    await _navigate(browser_page, "nodes")
     await browser_page.locator(".btn-manage-repeater").first.click()
     await expect(browser_page.locator("#repeaterAuthGate")).to_be_visible()
     await browser_page.screenshot(
@@ -226,7 +273,7 @@ async def test_palette_escapes_node_names_and_protects_repeaters(
     virtual_bridge.node_registry.add_or_update(
         key, NodeContactUpdate(name=malicious_name, role="CLIENT")
     )
-    await browser_page.reload()
+    await _reload_after_startup(browser_page)
     await browser_page.locator('[data-tab="tab-nodes"]').click()
     await expect(browser_page.locator("#nodesUnifiedGridUi")).to_contain_text(malicious_name)
     await browser_page.keyboard.press("Control+k")
@@ -294,7 +341,7 @@ async def test_leaflet_map_with_cached_library_and_virtual_tiles(browser_page: P
             raise AssertionError(f"Unexpected external dependency: {url}")
 
     await browser_page.route("**/*", offline_map)
-    await browser_page.reload()
+    await _reload_after_startup(browser_page)
     await browser_page.locator('[data-tab="tab-map"]').click()
     await expect(browser_page.locator(".leaflet-container")).to_be_visible()
     await expect(browser_page.locator(".leaflet-marker-icon").first).to_be_visible()
@@ -324,7 +371,10 @@ async def test_leaflet_map_with_cached_library_and_virtual_tiles(browser_page: P
 
 async def test_text_token_contrast(browser_page: Page) -> None:
     """Measure real resolved tokens; this is not a complete WCAG certification."""
-    report = await browser_page.evaluate("""() => {
+    report = []
+    for theme in ("dark", "light"):
+        await _apply_theme(browser_page, theme)
+        report.extend(await browser_page.evaluate("""theme => {
         function rgb(value) {
             const probe = document.createElement('span');
             probe.style.color = value; document.body.append(probe);
@@ -336,26 +386,26 @@ async def test_text_token_contrast(browser_page: Page) -> None:
                 .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
         }
         const report = [];
-        const previous = document.body.className;
-        for (const theme of ['dark', 'light']) {
-            document.body.classList.remove('dark-theme', 'light-theme');
-            document.body.classList.add(theme + '-theme');
             const css = getComputedStyle(document.body);
-            for (const [alias, target] of [['--border-color', '--border-subtle'], ['--bg-surface-secondary', '--bg-surface-elevated'], ['--color-text-secondary', '--text-muted'], ['--bg-tertiary', '--bg-surface-elevated']]) {
+            for (const [alias, target] of [['--border-color', '--bs-border-color'], ['--border-subtle', '--bs-border-color-subtle'], ['--color-text-secondary', '--text-muted'], ['--bg-tertiary', '--bg-surface-elevated']]) {
                 if (css.getPropertyValue(alias).trim() !== css.getPropertyValue(target).trim()) {
                     throw new Error(`${theme}: ${alias} does not resolve to ${target}`);
                 }
             }
-            for (const text of ['--text-main', '--text-muted', '--text-dim', '--accent-primary', '--accent-success', '--accent-warning', '--accent-danger', '--accent-purple']) {
+            // Semantic text colors, including Bootstrap's text-emphasis palette.
+            // Decorative accent fills/borders are not body-text aliases.
+            for (const text of ['--text-main', '--text-muted', '--warning-text', '--field-error-color', '--bs-primary-text-emphasis', '--bs-success-text-emphasis', '--bs-warning-text-emphasis', '--bs-danger-text-emphasis', '--bs-info-text-emphasis']) {
                 for (const surface of ['--bg-canvas', '--bg-surface', '--bg-surface-elevated']) {
+                    if (!css.getPropertyValue(text).trim() || !css.getPropertyValue(surface).trim()) {
+                        throw new Error(`Missing token: ${text} or ${surface}`);
+                    }
                     const a = luminance(rgb(css.getPropertyValue(text)));
                     const b = luminance(rgb(css.getPropertyValue(surface)));
                     report.push({theme, text, surface, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05)});
                 }
             }
-        }
-        document.body.className = previous; return report;
-    }""")
+        return report;
+    }""", theme))
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     (ARTIFACTS / "contrast.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     assert not [pair for pair in report if pair["ratio"] < 4.5], report

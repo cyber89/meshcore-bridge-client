@@ -12,6 +12,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from http_station_owner import owner_client
 from playwright.async_api import Page
 
 from src.bridge_core import MeshCoreBridge
@@ -41,7 +42,6 @@ async def raw_request(bridge: MeshCoreBridge, request: str) -> bytes:
 
 
 async def test_map_reload_get_cannot_mutate(virtual_bridge: MeshCoreBridge, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("BRIDGE_API_KEY", "audit-synthetic-secret")
     server = virtual_bridge.web_server
     assert server is not None
     calls: list[str] = []
@@ -50,7 +50,12 @@ async def test_map_reload_get_cannot_mutate(virtual_bridge: MeshCoreBridge, monk
     post = await raw_request(virtual_bridge, "POST /api/map/reload HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n")
     result = {"GET": get.split(b"\r\n")[0].decode(), "POST": post.split(b"\r\n")[0].decode(), "reload_calls": calls}
     evidence("map-auth", result)
-    assert result == {"GET": "HTTP/1.1 405 Method Not Allowed", "POST": "HTTP/1.1 401 Unauthorized", "reload_calls": []}
+    assert result == {"GET": "HTTP/1.1 401 Unauthorized", "POST": "HTTP/1.1 401 Unauthorized", "reload_calls": []}
+    assert server.server is not None
+    origin = f"http://127.0.0.1:{server.server.sockets[0].getsockname()[1]}"
+    async with owner_client(origin) as client:
+        assert (await client.get("/api/map/reload")).status_code == 405
+    assert calls == []
 
 
 async def test_contact_infrastructure_guard(virtual_bridge: MeshCoreBridge, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -94,19 +99,20 @@ async def test_chat_old_history_cannot_overwrite_new_conversation(browser_page: 
       const {ChatModule} = await import('/js/modules/chat.js');
       let releaseOld;
       const oldHistory = new Promise(resolve => releaseOld = resolve);
-      const chat = new ChatModule({storage: {getMessagesByFeed: key => key === 'ch_0' ? oldHistory : Promise.resolve([
-        {id:'new',text:'NEW CHANNEL',sender:'peer',timestamp:'2026-10-04T12:00:00Z'}])}});
+      const chat = new ChatModule({storage: {stationId:'history-qa',getHistoryPage: key => key === 'ch_0' ? oldHistory : Promise.resolve({station_id:'history-qa',messages:[
+        {msg_id:'new',text:'NEW CHANNEL',sender:'peer',timestamp:'2026-10-04T12:00:00Z'}]})}});
       chat.dom.chatMessageFeed = document.createElement('div');
       const slow = chat.renderCurrentConversation();
       chat.activeChannelIdx = 1;
       await chat.renderCurrentConversation();
       const before = chat.dom.chatMessageFeed.textContent;
-      releaseOld([{id:'old',text:'OLD CHANNEL',sender:'peer',timestamp:'2026-10-04T12:00:00Z'}]);
+      releaseOld({station_id:'history-qa',messages:[{msg_id:'old',text:'OLD CHANNEL',sender:'peer',timestamp:'2026-10-04T12:00:00Z'}]});
       await slow;
       return {active:chat.activeChannelIdx, before, after:chat.dom.chatMessageFeed.textContent};
     }""")
     evidence("chat-race", result)
     assert result["active"] == 1
+    assert "NEW CHANNEL" in result["before"] and "NEW CHANNEL" in result["after"]
     assert "OLD CHANNEL" not in result["before"] and "OLD CHANNEL" not in result["after"]
 
 
@@ -135,15 +141,23 @@ async def test_storage_successful_tx_saved_as_sent(browser_page: Page) -> None:
       const store = new MeshCoreStorage('AuditSuccessfulTxDB');
       await store.readyPromise;
       await store.clearAll();
+      await store.getHistoryPage('ch_0');
       const chat = new ChatModule({knownNodes:new Map(),storage:store});
       chat.dom = {chatInputText:document.createElement('textarea'),chatMessageFeed:document.createElement('div')};
       chat.dom.chatInputText.value = 'Successful audit message';
       const originalFetch = window.fetch;
       try {
-        window.fetch = async () => { await new Promise(r => setTimeout(r,30)); return new Response(JSON.stringify({status:'ok',data:{expected_ack:'abc123'}})); };
+        window.fetch = async (url,options) => {
+          if (new URL(String(url),location.href).pathname!=='/api/tx') return originalFetch(url,options);
+          return new Response(JSON.stringify({status:'ok',data:{expected_ack:'abc123'}}));
+        };
         await chat.sendMessage();
-        const rows = await store.getMessagesByFeed('ch_0');
-        const value = {memory_status:chat.channelFeeds.get('ch_0')[0].status,stored_status:rows[0].status,ack:rows[0].expected_ack};
+        const message=chat.channelFeeds.get('ch_0')[0];
+        const row=await new Promise((resolve,reject)=>{
+          const request=store.db.transaction('message_cache','readonly').objectStore('message_cache').get([store.stationId,message.msg_id]);
+          request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+        });
+        const value = {memory_status:message.status,stored_status:row.status,ack:row.expected_ack};
         store.db.close();
         return value;
       } finally { window.fetch=originalFetch; }

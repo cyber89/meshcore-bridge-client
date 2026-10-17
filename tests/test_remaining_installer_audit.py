@@ -35,6 +35,12 @@ def source(path: str) -> str:
     return (ROOT / path).read_text(encoding='utf-8')
 
 
+def shell_presentation(text: str) -> str:
+    """Borrow presentation functions without running installer initialization."""
+    styles = 'RED=""; GREEN=""; YELLOW=""; BLUE=""; CYAN=""; NC=""; BOLD=""; DIM=""\n'
+    return styles + text[text.index('print_step() {'):text.index('ACTION="${1:-}"')]
+
+
 @pytest.mark.parametrize('missing', [entry[1] for entry in dependencies.DEPENDENCIES])
 def test_partial_environment_does_not_pass_with_paho_alone(missing: str) -> None:
     def importer(module: str) -> object:
@@ -205,7 +211,7 @@ def test_incomplete_stage_never_changes_existing_installation(tmp_path: Path) ->
     create_release(target, 'old')
     incoming = tmp_path / 'incoming'
     incoming.mkdir()
-    with pytest.raises(ValueError, match='Release incompleto'):
+    with pytest.raises(ValueError, match='Incomplete release'):
         staged_update.prepare(incoming, target)
     assert (target / 'src/bridge_core.py').read_text() == 'old'
     assert not list(tmp_path.glob('.meshcore-stage-*'))
@@ -285,7 +291,7 @@ def test_staging_rejects_escaped_rollback_manifest(tmp_path: Path) -> None:
     state = json.loads((stage / staged_update.MARKER).read_text())
     state['installed'] = ['../outside']
     (stage / staged_update.MARKER).write_text(json.dumps(state))
-    with pytest.raises(ValueError, match='Componente de rollback'):
+    with pytest.raises(ValueError, match='Invalid rollback component'):
         staged_update.rollback(stage)
 
 
@@ -333,14 +339,14 @@ def test_relocated_venv_entrypoints_do_not_reference_deleted_staging(tmp_path: P
 @pytest.mark.skipif(not BASH or not Path(BASH).exists(), reason='Bash unavailable for isolated shell contract')
 def test_linux_runtime_preflight_failure_prevents_install_operations(tmp_path: Path) -> None:
     text = source('install.sh')
-    definitions = text[text.index('select_runtime_python() {'):text.index('# --dev never')]
+    definitions = text[text.index('select_runtime_python() {'):text.index('configure_service_identity() {')]
     interpreter = tmp_path / 'unsupported-python'
     interpreter.write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')
     interpreter.chmod(0o755)
     marker = tmp_path / 'mutation-attempted'
     runner = tmp_path / 'runtime-preflight.sh'
     runner.write_text(
-        'set -Eeuo pipefail\n' + definitions
+        'set -Eeuo pipefail\n' + shell_presentation(text) + definitions
         + '\nselect_runtime_python\nprintf attempted > "$MUTATION_MARKER"\n',
         encoding='utf-8',
     )
@@ -349,7 +355,7 @@ def test_linux_runtime_preflight_failure_prevents_install_operations(tmp_path: P
     result = subprocess.run([str(BASH), str(runner)], env=env, capture_output=True,
                             text=True, timeout=20)
     assert result.returncode == 1, result.stdout + result.stderr
-    assert '>=3.12' in result.stderr
+    assert 'CPython >= 3.12' in result.stderr
     assert not marker.exists()
 
 
@@ -357,8 +363,8 @@ def test_linux_runtime_preflight_failure_prevents_install_operations(tmp_path: P
 @pytest.mark.parametrize('phase', ['pip', 'chromium', 'qa'])
 def test_dev_propagates_mocked_native_failures(tmp_path: Path, phase: str) -> None:
     text = source('install.sh')
-    runtime_definitions = text[text.index('select_runtime_python() {'):text.index('# --dev never')]
-    block = text[text.index('if [[ "$ACTION" == "--dev" ]]'):text.index('# Render service identity')]
+    runtime_definitions = text[text.index('select_runtime_python() {'):text.index('configure_service_identity() {')]
+    block = text[text.index('if [[ "$ACTION" == "--dev" ]]'):text.index('if [[ "$ACTION" == "--update" ]]')]
     project = tmp_path / 'project'
     installed = tmp_path / 'installed'
     for directory in (project / '.venv/bin', installed / 'venv/bin', project / 'scripts'):
@@ -375,17 +381,17 @@ exit 0
         path.write_text(mock, encoding='utf-8')
         path.chmod(0o755)
     runner = tmp_path / 'dev-contract.sh'
-    runner.write_text('set -Eeuo pipefail\nACTION=--dev\n' + runtime_definitions + block, encoding='utf-8')
+    runner.write_text('set -Eeuo pipefail\nACTION=--dev\n' + shell_presentation(text) + runtime_definitions + block, encoding='utf-8')
     env = dict(os.environ, CURRENT_DIR=project.as_posix(), INSTALL_DIR=installed.as_posix(), FAIL_PHASE=phase,
                MESHCORE_PYTHON=(project / '.venv/bin/python').as_posix())
     result = subprocess.run([str(BASH), str(runner)], env=env, capture_output=True, text=True, timeout=20)
     assert result.returncode == 17, result.stdout + result.stderr
-    assert '[OK] Verificaciones ejecutadas' not in result.stdout
+    assert 'Project quality runner passed' not in result.stdout
 
 
 def test_update_prepares_and_checks_before_stop_and_keeps_rollback() -> None:
     text = source('install.sh')
-    block = text[text.index('if [[ "$ACTION" == "--update" ]]'):text.index('# 4. Instalación')]
+    block = text[text.index('if [[ "$ACTION" == "--update" ]]'):text.index('# 6. Production installation')]
     assert block.index('prepare "$CURRENT_DIR"') < block.index('systemctl stop')
     assert block.index('check_runtime_dependencies.py') < block.index('systemctl stop')
     assert block.index('compileall') < block.index('systemctl stop')
@@ -403,9 +409,9 @@ def test_complete_install_configures_identity_before_ownership_and_service(
 ) -> None:
     """Run only the fresh-install body on fixtures, replacing all system operations."""
     text = source('install.sh')
-    runtime_definitions = text[text.index('select_runtime_python() {'):text.index('# --dev never')]
-    definitions = text[text.index('configure_service_identity() {'):text.index('# --update stages')]
-    block = text[text.index('# 4. Instalación Completa'):]
+    runtime_definitions = text[text.index('select_runtime_python() {'):text.index('configure_service_identity() {')]
+    definitions = text[text.index('configure_service_identity() {'):text.index('if [[ "$ACTION" == "--dev" ]]')]
+    block = text[text.index('# 6. Production installation'):]
     project, installed = tmp_path / 'project', tmp_path / 'installed'
     create_release(project, 'fixture')
     (project / 'docs').mkdir()
@@ -426,6 +432,12 @@ def test_complete_install_configures_identity_before_ownership_and_service(
 ACCOUNT_CREATED=0
 apt-get() { :; }
 systemctl() { :; }
+sudo() {
+    [[ "${1:-}" == "-u" && "${2:-}" == "$SERVICE_USER" ]] || return 19
+    shift 2
+    [[ "${1:-}" == "$INSTALL_DIR/venv/bin/python" ]] || return 19
+    "$@"
+}
 sleep() { :; }
 hostname() { echo 127.0.0.1; }
 compgen() { return 1; }
@@ -446,7 +458,7 @@ chown() {
 }
 '''
     runner = tmp_path / 'fresh-contract.sh'
-    runner.write_text('set -Eeuo pipefail\nRED=""; GREEN=""; YELLOW=""; BLUE=""; CYAN=""; NC=""\nSERVICE_GROUP=""\n' + mocks + runtime_definitions + definitions + block, encoding='utf-8')
+    runner.write_text('set -Eeuo pipefail\nSERVICE_GROUP=""\n' + shell_presentation(text) + mocks + runtime_definitions + definitions + block, encoding='utf-8')
     service_user = 'meshcore' if invoker == 'root' else invoker
     env = dict(os.environ, CURRENT_DIR=project.as_posix(), INSTALL_DIR=installed.as_posix(),
                TARGET_USER=invoker, SERVICE_USER=service_user, SYSTEMD_DIR=systemd.as_posix(),

@@ -18,7 +18,7 @@ VIEWPORTS = [(1920, 1080), (1366, 768), (1024, 768), (768, 1024), (390, 844),
 
 async def _measure(page: Page) -> dict:
     await page.mouse.move(0, 0)
-    await page.wait_for_function("getComputedStyle(document.querySelector('.auth-submit')).backgroundColor === 'rgb(36, 87, 214)'")
+    await page.wait_for_function("() => getComputedStyle(document.querySelector('.auth-submit')).backgroundColor === 'rgb(36, 87, 214)'")
     return await page.evaluate("""() => {
       const gate = document.getElementById('authGate'), card = gate.querySelector('.auth-card');
       const rect = card.getBoundingClientRect();
