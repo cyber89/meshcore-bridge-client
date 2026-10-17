@@ -133,6 +133,8 @@ class MeshCoreApp {
       headerRxCount: document.getElementById("headerRxCount"),
       headerTxCount: document.getElementById("headerTxCount"),
       headerErrorRate: document.getElementById("headerErrorRate"),
+      headerErrorRateChip: document.getElementById("headerErrorRateChip"),
+      headerErrorRateIcon: document.getElementById("headerErrorRateIcon"),
       headerQueueDepth: document.getElementById("headerQueueDepth"),
       headerAirtimeChip: document.getElementById("headerAirtimeChip"),
       headerDutyCycle: document.getElementById("headerDutyCycle"),
@@ -561,7 +563,24 @@ class MeshCoreApp {
         this.dom.headerTxCount.textContent = String(payload.tx_count);
       }
       if (this.dom.headerErrorRate && payload.error_rate != null) {
-        this.dom.headerErrorRate.textContent = `${Number(payload.error_rate).toFixed(1)}%`;
+        const errVal = Number(payload.error_rate);
+        this.dom.headerErrorRate.textContent = `${errVal.toFixed(1)}%`;
+        const errChip = this.dom.headerErrorRateChip || document.getElementById("headerErrorRateChip");
+        const errIcon = this.dom.headerErrorRateIcon || document.getElementById("headerErrorRateIcon");
+        if (errChip) {
+          errChip.classList.toggle("warning", errVal > 0 && errVal < 5.0);
+          errChip.classList.toggle("danger", errVal >= 5.0);
+          errChip.classList.toggle("normal", errVal === 0);
+        }
+        if (errIcon) {
+          if (errVal >= 5.0) {
+            errIcon.className = "bi bi-exclamation-octagon chip-icon text-danger";
+          } else if (errVal > 0) {
+            errIcon.className = "bi bi-exclamation-triangle chip-icon text-warning";
+          } else {
+            errIcon.className = "bi bi-shield-check chip-icon text-success";
+          }
+        }
       }
       if (this.dom.headerQueueDepth && payload.queue_depth != null) {
         this.dom.headerQueueDepth.textContent = String(payload.queue_depth);

@@ -140,26 +140,26 @@
       <!-- Métricas y Controles de Cabecera -->
       <div class="d-flex align-items-center gap-2 ms-auto header-right">
         <div class="d-none d-xl-flex align-items-center gap-2 header-metrics" role="region" aria-label="Métricas globales de tráfico" data-i18n-aria-label="ui.static_004">
-          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Nodos Activos en Malla" data-i18n-title="header.active_nodes">
-            <i class="bi bi-people chip-icon" aria-hidden="true"></i> <strong id="headerNodeCount">0</strong>
+          <span class="badge border d-flex align-items-center gap-1 metric-chip" title="Nodos Activos en Malla" data-i18n-title="header.active_nodes">
+            <i class="bi bi-people chip-icon text-primary" aria-hidden="true"></i> <strong id="headerNodeCount">0</strong>
           </span>
-          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Paquetes Recibidos" data-i18n-title="header.rx_packets">
-            <i class="bi bi-download chip-icon" aria-hidden="true"></i> <strong id="headerRxCount">0</strong>
+          <span class="badge border d-flex align-items-center gap-1 metric-chip" title="Paquetes Recibidos" data-i18n-title="header.rx_packets">
+            <i class="bi bi-download chip-icon text-info" aria-hidden="true"></i> <strong id="headerRxCount">0</strong>
           </span>
-          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Paquetes Emitidos" data-i18n-title="header.tx_packets">
-            <i class="bi bi-upload chip-icon" aria-hidden="true"></i> <strong id="headerTxCount">0</strong>
+          <span class="badge border d-flex align-items-center gap-1 metric-chip" title="Paquetes Emitidos" data-i18n-title="header.tx_packets">
+            <i class="bi bi-upload chip-icon text-secondary" aria-hidden="true"></i> <strong id="headerTxCount">0</strong>
           </span>
-          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)" data-i18n-title="header.airtime">
+          <span class="badge border d-flex align-items-center gap-1 metric-chip airtime-metric-chip normal" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)" data-i18n-title="header.airtime">
             <i class="bi bi-clock chip-icon" aria-hidden="true"></i>
             <span data-i18n="ui.static_005">Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
             <span class="progress d-inline-block ms-1 header-airtime-track" id="headerAirtimeTrack" aria-hidden="true">
-              <span class="progress-bar bg-info header-airtime-fill" id="headerAirtimeFill" style="width: 0%;"></span>
+              <span class="progress-bar header-airtime-fill" id="headerAirtimeFill" style="width: 0%;"></span>
             </span>
           </span>
-          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Tasa de Error" data-i18n-title="header.error_rate">
-            <i class="bi bi-exclamation-triangle text-warning chip-icon" aria-hidden="true"></i> <strong id="headerErrorRate">0.0%</strong>
+          <span class="badge border d-flex align-items-center gap-1 metric-chip normal" id="headerErrorRateChip" title="Tasa de Error" data-i18n-title="header.error_rate">
+            <i class="bi bi-shield-check chip-icon text-success" id="headerErrorRateIcon" aria-hidden="true"></i> <strong id="headerErrorRate">0.0%</strong>
           </span>
-          <span class="badge bg-body-secondary text-body-secondary border d-flex align-items-center gap-1 metric-chip" title="Cola TX / Buffer" data-i18n-title="header.tx_queue">
+          <span class="badge border d-flex align-items-center gap-1 metric-chip" title="Cola TX / Buffer" data-i18n-title="header.tx_queue">
             <i class="bi bi-activity chip-icon" aria-hidden="true"></i> <strong id="headerQueueDepth">0</strong>
           </span>
         </div>

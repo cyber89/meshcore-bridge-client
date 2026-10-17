@@ -5466,6 +5466,13 @@ body.light-theme .badge-type-ack { background: rgba(5, 150, 105, 0.12); color: #
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
+  color: var(--bs-secondary-color);
+  transition: all 0.25s ease;
+}
+
+.metric-chip strong {
+  font-weight: 700;
+  color: var(--bs-body-color);
 }
 
 .header-airtime-track {
@@ -5487,6 +5494,11 @@ body.light-theme .badge-type-ack { background: rgba(5, 150, 105, 0.12); color: #
   transition: width 0.3s ease, background-color 0.25s ease;
 }
 
+.header-airtime-fill.normal,
+.airtime-progress-bar-fill.normal {
+  background: var(--bs-success);
+}
+
 .header-airtime-fill.warning,
 .airtime-progress-bar-fill.warning {
   background: var(--bs-warning);
@@ -5497,6 +5509,66 @@ body.light-theme .badge-type-ack { background: rgba(5, 150, 105, 0.12); color: #
 .airtime-progress-bar-fill.danger,
 .airtime-progress-bar-fill.airtime-cutoff {
   background: var(--bs-danger);
+}
+
+/* Airtime metric chip reactive status */
+.airtime-metric-chip.normal strong,
+.airtime-metric-chip.normal .chip-icon {
+  color: var(--bs-success);
+}
+
+.airtime-metric-chip.warning {
+  background-color: var(--bs-warning-bg-subtle, rgba(255, 193, 7, 0.15));
+  border-color: rgba(255, 193, 7, 0.4);
+}
+.airtime-metric-chip.warning strong,
+.airtime-metric-chip.warning .chip-icon {
+  color: var(--bs-warning-text-emphasis, #ffc107);
+}
+
+.airtime-metric-chip.danger {
+  background-color: var(--bs-danger-bg-subtle, rgba(220, 53, 69, 0.15));
+  border-color: rgba(220, 53, 69, 0.45);
+}
+.airtime-metric-chip.danger strong,
+.airtime-metric-chip.danger .chip-icon {
+  color: var(--bs-danger-text-emphasis, #dc3545);
+}
+
+.airtime-metric-chip.airtime-cutoff {
+  background-color: var(--bs-danger-bg-subtle, rgba(220, 53, 69, 0.2));
+  border-color: var(--bs-danger);
+  animation: pulse-airtime-cutoff 1.5s infinite;
+}
+
+@keyframes pulse-airtime-cutoff {
+  0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+/* Error rate chip reactive status */
+#headerErrorRateChip.normal strong,
+#headerErrorRateChip.normal .chip-icon {
+  color: var(--bs-success);
+}
+
+#headerErrorRateChip.warning {
+  background-color: var(--bs-warning-bg-subtle, rgba(255, 193, 7, 0.15));
+  border-color: rgba(255, 193, 7, 0.4);
+}
+#headerErrorRateChip.warning strong,
+#headerErrorRateChip.warning .chip-icon {
+  color: var(--bs-warning-text-emphasis, #ffc107);
+}
+
+#headerErrorRateChip.danger {
+  background-color: var(--bs-danger-bg-subtle, rgba(220, 53, 69, 0.15));
+  border-color: rgba(220, 53, 69, 0.45);
+}
+#headerErrorRateChip.danger strong,
+#headerErrorRateChip.danger .chip-icon {
+  color: var(--bs-danger-text-emphasis, #dc3545);
 }
 
 .airtime-progress-bar-bg {

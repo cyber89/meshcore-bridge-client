@@ -624,7 +624,7 @@ export class AnalyticsModule {
     // Actualizar KPI de Duty Cycle
     if (this.dom.kpiDutyCycleVal) {
       this.dom.kpiDutyCycleVal.textContent = `${dutyCyclePct.toFixed(2)}%`;
-      this.dom.kpiDutyCycleVal.style.color = isCritical ? "var(--accent-danger, #ef4444)" : (isWarning ? "var(--accent-warning, #f59e0b)" : "var(--accent-primary, #3b82f6)");
+      this.dom.kpiDutyCycleVal.style.color = isCritical ? "var(--bs-danger, #ef4444)" : (isWarning ? "var(--bs-warning, #f59e0b)" : "var(--bs-success, #10b981)");
     }
     if (this.dom.kpiDutyCycleSub) {
       const statusNote = isCritical ? ` [${I18n.t("analytics.critical_cutoff") || "CRÍTICO"}]` : (isWarning ? ` [${I18n.t("analytics.warning_cutoff") || "ADVERTENCIA"}]` : "");
@@ -634,7 +634,8 @@ export class AnalyticsModule {
     // Sparkline de Airtime
     if (this.dom.kpiSparklineAirtime && this._lastAnalytics?.time_series?.points) {
       const txValues = this._lastAnalytics.time_series.points.map((p) => Number(p.tx || 0));
-      renderSparkline(this.dom.kpiSparklineAirtime, txValues, isCritical ? "var(--accent-danger, #ef4444)" : "var(--accent-primary, #3b82f6)");
+      const sparkColor = isCritical ? "var(--bs-danger, #ef4444)" : (isWarning ? "var(--bs-warning, #f59e0b)" : "var(--bs-success, #10b981)");
+      renderSparkline(this.dom.kpiSparklineAirtime, txValues, sparkColor);
     }
 
     // Barra de progreso inferior
