@@ -9,11 +9,13 @@ import asyncio
 import json
 import logging
 import os
+import re
 import threading
 import time
 import urllib.parse
 from typing import Any
 
+from src.shared_utils import derive_channel_secret
 from src.storage_validation import validate_channels_document
 from src.web.controllers.base import (
     ApiContext,
@@ -210,7 +212,7 @@ class ChannelsController(BaseController):
             is_ch0 = (ch_idx == 0)
             has_psk = bool(raw_psk) and not is_ch0
             c_dict["has_psk"] = has_psk
-            c_dict["is_encrypted"] = False if is_ch0 else has_psk
+            c_dict["is_encrypted"] = not is_ch0 and (has_psk or str(c_dict.get("name") or "").startswith("#"))
             c_dict["is_public"] = is_ch0
             if has_psk and not is_ch0:
                 c_dict["psk"] = "••••••••"
@@ -227,7 +229,7 @@ class ChannelsController(BaseController):
         is_ch0 = (ch_idx == 0)
         has_psk = bool(raw_psk) and not is_ch0
         c_dict["has_psk"] = has_psk
-        c_dict["is_encrypted"] = False if is_ch0 else has_psk
+        c_dict["is_encrypted"] = not is_ch0 and (has_psk or str(c_dict.get("name") or "").startswith("#"))
         c_dict["is_public"] = is_ch0
         if has_psk and not is_ch0:
             c_dict["psk"] = "••••••••"
@@ -264,10 +266,16 @@ class ChannelsController(BaseController):
         name = str(ch.get("name") or (f"Canal {idx}" if idx > 0 else "Public / Broadcast")).strip()
         raw_psk = str(ch.get("psk") or "").strip()
 
-        # Si es canal 0 (público) o canal abierto sin clave, usar la clave canónica oficial de MeshCore
-        # SSoT: reference/meshcore/docs/qr_codes.md y companion_protocol.md
-        public_secret = "8b3387e9c5cdea6ac9e5edbaa115cd72"
-        secret = raw_psk if (raw_psk and raw_psk != "••••••••") else public_secret
+        # Export the same key used by set_channel, including named hash channels
+        # and legacy tokens. Never replace a missing private key with Public's key.
+        if not re.fullmatch(r"[a-fA-F0-9]{0,64}", raw_psk):
+            return problem_details(
+                422,
+                "Unprocessable Entity",
+                "The stored channel key is unavailable or invalid; reconfigure this channel before exporting it",
+                "channel_secret_unavailable",
+            )
+        secret = derive_channel_secret(name, raw_psk).hex()
 
         encoded_name = urllib.parse.quote(name)
         canonical_uri = f"meshcore://channel/add?name={encoded_name}&secret={secret}"
@@ -279,7 +287,7 @@ class ChannelsController(BaseController):
             "index": idx,
             "name": name,
             "secret": secret,
-            "is_encrypted": bool(raw_psk and raw_psk != "••••••••" and idx != 0),
+            "is_encrypted": bool(raw_psk or name.startswith("#")),
             "is_public": (idx == 0),
         }
 

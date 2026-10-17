@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import inspect
 import logging
 import math
@@ -6,6 +7,26 @@ import re
 from typing import Any
 
 from src.protocol_types import FirmwareAdvertType, redact_command_str
+
+
+def derive_channel_secret(name: str, psk: str) -> bytes:
+    """Derive the exact 16-byte key used by the Companion SDK adapter.
+
+    Callers validate channel names and PSK input before using this conversion.
+    Named hash channels derive their key from their name; other channels accept
+    a hexadecimal key, a 16-character token or a hashed token. An empty PSK
+    keeps the adapter's existing all-zero key for secondary open channels.
+    """
+    if name.startswith("#"):
+        return hashlib.sha256(name.encode("utf-8")).digest()[:16]
+    if psk:
+        clean_psk = psk.strip()
+        if len(clean_psk) == 32 and all(c in "0123456789abcdefABCDEF" for c in clean_psk):
+            return bytes.fromhex(clean_psk)
+        if len(clean_psk) == 16:
+            return clean_psk.encode("utf-8")
+        return hashlib.sha256(clean_psk.encode("utf-8")).digest()[:16]
+    return b"\x00" * 16
 
 
 def classify_device_role(advert_type: int, is_local: bool = False) -> str:
