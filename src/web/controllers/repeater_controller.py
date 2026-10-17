@@ -26,7 +26,7 @@ class RepeaterController(BaseController):
 
     async def execute_admin_command(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Ejecuta un comando de administración directa."""
-        res = await self.ctx.bridge.handle_admin(req_body)
+        res = await self.ctx.bridge.handle_admin(req_body, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -50,7 +50,7 @@ class RepeaterController(BaseController):
             "password": req_body.get("password", ""),
             "request_id": req_body.get("request_id", f"web_rep_{int(time.time())}"),
         }
-        res = await self.ctx.bridge.handle_admin(cmd_data)
+        res = await self.ctx.bridge.handle_admin(cmd_data, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -69,7 +69,7 @@ class RepeaterController(BaseController):
             return problem_details(400, "Bad Request", "La contraseña de administración no puede estar vacía", "empty_password")
 
         cmd = {"action": "login", "target_node": target, "password": pwd}
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         if isinstance(res, dict) and res.get("authenticated") is False:
             return problem_details(401, "Unauthorized", "Autenticación no confirmada por el repetidor", "auth_failed", {"data": res})
         failure = self.command_failure(res)
@@ -90,7 +90,7 @@ class RepeaterController(BaseController):
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
 
         cmd = {"action": "logout", "target_node": target}
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -112,7 +112,7 @@ class RepeaterController(BaseController):
             "password": pwd,
             "params": params,
         }
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -134,7 +134,7 @@ class RepeaterController(BaseController):
             "password": pwd,
             "params": req_body.get("params", {}),
         }
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -152,7 +152,7 @@ class RepeaterController(BaseController):
             "action": "ping_zero",
             "target_node": target,
         }
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -170,7 +170,7 @@ class RepeaterController(BaseController):
             "action": "traceroute",
             "target_node": target,
         }
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -190,7 +190,7 @@ class RepeaterController(BaseController):
             "offset": req_body.get("offset", 0),
             "password": req_body.get("password", ""),
         }
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -203,7 +203,7 @@ class RepeaterController(BaseController):
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
         cmd = {"action": "req_owner", "target_node": target, "password": req_body.get("password", "")}
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -215,7 +215,7 @@ class RepeaterController(BaseController):
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
         cmd = {"action": "req_regions", "target_node": target, "password": req_body.get("password", "")}
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -227,7 +227,7 @@ class RepeaterController(BaseController):
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
         cmd = {"action": "req_clock", "target_node": target, "password": req_body.get("password", "")}
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure
@@ -239,7 +239,7 @@ class RepeaterController(BaseController):
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
         cmd = {"action": "req_acl", "target_node": target, "password": req_body.get("password", "")}
-        res = await self.ctx.bridge.handle_admin(cmd)
+        res = await self.ctx.bridge.handle_admin(cmd, manual=True)
         failure = self._remote_failure(res)
         if failure:
             return failure

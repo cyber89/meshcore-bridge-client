@@ -41,16 +41,22 @@ class TracerouteExecutor:
         target_node: Any,
         res: dict[str, Any],
         mc: Any,
+        *,
+        manual: bool = False,
+        manual_target_key: str | None = None,
     ) -> dict[str, Any]:
         """Punto de entrada principal para trazar la ruta de saltos hacia un nodo."""
         target_str = str(target_node or "").strip()
+        manual_info = self._find_node_info(manual_target_key) if manual and manual_target_key else None
+        if manual_info is not None:
+            manual_info = dict(manual_info)
         force = bool(admin_data.get("force", False))
         rep_mgr = getattr(self._ctx, "repeater_manager", None)
         if rep_mgr is not None and hasattr(rep_mgr, "load_state"):
             loading = rep_mgr.load_state()
             if asyncio.iscoroutine(loading):
                 await loading
-        if not force and rep_mgr is not None and hasattr(rep_mgr, "check_traceroute_cooldown"):
+        if not manual and not force and rep_mgr is not None and hasattr(rep_mgr, "check_traceroute_cooldown"):
             chk_result = rep_mgr.check_traceroute_cooldown(target_str)
             if isinstance(chk_result, tuple) and len(chk_result) >= 2:
                 can_send, rem_cd = chk_result[0], chk_result[1]
@@ -68,7 +74,7 @@ class TracerouteExecutor:
 
         path_list = self._parse_path_list(raw_path)
         if not path_list and target_str:
-            d_node = self._find_node_info(target_str)
+            d_node = manual_info if manual else self._find_node_info(target_str)
             if d_node and d_node.get("out_path"):
                 hash_mode = int(d_node.get("out_path_hash_mode") or 0)
                 hash_bytes = hash_mode + 1

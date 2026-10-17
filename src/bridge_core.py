@@ -1120,9 +1120,9 @@ class MeshCoreBridge:
             event.update(dm_target=target, is_direct=True)
         return event
 
-    async def handle_admin(self, admin_data: dict[str, Any]) -> dict[str, Any]:
+    async def handle_admin(self, admin_data: dict[str, Any], *, manual: bool = False) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
-        return await self.admin_handler.handle(admin_data)
+        return await self.admin_handler.handle(admin_data, manual=manual)
 
     # ================================================================
     # Despachador de Eventos LoRa / Radio -> MQTT / n8n (RxEventRouter)

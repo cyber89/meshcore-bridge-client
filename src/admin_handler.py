@@ -6,6 +6,7 @@ Extraído de MeshCoreBridge para separar la responsabilidad de gestión local y 
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import time
@@ -317,10 +318,10 @@ class AdminCommandHandler:
             return fut.result()
         return None
 
-    async def handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
+    async def handle(self, admin_data: dict[str, Any], *, manual: bool = False) -> dict[str, Any]:
         """Preserve command failures in the response envelope without exposing secrets."""
         try:
-            return redact_sensitive_mapping(await self._handle(admin_data))
+            return redact_sensitive_mapping(await self._handle(admin_data, manual=manual))
         except (ValueError, TypeError):
             return {"status": "error", "code": 422, "message": "Parámetros administrativos inválidos"}
         except (ConnectionError, NotImplementedError):
@@ -328,7 +329,37 @@ class AdminCommandHandler:
         except RuntimeError:
             return {"status": "error", "code": 400, "message": "El firmware no confirmó la operación"}
 
-    async def _handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
+    def _manual_remote_target(self, target_node: Any) -> Any:
+        """Freeze an unambiguous infrastructure destination from trusted metadata."""
+        if not target_node or str(target_node).strip().lower() in ("local", "000000000000") or self._ctx.node_registry.is_local_key(str(target_node)):
+            return None
+        resolved = self._resolve_target(str(target_node), 12)
+        field = self._repeater_executor._target_field
+        key = str(field(resolved, "public_key") or (resolved if isinstance(resolved, str) else "")).lower()
+        if len(key) != 64 or any(char not in "0123456789abcdef" for char in key):
+            return None
+        local_key = str(self.get_local_config().get("public_key", "")).lower()
+        if self._ctx.node_registry.is_local_key(key) or key == local_key:
+            return None
+        info = self._repeater_executor._collect_target_info(key)
+        role = str((info or {}).get("role", "")).upper()
+        if role and role not in ("REPEATER", "ROUTER", "ROOM"):
+            return None
+        advert = field(resolved, "type")
+        if advert is None:
+            advert = field(resolved, "adv_type")
+        advert = getattr(advert, "value", advert)
+        if advert is not None and (type(advert) is not int or advert not in (2, 3)):
+            return None
+        if role not in ("REPEATER", "ROUTER", "ROOM") and advert not in (2, 3):
+            return None
+        # SDK contact mappings contain routing data as well as identity. A copy
+        # prevents a later contact-book refresh from changing this operation.
+        if isinstance(resolved, dict):
+            return dict(resolved)
+        return copy.copy(resolved)
+
+    async def _handle(self, admin_data: dict[str, Any], *, manual: bool = False) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
         # Firmware reads stay local before remote dispatch or string coercion.
         scope = admin_data.get("scope")
@@ -360,10 +391,11 @@ class AdminCommandHandler:
             res["request_id"] = req_id
 
         mc = self._ctx.mc_provider()
+        manual_target = self._manual_remote_target(target_node) if manual else None
 
         # 1. Caso especial: Traceroute Multi-Salto (se ejecuta con o sin target_node)
         if action in ("traceroute", "trace", "trace_route", "send_trace"):
-            return await self._handle_traceroute(admin_data, action, target_node, res, mc)
+            return await self._handle_traceroute(admin_data, action, target_node, res, mc, manual_target=manual_target)
 
         # 2. Comandos dirigidos a un repetidor remoto (solo si target_node no es la estación local)
         is_local_target = bool(target_node and (self._ctx.node_registry.is_local_key(str(target_node)) or str(target_node).lower() in ("local", "000000000000")))
@@ -376,6 +408,8 @@ class AdminCommandHandler:
                 password=password,
                 res=res,
                 mc=mc,
+                manual=manual_target is not None,
+                resolved_target=manual_target,
             )
             return await self._handle_remote_repeater(req)
 
@@ -471,9 +505,17 @@ class AdminCommandHandler:
         target_node: Any,
         res: dict[str, Any],
         mc: Any,
+        *,
+        manual_target: Any = None,
     ) -> dict[str, Any]:
         """Ejecuta el trazado de ruta de radio (traceroute multi-hop) mediante TracerouteExecutor."""
-        return await self._traceroute_executor.execute(admin_data, action, target_node, res, mc)
+        manual_key = self._repeater_executor._target_field(manual_target, "public_key")
+        if manual_key is None and isinstance(manual_target, str):
+            manual_key = manual_target
+        return await self._traceroute_executor.execute(
+            admin_data, action, target_node, res, mc,
+            manual=manual_target is not None, manual_target_key=manual_key,
+        )
 
     async def _handle_remote_repeater(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
         """Ejecuta comandos de administración remota sobre un repetidor empaquetando en RemoteRepeaterRequest."""

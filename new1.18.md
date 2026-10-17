@@ -1,6 +1,6 @@
 # MeshCore 1.18.0 — investigación contrastada y actualización por capas
 
-Investigación: 2026-10-15. Implementación ampliada: 2026-10-16, capacidades de capa2, diagnóstico manual de capa3 y guarda de repetición ROOM de capa4. La compatibilidad integral sigue pendiente de los criterios de aceptación del [plan](docs/MESHCORE_1_18_UPGRADE_PLAN.md); este documento no es una certificación de interoperabilidad ni sustituye CONTEXT.md o la pila oficial.
+Investigación: 2026-10-15. Implementación ampliada: 2026-10-17, capacidades de capa2, diagnóstico manual de capa3, guarda de repetición ROOM y pausa manual0 de capa4. La compatibilidad integral sigue pendiente de los criterios de aceptación del [plan](docs/MESHCORE_1_18_UPGRADE_PLAN.md); este documento no es una certificación de interoperabilidad ni sustituye CONTEXT.md o la pila oficial.
 
 Esta revisión reemplaza las conclusiones inexactas del borrador inicial. El equipo separó firmware/protocolo, backend y web/seguridad, y contrastó las afirmaciones con los tags oficiales y los consumidores reales de la aplicación. Los informes detallados están en [protocolo](docs/audits/2026-10-15-meshcore-1.18-protocol.md), [backend](docs/audits/2026-10-15-meshcore-1.18-backend.md) y [web](docs/audits/2026-10-15-meshcore-1.18-web.md). La [entrega conjunta](docs/audits/2026-10-15-meshcore-1.18-integration.md) registra cambios, QA y límites.
 
@@ -113,6 +113,15 @@ Ambos getters leen preferencias de firmware, que pueden estar pendientes de
 reinicio. No se añaden setters, tráfico RF, timers ni consultas de secretos.
 La selección TCP en web y las capas avanzadas siguen pendientes. Evidencia,
 contratos y límites: [ledger de capas2/3](docs/audits/2026-10-16-meshcore-1.18-layers-2-3.md).
+
+### 4.2 Administración manual (2026-10-17)
+
+El usuario eligió cero pausa mínima entre órdenes de administración manual.
+Se aplica a infraestructura REPEATER/ROOM inequívoca desde HTTP autenticado;
+los handlers MQTT/internos conservan su default y la persistencia de timestamps.
+No se añaden comandos automáticos, fragmentación de chat ni límites de trama
+nuevos. El [gate dirigido](docs/audits/2026-10-17-meshcore-1.18-manual-admin.md)
+registra273 pruebas aprobadas sobre el cambio posterior a las capas2/3.
 
 ## 5. Uso desde la web y orden de actualización
 

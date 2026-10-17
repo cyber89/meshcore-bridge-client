@@ -44,7 +44,7 @@ real, cambio de firmware, instalación operativa ni nuevos valores de timers.
 | 1 Compatibilidad mínima | Enum66, respuesta29, parser4dígitos y secretos WiFi; QA virtual en ledger2/3 | Evidencia global y cierre web documentados por separado; interoperabilidad física pendiente. |
 | 2 Capacidades/adaptador | Implementada; aceptación virtual en ledger2/3 | Capacidad desconocida/ausente/presente; dos getters seguros; serialización y errores semánticos. |
 | 3 API/web | Diagnóstico manual implementado; selector TCP pendiente | Contratos REST existentes ampliados, controles por capacidad y QA de navegador; sin nuevo WS. |
-| 4 Configuración avanzada | Guarda ROOM implementada; controles avanzados pendientes | Administración remota de repetidores y ROOM priorizada por el usuario; nuevas emisiones requieren decisiones RF y lectura posterior fiable. |
+| 4 Configuración avanzada | Guarda ROOM y pausa manual0 implementadas; controles por hardware pendientes | Administración remota priorizada por el usuario; preservar validación por comando y lectura posterior fiable. |
 | 5 Sensor/binario | Diseñada, pendiente | Asociación de identidad durable y decisiones de expiración/deltas/presupuesto. |
 | 6 Aceptación | Pendiente | Matriz completa aprobada y verificación física autorizada por separado. |
 
@@ -175,6 +175,14 @@ prefijo y en lotes completos antes de efectos secundarios. Es la política
 explícita elegida por el usuario para versiones antiguas/desconocidas y1.18.
 Conserva repeat off y repeat on para REPEATER; no consulta versiones por RF.
 Evidencia y diseño restante: [administración remota](audits/2026-10-16-meshcore-1.18-remote-plan.md).
+
+Desde2026-10-17, la administración HTTP de infraestructura inequívoca usa cero
+pausa mínima entre órdenes, según decisión explícita del usuario. El keyword
+manual se origina en el controlador autenticado; JSON no concede la excepción.
+Los flujos MQTT/internos conservan su default y los timestamps siguen guardándose.
+Se conservan gateway SDK, locks y delays de protocolo; no atribuir a todos los
+comandos admin la cola TxRateLimiter de chat. Otro cliente autenticado de esas
+rutas HTTP comparte la política. [Implementación y gate](audits/2026-10-17-meshcore-1.18-manual-admin.md).
 Nunca convertir esa guarda en permiso de chat a REPEATER o LOCAL.
 
 `set radio` informa reinicio requerido. Conservar el valor anterior observado
@@ -218,7 +226,7 @@ companion tipo3 y permiso0x10 queda fuera de la activación inicial.
 | Investigación, parser, redacción | Cero paquetes añadidos | Ningún publicador nuevo | No cambian estado ni timers. |
 | Respuesta raw66->29 | El proxy ya transmitía; sólo cambia su respuesta | Sin reintento añadido | No crea timer periódico ni cambia cooldown. |
 | Getters Companion locales permitidos | Cero RF sólo para getters comprobados | Manual; sin encadenar publicaciones TX | Sin polling ni renovación al guardar. |
-| Setters locales/remotos | Depende de comando; remotos pueden implicar login/comando/respuesta y hops | Cola, deduplicación y origen propio existentes; no fallback doble | Preservar últimos disparos y cooldown SQLite. |
+| Setters locales/remotos | Depende de comando; remotos pueden implicar login/comando/respuesta y hops | Gateway/locks SDK; cola TX donde exista, sin fallback doble ni temporizador nuevo | Preservar últimos disparos y cooldown SQLite; pausa manual0 elegida por usuario. |
 | Suscripciones sensor | Solicitud/renovación y pushes por suscriptor/deltas | Evitar suscripciones duplicadas y feedback MQTT | Persistir asociación y expiración antes de activar; no renovar implícitamente. |
 | Datagramas, raw o retries | Depende de tamaño/ruta/nodos; no aprobado un nuevo presupuesto | Deben pasar admisión TX y límites definidos | No timers de reenvío en RAM ni replay al arrancar. |
 
@@ -226,8 +234,8 @@ Decisiones pendientes que se solicitarán antes de esas implementaciones: lista
 de controles RF que se desean y, para sensores, expiración/renovación/deltas y
 presupuesto de suscripciones. Las políticas ROOM y de pausa manual ya están
 resueltas: el usuario eligió bloquear repeat on en todos los ROOM y cero pausa
-mínima entre órdenes manuales de infraestructura. La segunda decisión se integra
-en una entrega posterior separada, conservando los controles de automatizaciones.
+mínima entre órdenes manuales de infraestructura. La segunda decisión ya está
+integrada en su entrega separada, conservando el default de flujos internos/MQTT.
 No se ha elegido ningún umbral o intervalo nuevo unilateralmente.
 
 ## Capa 6 — matriz de aceptación y despliegue

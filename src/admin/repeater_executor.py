@@ -52,6 +52,8 @@ class RemoteRepeaterRequest:
     res: dict[str, Any] | None = None
     mc: Any = None
     resolved_target_key: str | None = None
+    manual: bool = False
+    resolved_target: Any = None
 
 
 @dataclass(slots=True)
@@ -179,6 +181,12 @@ class RepeaterAdminExecutor:
             if asyncio.iscoroutine(writing):
                 await writing
 
+    def _request_target(self, req: RemoteRepeaterRequest) -> Any:
+        """Reuse the destination already validated for a manual operation."""
+        if req.resolved_target is not None:
+            return req.resolved_target
+        return self._resolve_target(req.resolved_target_key or str(req.target_node), 12)
+
     async def _execute_request(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
         """Punto de entrada principal para despachar acciones sobre un repetidor remoto."""
         res = req.res if req.res is not None else {}
@@ -193,7 +201,7 @@ class RepeaterAdminExecutor:
         if self._repeat_enable_requested(req):
             # Resolve once before metadata: an alias/prefix must not borrow the
             # role of another node, or change destination after an await.
-            resolved = self._resolve_target(str(req.target_node), 12)
+            resolved = self._request_target(req)
             resolved_key = self._target_field(resolved, "public_key")
             if not resolved_key:
                 resolved_key = resolved if isinstance(resolved, str) else (target_info or {}).get("public_key", "")
@@ -291,9 +299,10 @@ class RepeaterAdminExecutor:
 
     async def _execute_batch_config(self, req: RemoteRepeaterRequest, res: dict[str, Any]) -> dict[str, Any]:
         """Aplica múltiples parámetros de configuración remota en el repetidor."""
-        can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=True)
-        if not can_send:
-            return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
+        if not req.manual:
+            can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=True)
+            if not can_send:
+                return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
         params = req.admin_data.get("params", {})
         if not isinstance(params, dict):
@@ -523,8 +532,8 @@ class RepeaterAdminExecutor:
                 async with self._waiters.expect_response(waiter_keys) as fut:
                     rf_ctx = RfExecutionContext(
                         req=req,
-                        dest_target=self._resolve_target(req.resolved_target_key or str(req.target_node), 12),
-                        dest_login_target=self._resolve_target(req.resolved_target_key or str(req.target_node), 12),
+                        dest_target=self._request_target(req),
+                        dest_login_target=self._request_target(req),
                         waiter_keys=waiter_keys,
                         fut=fut,
                         res=res,
@@ -542,7 +551,7 @@ class RepeaterAdminExecutor:
             waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
             for cmd_str in commands:
                 async with self._waiters.expect_response(waiter_keys) as command_fut:
-                    await self._send_rf_command(req.mc, self._resolve_target(req.resolved_target_key or str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id, response_future=command_fut)
+                    await self._send_rf_command(req.mc, self._request_target(req), cmd_str, str(req.target_node), req.req_id, response_future=command_fut)
                     reply = await self._wait_for_repeater_response(req.mc, command_fut, timeout=6.0) or {}
                 dispatched.append(redact_command_str(cmd_str))
                 text = str(reply.get("text") or reply.get("message") or "").removeprefix("> ").strip()
@@ -659,12 +668,12 @@ class RepeaterAdminExecutor:
     ) -> dict[str, Any]:
         """Ejecuta un ping directo de 0 saltos y calcula RTT y métricas de señal."""
         force = bool(req.admin_data.get("force", False))
-        if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_ping_cooldown"):
+        if not req.manual and not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_ping_cooldown"):
             can_send, rem_cd = self._ctx.repeater_manager.check_ping_cooldown(str(req.target_node))
             if not can_send:
                 return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
-        dest_target = self._resolve_target(str(req.target_node), 12)
+        dest_target = self._request_target(req)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
         target_name = str((target_info.get("name") or target_info.get("alias")) if target_info else f"Nodo {norm_target[:8]}")
 
@@ -768,7 +777,7 @@ class RepeaterAdminExecutor:
     ) -> dict[str, Any]:
         """Ejecuta una consulta consolidada y ordenada de telemetría remota respetando Airtime LoRa."""
         force = bool(req.admin_data.get("force", False))
-        if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_airtime_cooldown"):
+        if not req.manual and not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_airtime_cooldown"):
             can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=True)
             if not can_send:
                 return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
@@ -777,8 +786,8 @@ class RepeaterAdminExecutor:
             self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
             await self._flush_cooldowns()
 
-        dest_target = self._resolve_target(str(req.target_node), 12)
-        dest_login_target = self._resolve_target(str(req.target_node), 12)
+        dest_target = self._request_target(req)
+        dest_login_target = self._request_target(req)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
 
         waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
@@ -968,8 +977,8 @@ class RepeaterAdminExecutor:
         if req.action in ("refresh_telemetry", "full_telemetry", "refresh_repeater_telemetry", "get_telemetry_batch"):
             return await self._execute_batch_telemetry_query(req, target_info, res)
 
-        dest_target = self._resolve_target(req.resolved_target_key or str(req.target_node), 12)
-        dest_login_target = self._resolve_target(req.resolved_target_key or str(req.target_node), 12)
+        dest_target = self._request_target(req)
+        dest_login_target = self._request_target(req)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
 
         # Guarda contra bucle local (Regla Inmutable SSoT 1.1)
@@ -1008,9 +1017,10 @@ class RepeaterAdminExecutor:
                 "req_status", "status", "req_telemetry", "telemetry",
                 "bat", "get_bat", "get bat", "battery",
             ):
-                allowed, remaining = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
-                if not allowed:
-                    return self._ctx.repeater_manager.build_cooldown_error_response(remaining)
+                if not req.manual:
+                    allowed, remaining = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
+                    if not allowed:
+                        return self._ctx.repeater_manager.build_cooldown_error_response(remaining)
                 self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
                 await self._flush_cooldowns()
                 if req.password:
@@ -1062,7 +1072,7 @@ class RepeaterAdminExecutor:
             data: Any = None
             if action in ("req_neighbours", "req_neighbors", "neighbours", "neighbors"):
                 force = bool(rf_ctx.req.admin_data.get("force", False))
-                if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_neighbours_cooldown"):
+                if not rf_ctx.req.manual and not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_neighbours_cooldown"):
                     can_send, rem_cd = self._ctx.repeater_manager.check_neighbours_cooldown(str(rf_ctx.req.target_node))
                     if not can_send:
                         rf_ctx.res.update(self._ctx.repeater_manager.build_cooldown_error_response(rem_cd))
@@ -1316,9 +1326,10 @@ class RepeaterAdminExecutor:
                 "message": "Comando remoto no compatible o parámetros inválidos",
             })
             return rf_ctx.res
-        can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
-        if not can_send:
-            return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
+        if not req.manual:
+            can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
+            if not can_send:
+                return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
         await self._flush_cooldowns()
