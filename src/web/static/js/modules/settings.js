@@ -13,6 +13,8 @@ import { EVENTS } from "../core/eventbus.js";
 import { FormFeedback } from "../core/form_feedback.js";
 import { initManualTabs } from "../core/tabs.js";
 
+const FIRMWARE_READ_COMMANDS = ["get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode"];
+
 export class SettingsModule {
   constructor(context) {
     this.ctx = context;
@@ -35,6 +37,9 @@ export class SettingsModule {
     this._firmwareCliSignature = "";
     this._firmwareCliBusy = false;
     this._firmwareCliNeedsSnapshot = false;
+    this._firmwareCadObservation = null;
+    this._firmwareCadDraft = false;
+    this._firmwareCadOutcome = "";
     this.servicesConfig = null;
     this.servicesPresets = [];
     this._isSavingServices = false;
@@ -256,6 +261,15 @@ export class SettingsModule {
   }
 
   _bindEvents() {
+    document.getElementById("firmwareCadForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this._saveFirmwareCad();
+    });
+    document.getElementById("firmwareCadValue")?.addEventListener("change", () => {
+      this._firmwareCadDraft = true;
+      this._firmwareCadOutcome = "";
+      this._renderFirmwareCliCapability();
+    });
     document.getElementById("companionConnectionForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
       this._saveCompanionConnection();
@@ -2043,13 +2057,20 @@ export class SettingsModule {
     const state = disconnected || this._firmwareCliNeedsSnapshot ? "unknown" : (["present", "absent"].includes(snapshot.state) ? snapshot.state : "unknown");
     const reason = disconnected ? "disconnected" : (this._firmwareCliNeedsSnapshot ? "awaiting_device_info" : snapshot.reason || "awaiting_device_info");
     const commands = state === "present" && Array.isArray(snapshot.safe_commands)
-      ? ["get radio", "get freq"].filter(command => snapshot.safe_commands.includes(command)) : [];
-    const signature = JSON.stringify([cfg.public_key || "", state, reason, snapshot.companion_protocol, snapshot.firmware_version, snapshot.sdk_version, snapshot.model, snapshot.transport, commands]);
+      ? FIRMWARE_READ_COMMANDS.filter(command => snapshot.safe_commands.includes(command)) : [];
+    const cadWritable = state === "present" && Number.isInteger(snapshot.session_generation)
+      && Array.isArray(snapshot.writable_preferences) && snapshot.writable_preferences.includes("cad");
+    const signature = JSON.stringify([cfg.public_key || "", state, reason, snapshot.companion_protocol, snapshot.firmware_version, snapshot.sdk_version, snapshot.model, snapshot.transport, snapshot.session_generation, commands, cadWritable]);
     const output = document.getElementById("firmwareCliOutput");
     if (signature !== this._firmwareCliSignature) {
       this._firmwareCliSignature = signature;
       ++this._firmwareCliGeneration;
       this._firmwareCliBusy = false;
+      this._firmwareCadObservation = null;
+      this._firmwareCadDraft = false;
+      this._firmwareCadOutcome = "";
+      const cadValue = document.getElementById("firmwareCadValue");
+      if (cadValue) cadValue.value = "";
       if (output) {
         output.removeAttribute("data-i18n");
         output.textContent = "";
@@ -2077,6 +2098,14 @@ export class SettingsModule {
     }
     const button = document.getElementById("firmwareCliReadButton");
     if (button) button.disabled = this._firmwareCliBusy || !commands.includes(select?.value);
+    const cadValue = document.getElementById("firmwareCadValue");
+    const canEditCad = cadWritable && commands.includes("get cad") && this._firmwareCadObservation !== null && !this._firmwareCliBusy;
+    if (cadValue) cadValue.disabled = !canEditCad;
+    const cadSave = document.getElementById("firmwareCadSave");
+    if (cadSave) cadSave.disabled = !canEditCad || !["on", "off"].includes(cadValue?.value);
+    const cadStatus = document.getElementById("firmwareCadStatus");
+    if (cadStatus) I18n.setText(cadStatus, this._firmwareCadOutcome || (this._firmwareCadObservation === null
+      ? "settings.firmware_cad_read_first" : "settings.firmware_cad_observed"));
   }
 
   async _readFirmwareDiagnostic() {
@@ -2084,10 +2113,14 @@ export class SettingsModule {
     const button = document.getElementById("firmwareCliReadButton");
     if (!button || button.disabled) return;
     const command = document.getElementById("firmwareCliCommand")?.value;
-    if (!["get radio", "get freq"].includes(command)) return;
+    if (!FIRMWARE_READ_COMMANDS.includes(command)) return;
     const generation = this._firmwareCliGeneration;
     const output = document.getElementById("firmwareCliOutput");
     this._firmwareCliBusy = true;
+    if (command === "get cad") {
+      this._firmwareCadObservation = null;
+      this._firmwareCadOutcome = "";
+    }
     this._renderFirmwareCliCapability();
     if (output) I18n.setText(output, "settings.firmware_cli_loading");
     try {
@@ -2112,12 +2145,63 @@ export class SettingsModule {
         output.removeAttribute("data-i18n");
         output.textContent = result.result;
       }
+      if (command === "get cad") {
+        const observation = /^>\s*(on|off)\s*$/.exec(result.result.trim());
+        if (observation) {
+          this._firmwareCadObservation = observation[1] === "on";
+          const value = document.getElementById("firmwareCadValue");
+          if (value && !this._firmwareCadDraft) value.value = observation[1];
+        }
+      }
     } catch (error) {
       if (generation !== this._firmwareCliGeneration) return;
       if (output) {
         output.removeAttribute("data-i18n");
         output.textContent = error.message || I18n.t("settings.firmware_cli_failed");
       }
+    } finally {
+      if (generation === this._firmwareCliGeneration) {
+        this._firmwareCliBusy = false;
+        this._renderFirmwareCliCapability();
+      }
+    }
+  }
+
+  async _saveFirmwareCad() {
+    this._renderFirmwareCliCapability();
+    if (document.getElementById("firmwareCadSave")?.disabled !== false) return;
+    const value = document.getElementById("firmwareCadValue")?.value === "on";
+    const generation = this._firmwareCliGeneration;
+    this._firmwareCliBusy = true;
+    this._firmwareCadObservation = null;
+    this._firmwareCadOutcome = "settings.firmware_cad_saving";
+    this._renderFirmwareCliCapability();
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_preference", scope: "firmware", preference: "cad", value }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (generation !== this._firmwareCliGeneration) return;
+      if (response.status === 503) {
+        this._firmwareCliNeedsSnapshot = true;
+        this._renderFirmwareCliCapability();
+        this._firmwareCadOutcome = "settings.firmware_cad_unavailable";
+        this._renderFirmwareCliCapability();
+        return;
+      }
+      const result = body.result;
+      if (!response.ok || body.status !== "ok" || result?.status !== "ok" || result.scope !== "firmware"
+          || result.action !== "set_preference" || result.preference !== "cad" || result.value !== value
+          || result.acknowledged !== true || result.hardware_verified !== false) {
+        this._firmwareCadOutcome = "settings.firmware_cad_failed";
+        return;
+      }
+      this._firmwareCadDraft = false;
+      this._firmwareCadOutcome = "settings.firmware_cad_accepted";
+    } catch {
+      if (generation === this._firmwareCliGeneration) this._firmwareCadOutcome = "settings.firmware_cad_failed";
     } finally {
       if (generation === this._firmwareCliGeneration) {
         this._firmwareCliBusy = false;

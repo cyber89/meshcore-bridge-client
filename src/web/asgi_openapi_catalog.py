@@ -422,11 +422,14 @@ OBSERVED_OPERATIONS: dict[tuple[str, str], ObservedOperation] = {
         False,
     ),
     ('POST', '/api/admin'): ObservedOperation(
-        ('action', 'command', 'cmd', 'scope', 'request_id', 'id', 'target_node', 'repeater', 'params'),
+        ('action', 'command', 'cmd', 'scope', 'preference', 'value', 'request_id', 'id', 'target_node', 'repeater', 'params'),
         (200, 400, 422, 503),
         'router_merged',
-        'scope=firmware: action=cli, command exacto get radio/get freq; sin target ni params; capacidad observada requerida',
-        '200 OK result,response,message; scope=firmware devuelve preferencias informadas, sin MQTT; timeout/indisponible503, entrada422, rechazo400',
+        'scope=firmware: cli sólo getters exactos get radio/get freq/get cad/get radio.rxgain/get path.hash.mode; '
+        'set_preference admite exclusivamente action,scope,preference=cad,value booleano estricto; capacidad observada requerida',
+        '200 OK result,response,message; firmware sin MQTT ni lectura automática: getters informan preferencias; '
+        'set_preference devuelve acknowledged=true,hardware_verified=false sin acreditar aplicación física; '
+        'timeout/indisponible503 sin reintento, entrada422, rechazo400',
         ('src/web/api_router.py:_dispatch_repeater', 'src/web/controllers/repeater_controller.py:execute_admin_command', 'src/admin_handler.py:_handle'),
         'serial/RF/MQTT según acción',
         True,

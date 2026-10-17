@@ -17,6 +17,29 @@ Las rutas REST reciben `Request` y delegan en `WebAPIRouter.handle_request()`; l
 
 El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 
+### Preferencias locales Companion (2026-10-17)
+
+El diagnóstico privado de firmware permite cinco getters exactos: `get radio`,
+`get freq`, `get cad`, `get radio.rxgain` y `get path.hash.mode`. Su disponibilidad
+continúa dependiendo de DEVICE_INFO de la sesión y del método SDK observado.
+`writable_preferences:["cad"]` indica aceptación de una preferencia CLI, no
+soporte CAD físico de la placa. `session_generation` invalida la observación web
+incluso si una nueva conexión conserva identidad y versión. Versiones desconocidas/anteriores o una sesión
+incierta no ofrecen lecturas ni escrituras. No se infieren capacidades por modelo.
+
+POST `/api/admin` admite `{action:"set_preference",scope:"firmware",
+preference:"cad",value:true|false}`, con exactamente esas cuatro claves. El
+ejecutor valida booleanos estrictos, rechaza destinos/CLI arbitraria y llama una
+vez al adaptador. La ruta privada reutiliza lock SDK, propiedad de sesión y
+bloqueo tras timeout. El acuse requiere `OK` semántico; la respuesta devuelve
+`acknowledged:true,hardware_verified:false`, sin MQTT ni lectura automática.
+La SPA exige observación CAD manual antes del cambio e invalida esa habilitación
+tras cada intento o cambio de sesión. El firmware persiste la preferencia y su
+dispatcher decide su uso en el ciclo existente; no se afirma aplicación inmediata
+o soporte universal. RX gain permanece sólo en lectura por decisión del usuario,
+y hash mantiene su editor binario existente. La [entrega de preferencias](audits/2026-10-17-firmware-preferences.md)
+documenta las limitaciones y QA pendiente.
+
 ### Selección del transporte Companion desde la SPA (2026-10-17)
 
 En Ajustes → Servicios & Red, el formulario de conexión guarda `companion_port`

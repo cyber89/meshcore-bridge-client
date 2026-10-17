@@ -199,6 +199,8 @@ class RepeaterBodyDTO(CompatibilityBodyDTO):
     action: Any = None
     command: Any = None
     scope: Any = None
+    preference: Any = None
+    value: Any = None
     target_node: Any = None
     repeater: Any = None
     target: Any = None

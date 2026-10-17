@@ -34,7 +34,7 @@ MAX_TEXT_BYTES = 160
 # Firmware stores channel names in char[32], with a trailing NUL.
 MAX_CHANNEL_NAME_BYTES = 31
 # Verified local NodePrefs getters: no RF request or setter is accepted here.
-_FIRMWARE_READ_COMMANDS = ("get radio", "get freq")
+_FIRMWARE_READ_COMMANDS = ("get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode")
 
 # Terminal synchronous response codes from Companion MyMesh.cpp. Pushes remain
 # asynchronous; GET_CONTACTS additionally forwards START/CONTACT until END.
@@ -226,6 +226,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             "sdk_version": self._sdk_version, "model": observed.get("model"),
             "transport": "tcp" if self.port.startswith("tcp://") else "serial",
             "safe_commands": list(_FIRMWARE_READ_COMMANDS) if state == "present" else [],
+            "writable_preferences": ["cad"] if state == "present" else [],
+            "session_generation": self._firmware_generation,
         }
 
     def _require_firmware_cli(self, generation: int) -> None:
@@ -267,9 +269,22 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         return response
 
     async def run_firmware_cli(self, command: str) -> dict[str, str]:
-        """Read the firmware's reported preferences through two exact local getters."""
+        """Read reported preferences through an exact local getter allowlist."""
         if type(command) is not str or command not in _FIRMWARE_READ_COMMANDS:
             raise ValueError("invalid_firmware_command")
+        return await self._run_firmware_cli_command(command)
+
+    async def set_firmware_preference(self, preference: str, value: bool) -> dict[str, str | bool]:
+        """Acknowledge one explicit CAD preference; never certify driver behavior."""
+        if type(preference) is not str or preference != "cad" or type(value) is not bool:
+            raise ValueError("invalid_firmware_preference")
+        reply = await self._run_firmware_cli_command("set cad on" if value else "set cad off")
+        if reply["text"].strip() != "OK":
+            raise RuntimeError("firmware_preference_unconfirmed")
+        return {"preference": preference, "value": value, "acknowledged": True, "hardware_verified": False}
+
+    async def _run_firmware_cli_command(self, command: str) -> dict[str, str]:
+        """Use the existing session lease and serialized SDK transport once."""
         # Refresh session ownership before taking the task-local lease.
         _ = self.firmware_capabilities
         generation = self._firmware_generation

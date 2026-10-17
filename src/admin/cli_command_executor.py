@@ -114,6 +114,30 @@ class CliCommandExecutor:
         return {"status": "ok", "scope": "firmware", "action": "cli",
                 "command": reply["command"], "result": reply["text"]}
 
+    async def set_firmware_preference(self, preference: Any, value: Any) -> dict[str, Any]:
+        """Request a single CAD preference write, without retries or hardware claims."""
+        if preference != "cad" or type(value) is not bool:
+            raise ValueError("invalid_firmware_preference")
+        adapter = getattr(self._ctx, "serial_adapter", None)
+        operation = getattr(adapter, "set_firmware_preference", None)
+        if not callable(operation):
+            raise NotImplementedError("adapter_unsupported")
+        try:
+            reply = await operation(preference, value)
+        except TimeoutError:
+            return {"status": "error", "scope": "firmware", "code": 503,
+                    "message": "Confirmación agotada; reconecta y consulta CAD antes de volver a guardar"}
+        if (
+            not isinstance(reply, dict)
+            or reply.get("preference") != "cad"
+            or reply.get("value") is not value
+            or reply.get("acknowledged") is not True
+            or reply.get("hardware_verified") is not False
+        ):
+            raise RuntimeError("unconfirmed_firmware_preference")
+        return {"status": "ok", "scope": "firmware", "action": "set_preference",
+                "preference": "cad", "value": value, "acknowledged": True, "hardware_verified": False}
+
     async def execute(
         self,
         action: str,

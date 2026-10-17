@@ -77,15 +77,19 @@ async def test_capability_snapshot_exposes_only_safe_observations_and_is_copied(
     adapter = adapter_with_sdk()
     await observe_device(adapter)
     snapshot = adapter.firmware_capabilities
+    assert type(snapshot["session_generation"]) is int
+    assert snapshot["session_generation"] > 0
     assert snapshot == {
         "state": "present", "reason": "available", "connected": True,
         "companion_protocol": 14, "firmware_version": "v1.18.0",
         "sdk_version": version("meshcore"), "model": "Fixture LR1121", "transport": "tcp",
-        "safe_commands": ["get radio", "get freq"],
+        "safe_commands": ["get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode"],
+        "writable_preferences": ["cad"],
+        "session_generation": snapshot["session_generation"],
     }
     snapshot["safe_commands"].append("get wifi.pwd")
     snapshot["model"] = "Changed by caller"
-    assert adapter.firmware_capabilities["safe_commands"] == ["get radio", "get freq"]
+    assert adapter.firmware_capabilities["safe_commands"] == ["get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode"]
     assert adapter.firmware_capabilities["model"] == "Fixture LR1121"
 
 

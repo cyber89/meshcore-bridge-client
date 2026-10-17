@@ -133,10 +133,34 @@ async def test_firmware_http_config_exposes_capability_without_getter_or_pin(
     assert capabilities["state"] == "present"
     assert capabilities["companion_protocol"] == 14
     assert capabilities["firmware_version"] == "1.18.0"
-    assert capabilities["safe_commands"] == ["get radio", "get freq"]
+    assert capabilities["safe_commands"] == ["get radio", "get freq", "get cad", "get radio.rxgain", "get path.hash.mode"]
+    assert capabilities["writable_preferences"] == ["cad"]
     assert "654321" not in response.text
     assert "ble_pin" not in capabilities
     firmware_http.sdk_read.assert_not_awaited()
+
+
+async def test_cad_write_requires_session_csrf_and_origin_without_automatic_readback(
+    firmware_http: FirmwareHTTP,
+) -> None:
+    payload = {"action": "set_preference", "scope": "firmware", "preference": "cad", "value": True}
+    response = await firmware_http.client.post("/api/admin", json=payload)
+    assert response.status_code == 401
+    headers = await firmware_http.owner_headers()
+    response = await firmware_http.client.post("/api/admin", json=payload, headers={"Origin": "http://localhost"})
+    assert response.status_code == 403
+    response = await firmware_http.client.post("/api/admin", json=payload, headers={**headers, "Origin": "https://evil.example"})
+    assert response.status_code == 403
+    firmware_http.sdk_read.assert_not_awaited()
+    firmware_http.sdk_read.return_value = Event(EventType.CLI_REPLY, {"text": "OK"})
+    response = await firmware_http.client.post("/api/admin", json=payload, headers=headers)
+    assert response.status_code == 200
+    assert response.json()["result"] == {
+        "status": "ok", "scope": "firmware", "action": "set_preference", "preference": "cad",
+        "value": True, "acknowledged": True, "hardware_verified": False,
+    }
+    firmware_http.sdk_read.assert_awaited_once_with("set cad on")
+    firmware_http.mqtt.publish_safe.assert_not_called()
     firmware_http.mqtt.publish_safe.assert_not_called()
 
 

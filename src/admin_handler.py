@@ -361,12 +361,18 @@ class AdminCommandHandler:
 
     async def _handle(self, admin_data: dict[str, Any], *, manual: bool = False) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
-        # Firmware reads stay local before remote dispatch or string coercion.
+        # Firmware operations stay local before remote dispatch or string coercion.
         scope = admin_data.get("scope")
         cli_action = admin_data.get("action", "")
+        if cli_action == "set_preference":
+            if scope != "firmware" or set(admin_data) != {"action", "scope", "preference", "value"}:
+                raise ValueError("invalid_firmware_preference_request")
+            return await self._cli_executor.set_firmware_preference(admin_data["preference"], admin_data["value"])
         if scope == "firmware" and cli_action != "set_flood_scope":
             if cli_action not in ("", "cli") or any(
-                key in admin_data for key in ("target_node", "repeater", "target", "to", "cmd", "params", "password")
+                key in admin_data for key in (
+                    "target_node", "repeater", "target", "to", "cmd", "params", "password", "preference", "value",
+                )
             ):
                 raise ValueError("invalid_firmware_request")
             return await self._cli_executor.execute_firmware(admin_data.get("command"))

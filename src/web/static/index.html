@@ -861,11 +861,27 @@
                     <select id="firmwareCliCommand" disabled>
                       <option value="get radio" data-i18n="settings.firmware_cli_radio">Configuración de radio informada</option>
                       <option value="get freq" data-i18n="settings.firmware_cli_freq">Frecuencia informada</option>
+                      <option value="get cad" data-i18n="settings.firmware_cli_cad">Preferencia CAD informada</option>
+                      <option value="get radio.rxgain" data-i18n="settings.firmware_cli_rxgain">Preferencia de ganancia RX informada</option>
+                      <option value="get path.hash.mode" data-i18n="settings.firmware_cli_hash">Hash de ruta informado</option>
                     </select>
                   </div>
                   <div class="form-group"><button id="firmwareCliReadButton" type="submit" class="btn btn-secondary" disabled data-i18n="settings.firmware_cli_read">Consultar firmware</button></div>
                 </form>
                 <p id="firmwareCliOutput" class="form-hint font-mono" role="status" aria-live="polite"></p>
+                <form id="firmwareCadForm" class="grid-form-2col" aria-describedby="firmwareCadHint">
+                  <div class="form-group">
+                    <label for="firmwareCadValue" data-i18n="settings.firmware_cad_label">Preferencia CAD (detección de actividad del canal)</label>
+                    <select id="firmwareCadValue" disabled>
+                      <option value="" data-i18n="common.unverified">Sin verificar</option>
+                      <option value="on" data-i18n="settings.firmware_cad_on">Activado</option>
+                      <option value="off" data-i18n="settings.firmware_cad_off">Desactivado</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><button id="firmwareCadSave" class="btn btn-secondary" type="submit" disabled data-i18n="settings.firmware_cad_save">Guardar preferencia CAD</button></div>
+                  <p id="firmwareCadHint" class="form-hint span-full" data-i18n="settings.firmware_cad_hint">Consulta CAD antes de cambiarlo. El acuse y la lectura confirman preferencias; el soporte y la aplicación en hardware siguen sin verificar. RX gain se ofrece sólo en lectura; el hash conserva su editor actual.</p>
+                </form>
+                <p id="firmwareCadStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.firmware_cad_read_first">Consulta CAD manualmente para habilitar este ajuste.</p>
               </section>
               <div class="info-grid info-grid-extended">
                 <div class="metric-card">

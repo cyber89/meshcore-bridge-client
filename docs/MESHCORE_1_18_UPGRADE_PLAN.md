@@ -44,7 +44,7 @@ real, cambio de firmware, instalación operativa ni nuevos valores de timers.
 | 1 Compatibilidad mínima | Enum66, respuesta29, parser4dígitos y secretos WiFi; QA virtual en ledger2/3 | Evidencia global y cierre web documentados por separado; interoperabilidad física pendiente. |
 | 2 Capacidades/adaptador | Implementada; aceptación virtual en ledger2/3 | Capacidad desconocida/ausente/presente; dos getters seguros; serialización y errores semánticos. |
 | 3 API/web | Diagnóstico manual y selector Serial/TCP implementados; QA del selector pendiente | Contratos REST existentes ampliados, controles por capacidad y QA de navegador; sin nuevo WS. |
-| 4 Configuración avanzada | Guarda ROOM y pausa manual0 implementadas; controles por hardware pendientes | Administración remota priorizada por el usuario; preservar validación por comando y lectura posterior fiable. |
+| 4 Configuración avanzada | Guarda ROOM, pausa manual0 y preferencia CAD local on/off implementadas; QA CAD pendiente | RX gain sólo lectura por decisión del usuario; controles remotos por hardware pendientes. |
 | 5 Sensor/binario | Diseñada, pendiente | Asociación de identidad durable y decisiones de expiración/deltas/presupuesto. |
 | 6 Aceptación | Pendiente | Matriz completa aprobada y verificación física autorizada por separado. |
 
@@ -85,6 +85,11 @@ adaptador, catálogo de configuración ampliado y ámbito administrativo separad
 Allowlist inicial exacta: `get radio`, `get freq`. El bloqueo tras respuesta
 incierta se conserva hasta reconexión; no se generan prefijos ni reintentos.
 Los puntos siguientes conservan los criterios de diseño y aceptación.
+
+Extensión2026-10-17: la lista exacta incorpora `get cad`, `get radio.rxgain` y
+`get path.hash.mode`. Continúan siendo consultas locales manuales de preferencias,
+sin demostrar soporte físico. La acción estructurada de escritura CAD se describe
+en capa4 y no se admite en el ámbito de getters.
 
 Archivos previstos: `src/serial/sdk_adapter.py`, protocolo del adaptador y
 `src/admin/cli_command_executor.py`; mantener `src/admin_handler.py` como punto
@@ -174,6 +179,18 @@ CAD, ganancia RX, hash de ruta y otros parámetros realmente útiles. Cada contr
 declara capacidad, unidad, rango oficial, valor observado, efecto y necesidad de
 reinicio. Un rango convertido a uint8 no equivale a un rango operativo seguro.
 
+Decisión2026-10-17: el usuario eligió **CAD on/off; RX gain sólo lectura**.
+Se añade una acción local estructurada `set_preference`, con preferencia exacta
+`cad` y booleano estricto. La SPA exige consultar CAD manualmente antes de
+guardar y volver a consultarlo tras cada intento; no encadena lecturas. El acuse
+significa preferencia aceptada (`hardware_verified:false`), sin acreditar soporte
+del driver ni aplicación física. El firmware aplica CAD en un ciclo ya existente,
+sin timer ni reinicio añadido por el bridge. Hash conserva su editor binario0/1/2.
+Se descarta el setter RX en esta entrega porque el firmware puede persistir el
+valor incluso respondiendo `Error: unsupported`. El snapshot informa permiso de
+escritura de preferencia, nunca capacidad CAD física. Evidencia y aceptación
+pendiente: [preferencias locales](audits/2026-10-17-firmware-preferences.md).
+
 Archivos previstos: builders en `src/repeater_manager.py`, ejecutores
 `src/admin/repeater_executor.py`, ejecutor local y controladores/SPA. Los controles
 remotos comparten validación con comandos unitarios, preformateados y lotes.
@@ -233,6 +250,7 @@ companion tipo3 y permiso0x10 queda fuera de la activación inicial.
 | Investigación, parser, redacción | Cero paquetes añadidos | Ningún publicador nuevo | No cambian estado ni timers. |
 | Respuesta raw66->29 | El proxy ya transmitía; sólo cambia su respuesta | Sin reintento añadido | No crea timer periódico ni cambia cooldown. |
 | Getters Companion locales permitidos | Cero RF sólo para getters comprobados | Manual; sin encadenar publicaciones TX | Sin polling ni renovación al guardar. |
+| Preferencia CAD local on/off elegida por el usuario | Cero paquetes en lectura/escritura; afecta acceso al canal en TX futuras | Una orden manual; sin reintento, MQTT ni readback automático | Persiste el firmware; no se añaden timers ni se alteran cooldowns/airtime del bridge. |
 | Setters locales/remotos | Depende de comando; remotos pueden implicar login/comando/respuesta y hops | Gateway/locks SDK; cola TX donde exista, sin fallback doble ni temporizador nuevo | Preservar últimos disparos y cooldown SQLite; pausa manual0 elegida por usuario. |
 | Suscripciones sensor | Solicitud/renovación y pushes por suscriptor/deltas | Evitar suscripciones duplicadas y feedback MQTT | Persistir asociación y expiración antes de activar; no renovar implícitamente. |
 | Datagramas, raw o retries | Depende de tamaño/ruta/nodos; no aprobado un nuevo presupuesto | Deben pasar admisión TX y límites definidos | No timers de reenvío en RAM ni replay al arrancar. |
