@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "dd2f693e542f96bb70c9e59e6e4a30b0b37e98060802229ee0baeb2c9bd5a312",
-      "sha256": "91bdecca92c38ffe0510d1d55f4ac3e91a236b8dd76576abff831ab65737c5a2",
-      "gzip_sha256": "75237d54ce71d9f1420e654f06e7c7db7802d35c951f7607c31390613c8c02f1",
-      "source_bytes": 130271,
-      "bytes": 103690,
-      "gzip_bytes": 18781
+      "source_sha256": "a5c490b3b27a972e4f0357b611564fc2cf274ebbd92adfb6ad06fbf28a101570",
+      "sha256": "533fece2207b5e4beb7e106a4501c127b7e76d076e74a3677a577e1de2e182f2",
+      "gzip_sha256": "766f46ca65bbe30e2d8987d2af98f46c0688645ee439d8477340f4ecc72dac1e",
+      "source_bytes": 130343,
+      "bytes": 103745,
+      "gzip_bytes": 18806
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
@@ -58,12 +58,12 @@
     },
     "index.html": {
       "file": "index.html",
-      "source_sha256": "06e3ce4060c804186e7e60aface685a51336ffbff075efc642c498c01ab0b3e0",
-      "sha256": "06e3ce4060c804186e7e60aface685a51336ffbff075efc642c498c01ab0b3e0",
-      "gzip_sha256": "0e5f6c4f604ae3ea5072b0f4dab2788f0c942b84f8f1753db80d060ea4dd39b7",
-      "source_bytes": 230332,
-      "bytes": 230332,
-      "gzip_bytes": 40786
+      "source_sha256": "fc21bc01370c81ad33cd7484d4c6a9d5abc4a6be7cb19c6efaf9e3d6e89e20f4",
+      "sha256": "fc21bc01370c81ad33cd7484d4c6a9d5abc4a6be7cb19c6efaf9e3d6e89e20f4",
+      "gzip_sha256": "cb9b5d755c1d8b887ec5e0ed03339bbedce4b59692a04650946d8fde13ac5093",
+      "source_bytes": 234313,
+      "bytes": 234313,
+      "gzip_bytes": 41574
     },
     "js/app.js": {
       "file": "js/app.min.js",
@@ -184,12 +184,12 @@
     },
     "js/i18n.js": {
       "file": "js/i18n.min.js",
-      "source_sha256": "3f53b161a585fee416f749825c5099fdbade8549375d61564ee2909db492e9b4",
-      "sha256": "920d1aa01047385ce2b6defe6a04810cb4938402e74bb0dfb4ca4d678c802a70",
-      "gzip_sha256": "50024089d985ce6942e222c6874665e34c4213977f88c57b736ce69bd713e12d",
-      "source_bytes": 214388,
-      "bytes": 174741,
-      "gzip_bytes": 52969
+      "source_sha256": "af7fccb95eddc9282a0975b2004d7b43278a99068cceedacc884d23ee0075cd6",
+      "sha256": "6c120bd83cc40813ccf1b183c11ff6674221ef6617d9738fde4e0cadcaca1c15",
+      "gzip_sha256": "f3c71993a14753217a56e92d6f5d9070190dddcb1e73c42427585ac9ab0cb554",
+      "source_bytes": 217988,
+      "bytes": 178021,
+      "gzip_bytes": 53915
     },
     "js/leaflet.js": {
       "file": "js/leaflet.min.js",
@@ -247,12 +247,12 @@
     },
     "js/modules/settings.js": {
       "file": "js/modules/settings.min.js",
-      "source_sha256": "051bdb6ef0f6f6faa59786526b1f42ec72f720940171214cb5dcef04036c2ffd",
-      "sha256": "a21872bd05ea1f2d886ff7a30833fc3278453490efa47c1f25e80dc859b2705d",
-      "gzip_sha256": "959cd9070714b0fce5708e90aa02d8a0b98563b87048e45f85c31d99e071746d",
-      "source_bytes": 141214,
-      "bytes": 94460,
-      "gzip_bytes": 20817
+      "source_sha256": "f376a97e403caf4d24f3f7c3f36ae3beb7762a61223fa0ce4ea964ab8fa1383a",
+      "sha256": "5c49432486fa4525735000bd158c90bbd5d1a8bfb1fb5c5989de5b3f08d5ebc1",
+      "gzip_sha256": "3f44ef04567801f975743c018de60fc07da7e17b412dba7f37cf080ebcf10cd8",
+      "source_bytes": 147669,
+      "bytes": 98861,
+      "gzip_bytes": 21860
     },
     "js/modules/sniffer.js": {
       "file": "js/modules/sniffer.min.js",

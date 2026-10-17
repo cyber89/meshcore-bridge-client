@@ -1583,6 +1583,42 @@
 
             <!-- Subpanel 7: Servicios de Red (MQTT Local/Externo & TCP Companion) -->
             <div id="local-services" class="local-settings-subpanel">
+              <section class="card-panel settings-panel-spaced" aria-labelledby="companionConnectionTitle">
+                <h3 id="companionConnectionTitle" data-i18n="settings.connection_title">Conexión con el transceptor</h3>
+                <p class="panel-desc" id="companionConnectionHint" data-i18n="settings.connection_hint">Elige USB/Serial o el cliente TCP hacia la radio. Guardar prepara el próximo arranque del bridge; la conexión activa continúa hasta reiniciarlo manualmente. El servidor TCP para otros clientes se configura por separado.</p>
+                <dl class="grid-form-3col">
+                  <div><dt data-i18n="settings.connection_active">Conexión activa</dt><dd id="companionConnectionActive" class="text-break">—</dd></div>
+                  <div><dt data-i18n="settings.connection_effective">Destino para el próximo arranque</dt><dd id="companionConnectionEffective" class="text-break">—</dd></div>
+                </dl>
+                <form id="companionConnectionForm" aria-describedby="companionConnectionHint">
+                  <fieldset id="companionConnectionFields" class="grid-form-3col" disabled>
+                    <legend class="visually-hidden" data-i18n="settings.connection_title">Conexión con el transceptor</legend>
+                    <div class="form-group">
+                      <label for="companionConnectionMode" data-i18n="settings.connection_mode">Origen de la conexión</label>
+                      <select id="companionConnectionMode" class="form-control">
+                        <option value="env" data-i18n="settings.connection_env">Heredar SERIAL_PORT del entorno</option>
+                        <option value="serial" data-i18n="settings.connection_serial">USB / Serial</option>
+                        <option value="tcp" data-i18n="settings.connection_tcp">Cliente TCP hacia la radio</option>
+                      </select>
+                    </div>
+                    <div id="companionConnectionSerialGroup" class="form-group hidden">
+                      <label for="companionConnectionSerial" data-i18n="settings.connection_device">Puerto o ruta (AUTO, COM7, /dev/ttyACM0)</label>
+                      <input id="companionConnectionSerial" class="form-control" type="text" autocomplete="off" spellcheck="false" disabled />
+                    </div>
+                    <div id="companionConnectionHostGroup" class="form-group hidden">
+                      <label for="companionConnectionHost" data-i18n="settings.connection_host">Host de la radio (DNS o IPv4)</label>
+                      <input id="companionConnectionHost" class="form-control" type="text" autocomplete="off" spellcheck="false" aria-describedby="companionConnectionTcpHint" disabled />
+                    </div>
+                    <div id="companionConnectionPortGroup" class="form-group hidden">
+                      <label for="companionConnectionPort" data-i18n="settings.connection_port">Puerto TCP de la radio</label>
+                      <input id="companionConnectionPort" class="form-control" type="number" min="1" max="65535" step="1" inputmode="numeric" aria-describedby="companionConnectionTcpHint" disabled />
+                    </div>
+                    <p id="companionConnectionTcpHint" class="form-hint span-full hidden" data-i18n="settings.connection_tcp_hint">Introduce el puerto explícitamente. Usa un host DNS o IPv4, sin credenciales ni rutas. IPv6 todavía no está admitido.</p>
+                    <div class="form-group"><button id="companionConnectionSave" type="submit" class="btn btn-secondary" data-i18n="settings.connection_save">Guardar para el próximo arranque</button></div>
+                  </fieldset>
+                </form>
+                <p id="companionConnectionStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.connection_loading">Cargando la configuración de conexión…</p>
+              </section>
               <div class="settings-content-layout">
                 <div class="settings-cards-col settings-stack">
 

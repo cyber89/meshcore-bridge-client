@@ -16,6 +16,8 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any
 
+import config
+from src.companion_connection import companion_connection_snapshot, normalize_companion_port
 from src.external_mqtt_client import ExternalBridgeMQTTClient
 from src.services_config import (
     MASKED_PASSWORD,
@@ -98,12 +100,22 @@ class ServicesController(BaseController):
             cfg = load_services_config()
 
         data = to_redacted_dict(cfg)
+        data["companion_connection"] = self._companion_connection(cfg)
         mgr = getattr(self.ctx.bridge, "services_manager", None)
         if mgr and getattr(mgr, "external_mqtt", None):
             data["external_mqtt_connected"] = bool(getattr(mgr.external_mqtt, "is_connected", False))
         else:
             data["external_mqtt_connected"] = False
         return 200, {"status": "ok", "data": data}
+
+    def _companion_connection(self, cfg: ServicesConfig) -> dict[str, str | bool]:
+        adapter = getattr(self.ctx.bridge, "serial_adapter", None)
+        return companion_connection_snapshot(
+            cfg.companion_port,
+            config.SERIAL_PORT,
+            str(getattr(adapter, "port", "")),
+            getattr(self.ctx.bridge, "_companion_startup_port", None),
+        )
 
     async def set_services_config(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Actualiza y recarga en caliente la configuración de servicios de red."""
@@ -121,6 +133,17 @@ class ServicesController(BaseController):
             return problem_details(
                 400, "Bad Request", "El cuerpo de la solicitud debe ser un objeto JSON válido.", "invalid_json"
             )
+
+        if "companion_port" in body:
+            try:
+                endpoint = normalize_companion_port(body["companion_port"])
+            except ValueError:
+                return problem_details(
+                    422, "Unprocessable Entity",
+                    "Companion requiere AUTO, un puerto COM, una ruta absoluta o tcp://host:puerto (1..65535), sin credenciales ni IPv6.",
+                    "invalid_companion_port",
+                )
+            body = {**body, "companion_port": endpoint}
 
         # Validación de External MQTT si está presente
         ext = body.get("external_mqtt")
@@ -197,6 +220,8 @@ class ServicesController(BaseController):
 
             cfg = getattr(self.ctx.bridge, "services_config", None)
             data = to_redacted_dict(cfg) if cfg else {}
+            if cfg is not None:
+                data["companion_connection"] = self._companion_connection(cfg)
 
             self.ctx.log_system_event(
                 "INFO",

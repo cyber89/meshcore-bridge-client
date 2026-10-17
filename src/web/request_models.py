@@ -262,6 +262,7 @@ class ServicesBodyDTO(MqttPresetBodyDTO):
     external_mqtt: Any = None
     local_mqtt: Any = None
     tcp_server: Any = None
+    companion_port: Any = None
 
 
 class SystemBodyDTO(CompatibilityBodyDTO):

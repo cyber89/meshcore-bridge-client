@@ -640,8 +640,9 @@ class MeshCoreBridge:
     def _create_serial_adapter(self) -> BaseSerialAdapter:
         """Select the official physical transport; memory framing is not a UART."""
         try:
+            self._companion_startup_port = self.services_config.companion_port or config.SERIAL_PORT
             return MeshcoreSDKAdapter(
-                port=config.SERIAL_PORT,
+                port=self._companion_startup_port,
                 baud_rate=config.BAUD_RATE,
                 timeout_sec=config.SERIAL_TIMEOUT,
                 node_registry=self.node_registry,

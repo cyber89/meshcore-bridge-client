@@ -17,6 +17,27 @@ Las rutas REST reciben `Request` y delegan en `WebAPIRouter.handle_request()`; l
 
 El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 
+### Selección del transporte Companion desde la SPA (2026-10-17)
+
+En Ajustes → Servicios & Red, el formulario de conexión guarda `companion_port`
+mediante el GET/POST existente `/api/services/config`. La preferencia se conserva
+en el documento `services` de SQLite mediante `ServicesManager`; una cadena vacía
+hereda `SERIAL_PORT` del entorno, también al cargar documentos anteriores.
+`MeshCoreBridge._create_serial_adapter()` usa la preferencia en el próximo
+arranque y captura el destino solicitado antes de que AUTO resuelva el puerto.
+Guardar únicamente esa preferencia no reconecta el adaptador ni recarga servicios.
+El operador reinicia el proceso manualmente para aplicarla.
+
+La proyección privada `data.companion_connection` distingue `configured_port`,
+`effective_port`, `active_port` y `restart_required`. El cliente TCP hacia una
+radio es independiente de `tcp_server`, que recibe conexiones de otros clientes.
+La validación pura compartida rechaza credenciales, URI con ruta/query/fragment,
+puerto TCP ausente o fuera de1..65535 y hosts IPv6, todavía incompatibles con el
+parser del adaptador. No se crean rutas REST ni eventos WebSocket adicionales;
+sesiones, CSRF, API key y Origin conservan las políticas del endpoint existente.
+La [entrega del selector](audits/2026-10-17-companion-connection.md) separa
+comprobaciones estáticas y regresiones escritas de QA todavía no ejecutado.
+
 ## 1.1 Mapas Interactivos de Arquitectura (Generados con Archify)
 El sistema cuenta con mapas interactivos de alta fidelidad compilados determinísticamente con el motor [**Archify** (`tt-a1i/archify`)](https://github.com/tt-a1i/archify). Estos artefactos son completamente autónomos en **HTML + SVG**, no requieren conexión a internet y cuentan con soporte para tema Claro/Oscuro, modos visuales (*classic*, *signal-flow*, *blueprint*), zoom, paneo, búsqueda y capítulos guiados:
 

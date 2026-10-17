@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, get_type_hints
 
 import config
+from src.companion_connection import normalize_companion_port, safe_companion_port
 from src.station_database import StationDatabase
 
 logger = logging.getLogger("meshcore.services_config")
@@ -242,6 +243,7 @@ class ServicesConfig:
     local_mqtt: LocalMqttConfig = field(default_factory=LocalMqttConfig)
     tcp_server: TcpServerConfig = field(default_factory=TcpServerConfig)
     custom_presets: list[MqttPreset] = field(default_factory=list)
+    companion_port: str = ""  # Empty inherits SERIAL_PORT; applied at bridge startup.
 
 
 def _bootstrap_from_env() -> ServicesConfig:
@@ -386,6 +388,7 @@ def _services_from_document(raw: Any) -> ServicesConfig:
         local_mqtt=LocalMqttConfig(**clean_loc),
         tcp_server=TcpServerConfig(**clean_tcp),
         custom_presets=custom_presets,
+        companion_port=normalize_companion_port(raw.get("companion_port", "")),
     )
 
 def save_services_config(cfg: ServicesConfig, file_path: Path | None = None, *, database: StationDatabase | None = None) -> None:
@@ -408,6 +411,7 @@ async def save_services_config_async(cfg: ServicesConfig, file_path: Path | None
 def to_redacted_dict(cfg: ServicesConfig) -> dict[str, Any]:
     """Serializa la configuración para la API REST enmascarando contraseñas y tokens sensibles."""
     d = asdict(cfg)
+    d["companion_port"] = safe_companion_port(cfg.companion_port)
 
     # Redactar contraseñas
     ext = d.get("external_mqtt", {})
@@ -446,6 +450,8 @@ def update_services_config(
 ) -> ServicesConfig:
     """Aplica mutaciones validadas preservando contraseñas existentes si se reciben enmascaradas."""
     new_cfg = copy.deepcopy(current)
+    if "companion_port" in updates:
+        new_cfg.companion_port = normalize_companion_port(updates["companion_port"])
 
     if "external_mqtt" in updates and isinstance(updates["external_mqtt"], dict):
         ext_in = updates["external_mqtt"]

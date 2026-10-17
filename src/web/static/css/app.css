@@ -3547,6 +3547,12 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, max(14rem, calc((100% - 2 * var(--space-md)) / 3))), 1fr));
 }
 
+#companionConnectionFields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
 .grid-form-2col > *,
 .grid-form-3col > * {
   min-width: 0;

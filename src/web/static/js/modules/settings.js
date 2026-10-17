@@ -39,6 +39,10 @@ export class SettingsModule {
     this.servicesPresets = [];
     this._isSavingServices = false;
     this._isTestingExtMqtt = false;
+    this._companionConnection = null;
+    this._companionDirty = false;
+    this._companionBusy = false;
+    this._companionReadSequence = 0;
     this.dom = {};
   }
 
@@ -68,6 +72,7 @@ export class SettingsModule {
     if (this.servicesConfig) {
       this._updateServicesStatusBadge(this.servicesConfig);
     }
+    this._renderCompanionConnection();
   }
 
   _startLiveTick() {
@@ -251,6 +256,18 @@ export class SettingsModule {
   }
 
   _bindEvents() {
+    document.getElementById("companionConnectionForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this._saveCompanionConnection();
+    });
+    document.getElementById("companionConnectionForm")?.addEventListener("input", () => {
+      this._companionDirty = true;
+      this._renderCompanionConnection();
+    });
+    document.getElementById("companionConnectionMode")?.addEventListener("change", () => {
+      this._companionDirty = true;
+      this._renderCompanionConnection();
+    });
     document.getElementById("firmwareCliReadForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
       this._readFirmwareDiagnostic();
@@ -2697,6 +2714,7 @@ export class SettingsModule {
   }
 
   async loadServicesConfig() {
+    const companionReadSequence = ++this._companionReadSequence;
     try {
       const res = await fetch("/api/services/config", {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
@@ -2710,8 +2728,117 @@ export class SettingsModule {
 
       this._renderServicesPresetsDropdown(this.servicesPresets, data.external_mqtt?.selected_preset_id);
       this._populateServicesForm(data);
+      if (companionReadSequence === this._companionReadSequence && !this._companionBusy) {
+        this._populateCompanionConnection(data);
+      }
     } catch (err) {
       console.warn("Error cargando configuración de servicios:", err);
+      if (companionReadSequence === this._companionReadSequence && !this._companionConnection) {
+        const status = document.getElementById("companionConnectionStatus");
+        if (status) status.textContent = I18n.t("forms.network_error");
+      }
+    }
+  }
+
+  _populateCompanionConnection(data) {
+    const snapshot = data?.companion_connection;
+    if (!snapshot || typeof snapshot.configured_port !== "string") return;
+    this._companionConnection = snapshot;
+    if (!this._companionDirty) {
+      const endpoint = snapshot.configured_port;
+      const tcp = /^tcp:\/\/([^:]+):(\d+)$/.exec(endpoint);
+      const mode = document.getElementById("companionConnectionMode");
+      if (mode) mode.value = !endpoint ? "env" : (tcp ? "tcp" : "serial");
+      const serial = document.getElementById("companionConnectionSerial");
+      if (serial) serial.value = endpoint && !tcp ? endpoint : "AUTO";
+      const host = document.getElementById("companionConnectionHost");
+      if (host) host.value = tcp?.[1] || "";
+      const port = document.getElementById("companionConnectionPort");
+      if (port) port.value = tcp?.[2] || "";
+    }
+    this._renderCompanionConnection();
+  }
+
+  _renderCompanionConnection() {
+    const snapshot = this._companionConnection;
+    const fields = document.getElementById("companionConnectionFields");
+    if (fields) fields.disabled = !snapshot || this._companionBusy;
+    const mode = document.getElementById("companionConnectionMode")?.value;
+    for (const [suffix, visible] of [["Serial", mode === "serial"], ["Host", mode === "tcp"], ["Port", mode === "tcp"]]) {
+      document.getElementById(`companionConnection${suffix}Group`)?.classList.toggle("hidden", !visible);
+      const input = document.getElementById(`companionConnection${suffix}`);
+      if (input) {
+        input.disabled = !visible;
+        input.required = visible;
+      }
+    }
+    document.getElementById("companionConnectionTcpHint")?.classList.toggle("hidden", mode !== "tcp");
+    for (const [suffix, value] of [["Active", snapshot?.active_port], ["Effective", snapshot?.effective_port]]) {
+      const element = document.getElementById(`companionConnection${suffix}`);
+      if (element) element.textContent = value || I18n.t("common.unverified");
+    }
+    const status = document.getElementById("companionConnectionStatus");
+    if (status) status.textContent = I18n.t(this._companionBusy ? "settings.connection_saving"
+      : !snapshot ? "settings.connection_loading"
+        : this._companionDirty ? "settings.connection_draft"
+          : snapshot.restart_required ? "settings.connection_restart" : "settings.connection_ready");
+  }
+
+  async _saveCompanionConnection() {
+    if (this._companionBusy || !this._companionConnection) return;
+    const mode = document.getElementById("companionConnectionMode")?.value;
+    let endpoint = "";
+    if (mode === "tcp") {
+      const host = document.getElementById("companionConnectionHost");
+      const port = document.getElementById("companionConnectionPort");
+      const hostname = host?.value.trim() || "";
+      const portText = port?.value || "";
+      const dnsName = hostname.replace(/\.$/, "");
+      const ipv4Valid = !/^[\d.]+$/.test(dnsName) || (dnsName.split(".").length === 4
+        && dnsName.split(".").every(octet => /^(0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255));
+      const hostValid = ipv4Valid && dnsName.length <= 253 && dnsName.split(".").every(label =>
+        /^[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?$/i.test(label));
+      if (!hostValid || !/^\d{1,5}$/.test(portText) || Number(portText) < 1 || Number(portText) > 65535) {
+        this._notify(I18n.t("settings.connection_invalid_tcp"), "error");
+        (hostValid ? port : host)?.focus();
+        return;
+      }
+      endpoint = `tcp://${hostname}:${Number(portText)}`;
+    } else if (mode === "serial") {
+      endpoint = document.getElementById("companionConnectionSerial")?.value.trim() || "";
+      const serialValid = /^(AUTO|DETECT|DEFAULT|COM[1-9]\d*)$/i.test(endpoint)
+        || (endpoint.startsWith("/") && endpoint.length > 1 && !endpoint.includes(":"))
+        || (/^[a-z]:[\\/]/i.test(endpoint) && !endpoint.slice(2).includes(":"));
+      if (!serialValid || /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}@?#]/u.test(endpoint) || endpoint.includes("://")) {
+        this._notify(I18n.t("settings.connection_invalid_serial"), "error");
+        return;
+      }
+    }
+    ++this._companionReadSequence;
+    this._companionBusy = true;
+    this._renderCompanionConnection();
+    let errorMessage = "";
+    try {
+      const response = await fetch("/api/services/config", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders
+          ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" })
+          : { "Content-Type": "application/json" },
+        body: JSON.stringify({ companion_port: endpoint }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body.status !== "ok" || !body.data?.companion_connection) {
+        throw new Error(body.detail || body.message || I18n.t("forms.request_failed"));
+      }
+      this._companionDirty = false;
+      this._populateCompanionConnection(body.data);
+    } catch (error) {
+      errorMessage = error.message || I18n.t("forms.network_error");
+    } finally {
+      this._companionBusy = false;
+      this._renderCompanionConnection();
+      const status = document.getElementById("companionConnectionStatus");
+      if (errorMessage && status) status.textContent = errorMessage;
     }
   }
 

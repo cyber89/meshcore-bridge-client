@@ -43,7 +43,7 @@ real, cambio de firmware, instalación operativa ni nuevos valores de timers.
 | 0 Fuentes | Investigación corregida y ampliada | Diferenciar novedades de funciones previas; contratos con fuente por SHA. |
 | 1 Compatibilidad mínima | Enum66, respuesta29, parser4dígitos y secretos WiFi; QA virtual en ledger2/3 | Evidencia global y cierre web documentados por separado; interoperabilidad física pendiente. |
 | 2 Capacidades/adaptador | Implementada; aceptación virtual en ledger2/3 | Capacidad desconocida/ausente/presente; dos getters seguros; serialización y errores semánticos. |
-| 3 API/web | Diagnóstico manual implementado; selector TCP pendiente | Contratos REST existentes ampliados, controles por capacidad y QA de navegador; sin nuevo WS. |
+| 3 API/web | Diagnóstico manual y selector Serial/TCP implementados; QA del selector pendiente | Contratos REST existentes ampliados, controles por capacidad y QA de navegador; sin nuevo WS. |
 | 4 Configuración avanzada | Guarda ROOM y pausa manual0 implementadas; controles por hardware pendientes | Administración remota priorizada por el usuario; preservar validación por comando y lectura posterior fiable. |
 | 5 Sensor/binario | Diseñada, pendiente | Asociación de identidad durable y decisiones de expiración/deltas/presupuesto. |
 | 6 Aceptación | Pendiente | Matriz completa aprobada y verificación física autorizada por separado. |
@@ -126,8 +126,9 @@ si la capacidad es positiva.
 Implementación2026-10-16: snapshot bajo configuración existente y ámbito
 `scope:"firmware"` en POST `/api/admin`; bloque manual ES/EN en Ajustes,
 Telemetría y Estado. No se añadió endpoint ni evento WebSocket. El selector TCP
-de la segunda parte de esta capa continúa pendiente. Aceptación y límites en
-el ledger2/3 enlazado al inicio; no certificar implementación integral de capa3.
+se añadió el2026-10-17 como preferencia de próximo arranque, sin reconexión al
+guardar. Aceptación del diagnóstico en el ledger2/3 enlazado al inicio; el
+selector conserva su propia aceptación pendiente de pruebas autorizadas.
 
 Archivos previstos: `src/web/controllers/config_controller.py`, catálogo/rutas y
 OpenAPI ASGI, `src/web/static/js/modules/settings.js`, plantilla e i18n.
@@ -152,8 +153,14 @@ capacidad; documentar campos y consumidores si se amplía.
 
 Conexión: reutilizar `tcp://host:puerto` del driver. Explicar y validar puerto
 explícito; distinguir el servidor TCP del bridge y el cliente hacia la radio.
-La selección del transporte en web es trabajo pendiente, no una capacidad ya
-presente sólo porque el backend lo admita. No mostrar credenciales en URI.
+La web permite heredar `SERIAL_PORT`, elegir USB/Serial o indicar host DNS/IPv4
+y puerto TCP explícito. `companion_port` se guarda en el documento SQLite de
+servicios mediante GET/POST `/api/services/config`; vacío hereda el entorno.
+La respuesta distingue destino de próximo arranque y puerto activo; el operador
+reinicia manualmente el proceso para aplicarlo. No se cambian transportes al
+guardar ni se consulta conectividad. IPv6 queda pendiente porque el adaptador
+actual divide la autoridad TCP por el primer `:`. No se admiten credenciales en
+URI. Contrato y evidencia: [selector de conexión](audits/2026-10-17-companion-connection.md).
 
 Aceptación: sesión/CSRF, lectura privada, firmware antiguo/desconectado,
 preservación de formularios editados, errores y respuesta WS; desktop1920x1080
