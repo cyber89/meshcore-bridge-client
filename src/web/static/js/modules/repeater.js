@@ -58,6 +58,10 @@ export class RepeaterModule {
   }
 
   _resetModalInputs() {
+    if (this._modalPingInterval) {
+      clearInterval(this._modalPingInterval);
+      this._modalPingInterval = null;
+    }
     this._clearRemotePreferences();
     ++this._modalRevision;
     ++this._observationRevision;

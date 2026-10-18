@@ -3475,7 +3475,6 @@
 
     // Global search hint & Header metrics
     { s: '.search-hint',                 k: 'search.global_placeholder' },
-    { s: '#globalSearchInput',           k: 'search.global_placeholder', a: 'placeholder' },
     { s: '.header-metrics .metric-chip:nth-child(1)', k: 'header.active_nodes', a: 'title' },
     { s: '.header-metrics .metric-chip:nth-child(2)', k: 'header.rx_packets', a: 'title' },
     { s: '.header-metrics .metric-chip:nth-child(3)', k: 'header.tx_packets', a: 'title' },
@@ -3505,7 +3504,7 @@
     { s: '#btnImportData',               k: 'chat.import_channel_title', a: 'title' },
     { s: '#chatInputText',               k: 'chat.input_placeholder', a: 'placeholder' },
     { s: '#clearChatBtn',                k: 'chat.clear', last: true },
-    { s: '#btnShareLocation',            k: 'chat.share_location_title', a: 'title' },
+    { s: '#attachOptionLocation',        k: 'chat.share_location_title', a: 'title' },
     { s: '#btnSendMsg .btn-text',        k: 'chat.send' },
 
     // Nodes section
@@ -3543,18 +3542,8 @@
     { s: '#btnRefreshAnalytics',         k: 'analytics.refresh', last: true },
     { s: '#btnResetMetricsText',         k: 'analytics.reset', last: true },
     { s: '#btnResetMetrics',             k: 'analytics.reset_title', a: 'title' },
-    { s: '#cardKpiPackets .kpi-label',   k: 'analytics.kpi_packets' },
-    { s: '#cardKpiNodes .kpi-label',     k: 'analytics.kpi_nodes' },
-    { s: '#cardKpiErrorRate .kpi-label', k: 'analytics.kpi_error_rate' },
-    { s: '#cardKpiQueue .kpi-label',     k: 'analytics.kpi_queue' },
     { s: '#cardTopActive .analytics-card-header h3', k: 'analytics.top_active', last: true },
     { s: '#cardTopActive .analytics-card-header p',  k: 'analytics.top_active_sub' },
-    { s: '#cardSignal .analytics-card-header h3',    k: 'analytics.signal', last: true },
-    { s: '#cardSignal .analytics-card-header p',     k: 'analytics.signal_sub' },
-    { s: '#cardRepeaters .analytics-card-header h3', k: 'analytics.repeaters', last: true },
-    { s: '#cardRepeaters .analytics-card-header p',  k: 'analytics.repeaters_sub' },
-    { s: '#cardBridge .analytics-card-header h3',    k: 'analytics.bridge', last: true },
-    { s: '#cardBridge .analytics-card-header p',     k: 'analytics.bridge_sub' },
 
     // Logs section
     { s: '#btnSubtabLogs',               k: 'logs.subtab_logs', last: true },
