@@ -121,7 +121,6 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
         await super().put(item)
 
     def _put(self, item: Any) -> None:
-        self._evict_low_priority_if_needed()
         self._seq += 1
         if isinstance(item, TxItem):
             wrapped = item

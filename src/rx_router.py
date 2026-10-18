@@ -445,7 +445,6 @@ class RxEventRouter:
         loop = self._ctx.loop
         if loop is None or not loop.is_running():
             loop = asyncio.get_running_loop()
-        self._rx_workers.difference_update([task for task in self._rx_workers if task.done()])
         if len(self._rx_workers) < self._rx_workers_limit:
             task = loop.create_task(self._drain_rx_work(), name="MeshCoreRxWorker")
             self._rx_workers.add(task)
