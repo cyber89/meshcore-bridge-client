@@ -161,7 +161,7 @@ body.auth-pending > #app { display: none !important; }
   --bg-canvas: var(--bs-body-bg);
   --bg-surface: var(--bs-body-bg);
   --bg-surface-elevated: var(--bs-tertiary-bg);
-  --bg-tertiary: var(--bs-tertiary-bg);
+  --bg-tertiary: var(--bg-surface-elevated);
 
   /* Tokens de Texto */
   --text-main: var(--bs-body-color);
@@ -214,6 +214,9 @@ body.auth-pending > #app { display: none !important; }
   --control-transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
   --chat-divider: #7c8aa0;
   --chat-time-outgoing: #eaf2ff;
+  /* Consoles keep a dark surface in both application themes. */
+  --term-muted: #afbdd1;
+  --term-accent: #93c5fd;
 
   /* Tipografía Fluida Progresiva (WCAG 2.2 / Modern CSS) */
   --font-fluid-body: clamp(0.8125rem, 0.77rem + 0.25vw, 0.9375rem);
@@ -226,6 +229,7 @@ body.auth-pending > #app { display: none !important; }
   --bs-body-bg-rgb: 12, 20, 36;
   --bs-body-color: #e7edf7;
   --bs-body-color-rgb: 231, 237, 247;
+  --bs-code-color: #e6a6cf;
   --bs-secondary-color: #afbdd1;
   --bs-tertiary-bg: #1b2c44;
   --bs-secondary-bg: #263b56;
@@ -278,6 +282,7 @@ body.auth-pending > #app { display: none !important; }
   --bs-body-bg-rgb: 241, 245, 249;
   --bs-body-color: #1e293b; /* Texto pizarra oscuro de alta legibilidad */
   --bs-body-color-rgb: 30, 41, 59;
+  --bs-code-color: #98245d;
   --bs-secondary-color: #526176; /* Texto secundario sobre superficies claras */
   --bs-tertiary-bg: #e2e8f0; /* Fondos de herramientas y barras auxiliares */
   --bg-surface-elevated: #f8fafc;
@@ -1337,12 +1342,13 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   color: var(--bs-primary);
 }
 
-[data-bs-theme="dark"] .leaflet-control-attribution {
-  background: var(--map-overlay-bg, rgba(15, 23, 42, 0.85));
+/* Include the container to outrank Leaflet's later-loaded attribution rule. */
+[data-bs-theme] .leaflet-container .leaflet-control-attribution {
+  background: var(--map-overlay-bg);
   color: var(--bs-secondary-color);
 }
 
-[data-bs-theme="dark"] .leaflet-control-attribution a {
+[data-bs-theme] .leaflet-container .leaflet-control-attribution a {
   color: var(--bs-primary);
 }
 
@@ -2532,7 +2538,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 .logs-empty-state {
-  color: var(--text-muted);
+  color: var(--term-muted);
   font-style: italic;
   padding: 8px;
 }
@@ -2685,7 +2691,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 .log-mod {
-  color: #8bc6ff;
+  color: var(--term-accent);
   font-weight: 600;
   flex-shrink: 0;
   max-width: 140px;
@@ -3244,7 +3250,12 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 .badge-primary { background-color: var(--primary-fill); color: #fff; }
 .badge.bg-primary { background-color: var(--primary-fill) !important; }
-.badge-secondary { background-color: var(--bs-secondary-bg, rgba(148, 163, 184, 0.16)); color: var(--bs-secondary-color, #94a3b8); border: 1px solid rgba(148, 163, 184, 0.28); }
+.badge-secondary,
+#dmCountBadge {
+  background-color: var(--bg-surface-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
 .badge-outline { background-color: transparent; color: var(--bs-secondary-color, #94a3b8); border: 1px dashed rgba(148, 163, 184, 0.45); }
 .badge-active { background-color: rgba(16, 185, 129, 0.2) !important; color: var(--accent-success, #10b981) !important; border-color: rgba(16, 185, 129, 0.45) !important; }
 .badge-info, .badge.bg-info { background-color: var(--control-info-fill) !important; color: #fff; }

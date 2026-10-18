@@ -30,6 +30,9 @@ async def _settle_motion(element: Locator) -> None:
 async def _reload_after_startup(page: Page) -> None:
     # Reload checks replace the document deliberately; first finish its API reads
     # so the shared fixture can still reject every unexpected local failure.
+    # Channels can appear before analytics starts; networkidle alone can precede
+    # that module's initial requests. Wait for its explicit completion state.
+    await expect(page.locator("#tab-analytics")).to_have_attribute("aria-busy", "false")
     await page.wait_for_load_state("networkidle")
     await page.reload()
 
@@ -56,8 +59,9 @@ async def _apply_theme(page: Page, theme: str) -> None:
     }""", theme)
     await page.wait_for_function("""theme => {
         const stylesheet = document.getElementById('themeStylesheet');
-        return stylesheet?.sheet && stylesheet.href.endsWith(
-            theme === 'dark' ? '/css/bootstrap-slate.min.css' : '/css/bootstrap-zephyr.min.css');
+        const paths = theme === 'dark' ? ['/css/bootstrap-slate.min.css']
+            : ['/css/bootstrap-zephyr.min.css', '/css/bootstrap-zephyr.local.min.css'];
+        return stylesheet?.sheet && paths.some(path => stylesheet.href.endsWith(path));
     }""", arg=theme)
 
 
