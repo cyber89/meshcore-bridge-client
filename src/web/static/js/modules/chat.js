@@ -1,6 +1,6 @@
 /**
  * ChatModule - Mensajería de texto para canales broadcast, canales cifrados y mensajes directos (DM).
- * Incluye tracking de entrega (ACKs), alertas sonoras e historial persistente IndexedDB.
+ * Incluye tracking de entrega (ACKs), alertas sonoras y caché IndexedDB del historial SQLite.
  */
 
 import {
@@ -16,9 +16,12 @@ import {
   MESHCORE_PUBLIC_CHANNEL_SECRET,
   MAX_LORA_TEXT_BYTES,
   getUtf8ByteLength,
+  splitUtf8Message,
   estimateLoraAirtimeMs,
   formatRelativeTime,
   getDateGroupLabel,
+  readLocalPreference,
+  writeLocalPreference,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 import { mergeMessage, messageIdentity } from "../core/storage.js";
@@ -37,7 +40,8 @@ export class ChatModule {
     this._historyStates = new Map();
     this._visibleFeedKey = null;
     this._historyAccessDenied = false;
-    this.chatSoundEnabled = localStorage.getItem("meshcore_chat_sound_enabled") !== "false";
+    this.chatSoundEnabled = readLocalPreference("meshcore_chat_sound_enabled") !== "false";
+    this._sending = false;
     this._audioCtx = null;
     this.dom = {};
 
@@ -324,7 +328,7 @@ export class ChatModule {
       this.dom.chkChatSoundAlerts.checked = this.chatSoundEnabled;
       this.dom.chkChatSoundAlerts.addEventListener("change", (e) => {
         this.chatSoundEnabled = e.target.checked;
-        localStorage.setItem("meshcore_chat_sound_enabled", String(this.chatSoundEnabled));
+        writeLocalPreference("meshcore_chat_sound_enabled", this.chatSoundEnabled);
         if (this.chatSoundEnabled) {
           this.playNotificationChime();
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('chat.sound_on'), "info");
@@ -830,7 +834,7 @@ export class ChatModule {
     if (!this.dom.chatInputText || !this.dom.chatCharCounter) return;
     const text = this.dom.chatInputText.value || "";
     const byteLen = getUtf8ByteLength(text);
-    const maxBytes = MAX_LORA_TEXT_BYTES;
+    const chunks = splitUtf8Message(text, MAX_LORA_TEXT_BYTES);
     const charCount = [...text].length;
 
     // Obtener parámetros RF de modulación en vivo del nodo
@@ -838,25 +842,19 @@ export class ChatModule {
     const sf = Number(cfg.spreading_factor || cfg.sf || 11);
     const bw = Number(cfg.bandwidth || cfg.bw || 250);
     const cr = Number(cfg.coding_rate || cfg.cr || 5);
-    const airtimeMs = byteLen > 0 ? estimateLoraAirtimeMs(byteLen, sf, bw, cr) : 0;
+    const airtimeMs = chunks.reduce((total, chunk) => total + estimateLoraAirtimeMs(getUtf8ByteLength(chunk), sf, bw, cr), 0);
 
-    // Actualizar texto del badge
-    this.dom.chatCharCounter.textContent = `${byteLen} / ${maxBytes} B`;
+    // Actualizar texto del badge sin límite forzado
+    this.dom.chatCharCounter.textContent = chunks.length > 1 ? `${byteLen} B (${chunks.length} pkts)` : `${byteLen} B`;
 
     // Tooltip informativo con ocupación estimada de espectro
-    this.dom.chatCharCounter.title = I18n.t("chat.payload_title", { p0: byteLen, p1: maxBytes, p2: charCount, p3: sf, p4: bw, p5: airtimeMs });
+    this.dom.chatCharCounter.title = chunks.length > 1
+      ? I18n.t("chat.fragmented_payload_title", { bytes: byteLen, packets: chunks.length, max: MAX_LORA_TEXT_BYTES, sf, bw, airtime: airtimeMs })
+      : I18n.t("chat.payload_title", { p0: byteLen, p1: MAX_LORA_TEXT_BYTES, p2: charCount, p3: sf, p4: bw, p5: airtimeMs });
 
-    // Manejo de umbrales visuales y estado del botón de envío
+    // Sin bloqueo ni desactivación del botón de envío por longitud
     this.dom.chatCharCounter.classList.remove("is-warning", "is-danger");
-    if (byteLen > maxBytes) {
-      this.dom.chatCharCounter.classList.add("is-danger");
-      if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = true;
-    } else if (byteLen >= Math.floor(maxBytes * 0.8)) {
-      this.dom.chatCharCounter.classList.add("is-warning");
-      if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = false;
-    } else {
-      if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = false;
-    }
+    if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = this._sending;
   }
 
 
@@ -1642,28 +1640,50 @@ export class ChatModule {
   }
 
   async sendMessage() {
+    if (this._sending) return;
     const rawInput = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
     if (!rawInput) return;
-
-    // Validación estricta del límite físico/lógico de trama LoRa (160 bytes UTF-8)
-    const byteLen = getUtf8ByteLength(rawInput);
-    if (byteLen > MAX_LORA_TEXT_BYTES) {
-      if (this.ctx.showToast) {
-        this.ctx.showToast(
-          I18n.t("chat.text_too_long", { p0: byteLen, p1: MAX_LORA_TEXT_BYTES }),
-          "warning"
-        );
+    // A conversation change must not redirect the remaining fragments.
+    const destination = Object.freeze({
+      canonicalTarget: this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null,
+      channelIdx: this.activeChannelIdx,
+      dmName: this.activeDmName,
+    });
+    this._sending = true;
+    this.dom.chatInputForm?.setAttribute("aria-busy", "true");
+    try {
+      if (this.dom.chatInputText) this.dom.chatInputText.value = "";
+      this.updateCharCounter();
+      const chunks = splitUtf8Message(rawInput, MAX_LORA_TEXT_BYTES);
+      for (let i = 0; i < chunks.length; i++) {
+        const accepted = await this._sendSingleMessageChunk(chunks[i], destination);
+        if (!accepted) {
+          const originalFeed = destination.canonicalTarget ? `dm_${destination.canonicalTarget}` : `ch_${destination.channelIdx}`;
+          const visibleFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+          if (originalFeed === visibleFeed && this.dom.chatInputText && !this.dom.chatInputText.value.trim()) {
+            this.dom.chatInputText.value = chunks.slice(i).join("");
+          }
+          break;
+        }
+        if (i < chunks.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
       }
-      return;
+    } finally {
+      this._sending = false;
+      this.dom.chatInputForm?.setAttribute("aria-busy", "false");
+      this.updateCharCounter();
     }
+  }
 
+  async _sendSingleMessageChunk(rawInput, destination) {
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
+    const { canonicalTarget, channelIdx, dmName } = destination;
 
     if (canonicalTarget) {
       if (this._isLocalTarget(canonicalTarget)) {
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("chat.no_local_message"), "warning");
-        return;
+        return false;
       }
       const normTarget = canonicalTarget.toLowerCase().trim();
       const targetNode = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
@@ -1673,13 +1693,11 @@ export class ChatModule {
       const roleUpper = String(targetNode?.role || "").toUpperCase();
       if (roleUpper === "REPEATER" || roleUpper === "ROUTER") {
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.repeater_chat_err'), "warning");
-        return;
+        return false;
       }
     }
 
     const target = canonicalTarget || "broadcast";
-    if (this.dom.chatInputText) this.dom.chatInputText.value = "";
-    this.updateCharCounter();
 
     const outgoingMsg = {
       id: msgId,
@@ -1688,21 +1706,22 @@ export class ChatModule {
       sender_name: window.I18n ? window.I18n.t('common.local_station') : I18n.t("chat.local_name"),
       text: rawInput,
       is_outgoing: true,
-      channel_idx: this.activeChannelIdx,
+      channel_idx: channelIdx,
       dm_target: canonicalTarget,
-      dm_target_name: this.activeDmName || canonicalTarget,
+      dm_target_name: dmName || canonicalTarget,
       timestamp: new Date().toISOString(),
       delivered: false,
       status: "queued",
     };
 
-    const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
+    const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${channelIdx}`;
     if (!this.channelFeeds.has(feedKey)) this.channelFeeds.set(feedKey, []);
     const feed = this.channelFeeds.get(feedKey);
     feed.push(outgoingMsg);
     if (feed.length > MAX_FEED_MESSAGES) feed.shift();
 
-    this.appendChatMessage(outgoingMsg);
+    const visibleFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    if (visibleFeed === feedKey) this.appendChatMessage(outgoingMsg);
 
     await this._persistOutgoingMessage(() => this.ctx.storage?.saveMessage(feedKey, outgoingMsg));
     try {
@@ -1753,20 +1772,18 @@ export class ChatModule {
       }
     } catch (e) {
       console.warn("Error transmitiendo mensaje:", e);
-      if (outgoingMsg.delivered || outgoingMsg.status === "delivered") return;
+      if (outgoingMsg.delivered || outgoingMsg.status === "delivered") return true;
       outgoingMsg.status = "failed";
       await this._persistOutgoingMessage(() => this.ctx.storage?.updateMessageStatus?.(msgId, "failed"));
       this.ctx.showToast?.(I18n.t('chat.send_failed', { error: e.message }), 'error');
       const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
       if (currentFeed === feedKey) {
-        if (this.dom.chatInputText && !this.dom.chatInputText.value.trim()) {
-          this.dom.chatInputText.value = rawInput;
-          this.updateCharCounter();
-        }
         const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
         row?.replaceWith(this.createMessageBubble(outgoingMsg));
       }
+      return false;
     }
+    return true;
   }
 
   appendChatMessage(msg) {

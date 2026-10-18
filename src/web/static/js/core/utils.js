@@ -75,6 +75,19 @@ export function debounce(fn, waitMs = 150) {
   };
 }
 
+/** Local preferences are optional; blocked storage must not interrupt the UI. */
+export function readLocalPreference(key, fallback = null) {
+  try { return localStorage.getItem(key) ?? fallback; }
+  catch (_) { return fallback; }
+}
+
+export function writeLocalPreference(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+    return true;
+  } catch (_) { return false; }
+}
+
 /**
  * Browser authentication uses an HttpOnly cookie and an in-memory CSRF token.
  */
@@ -416,6 +429,37 @@ export function getUtf8ByteLength(str) {
     } else len += 3;
   }
   return len;
+}
+
+/**
+ * Divide una cadena de texto en fragmentos (chunks) seguros de UTF-8 que no superen maxBytes.
+ * Garantiza no cortar caracteres multi-byte (emojis o caracteres especiales).
+ * @param {string} str Cadena a dividir
+ * @param {number} maxBytes Límite de bytes por fragmento (default 160)
+ * @returns {string[]} Lista de fragmentos
+ */
+export function splitUtf8Message(str, maxBytes = 160) {
+  if (!str) return [];
+  const totalBytes = getUtf8ByteLength(str);
+  if (totalBytes <= maxBytes) return [str];
+
+  const chunks = [];
+  let currentChunk = "";
+  let currentBytes = 0;
+
+  for (const char of str) {
+    const charBytes = getUtf8ByteLength(char);
+    if (currentBytes + charBytes > maxBytes) {
+      if (currentChunk) chunks.push(currentChunk);
+      currentChunk = char;
+      currentBytes = charBytes;
+    } else {
+      currentChunk += char;
+      currentBytes += charBytes;
+    }
+  }
+  if (currentChunk) chunks.push(currentChunk);
+  return chunks;
 }
 
 /**

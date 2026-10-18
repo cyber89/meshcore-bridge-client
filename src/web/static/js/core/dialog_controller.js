@@ -187,6 +187,7 @@ export class DialogController {
   }
 
   _onKeyDown(event) {
+    if (event.isComposing) return;
     const entry = this.stack.at(-1);
     if (!entry) return;
     if (event.key === "Escape") {

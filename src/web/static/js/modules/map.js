@@ -3,7 +3,7 @@
  * marcadores de nodos de malla, Heatmap táctico RF y trazado de rutas Traceroute.
  */
 
-import { escapeHtml } from "../core/utils.js";
+import { escapeHtml, readLocalPreference, writeLocalPreference } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
 export class MapModule {
@@ -15,10 +15,12 @@ export class MapModule {
     this.rfHeatmapGroup = null;
     this.rfHeatmapActive = false;
     this.rfHeatmapInterval = null;
+    this._heatmapGeneration = 0;
     this.selectedTraceTarget = null;
     this.selectedTraceName = null;
-    this.localTileUrl = localStorage.getItem("meshcore_local_tile_url") || "/api/map/tiles/{z}/{x}/{y}.png";
-    const savedLayer = localStorage.getItem("meshcore_map_layer_mode");
+    this._traceGeneration = 0;
+    this.localTileUrl = readLocalPreference("meshcore_local_tile_url") || "/api/map/tiles/{z}/{x}/{y}.png";
+    const savedLayer = readLocalPreference("meshcore_map_layer_mode");
     this.mapLayerMode = (!savedLayer || savedLayer === "dark" || savedLayer === "osm" || savedLayer === "cartodb" || savedLayer === "tactical_radar") ? "auto" : savedLayer;
     this.dom = {};
     this._hasInitiallyCentered = false;
@@ -100,7 +102,7 @@ export class MapModule {
   _getCurrentTheme() {
     const htmlTheme = document.documentElement.getAttribute("data-bs-theme");
     if (htmlTheme) return htmlTheme;
-    const saved = localStorage.getItem("meshcore_theme");
+    const saved = readLocalPreference("meshcore_theme");
     if (saved === "light" || saved === "dark") return saved;
     return document.body.classList.contains("light-theme") ? "light" : "dark";
   }
@@ -290,7 +292,7 @@ export class MapModule {
     }
 
     this.mapLayerMode = mode;
-    localStorage.setItem("meshcore_map_layer_mode", mode);
+    writeLocalPreference("meshcore_map_layer_mode", mode);
 
     document.querySelectorAll(".map-layer-switcher .map-layer-btn[data-layer]").forEach((btn) => {
       const btnMode = btn.getAttribute("data-layer");
@@ -322,11 +324,11 @@ export class MapModule {
         btnToggle.dataset.i18nTitle = minimized ? "map.expand_nodes" : "map.minimize_nodes";
         btnToggle.dataset.i18nAriaLabel = btnToggle.dataset.i18nTitle;
       }
-      localStorage.setItem("meshcore_map_nodes_minimized", String(minimized));
+      writeLocalPreference("meshcore_map_nodes_minimized", String(minimized));
     };
     this._setMapOverlayMinimized = setMinimizedState;
 
-    const savedState = localStorage.getItem("meshcore_map_nodes_minimized");
+    const savedState = readLocalPreference("meshcore_map_nodes_minimized");
     setMinimizedState(savedState === "true");
 
     if (btnToggle) {
@@ -346,6 +348,7 @@ export class MapModule {
 
   async setRfHeatmap(active) {
     if (!this.map) return;
+    const generation = ++this._heatmapGeneration;
     this.rfHeatmapActive = Boolean(active);
     this.updateRfHeatmapToggleState();
 
@@ -360,6 +363,7 @@ export class MapModule {
     }
 
     await this.refreshRfHeatmap(true);
+    if (!this.rfHeatmapActive || generation !== this._heatmapGeneration) return;
 
     if (!this.rfHeatmapInterval) {
       this.rfHeatmapInterval = setInterval(() => {
@@ -384,12 +388,14 @@ export class MapModule {
 
   async refreshRfHeatmap(showToast = false) {
     if (!this.map || !this.rfHeatmapActive) return;
+    const generation = this._heatmapGeneration;
 
     try {
       const res = await fetch("/api/rf/heatmap", {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
+      if (!this.rfHeatmapActive || generation !== this._heatmapGeneration) return;
       if (data.status === "ok" && data.data && Array.isArray(data.data.points)) {
         if (!this.rfHeatmapGroup) this.rfHeatmapGroup = L.layerGroup();
         this.rfHeatmapGroup.clearLayers();
@@ -473,6 +479,7 @@ export class MapModule {
         }
       }
     } catch (err) {
+      if (!this.rfHeatmapActive || generation !== this._heatmapGeneration) return;
       if (showToast && this.ctx.showToast) {
         this.ctx.showToast(I18n.t('toast.heatmap_err').replace('{err}', err.message), "error");
       }
@@ -480,6 +487,9 @@ export class MapModule {
   }
 
   initTraceroute() {
+    this.dom.tracerouteModal?.addEventListener("hide.bs.modal", () => {
+      ++this._traceGeneration;
+    });
     if (this.dom.btnCloseTracerouteModal) {
       this.dom.btnCloseTracerouteModal.addEventListener("click", () => {
         if (this.dom.tracerouteModal) this.dom.tracerouteModal.classList.add("hidden");
@@ -500,6 +510,7 @@ export class MapModule {
   }
 
   openTracerouteModal(targetNode, targetName) {
+    ++this._traceGeneration;
     this._lastTraceHops = null;
     this.selectedTraceTarget = targetNode;
     this.selectedTraceName = targetName || (targetNode ? targetNode.slice(0, 8) : I18n.t('common.node'));
@@ -507,6 +518,10 @@ export class MapModule {
     if (this.dom.traceTargetNameDisplay) this.dom.traceTargetNameDisplay.textContent = this.selectedTraceName;
     if (this.dom.traceTargetPkDisplay) this.dom.traceTargetPkDisplay.textContent = targetNode;
     if (this.dom.traceCustomPathInput) this.dom.traceCustomPathInput.value = "";
+    if (this.dom.btnExecuteTrace) {
+      this.dom.btnExecuteTrace.disabled = false;
+      I18n.setText(this.dom.btnExecuteTrace, 'map.start_trace');
+    }
     if (this.dom.traceStatusPill) {
       I18n.setText(this.dom.traceStatusPill, 'map.trace_ready');
       this.dom.traceStatusPill.className = "trace-status-pill";
@@ -525,6 +540,9 @@ export class MapModule {
   async executeTraceroute() {
     const target = this.selectedTraceTarget;
     if (!target) return;
+    const generation = this._traceGeneration;
+    const isCurrent = () => generation === this._traceGeneration && this.selectedTraceTarget === target &&
+      !this.dom.tracerouteModal?.classList.contains("hidden") && !this.dom.tracerouteModal?.hidden;
     const customPath = this.dom.traceCustomPathInput ? this.dom.traceCustomPathInput.value.trim() : "";
 
     if (this.dom.traceStatusPill) {
@@ -543,6 +561,7 @@ export class MapModule {
         body: JSON.stringify({ target_node: target, path: customPath }),
       });
       const data = await res.json();
+      if (!isCurrent()) return;
       if (data.status === "ok" && data.data) {
         const trace = data.data;
         if (this.dom.traceStatusPill) {
@@ -560,13 +579,14 @@ export class MapModule {
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.trace_err').replace('{msg}', data.message || I18n.t("map.no_response")), "error");
       }
     } catch (err) {
+      if (!isCurrent()) return;
       if (this.dom.traceStatusPill) {
         I18n.setText(this.dom.traceStatusPill, 'map.trace_conn_err');
         this.dom.traceStatusPill.className = "trace-status-pill error";
       }
       if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.net_err').replace('{msg}', err.message), "error");
     } finally {
-      if (this.dom.btnExecuteTrace) {
+      if (isCurrent() && this.dom.btnExecuteTrace) {
         this.dom.btnExecuteTrace.disabled = false;
         I18n.setText(this.dom.btnExecuteTrace, 'map.start_trace');
       }

@@ -5195,7 +5195,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
     min-width: 44px;
     min-height: 44px;
   }
-  .modal-header .btn-close {
+  .modal-header .btn-close,
+  .toast [data-bs-dismiss="toast"] {
     width: 44px;
     height: 44px;
     padding: 0;

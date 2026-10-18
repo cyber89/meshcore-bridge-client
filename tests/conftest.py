@@ -124,6 +124,26 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
         cleanup.push_async_callback(browser.close)
         context = await browser.new_context(viewport={"width": 1920, "height": 1080})
         cleanup.push_async_callback(context.close)
+        # Application E2E tests start as an owner through the real account API;
+        # virtual_bridge itself stays anonymous for authentication regressions.
+        login = await context.request.post(
+            origin + "/api/auth/login",
+            data={"username": "admin", "password": "admin", "remember": False},
+            headers={"Origin": origin},
+        )
+        assert login.status == 200, await login.text()
+        login_payload = await login.json()
+        credentials = await context.request.put(
+            origin + "/api/auth/credentials",
+            data={
+                "username": "qa-owner",
+                "current_password": "admin",
+                "password": "isolated qa owner password",
+            },
+            headers={"Origin": origin, "X-CSRF-Token": login_payload["csrf_token"]},
+        )
+        assert credentials.status == 200, await credentials.text()
+        assert not (await credentials.json())["must_change_credentials"]
         await context.grant_permissions(["local-network-access"], origin=origin)
         await context.add_init_script(
             "if (!localStorage.getItem('mc_lang')) localStorage.setItem('mc_lang', 'es');"

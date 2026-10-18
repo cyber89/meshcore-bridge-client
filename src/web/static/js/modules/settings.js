@@ -9,6 +9,7 @@ import {
   parseMeshCoreUri,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
   formatUptimeSecs,
+  writeLocalPreference,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 import { FormFeedback } from "../core/form_feedback.js";
@@ -531,7 +532,7 @@ export class SettingsModule {
           closeCreateChannel();
           await this.fetchChannels();
           if (this.ctx.switchChannel) this.ctx.switchChannel(index);
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.ch_saved').replace('{index}', index).replace('{name}', escapeHtml(name)), "success");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.ch_saved').replace('{index}', index).replace('{name}', name), "success");
         }
       });
     }
@@ -635,12 +636,18 @@ export class SettingsModule {
       });
     }
     if (this.dom.btnCopyQrUri) {
-      this.dom.btnCopyQrUri.addEventListener("click", () => {
+      this.dom.btnCopyQrUri.addEventListener("click", async () => {
         const uriEl = this.dom.qrUriDisplay;
         const uri = uriEl ? (uriEl.value || uriEl.textContent || "") : "";
         if (uri) {
-          navigator.clipboard.writeText(uri);
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.uri_copied'), "success");
+          try {
+            await navigator.clipboard.writeText(uri);
+            this.ctx.showToast?.(I18n.t('toast.uri_copied'), "success");
+          } catch (_) {
+            uriEl?.focus();
+            uriEl?.select?.();
+            this.ctx.showToast?.(I18n.t('forms.request_failed'), "error");
+          }
         }
       });
     }
@@ -1023,8 +1030,8 @@ export class SettingsModule {
       this.dom.btnSaveMapSettings.addEventListener("click", () => {
         const url = (this.dom.inputLocalTileUrl?.value || "").trim();
         if (url) {
-          localStorage.setItem("meshcore_local_tile_url", url);
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.maps_saved"), "success");
+          const saved = writeLocalPreference("meshcore_local_tile_url", url);
+          this.ctx.showToast?.(I18n.t(saved ? "settings.maps_saved" : "forms.request_failed"), saved ? "success" : "error");
         }
       });
     }

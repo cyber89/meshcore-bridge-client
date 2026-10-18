@@ -1,7 +1,7 @@
 /**
  * PacketWorker - Web Worker para procesamiento, filtrado y analítica de tramas LoRa.
  * Ejecuta cómputos de filtrado y búsqueda en un hilo separado para mantener
- * el event loop y la interfaz 100% fluidos (60 FPS) ante ráfagas de paquetes RF.
+ * el procesamiento fuera del event loop de la interfaz ante ráfagas de paquetes RF.
  * Estándar W3C nativo, sin dependencias externas.
  */
 

@@ -614,34 +614,11 @@ export class NodesModule {
       if (favBtn) {
         favBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
+          if (favBtn.disabled) return;
           const newFav = !node.is_favorite;
-          node.is_favorite = newFav;
-          card.setAttribute("data-favorite", newFav ? "1" : "0");
-          favBtn.classList.toggle("is-fav", newFav);
-          favBtn.title = newFav ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav');
-          favBtn.setAttribute("aria-pressed", String(newFav));
-          const favIcon = favBtn.querySelector(".button-icon");
-          if (favIcon) favIcon.className = `bi ${newFav ? "bi-star-fill text-warning" : "bi-star"} button-icon`;
-
-          const known = this.knownNodes.get(node.public_key.toLowerCase());
-          if (known) known.is_favorite = newFav;
-
-          let favCount = 0;
-          document.querySelectorAll("#contactsGridUi .contact-card").forEach((c) => {
-            if (c.getAttribute("data-favorite") === "1") favCount++;
-          });
-          const cCFav = document.getElementById("countFavContacts");
-          if (cCFav) cCFav.textContent = String(favCount);
-
-          const q = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
-          this.filterContactsGrid(q);
-
-          if (this.ctx.showToast) {
-            this.ctx.showToast(newFav ? I18n.t('toast.fav_added').replace('{name}', cleanName) : I18n.t('toast.fav_removed').replace('{name}', cleanName), "info");
-          }
-
+          favBtn.disabled = true;
           try {
-            await fetch("/api/contacts", {
+            const res = await fetch("/api/contacts", {
               method: "POST",
               headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -652,8 +629,39 @@ export class NodesModule {
                 is_favorite: newFav,
               }),
             });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.status !== "ok") {
+              throw new Error(data.detail || data.message || `HTTP ${res.status}`);
+            }
+            node.is_favorite = newFav;
+            card.setAttribute("data-favorite", newFav ? "1" : "0");
+            favBtn.classList.toggle("is-fav", newFav);
+            favBtn.title = newFav ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav');
+            favBtn.setAttribute("aria-pressed", String(newFav));
+            const favIcon = favBtn.querySelector(".button-icon");
+            if (favIcon) favIcon.className = `bi ${newFav ? "bi-star-fill text-warning" : "bi-star"} button-icon`;
+
+            const known = this.knownNodes.get(node.public_key.toLowerCase());
+            if (known) known.is_favorite = newFav;
+
+            let favCount = 0;
+            document.querySelectorAll("#contactsGridUi .contact-card").forEach((c) => {
+              if (c.getAttribute("data-favorite") === "1") favCount++;
+            });
+            const cCFav = document.getElementById("countFavContacts");
+            if (cCFav) cCFav.textContent = String(favCount);
+
+            const q = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
+            this.filterContactsGrid(q);
+
+            if (this.ctx.showToast) {
+              this.ctx.showToast(newFav ? I18n.t('toast.fav_added').replace('{name}', cleanName) : I18n.t('toast.fav_removed').replace('{name}', cleanName), "info");
+            }
           } catch (err) {
             console.warn("Error guardando estado de favorito:", err);
+            this.ctx.showToast?.(I18n.t('app.error', { error: err.message }), "error");
+          } finally {
+            favBtn.disabled = false;
           }
         });
       }

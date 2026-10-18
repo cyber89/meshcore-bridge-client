@@ -7,7 +7,7 @@ import { eventBus, EVENTS } from "./core/eventbus.js";
 import { MeshCoreStorage } from "./core/storage.js";
 import { DialogController } from "./core/dialog_controller.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
-import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders } from "./core/utils.js";
+import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders, readLocalPreference, writeLocalPreference } from "./core/utils.js";
 import { store } from "./core/store.js";
 import { BrowserAuthentication } from "./core/auth.js";
 import { applyThemePreference, readThemePreference } from "./core/theme.js";
@@ -255,13 +255,13 @@ class MeshCoreApp {
 
   _initSidebar() {
     if (this.dom.btnToggleSidebar && this.dom.appSidebar) {
-      const savedCollapsed = localStorage.getItem("meshcore_sidebar_collapsed") === "true";
+      const savedCollapsed = readLocalPreference("meshcore_sidebar_collapsed") === "true";
       if (savedCollapsed) {
         this.dom.appSidebar.classList.add("collapsed");
       }
       this.dom.btnToggleSidebar.addEventListener("click", () => {
         const isCollapsed = this.dom.appSidebar.classList.toggle("collapsed");
-        localStorage.setItem("meshcore_sidebar_collapsed", String(isCollapsed));
+        writeLocalPreference("meshcore_sidebar_collapsed", isCollapsed);
         this._updateSidebarState();
       });
       this._updateSidebarState();
@@ -763,7 +763,7 @@ class MeshCoreApp {
       warning: { bg: "bg-warning text-dark", icon: "exclamation-triangle" },
       error: { bg: "bg-danger text-white", icon: "exclamation-octagon" },
     };
-    type = type === "danger" ? "error" : typeConfig[type] ? type : "info";
+    type = type === "danger" ? "error" : Object.hasOwn(typeConfig, type) ? type : "info";
     const cfg = typeConfig[type];
 
     const toast = document.createElement("div");
@@ -771,6 +771,7 @@ class MeshCoreApp {
     toast.setAttribute("role", type === "error" ? "alert" : "status");
     toast.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
     toast.setAttribute("aria-atomic", "true");
+    toast.dataset.toastType = type;
     toast.innerHTML = `
       <div class="d-flex align-items-center">
         <div class="toast-body d-flex align-items-center gap-2 py-2 px-3">
@@ -787,6 +788,13 @@ class MeshCoreApp {
       const bsToast = bootstrap.Toast.getOrCreateInstance(toast, {
         delay: durationMs > 0 ? durationMs : 4000,
         autohide: durationMs > 0,
+      });
+      // Bootstrap accepts hide() again during its fade, queuing callbacks that
+      // would access a disposed instance after the first hidden event.
+      let hiding = false;
+      toast.addEventListener("hide.bs.toast", (event) => {
+        if (hiding) event.preventDefault();
+        else hiding = true;
       });
       toast.addEventListener("hidden.bs.toast", () => toast.remove());
       bsToast.show();
@@ -1045,7 +1053,7 @@ class MeshCoreApp {
         if (event.target === modal && this.dialogController.isTop(modal)) onCancel(event);
       };
       const onKeyDown = (event) => {
-        if (!event.defaultPrevented && event.key === "Enter" && config.mode === "prompt" && document.activeElement === inputEl) onConfirm(event);
+        if (!event.defaultPrevented && !event.isComposing && event.key === "Enter" && config.mode === "prompt" && document.activeElement === inputEl) onConfirm(event);
       };
       if (btnConfirm) btnConfirm.addEventListener("click", onConfirm);
       if (btnCancel) btnCancel.addEventListener("click", onCancel);

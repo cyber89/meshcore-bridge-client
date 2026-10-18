@@ -687,23 +687,29 @@ export class SnifferModule {
     if (this.dom.inspectorPanelJson) this.dom.inspectorPanelJson.classList.toggle("hidden", tab !== "json");
   }
 
-  copyHexDumpToClipboard() {
-    if (this.dom.inspHexDumpView && navigator.clipboard) {
-      navigator.clipboard.writeText(this.dom.inspHexDumpView.textContent);
-      if (this.dom.btnCopyHexDump) {
-        I18n.setText(this.dom.btnCopyHexDump, 'sniffer.copied');
-        setTimeout(() => { I18n.setText(this.dom.btnCopyHexDump, 'ui.static_572'); }, 1500);
-      }
-    }
+  async copyHexDumpToClipboard() {
+    await this._copyInspectorDump(this.dom.inspHexDumpView, this.dom.btnCopyHexDump, 'ui.static_572');
   }
 
-  copyJsonDumpToClipboard() {
-    if (this.dom.inspJsonDumpView && navigator.clipboard) {
-      navigator.clipboard.writeText(this.dom.inspJsonDumpView.textContent);
-      if (this.dom.btnCopyJsonDump) {
-        I18n.setText(this.dom.btnCopyJsonDump, 'sniffer.copied');
-        setTimeout(() => { I18n.setText(this.dom.btnCopyJsonDump, 'ui.static_573'); }, 1500);
+  async copyJsonDumpToClipboard() {
+    await this._copyInspectorDump(this.dom.inspJsonDumpView, this.dom.btnCopyJsonDump, 'ui.static_573');
+  }
+
+  async _copyInspectorDump(view, button, restoreKey) {
+    if (!view) return;
+    try {
+      await navigator.clipboard.writeText(view.textContent);
+      if (button) {
+        I18n.setText(button, 'sniffer.copied');
+        setTimeout(() => { I18n.setText(button, restoreKey); }, 1500);
       }
+    } catch (_) {
+      const range = document.createRange();
+      range.selectNodeContents(view);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      this.ctx.showToast?.(I18n.t('forms.request_failed'), "error");
     }
   }
 
