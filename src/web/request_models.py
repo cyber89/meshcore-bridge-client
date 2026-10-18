@@ -279,15 +279,6 @@ class SystemBodyDTO(CompatibilityBodyDTO):
     search: Any = None
 
 
-class LogsBodyDTO(CompatibilityBodyDTO):
-    """Descriptive only: LogsController consumes raw query, not this mapping."""
-
-    limit: Any = None
-    offset: Any = None
-    level: Any = None
-    search: Any = None
-
-
 class NodesBodyDTO(CompatibilityBodyDTO):
     """Node pagination/analytics fields retain router-level conversion semantics."""
 

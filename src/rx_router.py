@@ -245,7 +245,6 @@ class RxEventRouter:
         self._rx_workers: set[asyncio.Task[Any]] = set()
         self._pending_rx: deque[tuple[Callable[[], Coroutine[Any, Any, Any]], str | None]] = deque()
         self._rx_capacity = 256  # Explicitly approved by the user on 2026-10-05.
-        self.rx_coalesced_count = 0
         self.rx_overflow_count = 0
         self._handlers: list[BaseRxHandler] = [
             RepeaterAdminHandler(),
@@ -433,7 +432,6 @@ class RxEventRouter:
             for index, (_, key) in enumerate(self._pending_rx):
                 if key == observation_key:
                     self._pending_rx[index] = (factory, key)
-                    self.rx_coalesced_count += 1
                     return True
         if len(self._pending_rx) >= self._rx_capacity:
             observation = next((index for index, (_, key) in enumerate(self._pending_rx) if key is not None), None)
@@ -669,12 +667,6 @@ class RxEventRouter:
         return payload_dict, meta
 
     @staticmethod
-    def _extract_battery_percentage(payload_dict: dict[str, Any]) -> int | None:
-        """Calcula el porcentaje de batería de telemetría a partir de lecturas raw, level o voltaje."""
-        telem = extract_telemetry_fields(payload_dict)
-        return telem.get("battery_pct")
-
-    @staticmethod
     def _resolve_effective_role(payload_dict: dict[str, Any], sender_name: str, is_local_sender: bool) -> str:
         """Determina el rol canónico del nodo participante."""
         if is_local_sender:
@@ -705,9 +697,14 @@ class RxEventRouter:
         volt_val = telem_fields.get("voltage_v")
         solar_val = telem_fields.get("solar_v")
         existing = self._ctx.node_registry.get_contact(meta.sender)
+        is_known_rep = bool(existing and existing.role in ("REPEATER", "ROUTER"))
         has_role = any(key in payload_dict for key in ("role", "adv_type")) or isinstance(payload_dict.get("type"), int)
-        effective_role = (existing.role if existing and not has_role and not meta.is_local_sender
-                          else self._resolve_effective_role(payload_dict, meta.sender_name, meta.is_local_sender))
+        if is_known_rep:
+            effective_role = "REPEATER"
+        elif existing and not has_role and not meta.is_local_sender:
+            effective_role = existing.role
+        else:
+            effective_role = self._resolve_effective_role(payload_dict, meta.sender_name, meta.is_local_sender)
 
         lat_val, lon_val = _location_pair(payload_dict)
 

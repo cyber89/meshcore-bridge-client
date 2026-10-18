@@ -20,6 +20,7 @@
 12. **[Frontend modernization plan](FRONTEND_MODERNIZATION_PLAN.md)**: Plan de la reunión de agentes, auditoría de componentes y registro de entregas; densidad y alineación de tarjetas, contratos y aceptación pendiente.
 13. **[Autenticación de estación personal](AUTHENTICATION_PLAN.md)**: Plan por etapas, login, sesiones, API, CSRF y credenciales de instalación.
 14. **[Diseño del login y propuesta de recuperación](LOGIN_DESIGN_AND_RECOVERY.md)**: Mejora visual del acceso y contrato propuesto para recuperación local; distingue implementación y propuesta.
+15. **[Auditoría del login en navegador](LOGIN_AUDIT_2026-10-12.md)**: Reproducción virtual, adaptación a pantallas, estilos calculados y política de contraseñas de 8–64 caracteres.
 
 ---
 

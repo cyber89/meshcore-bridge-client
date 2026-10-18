@@ -3477,7 +3477,7 @@ export class SettingsModule {
           isDanger: true,
           confirmText: I18n.t("services.delete_preset_btn"),
         })
-      : confirm(confirmMsg);
+      : false;
 
     if (!confirmed) return;
 

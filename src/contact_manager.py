@@ -132,6 +132,106 @@ class NodeTelemetry:
     last_seen: float = 0.0
 
 
+def _build_identity_from_fields(fields: dict[str, Any]) -> NodeIdentity:
+    """Extrae y construye la dimensión de identidad desde un diccionario plano."""
+    return NodeIdentity(
+        public_key=str(fields.get("public_key") or ""),
+        name=str(fields.get("name") or ""),
+        alias=str(fields.get("alias") or ""),
+        role=str(fields.get("role") or "CLIENT"),
+        owner_name=fields.get("owner_name"),
+        owner_info=fields.get("owner_info"),
+        firmware_version=fields.get("firmware_version"),
+        hardware_board=fields.get("hardware_board"),
+        is_local=bool(fields.get("is_local", False)),
+        auto_discovered=bool(fields.get("auto_discovered", False)),
+        discovery_time=float(fields.get("discovery_time") or 0.0),
+        verified_identity=bool(fields.get("verified_identity", False)),
+        is_favorite=bool(fields.get("is_favorite", False)),
+    )
+
+
+def _build_rf_from_fields(fields: dict[str, Any]) -> NodeRfMetrics:
+    """Extrae y construye la dimensión RF desde un diccionario plano."""
+    return NodeRfMetrics(
+        hops=fields.get("hops"),
+        last_rssi=fields.get("last_rssi"),
+        last_snr=fields.get("last_snr"),
+        noise_floor_dbm=fields.get("noise_floor_dbm"),
+        lqi_score=float(fields.get("lqi_score") or 0.0),
+        lqi_status=str(fields.get("lqi_status") or "UNKNOWN"),
+        best_route=str(fields.get("best_route") or "DIRECT"),
+        tx_power=fields.get("tx_power"),
+        max_tx_power=fields.get("max_tx_power"),
+        hop_limit=fields.get("hop_limit"),
+        frequency=fields.get("frequency"),
+        spreading_factor=fields.get("spreading_factor"),
+        bandwidth=fields.get("bandwidth"),
+        coding_rate=fields.get("coding_rate"),
+        repeat_enabled=fields.get("repeat_enabled"),
+        advert_interval=fields.get("advert_interval"),
+        flood_advert_interval=fields.get("flood_advert_interval"),
+        allow_read_only=fields.get("allow_read_only"),
+        flags=fields.get("flags"),
+        last_advert=fields.get("last_advert"),
+        last_advert_heard_at=fields.get("last_advert_heard_at"),
+        last_rx_at=fields.get("last_rx_at"),
+        last_rx_route=fields.get("last_rx_route"),
+        out_path=fields.get("out_path"),
+        out_path_len=fields.get("out_path_len"),
+        out_path_hash_mode=fields.get("out_path_hash_mode"),
+        out_route_state=str(fields.get("out_route_state") or "unknown"),
+        out_path_hash_size_bytes=fields.get("out_path_hash_size_bytes"),
+        hops_source=str(fields.get("hops_source") or "unknown"),
+    )
+
+
+def _build_telemetry_from_fields(fields: dict[str, Any]) -> NodeTelemetry:
+    """Extrae y construye la dimensión de telemetría y sensores desde un diccionario plano."""
+    eff_lat = fields.get("latitude") if fields.get("latitude") is not None else (
+        fields.get("lat") if fields.get("lat") is not None else fields.get("adv_lat")
+    )
+    eff_lon = fields.get("longitude") if fields.get("longitude") is not None else (
+        fields.get("lon") if fields.get("lon") is not None else fields.get("adv_lon")
+    )
+    eff_adv_lat = fields.get("adv_lat") if fields.get("adv_lat") is not None else eff_lat
+    eff_adv_lon = fields.get("adv_lon") if fields.get("adv_lon") is not None else eff_lon
+    neighbors_raw = fields.get("neighbors", ())
+    neighbors_tuple = tuple(neighbors_raw) if isinstance(neighbors_raw, (list, tuple)) else ()
+    return NodeTelemetry(
+        battery_pct=fields.get("battery_pct"),
+        voltage_v=fields.get("voltage_v"),
+        solar_v=fields.get("solar_v"),
+        temperature_c=fields.get("temperature_c"),
+        humidity_pct=fields.get("humidity_pct"),
+        pressure_hpa=fields.get("pressure_hpa"),
+        latitude=eff_lat,
+        longitude=eff_lon,
+        altitude_m=fields.get("altitude_m"),
+        fixed_position=fields.get("fixed_position"),
+        adv_lat=eff_adv_lat,
+        adv_lon=eff_adv_lon,
+        position_valid=bool(fields.get("position_valid", False)),
+        position_source=fields.get("position_source"),
+        position_updated_at=fields.get("position_updated_at"),
+        uptime=fields.get("uptime"),
+        clock=fields.get("clock"),
+        airtime_ms=fields.get("airtime_ms"),
+        duty_cycle_pct=fields.get("duty_cycle_pct"),
+        rx_packets=int(fields.get("rx_packets") or 0),
+        tx_packets=int(fields.get("tx_packets") or 0),
+        error_count=int(fields.get("error_count") or 0),
+        connected_clients_count=int(fields.get("connected_clients_count") or 0),
+        packets_sent=fields.get("packets_sent"),
+        packets_recv=fields.get("packets_recv"),
+        duplicate_packets=fields.get("duplicate_packets"),
+        packet_errors=fields.get("packet_errors"),
+        queue_len=fields.get("queue_len"),
+        neighbors=neighbors_tuple,
+        last_seen=float(fields.get("last_seen") or 0.0),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class NodeContactInfo:
     """Información consolidada de un nodo o contacto en la malla.
@@ -150,172 +250,15 @@ class NodeContactInfo:
         identity: NodeIdentity | None = None,
         rf: NodeRfMetrics | None = None,
         telemetry: NodeTelemetry | None = None,
-        # Argumentos planos de compatibilidad total con llamadas heredadas
-        public_key: str = "",
-        name: str = "",
-        alias: str = "",
-        role: str = "CLIENT",
-        hops: int | None = None,
-        last_rssi: int | None = None,
-        last_snr: float | None = None,
-        battery_pct: int | None = None,
-        last_seen: float = 0.0,
-        rx_packets: int = 0,
-        tx_packets: int = 0,
-        error_count: int = 0,
-        connected_clients_count: int = 0,
-        neighbors: tuple[str, ...] | list[str] = (),
-        temperature_c: float | None = None,
-        humidity_pct: float | None = None,
-        pressure_hpa: float | None = None,
-        voltage_v: float | None = None,
-        solar_v: float | None = None,
-        latitude: float | None = None,
-        longitude: float | None = None,
-        altitude_m: float | None = None,
-        uptime: str | None = None,
-        clock: str | None = None,
-        airtime_ms: int | None = None,
-        duty_cycle_pct: float | None = None,
-        noise_floor_dbm: int | None = None,
-        packets_sent: int | None = None,
-        packets_recv: int | None = None,
-        duplicate_packets: int | None = None,
-        packet_errors: int | None = None,
-        queue_len: int | None = None,
-        owner_name: str | None = None,
-        owner_info: str | None = None,
-        firmware_version: str | None = None,
-        hardware_board: str | None = None,
-        advert_interval: int | None = None,
-        flood_advert_interval: int | None = None,
-        allow_read_only: bool | None = None,
-        repeat_enabled: bool | None = None,
-        tx_power: int | None = None,
-        max_tx_power: int | None = None,
-        hop_limit: int | None = None,
-        frequency: float | None = None,
-        spreading_factor: int | None = None,
-        bandwidth: float | None = None,
-        coding_rate: str | None = None,
-        fixed_position: bool | None = None,
-        is_local: bool = False,
-        auto_discovered: bool = False,
-        discovery_time: float = 0.0,
-        verified_identity: bool = False,
-        is_favorite: bool = False,
-        lqi_score: float = 0.0,
-        lqi_status: str = "UNKNOWN",
-        best_route: str = "DIRECT",
-        flags: int | None = None,
-        last_advert: float | None = None,
-        last_advert_heard_at: float | None = None,
-        last_rx_at: float | None = None,
-        last_rx_route: dict[str, Any] | None = None,
-        out_path: str | None = None,
-        out_path_len: int | None = None,
-        out_path_hash_mode: int | str | None = None,
-        out_route_state: str = "unknown",
-        out_path_hash_size_bytes: int | None = None,
-        hops_source: str = "unknown",
-        adv_lat: float | None = None,
-        adv_lon: float | None = None,
-        position_valid: bool = False,
-        position_source: str | None = None,
-        position_updated_at: float | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        **kwargs: Any,
+        **fields: Any,
     ) -> None:
-        eff_lat = latitude if latitude is not None else (lat if lat is not None else adv_lat)
-        eff_lon = longitude if longitude is not None else (lon if lon is not None else adv_lon)
-        eff_adv_lat = adv_lat if adv_lat is not None else eff_lat
-        eff_adv_lon = adv_lon if adv_lon is not None else eff_lon
-
-        if identity is None:
-            identity = NodeIdentity(
-                public_key=public_key,
-                name=name,
-                alias=alias,
-                role=role,
-                owner_name=owner_name,
-                owner_info=owner_info,
-                firmware_version=firmware_version,
-                hardware_board=hardware_board,
-                is_local=is_local,
-                auto_discovered=auto_discovered,
-                discovery_time=discovery_time,
-                verified_identity=verified_identity,
-                is_favorite=is_favorite,
-            )
-        if rf is None:
-            rf = NodeRfMetrics(
-                hops=hops,
-                last_rssi=last_rssi,
-                last_snr=last_snr,
-                noise_floor_dbm=noise_floor_dbm,
-                lqi_score=lqi_score,
-                lqi_status=lqi_status,
-                best_route=best_route,
-                tx_power=tx_power,
-                max_tx_power=max_tx_power,
-                hop_limit=hop_limit,
-                frequency=frequency,
-                spreading_factor=spreading_factor,
-                bandwidth=bandwidth,
-                coding_rate=coding_rate,
-                repeat_enabled=repeat_enabled,
-                advert_interval=advert_interval,
-                flood_advert_interval=flood_advert_interval,
-                allow_read_only=allow_read_only,
-                flags=flags,
-                last_advert=last_advert,
-                last_advert_heard_at=last_advert_heard_at,
-                last_rx_at=last_rx_at,
-                last_rx_route=last_rx_route,
-                out_path=out_path,
-                out_path_len=out_path_len,
-                out_path_hash_mode=out_path_hash_mode,
-                out_route_state=out_route_state,
-                out_path_hash_size_bytes=out_path_hash_size_bytes,
-                hops_source=hops_source,
-            )
-        if telemetry is None:
-            telemetry = NodeTelemetry(
-                battery_pct=battery_pct,
-                voltage_v=voltage_v,
-                solar_v=solar_v,
-                temperature_c=temperature_c,
-                humidity_pct=humidity_pct,
-                pressure_hpa=pressure_hpa,
-                latitude=eff_lat,
-                longitude=eff_lon,
-                altitude_m=altitude_m,
-                fixed_position=fixed_position,
-                adv_lat=eff_adv_lat,
-                adv_lon=eff_adv_lon,
-                position_valid=position_valid,
-                position_source=position_source,
-                position_updated_at=position_updated_at,
-                uptime=uptime,
-                clock=clock,
-                airtime_ms=airtime_ms,
-                duty_cycle_pct=duty_cycle_pct,
-                rx_packets=rx_packets,
-                tx_packets=tx_packets,
-                error_count=error_count,
-                connected_clients_count=connected_clients_count,
-                packets_sent=packets_sent,
-                packets_recv=packets_recv,
-                duplicate_packets=duplicate_packets,
-                packet_errors=packet_errors,
-                queue_len=queue_len,
-                neighbors=tuple(neighbors) if isinstance(neighbors, (list, tuple)) else (),
-                last_seen=last_seen,
-            )
-        object.__setattr__(self, "identity", identity)
-        object.__setattr__(self, "rf", rf)
-        object.__setattr__(self, "telemetry", telemetry)
+        """Constructor modular con soporte de compatibilidad total para campos planos."""
+        eff_identity = identity if identity is not None else _build_identity_from_fields(fields)
+        eff_rf = rf if rf is not None else _build_rf_from_fields(fields)
+        eff_telemetry = telemetry if telemetry is not None else _build_telemetry_from_fields(fields)
+        object.__setattr__(self, "identity", eff_identity)
+        object.__setattr__(self, "rf", eff_rf)
+        object.__setattr__(self, "telemetry", eff_telemetry)
 
     # Identidad Delegada
     @property

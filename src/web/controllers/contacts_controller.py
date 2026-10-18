@@ -20,6 +20,9 @@ from src.web.controllers.base import (
     problem_details,
 )
 
+_CONTACT_TYPE_MAP_REV: dict[str, str] = {"1": "CLIENT", "2": "REPEATER", "3": "ROOM", "4": "SENSOR"}
+_ROLE_TYPE_MAP: dict[str, int] = {"CLIENT": 1, "CHAT": 1, "USER": 1, "REPEATER": 2, "ROUTER": 2, "ROOM": 3, "SENSOR": 4}
+
 
 class ContactsController(BaseController):
     """Controlador para libreta de contactos (clientes LoRa) y sincronización con el firmware."""
@@ -245,137 +248,116 @@ class ContactsController(BaseController):
             "result": raw_hex_str,
         }
 
-    async def _import_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Importa contactos desde URI canónica (meshcore://contact/add?...), formato de mensaje (<pubkey:type:name>), JSON estructurado o volcado hexadecimal."""
-        raw_payload = str(req_body.get("data") or req_body.get("payload") or req_body.get("uri") or "").strip()
-        contacts_to_add: list[dict[str, Any]] = []
+    @staticmethod
+    def _parse_contacts_from_tags(raw_payload: str) -> list[dict[str, Any]]:
+        """Extrae contactos en formato de mensaje MeshCore <pubkey:type:name>."""
+        contacts: list[dict[str, Any]] = []
+        m_single = re.match(r"^<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>$", raw_payload)
+        if m_single:
+            pk = m_single.group(1).lower()
+            raw_type = m_single.group(2)
+            nm = m_single.group(3).strip()
+            rl = _CONTACT_TYPE_MAP_REV.get(raw_type, "CLIENT")
+            contacts.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
+        else:
+            matches = re.findall(r"<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>", raw_payload)
+            for m_pk, m_type, m_name in matches:
+                rl = _CONTACT_TYPE_MAP_REV.get(m_type, "CLIENT")
+                contacts.append({"public_key": m_pk.lower(), "name": m_name.strip(), "alias": m_name.strip(), "role": rl})
+        return contacts
 
-        # 1. Si req_body ya tiene campos directos de contacto
-        if "public_key" in req_body or "pubkey" in req_body or "key" in req_body:
-            contacts_to_add.append(req_body)
-        elif isinstance(req_body.get("contacts"), list):
-            contacts_to_add.extend(c for c in req_body["contacts"] if isinstance(c, dict))
+    @staticmethod
+    def _parse_contacts_from_uri(raw_payload: str) -> tuple[list[dict[str, Any]], tuple[int, dict[str, Any]] | None]:
+        """Extrae contactos desde URI meshcore://."""
+        if not raw_payload.startswith("meshcore://"):
+            return [], None
+        try:
+            parsed_uri = urllib.parse.urlparse(raw_payload)
+            if "channel" in parsed_uri.netloc.lower() or "channel" in parsed_uri.path.lower():
+                return [], problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto. Usa la sección Canales para importarlo.", "channel_payload_in_contacts")
 
-        # 2. Parseo de string si viene en raw_payload
-        if raw_payload and not contacts_to_add:
-            type_map_rev = {"1": "CLIENT", "2": "REPEATER", "3": "ROOM", "4": "SENSOR"}
-
-            # Caso 2a: Formato de mensaje MeshCore <pubkey:type:name>
-            m_single = re.match(r"^<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>$", raw_payload)
-            if m_single:
-                pk = m_single.group(1).lower()
-                raw_type = m_single.group(2)
-                nm = m_single.group(3).strip()
-                rl = type_map_rev.get(raw_type, "CLIENT")
-                contacts_to_add.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
-            else:
-                matches = re.findall(r"<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>", raw_payload)
-                if matches:
-                    for m_pk, m_type, m_name in matches:
-                        rl = type_map_rev.get(m_type, "CLIENT")
-                        contacts_to_add.append({"public_key": m_pk.lower(), "name": m_name.strip(), "alias": m_name.strip(), "role": rl})
-
-            # Caso 2b: URI meshcore://contact o meshcore://node
-            if not contacts_to_add and raw_payload.startswith("meshcore://"):
+            qs = urllib.parse.parse_qs(parsed_uri.query)
+            pk = (qs.get("public_key") or qs.get("pubkey") or qs.get("key") or [""])[0].strip()
+            nm = (qs.get("name") or qs.get("alias") or [""])[0].strip()
+            raw_type = (qs.get("type") or [""])[0].strip()
+            rl = (qs.get("role") or [""])[0].strip().upper()
+            if not rl and raw_type:
+                rl = _CONTACT_TYPE_MAP_REV.get(raw_type, "CLIENT")
+            if not rl:
+                rl = "CLIENT"
+            lat_s = (qs.get("latitude") or qs.get("lat") or qs.get("adv_lat") or [""])[0].strip()
+            lon_s = (qs.get("longitude") or qs.get("lon") or qs.get("adv_lon") or [""])[0].strip()
+            c_entry: dict[str, Any] = {"public_key": pk, "name": nm, "alias": nm, "role": rl}
+            if lat_s:
                 try:
-                    parsed_uri = urllib.parse.urlparse(raw_payload)
-                    # Si es canal, alertar
-                    if "channel" in parsed_uri.netloc.lower() or "channel" in parsed_uri.path.lower():
-                        return problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto. Usa la sección Canales para importarlo.", "channel_payload_in_contacts")
-
-                    qs = urllib.parse.parse_qs(parsed_uri.query)
-                    pk = (qs.get("public_key") or qs.get("pubkey") or qs.get("key") or [""])[0].strip()
-                    nm = (qs.get("name") or qs.get("alias") or [""])[0].strip()
-                    raw_type = (qs.get("type") or [""])[0].strip()
-                    rl = (qs.get("role") or [""])[0].strip().upper()
-                    if not rl and raw_type:
-                        rl = type_map_rev.get(raw_type, "CLIENT")
-                    if not rl:
-                        rl = "CLIENT"
-                    lat_s = (qs.get("latitude") or qs.get("lat") or qs.get("adv_lat") or [""])[0].strip()
-                    lon_s = (qs.get("longitude") or qs.get("lon") or qs.get("adv_lon") or [""])[0].strip()
-                    c_entry: dict[str, Any] = {"public_key": pk, "name": nm, "alias": nm, "role": rl}
-                    if lat_s:
-                        try:
-                            c_entry["latitude"] = float(lat_s)
-                        except (ValueError, TypeError):
-                            pass
-                    if lon_s:
-                        try:
-                            c_entry["longitude"] = float(lon_s)
-                        except (ValueError, TypeError):
-                            pass
-                    if pk:
-                        contacts_to_add.append(c_entry)
-                except Exception as error:
-                    logging.warning("Contact URI parsing failed: %s", type(error).__name__)
-
-            # Caso 2b: JSON string
-            elif raw_payload.startswith("{") or raw_payload.startswith("["):
+                    c_entry["latitude"] = float(lat_s)
+                except (ValueError, TypeError):
+                    pass
+            if lon_s:
                 try:
-                    loaded = json.loads(raw_payload)
-                    if isinstance(loaded, dict):
-                        if "type" in loaded and loaded.get("type") == "channel":
-                            return problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto", "channel_payload_in_contacts")
-                        contacts_to_add.append(loaded)
-                    elif isinstance(loaded, list):
-                        contacts_to_add.extend(c for c in loaded if isinstance(c, dict))
-                except Exception as error:
-                    logging.warning("Contact JSON parsing failed: %s", type(error).__name__)
+                    c_entry["longitude"] = float(lon_s)
+                except (ValueError, TypeError):
+                    pass
+            if pk:
+                return [c_entry], None
+        except Exception as error:
+            logging.warning("Contact URI parsing failed: %s", type(error).__name__)
+        return [], None
 
-            # Caso 2c: Volcado binario hexadecimal (legado)
-            if not contacts_to_add:
-                try:
-                    bin_data = bytes.fromhex(raw_payload)
-                    # Intentar si el binario decodifica como texto UTF-8 JSON o URI
-                    try:
-                        utf8_text = bin_data.decode("utf-8").strip()
-                        if utf8_text.startswith("{") or utf8_text.startswith("["):
-                            loaded = json.loads(utf8_text)
-                            if isinstance(loaded, dict):
-                                contacts_to_add.append(loaded)
-                            elif isinstance(loaded, list):
-                                contacts_to_add.extend(c for c in loaded if isinstance(c, dict))
-                        elif utf8_text.startswith("meshcore://"):
-                            parsed_uri = urllib.parse.urlparse(utf8_text)
-                            if "channel" in parsed_uri.netloc.lower() or "channel" in parsed_uri.path.lower():
-                                return problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto", "channel_payload_in_contacts")
-                            qs = urllib.parse.parse_qs(parsed_uri.query)
-                            pk = (qs.get("public_key") or qs.get("pubkey") or qs.get("key") or [""])[0].strip()
-                            nm = (qs.get("name") or qs.get("alias") or [""])[0].strip()
-                            raw_type = (qs.get("type") or [""])[0].strip()
-                            rl = (qs.get("role") or [""])[0].strip().upper()
-                            if not rl and raw_type:
-                                type_map_rev = {"1": "CLIENT", "2": "REPEATER", "3": "ROOM", "4": "SENSOR"}
-                                rl = type_map_rev.get(raw_type, "CLIENT")
-                            if not rl:
-                                rl = "CLIENT"
-                            if pk:
-                                contacts_to_add.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
-                    except Exception:
-                        pass
+    @staticmethod
+    def _parse_contacts_from_json(raw_payload: str) -> tuple[list[dict[str, Any]], tuple[int, dict[str, Any]] | None]:
+        """Extrae contactos desde cadena JSON."""
+        if not (raw_payload.startswith("{") or raw_payload.startswith("[")):
+            return [], None
+        try:
+            loaded = json.loads(raw_payload)
+            if isinstance(loaded, dict):
+                if loaded.get("type") == "channel":
+                    return [], problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto", "channel_payload_in_contacts")
+                return [loaded], None
+            elif isinstance(loaded, list):
+                return [c for c in loaded if isinstance(c, dict)], None
+        except Exception as error:
+            logging.warning("Contact JSON parsing failed: %s", type(error).__name__)
+        return [], None
 
-                    # Si es binario crudo del firmware
-                    if not contacts_to_add:
-                        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-                        res = await ser.import_contact(bin_data) if ser and hasattr(ser, "import_contact") else None
-                        failure = self.command_failure(res)
-                        if failure:
-                            return failure
-                        self.ctx.log_system_event("INFO", "Contacto binario importado hacia el firmware", source="contacts")
-                        return 200, {"status": "ok", "result": res}
-                except ValueError:
-                    return problem_details(400, "Bad Request", "Formato de datos no reconocido (no es URI, JSON ni hexadecimal válido)", "invalid_hex_data")
+    @classmethod
+    def _parse_contacts_from_hex(cls, raw_payload: str) -> tuple[list[dict[str, Any]], bytes | None, tuple[int, dict[str, Any]] | None]:
+        """Extrae contactos desde volcado hexadecimal, decodificando UTF-8 o retornando bytes binarios para el firmware."""
+        try:
+            bin_data = bytes.fromhex(raw_payload)
+        except ValueError:
+            return [], None, problem_details(400, "Bad Request", "Formato de datos no reconocido (no es URI, JSON ni hexadecimal válido)", "invalid_hex_data")
 
-        if not contacts_to_add:
-            return problem_details(400, "Bad Request", "No se detectaron contactos válidos para importar", "no_valid_contacts")
+        try:
+            utf8_text = bin_data.decode("utf-8").strip()
+            if utf8_text.startswith("{") or utf8_text.startswith("["):
+                contacts, err = cls._parse_contacts_from_json(utf8_text)
+                if err:
+                    return [], None, err
+                if contacts:
+                    return contacts, None, None
+            elif utf8_text.startswith("meshcore://"):
+                contacts, err = cls._parse_contacts_from_uri(utf8_text)
+                if err:
+                    return [], None, err
+                if contacts:
+                    return contacts, None, None
+        except Exception:
+            pass
 
+        return [], bin_data, None
+
+    def _validate_contacts_to_import(
+        self, contacts_to_add: list[dict[str, Any]]
+    ) -> tuple[list[tuple[str, str, str, str, bool | None, float | None, float | None]], tuple[int, dict[str, Any]] | None]:
+        """Valida y filtra el lote de contactos a importar asegurando reglas de infraestructura y formato."""
         from src.shared_utils import to_bool
 
         validated_batch: list[tuple[str, str, str, str, bool | None, float | None, float | None]] = []
         for c_dict in contacts_to_add:
             if not isinstance(c_dict, dict):
-                return problem_details(422, "Unprocessable Entity", "Cada contacto debe ser un objeto JSON", "invalid_contact_format")
+                return [], problem_details(422, "Unprocessable Entity", "Cada contacto debe ser un objeto JSON", "invalid_contact_format")
             pubkey = str(c_dict.get("public_key") or c_dict.get("pubkey") or c_dict.get("key") or "").strip()
             if not pubkey:
                 continue
@@ -394,7 +376,7 @@ class ContactsController(BaseController):
 
             validation = self._contact_validation(pubkey, name or alias, role)
             if validation:
-                return validation
+                return [], validation
 
             is_fav = c_dict.get("is_favorite")
             is_favorite_val = to_bool(is_fav) if is_fav is not None else None
@@ -416,14 +398,16 @@ class ContactsController(BaseController):
 
             validated_batch.append((pubkey, name, alias, role, is_favorite_val, lat_val, lon_val))
 
-        if not validated_batch:
-            return problem_details(400, "Bad Request", "Ningún contacto válido pudo ser agregado (verifique que no sean nodos repetidores o la estación base local)", "import_rejected")
+        return validated_batch, None
 
+    async def _persist_imported_batch(
+        self, validated_batch: list[tuple[str, str, str, str, bool | None, float | None, float | None]]
+    ) -> tuple[int, dict[str, Any]]:
+        """Sincroniza y persiste el lote de contactos validados contra el firmware y la base de datos."""
         imported_records: list[dict[str, Any]] = []
-        role_type_map = {"CLIENT": 1, "CHAT": 1, "USER": 1, "REPEATER": 2, "ROUTER": 2, "ROOM": 3, "SENSOR": 4}
 
         for pubkey, name, alias, role, is_favorite_val, lat_val, lon_val in validated_batch:
-            type_num = role_type_map.get(role, 1)
+            type_num = _ROLE_TYPE_MAP.get(role, 1)
             mutation_data: dict[str, Any] = {
                 "public_key": pubkey,
                 "name": name or alias,
@@ -469,6 +453,59 @@ class ContactsController(BaseController):
 
         return problem_details(400, "Bad Request", "Ningún contacto válido pudo ser agregado (verifique que no sean nodos repetidores o la estación base local)", "import_rejected")
 
+    async def _import_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Importa contactos desde URI canónica (meshcore://contact/add?...), formato de mensaje (<pubkey:type:name>), JSON estructurado o volcado hexadecimal."""
+        raw_payload = str(req_body.get("data") or req_body.get("payload") or req_body.get("uri") or "").strip()
+        contacts_to_add: list[dict[str, Any]] = []
+
+        # 1. Si req_body ya tiene campos directos de contacto
+        if "public_key" in req_body or "pubkey" in req_body or "key" in req_body:
+            contacts_to_add.append(req_body)
+        elif isinstance(req_body.get("contacts"), list):
+            contacts_to_add.extend(c for c in req_body["contacts"] if isinstance(c, dict))
+
+        # 2. Parseo de string si viene en raw_payload
+        if raw_payload and not contacts_to_add:
+            contacts_to_add = self._parse_contacts_from_tags(raw_payload)
+
+            if not contacts_to_add:
+                uri_contacts, uri_err = self._parse_contacts_from_uri(raw_payload)
+                if uri_err:
+                    return uri_err
+                contacts_to_add = uri_contacts
+
+            if not contacts_to_add:
+                json_contacts, json_err = self._parse_contacts_from_json(raw_payload)
+                if json_err:
+                    return json_err
+                contacts_to_add = json_contacts
+
+            if not contacts_to_add:
+                hex_contacts, bin_data, hex_err = self._parse_contacts_from_hex(raw_payload)
+                if hex_err:
+                    return hex_err
+                if hex_contacts:
+                    contacts_to_add = hex_contacts
+                elif bin_data:
+                    ser = getattr(self.ctx.bridge, "serial_adapter", None)
+                    res = await ser.import_contact(bin_data) if ser and hasattr(ser, "import_contact") else None
+                    failure = self.command_failure(res)
+                    if failure:
+                        return failure
+                    self.ctx.log_system_event("INFO", "Contacto binario importado hacia el firmware", source="contacts")
+                    return 200, {"status": "ok", "result": res}
+
+        if not contacts_to_add:
+            return problem_details(400, "Bad Request", "No se detectaron contactos válidos para importar", "no_valid_contacts")
+
+        validated_batch, val_err = self._validate_contacts_to_import(contacts_to_add)
+        if val_err:
+            return val_err
+        if not validated_batch:
+            return problem_details(400, "Bad Request", "Ningún contacto válido pudo ser agregado (verifique que no sean nodos repetidores o la estación base local)", "import_rejected")
+
+        return await self._persist_imported_batch(validated_batch)
+
     async def _create_or_update_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Crea o actualiza un contacto en la libreta del bridge."""
         pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip()
@@ -508,8 +545,7 @@ class ContactsController(BaseController):
             except (ValueError, TypeError):
                 pass
 
-        role_type_map = {"CLIENT": 1, "CHAT": 1, "USER": 1, "REPEATER": 2, "ROUTER": 2, "ROOM": 3, "SENSOR": 4}
-        type_num = role_type_map.get(role.upper(), 1)
+        type_num = _ROLE_TYPE_MAP.get(role.upper(), 1)
         mutation_data: dict[str, Any] = {
             "public_key": pubkey,
             "name": name or alias or f"Node_{pubkey[:6]}",

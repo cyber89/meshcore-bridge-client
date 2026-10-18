@@ -383,7 +383,7 @@ class MeshCoreApp {
     this.eventBus.on(EVENTS.NODE_UPDATED, refreshOpenPalette);
 
     const openPalette = () => {
-      if (!commandPaletteModal) return;
+      if (!commandPaletteModal || document.querySelector("dialog[open]")) return;
       this.dialogController.open(commandPaletteModal, { initialFocus: cmdPaletteInput, dismiss: closePalette });
       if (cmdPaletteInput) {
         cmdPaletteInput.value = "";
@@ -408,6 +408,7 @@ class MeshCoreApp {
     }
 
     window.addEventListener("keydown", (e) => {
+      if (document.querySelector("dialog[open]")) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         if (commandPaletteModal) {
@@ -752,37 +753,47 @@ class MeshCoreApp {
     if (!container) {
       container = document.createElement("div");
       container.id = "toastContainer";
-      container.className = "toast-container position-fixed bottom-0 end-0 p-3";
-      container.setAttribute("aria-live", "polite");
+      container.className = "toast-container app-toast-container";
+      container.setAttribute("role", "region");
+      container.setAttribute("aria-label", I18n.t("app.notifications"));
+      container.setAttribute("data-i18n-aria-label", "app.notifications");
       document.body.appendChild(container);
     }
 
     const typeConfig = {
-      success: { bg: "bg-success text-white", icon: "check-circle" },
-      info: { bg: "bg-primary text-white", icon: "info-circle" },
-      warning: { bg: "bg-warning text-dark", icon: "exclamation-triangle" },
-      error: { bg: "bg-danger text-white", icon: "exclamation-octagon" },
+      success: { title: "modal.success", icon: "check-circle" },
+      info: { title: "modal.info", icon: "info-circle" },
+      warning: { title: "modal.warning", icon: "exclamation-triangle" },
+      error: { title: "modal.error", icon: "exclamation-octagon" },
     };
     type = type === "danger" ? "error" : Object.hasOwn(typeConfig, type) ? type : "info";
     const cfg = typeConfig[type];
 
     const toast = document.createElement("div");
-    toast.className = `toast align-items-center ${cfg.bg} border-0 shadow mb-2`;
+    toast.className = `toast app-toast toast-type-${type} fade`;
     toast.setAttribute("role", type === "error" ? "alert" : "status");
     toast.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
     toast.setAttribute("aria-atomic", "true");
     toast.dataset.toastType = type;
     toast.innerHTML = `
-      <div class="d-flex align-items-center">
-        <div class="toast-body d-flex align-items-center gap-2 py-2 px-3">
-          <i class="bi bi-${cfg.icon} fs-5" aria-hidden="true"></i>
+      <div class="toast-layout">
+        <span class="toast-icon"><i class="bi bi-${cfg.icon}" aria-hidden="true"></i></span>
+        <div class="toast-content">
+          <strong class="toast-title" data-i18n="${cfg.title}">${escapeHtml(I18n.t(cfg.title))}</strong>
           <span class="toast-message">${escapeHtml(message)}</span>
         </div>
-        <button type="button" class="btn-close ${type === 'warning' ? '' : 'btn-close-white'} me-2 m-auto" data-bs-dismiss="toast" aria-label="${escapeHtml(I18n.t("app.close_toast"))}"></button>
+        <button type="button" class="btn-close toast-close" data-bs-dismiss="toast" data-i18n-aria-label="app.close_toast" aria-label="${escapeHtml(I18n.t("app.close_toast"))}"></button>
       </div>
     `;
 
     container.appendChild(toast);
+
+    const revealToast = () => {
+      // Keep a new notice discoverable without moving a notification being read.
+      if (!container.contains(document.activeElement) && !container.matches(":hover")) {
+        container.scrollTop = container.scrollHeight;
+      }
+    };
 
     if (window.bootstrap?.Toast) {
       const bsToast = bootstrap.Toast.getOrCreateInstance(toast, {
@@ -796,10 +807,22 @@ class MeshCoreApp {
         if (hiding) event.preventDefault();
         else hiding = true;
       });
-      toast.addEventListener("hidden.bs.toast", () => toast.remove());
+      toast.addEventListener("hidden.bs.toast", () => {
+        bsToast.dispose();
+        toast.remove();
+      }, { once: true });
+      toast.addEventListener("shown.bs.toast", revealToast, { once: true });
       bsToast.show();
     } else {
-      setTimeout(() => toast.remove(), durationMs || 3500);
+      toast.classList.add("show");
+      const timeout = durationMs > 0 ? setTimeout(() => toast.remove(), durationMs) : null;
+      const close = toast.querySelector(".toast-close");
+      close.removeAttribute("data-bs-dismiss");
+      close.addEventListener("click", () => {
+        if (timeout !== null) clearTimeout(timeout);
+        toast.remove();
+      }, { once: true });
+      revealToast();
     }
   }
 
@@ -885,42 +908,10 @@ class MeshCoreApp {
   }
 
   _ensureSystemDialogModal() {
-    let modal = document.getElementById("systemDialogModal");
+    const modal = document.getElementById("systemDialogModal");
     if (!modal) {
-      modal = document.createElement("div");
-      modal.id = "systemDialogModal";
-      modal.className = "modal fade modal-overlay hidden";
-      modal.setAttribute("role", "dialog");
-      modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("aria-labelledby", "systemDialogTitleText");
-      modal.setAttribute("aria-describedby", "systemDialogMessage");
-      modal.innerHTML = `
-        <div class="modal-dialog modal-dialog-centered"><div class="modal-content modal-card system-dialog-card" id="systemDialogCard">
-          <div class="modal-header system-dialog-header">
-            <div class="system-dialog-title-group">
-              <div class="system-dialog-icon-badge" id="systemDialogIconBadge">
-                <i class="bi bi-question-circle modal-title-icon" id="systemDialogIcon" aria-hidden="true"></i>
-              </div>
-              <h3 id="systemDialogTitle">
-                <span id="systemDialogTitleText">Confirmar</span>
-              </h3>
-            </div>
-            <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseSystemDialog" aria-label="Cerrar modal"></button>
-          </div>
-          <div class="modal-body system-dialog-body">
-            <p id="systemDialogMessage" class="system-dialog-message"></p>
-            <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden">
-              <label for="systemDialogInput" data-i18n="modal.input_label">${escapeHtml(I18n.t("modal.input_label"))}</label>
-              <input type="text" id="systemDialogInput" class="system-dialog-input text-input" autocomplete="off" spellcheck="false" />
-            </div>
-          </div>
-          <div class="modal-footer system-dialog-footer">
-            <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSystemDialog"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span></button>
-            <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSystemDialog"><i class="bi bi-check2-circle" aria-hidden="true"></i><span class="btn-text">Confirmar</span></button>
-          </div>
-        </div></div>
-      `;
-      document.body.appendChild(modal);
+      console.warn("Elemento #systemDialogModal no encontrado en el DOM estático.");
+      return null;
     }
     this.dialogController.register(modal);
     return modal;
@@ -958,7 +949,7 @@ class MeshCoreApp {
       }
 
       if (iconBadge) {
-        iconBadge.className = `system-dialog-icon-badge badge-${dialogType}${isDanger ? " badge-danger" : ""}`;
+        iconBadge.className = `system-dialog-icon-badge tone-${dialogType}`;
       }
 
       // Defaults keep live language bindings; explicit action labels remain intact.

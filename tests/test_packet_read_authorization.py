@@ -1,4 +1,4 @@
-"""Capture reads obey the same API-key boundary as other sensitive exports."""
+"""Capture reads obey the personal station's mandatory authentication boundary."""
 
 from __future__ import annotations
 
@@ -29,6 +29,9 @@ async def capture_server(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[AsgiW
     bridge = SimpleNamespace(packet_buffer=buffer, channels=[])
     router = WebAPIRouter(bridge)
     server = AsgiWebServer(router=router, host="127.0.0.1", port=0)
+    store = server.app.state.authentication.store
+    await asyncio.to_thread(store.initialize)
+    await asyncio.to_thread(store.bootstrap, "qa-owner", "isolated qa owner password")
     try:
         await server.start()
         yield server
@@ -73,22 +76,19 @@ async def test_capture_read_rejects_missing_or_wrong_key(
 ) -> None:
     status, body = await request(capture_server, path, api_key=provided_key)
     assert status == 401
-    assert json.loads(body) == {"error": "Unauthorized"}
+    assert json.loads(body) == {"error": "auth_required"}
     assert PACKET_TEXT.encode() not in body
 
 
 @pytest.mark.parametrize("fmt", ["json", "csv", "pcap"])
-@pytest.mark.parametrize("credential_transport", ["header", "query"])
 async def test_authorized_reads_preserve_capture_and_export_contract(
-    capture_server: AsgiWebServer, fmt: str, credential_transport: str,
+    capture_server: AsgiWebServer, fmt: str,
 ) -> None:
-    auth_query = "&api_key=" + quote(API_KEY, safe="") if credential_transport == "query" else ""
-    key = API_KEY if credential_transport == "header" else None
-    status, body = await request(capture_server, "/api/packets?limit=1" + auth_query, api_key=key)
+    status, body = await request(capture_server, "/api/packets?limit=1", api_key=API_KEY)
     assert status == 200
     assert json.loads(body)["data"][0]["text"] == PACKET_TEXT
     status, body = await request(
-        capture_server, f"/api/packets/export?format={fmt}{auth_query}", api_key=key,
+        capture_server, f"/api/packets/export?format={fmt}", api_key=API_KEY,
     )
     assert status == 200
     export = json.loads(body)
@@ -97,6 +97,15 @@ async def test_authorized_reads_preserve_capture_and_export_contract(
         assert b"synthetic-capture-bytes" in base64.b64decode(export["base64_data"])
     else:
         assert PACKET_TEXT in export["text_data"]
+
+
+@pytest.mark.parametrize("path", ["/api/packets?limit=1", "/api/packets/export?format=json"])
+async def test_query_api_key_cannot_authorize_capture_reads(
+    capture_server: AsgiWebServer, path: str,
+) -> None:
+    status, body = await request(capture_server, path + "&api_key=" + quote(API_KEY, safe=""))
+    assert status == 401 and json.loads(body) == {"error": "auth_required"}
+    assert PACKET_TEXT.encode() not in body
 
 
 @pytest.mark.parametrize("path", ["/api/packets", "/api/packets/export?format=json"])
@@ -111,20 +120,21 @@ async def test_capture_head_requires_authentication_without_response_body(
 
 
 @pytest.mark.parametrize("path", ["/api/packets", "/api/packets/export?format=json"])
-async def test_development_mode_preserves_capture_read(
+async def test_empty_integration_key_does_not_allow_anonymous_capture_read(
     capture_server: AsgiWebServer, monkeypatch: pytest.MonkeyPatch, path: str,
 ) -> None:
     monkeypatch.delenv("BRIDGE_API_KEY", raising=False)
     status, body = await request(capture_server, path)
-    assert status == 200 and json.loads(body)["status"] == "ok"
+    assert status == 401 and json.loads(body) == {"error": "auth_required"}
+    assert PACKET_TEXT.encode() not in body
 
 
 @pytest.mark.parametrize("path", ["/api/channels", "/api/packets/debug", "/api/packetsExtra"])
-async def test_auth_boundary_does_not_expand_to_unrelated_reads(
+async def test_auth_boundary_protects_all_api_reads(
     capture_server: AsgiWebServer, path: str,
 ) -> None:
     status, _ = await request(capture_server, path)
-    assert status == (200 if path == "/api/channels" else 404)
+    assert status == 401
 
 
 async def test_wrong_query_key_is_not_logged(

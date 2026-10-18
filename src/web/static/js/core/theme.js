@@ -11,12 +11,12 @@ export function applyThemePreference(theme, persist = true) {
   const selected = theme === "light" ? "light" : "dark";
   const isDark = selected === "dark";
   const stylesheet = document.getElementById("themeStylesheet");
-  const href = isDark ? "/css/bootstrap-slate.min.css" : "/css/bootstrap-zephyr.min.css";
+  const href = isDark ? "/css/bootstrap-slate.min.css" : "/css/bootstrap-zephyr.local.min.css";
   if (stylesheet && !stylesheet.getAttribute("href")?.endsWith(href)) stylesheet.setAttribute("href", href);
   document.body.classList.remove("dark-theme", "light-theme");
   document.body.classList.add(`${selected}-theme`);
   document.documentElement.setAttribute("data-bs-theme", selected);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#101b2e" : "#ffffff");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#101b2e" : "#eef3f9");
   if (persist) {
     try { localStorage.setItem("meshcore_theme", selected); }
     catch (_) { /* The visual preference still applies when storage is unavailable. */ }

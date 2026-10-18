@@ -444,9 +444,6 @@ class StationDatabase:
             connection.execute("DELETE FROM pending_acks WHERE ack_code=?", (code,))
             return {"req_id": row["req_id"], "target": row["target"], "timestamp": row["timestamp"]}
 
-    def resolve_delivery_ack(self, ack_code: str) -> dict[str, Any] | None:
-        return self.consume_pending_ack(ack_code)
-
     def history(self, feed_key: str | None = None, limit: int = 100, before: int | None = None) -> dict[str, Any]:
         if feed_key is not None and (not isinstance(feed_key, str) or
                                     not re.fullmatch(r"(?:ch_[0-9]+|dm_[0-9a-f]{8,64})", feed_key)):

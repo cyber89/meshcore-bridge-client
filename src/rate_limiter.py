@@ -157,9 +157,6 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
             )
         super()._put(wrapped)
 
-    def _get(self) -> Any:
-        return super()._get()
-
 
 @dataclass
 class AirtimeRecord:

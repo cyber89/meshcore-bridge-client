@@ -383,12 +383,6 @@ class FrameHeader:
     hop_limit: int
     payload_len: int
 
-    # TODO: migrate callers then remove
-    @property
-    def opcode(self) -> PacketType:
-        """Legacy property for backward compatibility."""
-        return self.packet_type
-
     def __post_init__(self) -> None:
         if not (0 <= self.seq_num <= 0xFF):
             raise ValueError(f"seq_num fuera de rango 0..255: {self.seq_num}")

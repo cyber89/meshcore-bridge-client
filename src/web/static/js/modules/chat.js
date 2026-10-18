@@ -157,7 +157,6 @@ export class ChatModule {
       chatTargetName: document.getElementById("chatActiveTitle"),
       chatTargetAvatar: document.getElementById("chatTargetAvatar"),
       btnBackToChannelsMobile: document.getElementById("btnBackToChannelsMobile"),
-      btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       dmListUi: document.getElementById("dmListUi"),
       btnCloseChat: document.getElementById("btnCloseChat"),
       clearChatBtn: document.getElementById("clearChatBtn"),
@@ -201,9 +200,6 @@ export class ChatModule {
     };
     if (this.dom.btnBackToChannelsMobile) {
       this.dom.btnBackToChannelsMobile.addEventListener("click", handleMobileBack);
-    }
-    if (this.dom.btnToggleChannelsMobile && this.dom.btnToggleChannelsMobile !== this.dom.btnBackToChannelsMobile) {
-      this.dom.btnToggleChannelsMobile.addEventListener("click", handleMobileBack);
     }
 
     // Contador de caracteres/bytes en tiempo real
@@ -1551,19 +1547,8 @@ export class ChatModule {
           <time class="msg-time"${timeAttributes}>${escapeHtml(timeStr)}</time>
           ${ackHtml}
         </div>
-        ${msg.status === "failed" ? `<button type="button" class="btn-retry-msg">${escapeHtml(I18n.t('chat.recover_draft'))}</button>` : ""}
       </div>
     `;
-
-    row.querySelector('.btn-retry-msg')?.addEventListener('click', () => {
-      if (this.dom.chatInputText && !this.dom.chatInputText.value.trim()) {
-        this.dom.chatInputText.value = msg.text;
-        this.updateCharCounter();
-        this.dom.chatInputText.focus();
-      } else {
-        this.ctx.showToast?.(I18n.t('chat.draft_occupied'), 'warning');
-      }
-    });
 
     // 5. Cableado de interactividad en tarjetas
     if (parsedUri?.type === "contact") {

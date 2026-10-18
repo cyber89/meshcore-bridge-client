@@ -12,7 +12,7 @@ El navegador utiliza una cookie de sesión opaca, `HttpOnly`, `SameSite=Strict`,
 
 Las automatizaciones pueden obtener un token opaco y enviarlo por `Authorization: Bearer`. Su digest se persiste y el secreto se entrega una sola vez. La clave `BRIDGE_API_KEY` explícitamente configurada se mantiene para clientes existentes por cabecera, sin aceptar credenciales en query. El cambio de credenciales revoca sesiones y tokens generados; la clave externa de `.env` necesita rotación independiente.
 
-Nombre de usuario: entre 1 y 64 letras ASCII, dígitos, puntos, guiones o guiones bajos. Contraseña nueva: entre 15 y 128 caracteres, sin reglas de composición; se permite pegar y usar gestores de contraseñas. El cambio de cuenta requiere la contraseña actual.
+Nombre de usuario: entre 1 y 64 letras ASCII, dígitos, puntos, guiones o guiones bajos. Contraseña nueva: entre 8 y 64 caracteres Unicode, sin reglas de composición, según la auditoría solicitada por el usuario; se permite pegar y usar gestores de contraseñas. El cambio de cuenta requiere la contraseña actual. Login y contraseña actual conservan compatibilidad con credenciales anteriores de hasta 128 caracteres y con la cuenta inicial `admin:admin`.
 
 ## Etapas y propiedad de archivos
 

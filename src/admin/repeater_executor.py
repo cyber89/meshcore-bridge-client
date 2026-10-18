@@ -601,7 +601,7 @@ class RepeaterAdminExecutor:
         if req.action in ("remote_repeater_set_config", "set_remote_config"):
             params = req.admin_data.get("params")
             return isinstance(params, dict) and any(
-                RepeaterManager._boolean(params.get(field)) is True for field in ("repeat", "repeat_enabled")
+                RepeaterManager.parse_boolean(params.get(field)) is True for field in ("repeat", "repeat_enabled")
             )
         command = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
         return self._repeat_enable_command(command or req.action)
@@ -675,7 +675,7 @@ class RepeaterAdminExecutor:
                 bw_f = float(bw_cand)
                 if not (7.0 <= bw_f <= 500.0):
                     return {"status": "error", "message": f"Ancho de banda {bw_f} kHz inválido"}
-                sf_i = RepeaterManager._integer(sf_cand)
+                sf_i = RepeaterManager.parse_integer(sf_cand)
                 if sf_i not in range(5, 13):
                     return {"status": "error", "message": f"Spreading factor SF{sf_i} inválido (5..12)"}
                 cr_raw = str(cr_cand).strip()
@@ -701,7 +701,7 @@ class RepeaterAdminExecutor:
             if p_k in params:
                 raw_pwr = params[p_k]
                 try:
-                    pwr_i = RepeaterManager._integer(raw_pwr)
+                    pwr_i = RepeaterManager.parse_integer(raw_pwr)
                     if pwr_i is None or not (-9 <= pwr_i <= 30):
                         return {"status": "error", "message": f"Potencia TX {pwr_i} dBm fuera de rango (-9..30)"}
                 except (ValueError, TypeError):
@@ -931,17 +931,17 @@ class RepeaterAdminExecutor:
             latitude=float(lat_val) if lat_val is not None else None,
             longitude=float(lon_val) if lon_val is not None else None,
             altitude_m=float(alt_val) if alt_val is not None else None,
-            fixed_position=RepeaterManager._boolean(fixed_val) if fixed_val is not None else None,
+            fixed_position=RepeaterManager.parse_boolean(fixed_val) if fixed_val is not None else None,
             frequency=float(freq_raw) if freq_raw is not None else None,
             spreading_factor=int(sf_raw) if sf_raw is not None else None,
             bandwidth=float(bw_raw) if bw_raw is not None else None,
             coding_rate=str(cr_raw) if cr_raw is not None else None,
             tx_power=int(tx_pwr) if tx_pwr is not None else None,
             hop_limit=int(hop_raw) if hop_raw is not None else None,
-            repeat_enabled=RepeaterManager._boolean(rep_raw) if rep_raw is not None else None,
+            repeat_enabled=RepeaterManager.parse_boolean(rep_raw) if rep_raw is not None else None,
             advert_interval=int(adv_raw) if adv_raw is not None else None,
             flood_advert_interval=int(params["flood_advert_interval"]) if "flood_advert_interval" in params else None,
-            allow_read_only=RepeaterManager._boolean(params["allow_read_only"]) if "allow_read_only" in params else None,
+            allow_read_only=RepeaterManager.parse_boolean(params["allow_read_only"]) if "allow_read_only" in params else None,
             clock=str(clk_raw) if clk_raw else None,
             battery_pct=int(bat_raw) if bat_raw is not None else None,
             voltage_v=float(volt_raw) if volt_raw is not None else None,

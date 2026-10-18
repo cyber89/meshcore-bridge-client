@@ -681,7 +681,8 @@ class RepeaterManager:
         return None
 
     @staticmethod
-    def _integer(value: Any) -> int | None:
+    def parse_integer(value: Any) -> int | None:
+        """Parsea de forma segura un valor numérico entero."""
         if isinstance(value, bool):
             return None
         try:
@@ -691,7 +692,8 @@ class RepeaterManager:
             return None
 
     @staticmethod
-    def _boolean(value: Any) -> bool | None:
+    def parse_boolean(value: Any) -> bool | None:
+        """Parsea de forma segura un valor booleano admitiendo cadenas y tipos booleanos."""
         if isinstance(value, bool):
             return value
         if str(value).lower() in ("true", "1", "on"):
@@ -701,8 +703,14 @@ class RepeaterManager:
         return None
 
     @staticmethod
-    def _text(value: Any, max_bytes: int) -> bool:
+    def is_valid_text(value: Any, max_bytes: int) -> bool:
+        """Valida si un valor es una cadena de texto imprimible acotada en bytes."""
         return isinstance(value, str) and len(value.encode("utf-8")) <= max_bytes and all(ord(char) >= 32 for char in value)
+
+    # Compatibilidad hacia atrás para alias heredados
+    _integer = parse_integer
+    _boolean = parse_boolean
+    _text = is_valid_text
 
     @staticmethod
     def response_is_error(text: str) -> bool:

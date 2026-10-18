@@ -61,56 +61,6 @@
       </div>
     </div>
   </section>
-  <dialog id="accountDialog" class="auth-dialog" aria-labelledby="accountHeading" aria-describedby="accountDescription">
-    <div class="auth-dialog-heading"><h2 id="accountHeading" data-i18n="auth.account">Perfil</h2><button id="accountCloseButton" type="button" class="btn btn-outline-secondary btn-sm" data-i18n="auth.close">Cerrar</button></div>
-    <p id="accountDescription" class="text-body-secondary" data-i18n="auth.account_description">Cambia tu contraseña, actualiza tu nombre de usuario o cierra sesión.</p>
-    <p id="accountRequiredNotice" class="alert alert-warning" role="status" hidden data-i18n="auth.change_required">Cambia ahora la contraseña predeterminada admin. La estación y la API seguirán bloqueadas hasta que guardes una contraseña nueva.</p>
-    <form id="accountCredentialsForm" class="auth-form" method="post" action="/api/auth/credentials" novalidate>
-      <div class="form-group" id="accountUsernameGroup">
-        <label for="accountUsername" data-i18n="auth.username">Nombre de usuario</label>
-        <input type="text" id="accountUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+" aria-describedby="accountUsernameHint">
-        <p id="accountUsernameHint" class="field-hint text-body-secondary" data-i18n="auth.username_hint">1–64 caracteres: letras, números, punto, guion o guion bajo.</p>
-      </div>
-      <fieldset class="auth-fieldset border-0 p-0 m-0">
-        <legend class="visually-hidden" data-i18n="auth.security_heading">Contraseña</legend>
-        <div class="form-group" id="accountCurrentPasswordGroup">
-          <label for="accountCurrentPassword" data-i18n="auth.current_password">Contraseña actual</label>
-          <input id="accountCurrentPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="256">
-        </div>
-        <div class="form-group" id="accountNewPasswordGroup">
-          <label for="accountNewPassword" data-i18n="auth.new_password">Contraseña nueva</label>
-          <input id="accountNewPassword" class="form-control" type="password" name="password" autocomplete="new-password" required aria-describedby="accountPasswordHint">
-          <p id="accountPasswordHint" class="field-hint text-body-secondary" data-i18n="auth.password_hint">Usa entre 8 y 64 caracteres, sin requisitos de complejidad.</p>
-        </div>
-        <div class="form-group" id="accountConfirmPasswordGroup">
-          <label for="accountConfirmPassword" data-i18n="auth.confirm_password">Repite la contraseña nueva</label>
-          <input id="accountConfirmPassword" class="form-control" type="password" name="confirmation" autocomplete="new-password" required>
-        </div>
-      </fieldset>
-      <p class="field-hint text-body-secondary" data-i18n="auth.revocation_notice">Guardar cierra las otras sesiones y revoca los tokens de API. Tu sesión actual se renueva.</p>
-      <button type="submit" class="btn btn-primary" data-i18n="auth.save_credentials">Guardar usuario y contraseña</button>
-    </form>
-    <section id="accountAutomationSection" class="auth-automation" aria-labelledby="accountAutomationHeading">
-      <h3 id="accountAutomationHeading" data-i18n="auth.automation">Token para automatizaciones</h3>
-      <p class="text-body-secondary" data-i18n="auth.token_description">Genera una clave para n8n u otros clientes de API. Se mostrará una sola vez; el navegador usa su sesión.</p>
-      <form id="automationTokenForm" class="auth-form" method="post" action="/api/auth/api-token" novalidate>
-        <input type="text" id="accountTokenUsername" name="username" autocomplete="username" class="visually-hidden" tabindex="-1" readonly aria-label="Nombre de usuario" data-i18n-aria-label="auth.username">
-        <div class="form-group">
-          <label for="accountTokenPassword" data-i18n="auth.current_password">Contraseña actual</label>
-          <input id="accountTokenPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="256">
-        </div>
-        <button type="submit" class="btn btn-outline-primary" data-i18n="auth.generate_token">Generar token de API</button>
-      </form>
-      <div id="accountTokenResult" class="auth-token-result" hidden>
-        <label for="accountTokenValue" data-i18n="auth.token_value">Token generado (cabecera X-Api-Key)</label>
-        <input id="accountTokenValue" class="form-control font-monospace" type="text" readonly autocomplete="off" spellcheck="false">
-        <p class="field-hint text-body-secondary" data-i18n="auth.token_once">Cópialo ahora y guárdalo de forma segura. Se ocultará al cerrar esta vista.</p>
-        <button id="accountCopyTokenButton" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="auth.copy_token">Copiar token</button>
-        <p id="accountTokenCopyStatus" role="status" aria-live="polite"></p>
-      </div>
-    </section>
-    <div class="auth-dialog-footer"><button id="accountLogoutButton" type="button" class="btn btn-outline-danger" data-i18n="auth.sign_out">Cerrar sesión</button></div>
-  </dialog>
   <!-- Header Superior Navbar -->
   <header class="navbar navbar-expand-lg bg-body-tertiary border-bottom sticky-top py-2 px-3 app-header" role="banner">
     <div class="container-fluid px-0">
@@ -186,7 +136,7 @@
     <aside class="app-sidebar offcanvas-lg offcanvas-start bg-body-tertiary border-end d-flex flex-column" id="appSidebar" tabindex="-1" role="navigation" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
       <div class="offcanvas-header d-lg-none border-bottom p-3">
         <h5 class="offcanvas-title fs-6 fw-bold">Menú Principal</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Cerrar"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Cerrar" data-i18n-aria-label="modal.close"></button>
       </div>
       <div class="offcanvas-body p-3 flex-column d-flex justify-content-between h-100">
         <nav class="nav nav-pills flex-column gap-1 nav-tabs" role="tablist" aria-orientation="vertical" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
@@ -232,8 +182,8 @@
               <div class="chat-channels-header">
                 <span class="panel-title" data-i18n="chat.channels">Canales</span>
                 <div class="panel-btn-group">
-                  <button type="button" class="btn btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto" aria-label="Importar canal o contacto" data-i18n-title="chat.import_channel_title" data-i18n-aria-label="chat.import_channel_title"><i class="bi bi-download" aria-hidden="true"></i></button>
-                  <button type="button" class="btn btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal" data-i18n-title="chat.add_channel_title" data-i18n-aria-label="ui.static_019"><i class="bi bi-plus-circle" aria-hidden="true"></i></button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="btnImportData" title="Importar canal o contacto" aria-label="Importar canal o contacto" data-i18n-title="chat.import_channel_title" data-i18n-aria-label="chat.import_channel_title"><i class="bi bi-download" aria-hidden="true"></i></button>
+                  <button type="button" class="btn btn-sm btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal" data-i18n-title="chat.add_channel_title" data-i18n-aria-label="ui.static_019"><i class="bi bi-plus-circle" aria-hidden="true"></i></button>
                 </div>
               </div>
               <ul class="channel-list" id="channelListUi" aria-label="Canales disponibles" data-i18n-aria-label="ui.static_020">
@@ -249,7 +199,7 @@
               <div class="chat-channels-header mt-3">
                 <span class="panel-title" data-i18n="chat.direct_messages">Mensajes Directos</span>
                 <div class="panel-btn-group">
-                  <span class="badge-pill" id="dmCountBadge">0</span>
+                  <span class="badge rounded-pill" id="dmCountBadge">0</span>
                 </div>
               </div>
               <ul class="channel-list" id="dmListUi" aria-label="Mensajes Directos" data-i18n-aria-label="chat.direct_messages">
@@ -322,7 +272,7 @@
                   <button type="button" class="btn-icon btn-chat-tool" id="btnEmojiPicker" aria-controls="emojiPickerPopover" aria-expanded="false" title="Insertar emoticones" aria-label="Insertar emoticones" data-i18n-title="ui.static_036" data-i18n-aria-label="ui.static_036"><i class="bi bi-emoji-smile" aria-hidden="true"></i></button>
                   <button type="button" class="btn-icon btn-chat-tool" id="btnChatAttach" aria-controls="chatAttachMenu" aria-expanded="false" title="Compartir contacto, canal o ubicación" aria-label="Compartir contenido" data-i18n-title="ui.static_037" data-i18n-aria-label="ui.static_038"><i class="bi bi-share" aria-hidden="true"></i></button>
                   <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir"  data-i18n-placeholder="chat.input_placeholder" data-i18n-aria-label="ui.static_039"/>
-                  <span class="chat-char-counter" id="chatCharCounter" title="Presupuesto de transmisión LoRa (160 bytes máx. en UTF-8)" data-i18n-title="ui.static_040">0 / 160 B</span>
+                  <span class="chat-char-counter" id="chatCharCounter" title="Longitud de transmisión LoRa" data-i18n-title="ui.static_040">0 B</span>
                   <button type="submit" class="btn btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio" data-i18n-aria-label="ui.static_042">
                     <span data-i18n="modal.send">Enviar</span> <i class="bi bi-send" aria-hidden="true"></i>
                   </button>
@@ -422,7 +372,7 @@
                 </div>
               </div>
               <div class="discovery-banner-actions">
-                <button type="button" class="btn btn-xs btn-primary" id="btnAcceptAllDiscovered" data-i18n="contacts.accept_all"><i class="bi bi-check-lg" aria-hidden="true"></i> Aceptar Todos</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btnAcceptAllDiscovered" data-i18n="contacts.accept_all"><i class="bi bi-check-lg" aria-hidden="true"></i> Aceptar Todos</button>
               </div>
             </div>
 
@@ -513,7 +463,7 @@
                     <p data-i18n="analytics.chart_traffic_sub">Ventana seleccionada; el último intervalo está en curso. Los totales superiores cubren toda la sesión.</p>
                   </div>
                   <div class="card-header-badge">
-                    <span class="badge-pill badge-primary text-xs" id="chartTrafficRangeBadge">24h</span>
+                    <span class="badge rounded-pill badge-primary text-xs" id="chartTrafficRangeBadge">24h</span>
                   </div>
                 </div>
                 <div id="chartTrafficTimeline" class="chart-canvas-container" role="region" tabindex="0" aria-label="Actividad Temporal de Tráfico (RX vs TX)" data-i18n-aria-label="analytics.chart_traffic_title"></div>
@@ -666,7 +616,7 @@
               </button>
               <button type="button" class="subtab-btn" id="btnSubtabSniffer" data-target="subpanelRfPackets" data-i18n="sniffer.title">
                 <i class="bi bi-broadcast" aria-hidden="true"></i> Monitor de Paquetes RF (LoRa Sniffer)
-                <span class="badge-pill badge-primary text-xs" id="snifferPacketsBadge">0</span>
+                <span class="badge rounded-pill badge-primary text-xs" id="snifferPacketsBadge">0</span>
               </button>
             </div>
 
@@ -702,7 +652,7 @@
               <div class="logs-filter-bar">
                 <div class="filter-group">
                   <label for="logLevelFilter" data-i18n="logs.level_label">Nivel:</label>
-                  <select id="logLevelFilter" class="form-select form-select-sm select-input">
+                  <select id="logLevelFilter" class="form-select form-select-sm">
                     <option value="ALL" data-i18n="ui.static_117">Todos los Niveles</option>
                     <option value="RF" data-i18n="ui.static_118">📡 Tráfico LoRa / RF ([RX] &amp; [TX])</option>
                     <option value="SECURITY" data-i18n="ui.static_119">Tráfico Sospechoso &amp; Seguridad</option>
@@ -746,7 +696,7 @@
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
-                  <button type="button" class="btn btn-outline btn-sm" id="btnClearSnifferPackets" title="Limpiar búfer de paquetes" data-i18n-title="ui.static_135" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnClearSnifferPackets" title="Limpiar búfer de paquetes" data-i18n-title="ui.static_135" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
                   <div class="btn-group d-flex gap-1">
                     <button type="button" class="btn btn-secondary btn-sm" id="btnExportPcap" title="Descargar captura PCAP binaria (Wireshark DLT_USER0)" data-i18n-title="ui.static_136" data-i18n="ui.static_137"><i class="bi bi-download" aria-hidden="true"></i> PCAP (Wireshark)</button>
                     <button type="button" class="btn btn-secondary btn-sm" id="btnExportJson" title="Descargar paquetes en formato JSON" data-i18n-title="ui.static_138" data-i18n="ui.static_139"><i class="bi bi-code-slash" aria-hidden="true"></i> JSON</button>
@@ -759,7 +709,7 @@
               <div class="logs-filter-bar">
                 <div class="filter-group">
                   <label for="snifferDirFilter" data-i18n="ui.static_142">Dirección:</label>
-                  <select id="snifferDirFilter" class="form-select form-select-sm select-input">
+                  <select id="snifferDirFilter" class="form-select form-select-sm">
                     <option value="" data-i18n="ui.static_143">Todas (RX &amp; TX)</option>
                     <option value="rx" data-i18n="ui.static_144">Solo RX (Entrantes)</option>
                     <option value="tx" data-i18n="ui.static_145">Solo TX (Salientes)</option>
@@ -767,7 +717,7 @@
                 </div>
                 <div class="filter-group">
                   <label for="snifferTypeFilter" data-i18n="ui.static_146">Tipo:</label>
-                  <select id="snifferTypeFilter" class="form-select form-select-sm select-input">
+                  <select id="snifferTypeFilter" class="form-select form-select-sm">
                     <option value="" data-i18n="ui.static_147">Todos los Tipos</option>
                     <option value="CHAT" data-i18n="ui.static_148">Chat / Mensajería</option>
                     <option value="ADVERT" data-i18n="ui.static_149">Advert / Descubrimiento</option>
@@ -815,9 +765,9 @@
               <div class="header-title-group">
                 <div class="header-badge-row">
                   <h2 data-i18n="ui.static_166"><i class="bi bi-sliders section-icon" aria-hidden="true"></i> Configuración & Gestión del Nodo Local</h2>
-                  <span class="badge-pill badge-primary" id="localNodeRoleBadge">Base Station</span>
-                  <span class="badge-pill badge-secondary" id="localHwBoardBadge" data-i18n="settings.hw_unverified">Placa: Sin verificar</span>
-                  <span class="badge-pill badge-outline" id="localFwVersionBadge" data-i18n="settings.fw_unverified">FW: Sin verificar</span>
+                  <span class="badge rounded-pill badge-primary" id="localNodeRoleBadge">Base Station</span>
+                  <span class="badge rounded-pill badge-secondary" id="localHwBoardBadge" data-i18n="settings.hw_unverified">Placa: Sin verificar</span>
+                  <span class="badge rounded-pill badge-outline" id="localFwVersionBadge" data-i18n="settings.fw_unverified">FW: Sin verificar</span>
                 </div>
                 <p class="header-subtitle" data-i18n="ui.static_170">Control integral de parámetros RF, telemetría de hardware, identidad y consola interactiva del transceptor MeshCore conectado.</p>
               </div>
@@ -978,7 +928,7 @@
                     <h3 id="firmwareCompatibilityTitle" data-i18n="settings.firmware_cli_title">Compatibilidad y diagnóstico del firmware</h3>
                     <p class="panel-desc" data-i18n="settings.firmware_cli_description">Lectura manual de la configuración informada por el firmware. Puede contener preferencias pendientes de reinicio.</p>
                   </div>
-                  <span id="firmwareCliState" class="badge-pill badge-outline" data-i18n="settings.firmware_cli_unknown">Sin verificar</span>
+                  <span id="firmwareCliState" class="badge rounded-pill badge-outline" data-i18n="settings.firmware_cli_unknown">Sin verificar</span>
                 </div>
                 <p id="firmwareCliReason" class="form-hint" data-i18n="settings.firmware_cli_reason_awaiting_device_info">Esperando información del transceptor.</p>
                 <dl class="grid-form-3col">
@@ -1051,7 +1001,7 @@
                     </select>
                   </div>
                   <div class="form-group"><button id="firmwareWifiSave" class="btn btn-secondary" type="submit" disabled data-i18n="settings.firmware_wifi_save">Guardar WiFi Companion</button></div>
-                  <div class="form-group"><button id="firmwareWifiClear" class="btn btn-outline" type="button" disabled data-i18n="settings.firmware_wifi_clear">Borrar configuración WiFi</button></div>
+                  <div class="form-group"><button id="firmwareWifiClear" class="btn btn-outline-secondary" type="button" disabled data-i18n="settings.firmware_wifi_clear">Borrar configuración WiFi</button></div>
                   <p id="firmwareWifiHint" class="form-hint span-full" data-i18n="settings.firmware_wifi_hint">La contraseña es de sólo escritura y nunca se lee del firmware. Requiere compilación con ENABLE_WIFI_INTERFACE y reiniciar el nodo para aplicar cambios.</p>
                 </form>
                 <p id="firmwareWifiStatus" class="form-hint" role="status" aria-live="polite" data-i18n="settings.firmware_wifi_ready">Introduce SSID, contraseña o estado para guardar la configuración WiFi local.</p>
@@ -1075,7 +1025,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localRegion" data-i18n="ui.static_195">Región / Banda:</label>
-                    <select id="localRegion" class="form-select form-select-sm select-input">
+                    <select id="localRegion" class="form-select form-select-sm">
                       <option value="US915" selected data-i18n="ui.static_196">US915 (América - 915 MHz)</option>
                       <option value="EU868" data-i18n="ui.static_197">EU868 (Europa - 868 MHz)</option>
                       <option value="AU915" data-i18n="ui.static_198">AU915 (Australia - 915 MHz)</option>
@@ -1090,7 +1040,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localSf" data-i18n="ui.static_204">Spreading Factor (SF):</label>
-                    <select id="localSf" class="form-select form-select-sm select-input">
+                    <select id="localSf" class="form-select form-select-sm">
                       <option value="5">SF5</option>
                       <option value="6">SF6</option>
                       <option value="7" data-i18n="ui.static_205">SF7 (Alta velocidad / Corto alcance)</option>
@@ -1103,7 +1053,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localBw" data-i18n="ui.static_211">Ancho de Banda (BW):</label>
-                    <select id="localBw" class="form-select form-select-sm select-input">
+                    <select id="localBw" class="form-select form-select-sm">
                       <option value="7.8">7.8 kHz</option>
                       <option value="10.4">10.4 kHz</option>
                       <option value="15.6">15.6 kHz</option>
@@ -1118,7 +1068,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localCr" data-i18n="ui.static_216">Coding Rate (CR):</label>
-                    <select id="localCr" class="form-select form-select-sm select-input">
+                    <select id="localCr" class="form-select form-select-sm">
                       <option value="4/5" selected data-i18n="ui.static_217">4/5 (Estándar)</option>
                       <option value="4/6">4/6</option>
                       <option value="4/7">4/7</option>
@@ -1154,7 +1104,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localPathHashMode" data-i18n="ui.static_239">Modo Path Hash:</label>
-                    <select id="localPathHashMode" class="form-select form-select-sm select-input">
+                    <select id="localPathHashMode" class="form-select form-select-sm">
                       <option value="0" data-i18n="ui.static_240">0 - Desactivado (Ruta Completa)</option>
                       <option value="1" data-i18n="ui.static_241">1 - Hash de 1 Byte (Compacto)</option>
                       <option value="2" data-i18n="ui.static_242">2 - Hash de 2 Bytes (Recomendado)</option>
@@ -1185,7 +1135,7 @@
 
                   <div class="form-group">
                     <label for="localTelemBase" data-i18n="ui.static_245">Modo Telemetría Base:</label>
-                    <select id="localTelemBase" class="form-select form-select-sm select-input">
+                    <select id="localTelemBase" class="form-select form-select-sm">
                       <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
                       <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
                       <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
@@ -1193,7 +1143,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localTelemLoc" data-i18n="ui.static_249">Modo Telemetría Ubicación:</label>
-                    <select id="localTelemLoc" class="form-select form-select-sm select-input">
+                    <select id="localTelemLoc" class="form-select form-select-sm">
                       <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
                       <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
                       <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
@@ -1201,7 +1151,7 @@
                   </div>
                   <div class="form-group">
                     <label for="localTelemEnv" data-i18n="ui.static_250">Modo Telemetría Ambiental:</label>
-                    <select id="localTelemEnv" class="form-select form-select-sm select-input">
+                    <select id="localTelemEnv" class="form-select form-select-sm">
                       <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
                       <option value="1" selected data-i18n="ui.static_251">1 - Solo Contactos</option>
                       <option value="2" data-i18n="ui.static_252">2 - Todos los Nodos</option>
@@ -1319,7 +1269,7 @@
                     <h3 data-i18n="ui.static_265"><i class="bi bi-cpu section-icon" aria-hidden="true"></i> Variables Personalizadas del Dispositivo (Custom Vars - CMD 40/41)</h3>
                     <p class="settings-panel-description" data-i18n="ui.static_266">Parámetros clave-valor configurados directamente en la memoria flash del transceptor.</p>
                   </div>
-                  <button type="button" class="btn btn-secondary btn-xs" id="btnRefreshCustomVars" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Actualizar</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshCustomVars" data-i18n="contacts.refresh"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Actualizar</button>
                 </div>
                 
                 <div class="table-responsive settings-table-scroll">
@@ -1426,8 +1376,8 @@
                   </div>
                   <span class="linux-term-title" data-i18n="ui.static_296">MeshCore Node CLI — Transceptor Local</span>
                   <div class="linux-term-actions">
-                    <button type="button" class="btn btn-xs btn-outline-term" id="btnToggleLocalCmdHelp" data-i18n="ui.static_297"><i class="bi bi-info-circle" aria-hidden="true"></i> Ayuda (help)</button>
-                    <button type="button" class="btn btn-xs btn-outline-term" id="btnClearLocalTerminal" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
+                    <button type="button" class="btn btn-sm btn-outline-term" id="btnToggleLocalCmdHelp" data-i18n="ui.static_297"><i class="bi bi-info-circle" aria-hidden="true"></i> Ayuda (help)</button>
+                    <button type="button" class="btn btn-sm btn-outline-term" id="btnClearLocalTerminal" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
                   </div>
                 </div>
 
@@ -1435,7 +1385,7 @@
                 <div id="localTerminalHelpDrawer" class="terminal-help-drawer hidden">
                   <div class="help-drawer-header">
                     <strong data-i18n="ui.static_298"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Referencia Oficial de Comandos MeshCore</strong>
-                    <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                    <button type="button" class="btn-icon btn-sm" id="btnCloseLocalHelpDrawer" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                   </div>
                   <div class="help-drawer-grid">
                     <button type="button" class="help-cmd-item" data-cmd="info">
@@ -1577,7 +1527,7 @@
                   <div class="settings-card">
                     <div class="card-title-row">
                       <h3 data-i18n="ui.static_333"><i class="bi bi-database section-icon" aria-hidden="true"></i> Persistencia & Alertas de Chat</h3>
-                      <span class="badge-pill badge-success" id="indexedDbStatusBadge" data-i18n="ui.static_334">Activo (MeshCoreStationDB)</span>
+                      <span class="badge rounded-pill badge-success" id="indexedDbStatusBadge" data-i18n="ui.static_334">Activo (MeshCoreStationDB)</span>
                     </div>
                     <p class="card-desc" data-i18n="ui.static_335">SQLite guarda los mensajes y el estado en el servidor. IndexedDB conserva una caché por estación para consultar el historial descargado sin conexión.</p>
                     <div class="settings-form">
@@ -1607,14 +1557,14 @@
                   <div class="settings-card">
                     <div class="card-title-row">
                       <h3 data-i18n="ui.static_341"><i class="bi bi-map section-icon" aria-hidden="true"></i> Servidor de Teselas / Mapas Offline</h3>
-                      <span class="badge-pill badge-primary" data-i18n="ui.static_342">Soporte SQLite MBTiles & XYZ</span>
+                      <span class="badge rounded-pill badge-primary" data-i18n="ui.static_342">Soporte SQLite MBTiles & XYZ</span>
                     </div>
                     <p class="card-desc"><span data-i18n="ui.mixed_maps_before">Permite navegar cartográficamente 100% fuera de línea sin conexión a Internet usando bases de datos</span> <code>.mbtiles</code> <span data-i18n="ui.mixed_maps_after">o carpetas de teselas XYZ locales.</span></p>
                     
                     <div id="localMapsStatusCard" class="analytics-card settings-storage-status">
                       <div class="card-title-row">
                         <h4 data-i18n="ui.static_343"><i class="bi bi-hdd" aria-hidden="true"></i> Estado del Almacenamiento Local</h4>
-                        <button type="button" class="btn btn-secondary btn-xs" id="btnReloadLocalMaps" title="Volver a escanear archivos .mbtiles en data/maps/" data-i18n-title="ui.static_344" data-i18n="ui.static_345"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Reindexar</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnReloadLocalMaps" title="Volver a escanear archivos .mbtiles en data/maps/" data-i18n-title="ui.static_344" data-i18n="ui.static_345"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Reindexar</button>
                       </div>
                       <div id="localMapsStatusContent" class="settings-status-hint">
                         Detectando mapas locales en <code>data/maps/</code>...
@@ -1642,7 +1592,7 @@
                   <div class="settings-card">
                     <div class="card-title-row">
                       <h3 data-i18n="ui.static_350"><i class="bi bi-shield-check section-icon" aria-hidden="true"></i> Autenticación & API Key del Bridge</h3>
-                      <span class="badge-pill badge-primary" data-i18n="ui.static_351">Control de Acceso</span>
+                      <span class="badge rounded-pill badge-primary" data-i18n="ui.static_351">Control de Acceso</span>
                     </div>
                     <p class="card-desc" data-i18n="auth.security_description">La sesión protege todas las rutas de API y WebSocket. Desde Perfil puedes cambiar las credenciales, cerrar sesión y generar tokens para automatizaciones.</p>
                     <button class="btn btn-primary btn-sm" type="button" data-open-account data-i18n="auth.account">Perfil</button>
@@ -1652,7 +1602,7 @@
                   <div class="settings-card">
                     <div class="card-title-row">
                       <h3 data-i18n="ui.static_355"><i class="bi bi-broadcast section-icon" aria-hidden="true"></i> Ámbito de Inundación LoRa (Flood Scope)</h3>
-                      <span class="badge-pill badge-secondary" data-i18n="ui.static_356">Aislamiento de Malla</span>
+                      <span class="badge rounded-pill badge-secondary" data-i18n="ui.static_356">Aislamiento de Malla</span>
                     </div>
                     <p class="card-desc">
                       <span data-i18n="ui.mixed_scope_before">Permite aislar el tráfico broadcast de la malla dentro de un canal o grupo cerrado (*Transport Scope Key* de 16B - CMD 54/63/64). Deja vacío o introduce</span> <code>*</code> <span data-i18n="ui.mixed_scope_after">para volver al alcance global por defecto.</span>
@@ -1674,7 +1624,7 @@
                   <div class="settings-card">
                     <div class="card-title-row">
                       <h3 data-i18n="ui.static_362"><i class="bi bi-person-plus section-icon" aria-hidden="true"></i> Política de Auto-Adición de Contactos (AutoAdd Contact Config)</h3>
-                      <span class="badge-pill badge-secondary" data-i18n="ui.static_363">Memoria Flash</span>
+                      <span class="badge rounded-pill badge-secondary" data-i18n="ui.static_363">Memoria Flash</span>
                     </div>
                     <p class="card-desc" data-i18n="ui.static_364">
                       Configura la máscara de bits y directivas del transceptor cuando escucha paquetes de nodos desconocidos en el medio RF (CMD 58/59).
@@ -1750,7 +1700,7 @@
                         <h3 data-i18n="services.ext_title">Servidor MQTT Externo / Upstream</h3>
                       </div>
                       <div class="settings-toggle-controls">
-                        <span id="badgeExtMqttStatus" class="badge-pill badge-secondary" data-i18n="services.status_disconnected">Desconectado</span>
+                        <span id="badgeExtMqttStatus" class="badge rounded-pill badge-secondary" data-i18n="services.status_disconnected">Desconectado</span>
                         <label class="switch-toggle toggle-switch" for="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo">
                           <input type="checkbox" id="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo" />
                           <span class="slider round toggle-slider"></span>
@@ -1765,7 +1715,7 @@
                     <div class="form-group settings-preset-panel">
                       <label for="selExtMqttPreset" class="settings-preset-heading">
                         <span><i class="bi bi-bookmark" aria-hidden="true"></i> <span data-i18n="services.preset_label">Perfil de Conexión (Preset):</span></span>
-                        <span id="presetTypeBadge" class="badge-pill badge-primary text-xs">Personalizado</span>
+                        <span id="presetTypeBadge" class="badge rounded-pill badge-primary text-xs">Personalizado</span>
                       </label>
                       <div class="settings-inline-controls">
                         <select id="selExtMqttPreset" class="form-control settings-inline-control">
@@ -2092,7 +2042,7 @@
     <div id="commandPaletteModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="cmdPaletteTitle">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card cmd-palette-modal bg-body-tertiary border-secondary">
-        <h2 id="cmdPaletteTitle" class="sr-only" data-i18n="cmd.palette_title">Paleta de Comandos</h2>
+        <h3 id="cmdPaletteTitle" class="visually-hidden" data-i18n="cmd.palette_title">Paleta de Comandos</h3>
         <div class="cmd-palette-header">
           <i class="bi bi-search search-icon" aria-hidden="true"></i>
           <input type="text" id="cmdPaletteInput" placeholder="Escribe un comando o busca un nodo..." autocomplete="off" aria-label="Buscar nodo, comando o canal"  data-i18n-placeholder="cmd.palette_placeholder" data-i18n-aria-label="ui.static_369"/>
@@ -2125,7 +2075,7 @@
         <form id="createChannelForm" class="modal-body" aria-labelledby="createChannelTitle">
           <div class="form-group">
             <label for="chModalIndex" data-i18n="ui.static_371">Índice de Canal (1 - 7):</label>
-            <select id="chModalIndex" class="select-input" required aria-describedby="chModalIndexHint">
+            <select id="chModalIndex" class="form-select form-select-sm" required aria-describedby="chModalIndexHint">
               <option value="1" data-i18n="ui.static_372">Canal 1 (Secundario)</option>
               <option value="2" data-i18n="ui.static_373">Canal 2 (Secundario)</option>
               <option value="3" data-i18n="ui.static_374">Canal 3 (Secundario)</option>
@@ -2196,7 +2146,7 @@
             <input type="text" id="contactModalName" placeholder="Ej: Carlos Heltec, Base Operador..." maxlength="31" required  data-i18n-placeholder="ui.static_395"/>
           </div>
 
-          <div class="form-row-2">
+          <div class="form-row-2col">
             <div class="form-group">
               <label for="contactModalLat" data-i18n="ui.static_396">Latitud GPS (Opcional):</label>
               <input type="number" step="any" id="contactModalLat" placeholder="Ej: 20.1500"  data-i18n-placeholder="ui.static_397"/>
@@ -2233,7 +2183,7 @@
     </div>
 
     <!-- Modal: Compartir Contacto en el Chat -->
-    <div id="modalShareContact" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalShareContactTitle">
+    <div id="modalShareContact" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalShareContactTitle" aria-describedby="shareContactModalInstruction">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
@@ -2256,7 +2206,7 @@
     </div>
 
     <!-- Modal: Compartir Canal en el Chat -->
-    <div id="modalShareChannel" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalShareChannelTitle">
+    <div id="modalShareChannel" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalShareChannelTitle" aria-describedby="shareChannelModalInstruction shareChannelWarningText">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
@@ -2283,7 +2233,7 @@
 
     <!-- Modal: Compartir Canal / Contacto por Código QR -->
     <div id="qrShareModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-qr">
       <div class="modal-content modal-card qr-modal-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <h3 id="qrModalTitle"><i class="bi bi-qr-code modal-title-icon" aria-hidden="true"></i> Compartir por Código QR</h3>
@@ -2383,7 +2333,7 @@
             </div>
             <div class="auth-strip-right">
               <span class="auth-status-chip authenticated" id="adminModalAuthStatus" data-i18n="ui.static_415"><i class="bi bi-unlock" aria-hidden="true"></i> Autenticado</span>
-              <button type="button" class="btn btn-outline btn-xs" id="btnRepeaterLogout" title="Cerrar sesión y olvidar contraseña de este repetidor" data-i18n-title="ui.static_416" data-i18n="ui.static_417"><i class="bi bi-lock" aria-hidden="true"></i> Cerrar Sesión</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRepeaterLogout" title="Cerrar sesión y olvidar contraseña de este repetidor" data-i18n-title="ui.static_416" data-i18n="ui.static_417"><i class="bi bi-lock" aria-hidden="true"></i> Cerrar Sesión</button>
             </div>
           </div>
 
@@ -2536,7 +2486,7 @@
                 <h4 class="direct-rf-cmd-header" data-i18n="ui.static_452">
                   <i class="bi bi-terminal" aria-hidden="true"></i> Comando RF Directo
                 </h4>
-                <button type="button" class="btn btn-xs btn-outline" id="btnGoToTerminalTab" title="Abrir consola terminal completa con historial y ayuda de comandos" data-i18n-title="ui.static_453" data-i18n="ui.static_454">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnGoToTerminalTab" title="Abrir consola terminal completa con historial y ayuda de comandos" data-i18n-title="ui.static_453" data-i18n="ui.static_454">
                   <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Abrir Consola Completa
                 </button>
               </div>
@@ -2585,7 +2535,7 @@
                 </div>
                 <div class="form-group">
                   <label for="radioRegion" data-i18n="ui.static_195">Región / Banda:</label>
-                  <select id="radioRegion" class="select-input">
+                  <select id="radioRegion" class="form-select form-select-sm">
                     <option value="US915" selected data-i18n="ui.static_196">US915 (América - 915 MHz)</option>
                     <option value="EU868" data-i18n="ui.static_197">EU868 (Europa - 868 MHz)</option>
                     <option value="AU915" data-i18n="ui.static_198">AU915 (Australia - 915 MHz)</option>
@@ -2605,7 +2555,7 @@
                 </div>
                 <div class="form-group">
                   <label for="radioSf" data-i18n="ui.static_204">Spreading Factor (SF):</label>
-                  <select id="radioSf" class="select-input">
+                  <select id="radioSf" class="form-select form-select-sm">
                     <option value="5">SF5</option>
                     <option value="6">SF6</option>
                     <option value="7" data-i18n="ui.static_459">SF7 (Alta velocidad)</option>
@@ -2618,7 +2568,7 @@
                 </div>
                 <div class="form-group">
                   <label for="radioBw" data-i18n="ui.static_211">Ancho de Banda (BW):</label>
-                  <select id="radioBw" class="select-input">
+                  <select id="radioBw" class="form-select form-select-sm">
                     <option value="7.8">7.8 kHz</option>
                     <option value="10.4">10.4 kHz</option>
                     <option value="15.6">15.6 kHz</option>
@@ -2633,7 +2583,7 @@
                 </div>
                 <div class="form-group">
                   <label for="radioCr" data-i18n="ui.static_216">Coding Rate (CR):</label>
-                  <select id="radioCr" class="select-input">
+                  <select id="radioCr" class="form-select form-select-sm">
                     <option value="4/5" selected data-i18n="ui.static_217">4/5 (Estándar)</option>
                     <option value="4/6">4/6</option>
                     <option value="4/7">4/7</option>
@@ -2675,8 +2625,8 @@
                 <div class="form-section-title form-section-title--split span-full">
                   <span data-i18n="ui.static_467"><i class="bi bi-person section-icon" aria-hidden="true"></i> Información del Propietario (Owner Info)</span>
                   <div class="form-section-actions">
-                    <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepOwner" title="Consultar propietario remoto por RF (req_owner)" data-i18n-title="ui.static_468" data-i18n="ui.static_469"><i class="bi bi-person-check" aria-hidden="true"></i> Consultar Propietario (req_owner)</button>
-                    <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepRegions" title="Consultar regiones configuradas (req_regions)" data-i18n-title="ui.static_470" data-i18n="ui.static_471"><i class="bi bi-globe" aria-hidden="true"></i> Regiones (req_regions)</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnFetchRepOwner" title="Consultar propietario remoto por RF (req_owner)" data-i18n-title="ui.static_468" data-i18n="ui.static_469"><i class="bi bi-person-check" aria-hidden="true"></i> Consultar Propietario (req_owner)</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnFetchRepRegions" title="Consultar regiones configuradas (req_regions)" data-i18n-title="ui.static_470" data-i18n="ui.static_471"><i class="bi bi-globe" aria-hidden="true"></i> Regiones (req_regions)</button>
                   </div>
                 </div>
                 <div class="form-group">
@@ -2741,11 +2691,11 @@
 
                 <div class="form-section-title form-section-title--split span-full">
                   <span data-i18n="ui.static_491"><i class="bi bi-shield-check section-icon" aria-hidden="true"></i> Control de Acceso de Malla (Access Control - ACL)</span>
-                  <button type="button" class="btn btn-secondary btn-xs" id="btnFetchRepAcl" title="Consultar tabla de control de acceso remota por RF (req_acl)" data-i18n-title="ui.static_492" data-i18n="ui.static_493"><i class="bi bi-shield-check" aria-hidden="true"></i> Consultar ACL (req_acl)</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnFetchRepAcl" title="Consultar tabla de control de acceso remota por RF (req_acl)" data-i18n-title="ui.static_492" data-i18n="ui.static_493"><i class="bi bi-shield-check" aria-hidden="true"></i> Consultar ACL (req_acl)</button>
                 </div>
                 <div class="form-group">
                   <label for="secAclMode" data-i18n="ui.static_494">Modo de Control de Acceso:</label>
-                  <select id="secAclMode" class="select-input" disabled aria-describedby="remoteSecuritySupportHint">
+                  <select id="secAclMode" class="form-select form-select-sm" disabled aria-describedby="remoteSecuritySupportHint">
                     <option value="public" selected data-i18n="ui.static_495">Público (Reenvía paquetes de todos los nodos)</option>
                     <option value="whitelist" data-i18n="ui.static_496">Lista Blanca / Whitelist (Solo nodos autorizados)</option>
                     <option value="restricted" data-i18n="ui.static_497">Restringido (Reenvío condicional)</option>
@@ -2768,7 +2718,7 @@
               <div class="panel-header-row">
                 <h4 data-i18n="ui.static_501"><i class="bi bi-hdd-network" aria-hidden="true"></i> Vecinos Zero-Hop Detectados por Radio (req_neighbours)</h4>
                 <div class="panel-btn-group">
-                  <span id="neighborsCountBadge" class="badge-pill badge-primary">0 vecinos</span>
+                  <span id="neighborsCountBadge" class="badge rounded-pill badge-primary">0 vecinos</span>
                   <button type="button" class="btn btn-secondary btn-sm" id="btnDiscoverNeighbors"><i class="bi bi-wifi" aria-hidden="true"></i> Sondear Vecinos (req_neighbours)</button>
                 </div>
               </div>
@@ -2803,12 +2753,12 @@
                 </div>
                 <span class="linux-term-title" data-i18n="ui.static_511">MeshCore Remote CLI — Repetidor</span>
                 <div class="linux-term-actions">
-                  <button type="button" class="btn btn-xs btn-outline-term" id="btnToggleCmdHelp" data-i18n="ui.static_297"><i class="bi bi-info-circle" aria-hidden="true"></i> Ayuda (help)</button>
-                  <button type="button" class="btn btn-xs btn-outline-term" id="btnClearRepeaterTerminal" title="Limpiar salida de consola" data-i18n-title="ui.static_512" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
-                  <button type="button" class="btn btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping" data-i18n="ui.static_513"><i class="bi bi-bullseye" aria-hidden="true"></i> ping</button>
-                  <button type="button" class="btn btn-xs btn-outline-term rep-quick-cmd" data-cmd="ver" data-i18n="ui.static_514">ver</button>
-                  <button type="button" class="btn btn-xs btn-outline-term rep-quick-cmd" data-cmd="get radio" data-i18n="ui.static_515">get radio</button>
-                  <button type="button" class="btn btn-xs btn-outline-term rep-quick-cmd" data-cmd="neighbors" data-i18n="ui.static_516">neighbors</button>
+                  <button type="button" class="btn btn-sm btn-outline-term" id="btnToggleCmdHelp" data-i18n="ui.static_297"><i class="bi bi-info-circle" aria-hidden="true"></i> Ayuda (help)</button>
+                  <button type="button" class="btn btn-sm btn-outline-term" id="btnClearRepeaterTerminal" title="Limpiar salida de consola" data-i18n-title="ui.static_512" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
+                  <button type="button" class="btn btn-sm btn-outline-term rep-quick-cmd" data-cmd="ping" data-i18n="ui.static_513"><i class="bi bi-bullseye" aria-hidden="true"></i> ping</button>
+                  <button type="button" class="btn btn-sm btn-outline-term rep-quick-cmd" data-cmd="ver" data-i18n="ui.static_514">ver</button>
+                  <button type="button" class="btn btn-sm btn-outline-term rep-quick-cmd" data-cmd="get radio" data-i18n="ui.static_515">get radio</button>
+                  <button type="button" class="btn btn-sm btn-outline-term rep-quick-cmd" data-cmd="neighbors" data-i18n="ui.static_516">neighbors</button>
                 </div>
               </div>
 
@@ -2816,7 +2766,7 @@
               <div id="terminalHelpDrawer" class="terminal-help-drawer hidden">
                 <div class="help-drawer-header">
                   <strong data-i18n="ui.static_517"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Referencia Oficial de Comandos MeshCore (RF Remoto)</strong>
-                  <button type="button" class="btn-icon btn-xs" id="btnCloseCmdHelp" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                  <button type="button" class="btn-icon btn-sm" id="btnCloseCmdHelp" aria-label="Cerrar ayuda" data-i18n-aria-label="ui.close_help"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                 </div>
                 <div class="help-cmd-grid">
                   <button type="button" class="help-cmd-item" data-cmd="ver">
@@ -2966,7 +2916,7 @@
             <textarea id="importPayloadInput" placeholder='{"type":"channel","index":1,"name":"Táctico","psk":"..."} o &lt;8d5accef...:1:Nombre&gt; o meshcore://...' rows="5" required class="code-textarea" data-i18n-placeholder="ui.static_551"></textarea>
             <div class="import-file-toolbar">
               <span class="field-hint" data-i18n="ui.static_552">Soporta enlaces exportados desde MeshCore App, CLI o Web Station.</span>
-              <button type="button" id="btnSelectImportFile" class="btn btn-secondary btn-xs" data-i18n="ui.static_553">
+              <button type="button" id="btnSelectImportFile" class="btn btn-secondary btn-sm" data-i18n="ui.static_553">
                 <i class="bi bi-upload" aria-hidden="true"></i> Cargar Archivo
               </button>
               <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" aria-label="Seleccionar archivo de respaldo o configuración" />
@@ -2988,9 +2938,9 @@
       <div class="modal-content modal-card packet-inspector-card bg-body-tertiary border-secondary">
         <div class="modal-header">
           <div class="header-badge-row">
-            <h3 id="packetInspectorTitle" data-i18n="ui.static_555"><i class="bi bi-qr-code-scan modal-title-icon" aria-hidden="true"></i> Trama LoRa <span id="inspectorPktIdDisplay" class="badge-pill badge-primary font-mono">#0</span></h3>
-            <span id="inspectorDirBadge" class="badge-pill badge-info">RX</span>
-            <span id="inspectorTypeBadge" class="badge-pill badge-secondary">CHAT</span>
+            <h3 id="packetInspectorTitle" data-i18n="ui.static_555"><i class="bi bi-qr-code-scan modal-title-icon" aria-hidden="true"></i> Trama LoRa <span id="inspectorPktIdDisplay" class="badge rounded-pill badge-primary font-mono">#0</span></h3>
+            <span id="inspectorDirBadge" class="badge rounded-pill badge-info">RX</span>
+            <span id="inspectorTypeBadge" class="badge rounded-pill badge-secondary">CHAT</span>
           </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557"></button>
         </div>
@@ -3031,7 +2981,7 @@
           <div id="inspectorPanelHex" class="inspector-panel hidden">
             <div class="inspector-dump-toolbar inspector-dump-toolbar--split">
               <span class="text-xs text-muted font-mono" data-i18n="ui.static_571">Offset: 00000000  00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f  |ASCII|</span>
-              <button type="button" class="btn btn-outline btn-xs" id="btnCopyHexDump">Copiar Hex</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCopyHexDump">Copiar Hex</button>
             </div>
             <pre id="inspHexDumpView" class="hex-dump-view"></pre>
           </div>
@@ -3039,7 +2989,7 @@
           <!-- Panel 3: JSON Crudo -->
           <div id="inspectorPanelJson" class="inspector-panel hidden">
             <div class="inspector-dump-toolbar">
-              <button type="button" class="btn btn-outline btn-xs" id="btnCopyJsonDump">Copiar JSON</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCopyJsonDump">Copiar JSON</button>
             </div>
             <pre id="inspJsonDumpView" class="json-dump-view"></pre>
           </div>
@@ -3067,7 +3017,7 @@
         <p id="systemDialogMessage" class="system-dialog-message"></p>
         <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden">
           <label for="systemDialogInput" data-i18n="modal.input_label">Entrada de texto</label>
-          <input type="text" id="systemDialogInput" class="system-dialog-input text-input" autocomplete="off" spellcheck="false" />
+          <input type="text" id="systemDialogInput" class="system-dialog-input text-input" autocomplete="off" spellcheck="false" aria-describedby="systemDialogMessage" />
         </div>
       </div>
       <div class="modal-footer system-dialog-footer">
@@ -3078,8 +3028,60 @@
   </div>
     </div>
 
+  <!-- Diálogo de Perfil y Cuenta de Usuario -->
+  <dialog id="accountDialog" class="auth-dialog" aria-labelledby="accountHeading" aria-describedby="accountDescription">
+    <div class="auth-dialog-heading"><h3 id="accountHeading"><i class="bi bi-person-circle modal-title-icon" aria-hidden="true"></i> <span data-i18n="auth.account">Perfil</span></h3><button id="accountCloseButton" type="button" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-lg me-1" aria-hidden="true"></i><span data-i18n="auth.close">Cerrar</span></button></div>
+    <p id="accountDescription" class="text-body-secondary" data-i18n="auth.account_description">Cambia tu contraseña, actualiza tu nombre de usuario o cierra sesión.</p>
+    <p id="accountRequiredNotice" class="alert alert-warning" role="status" hidden data-i18n="auth.change_required">Cambia ahora la contraseña predeterminada admin. La estación y la API seguirán bloqueadas hasta que guardes una contraseña nueva.</p>
+    <form id="accountCredentialsForm" class="auth-form" method="post" action="/api/auth/credentials" novalidate>
+      <div class="form-group" id="accountUsernameGroup">
+        <label for="accountUsername" data-i18n="auth.username">Nombre de usuario</label>
+        <input type="text" id="accountUsername" class="form-control" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" pattern="[A-Za-z0-9_.\-]+" aria-describedby="accountUsernameHint">
+        <p id="accountUsernameHint" class="field-hint text-body-secondary" data-i18n="auth.username_hint">1–64 caracteres: letras, números, punto, guion o guion bajo.</p>
+      </div>
+      <fieldset class="auth-fieldset border-0 p-0 m-0">
+        <legend class="visually-hidden" data-i18n="auth.security_heading">Contraseña</legend>
+        <div class="form-group" id="accountCurrentPasswordGroup">
+          <label for="accountCurrentPassword" data-i18n="auth.current_password">Contraseña actual</label>
+          <input id="accountCurrentPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="256">
+        </div>
+        <div class="form-group" id="accountNewPasswordGroup">
+          <label for="accountNewPassword" data-i18n="auth.new_password">Contraseña nueva</label>
+          <input id="accountNewPassword" class="form-control" type="password" name="password" autocomplete="new-password" required aria-describedby="accountPasswordHint">
+          <p id="accountPasswordHint" class="field-hint text-body-secondary" data-i18n="auth.password_hint">Usa entre 8 y 64 caracteres, sin requisitos de complejidad.</p>
+        </div>
+        <div class="form-group" id="accountConfirmPasswordGroup">
+          <label for="accountConfirmPassword" data-i18n="auth.confirm_password">Repite la contraseña nueva</label>
+          <input id="accountConfirmPassword" class="form-control" type="password" name="confirmation" autocomplete="new-password" required>
+        </div>
+      </fieldset>
+      <p class="field-hint text-body-secondary" data-i18n="auth.revocation_notice">Guardar cierra las otras sesiones y revoca los tokens de API. Tu sesión actual se renueva.</p>
+      <button type="submit" class="btn btn-primary" data-i18n="auth.save_credentials">Guardar usuario y contraseña</button>
+    </form>
+    <section id="accountAutomationSection" class="auth-automation" aria-labelledby="accountAutomationHeading">
+      <h3 id="accountAutomationHeading" data-i18n="auth.automation">Token para automatizaciones</h3>
+      <p class="text-body-secondary" data-i18n="auth.token_description">Genera una clave para n8n u otros clientes de API. Se mostrará una sola vez; el navegador usa su sesión.</p>
+      <form id="automationTokenForm" class="auth-form" method="post" action="/api/auth/api-token" novalidate>
+        <input type="text" id="accountTokenUsername" name="username" autocomplete="username" class="visually-hidden" tabindex="-1" readonly aria-label="Nombre de usuario" data-i18n-aria-label="auth.username">
+        <div class="form-group">
+          <label for="accountTokenPassword" data-i18n="auth.current_password">Contraseña actual</label>
+          <input id="accountTokenPassword" class="form-control" type="password" name="current_password" autocomplete="current-password" required maxlength="256">
+        </div>
+        <button type="submit" class="btn btn-outline-primary" data-i18n="auth.generate_token">Generar token de API</button>
+      </form>
+      <div id="accountTokenResult" class="auth-token-result" hidden>
+        <label for="accountTokenValue" data-i18n="auth.token_value">Token generado (cabecera X-Api-Key)</label>
+        <input id="accountTokenValue" class="form-control font-monospace" type="text" readonly autocomplete="off" spellcheck="false">
+        <p class="field-hint text-body-secondary" data-i18n="auth.token_once">Cópialo ahora y guárdalo de forma segura. Se ocultará al cerrar esta vista.</p>
+        <button id="accountCopyTokenButton" class="btn btn-outline-secondary btn-sm" type="button" data-i18n="auth.copy_token">Copiar token</button>
+        <p id="accountTokenCopyStatus" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+    <div class="auth-dialog-footer"><button id="accountLogoutButton" type="button" class="btn btn-outline-danger" data-i18n="auth.sign_out">Cerrar sesión</button></div>
+  </dialog>
+
   <!-- Contenedor Global de Notificaciones Toast -->
-  <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" aria-live="polite" aria-atomic="true"></div>
+  <div id="toastContainer" class="toast-container app-toast-container" role="region" aria-label="Notificaciones" data-i18n-aria-label="app.notifications"></div>
 
   <script defer src="/js/bootstrap.bundle.min.js"></script>
   <script defer src="/js/qrcode.js"></script>

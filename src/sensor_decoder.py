@@ -50,18 +50,18 @@ class LppDataType(IntEnum):
 # (name, bytes, divisor, signed, unit, summary key). No padding or inner CRC.
 # CayenneLPP 1.6.1 uses big endian; MeshCore's Python SDK also supports LOAD.
 _EXTENDED_SCALARS: dict[int, tuple[str, int, int, bool, str, str]] = {
-    100: ("generic_sensor", 4, 1, False, "", "generic_sensor"),
-    117: ("current", 2, 1000, True, "A", "current_a"),
-    118: ("frequency", 4, 1, False, "Hz", "frequency_hz"),
-    121: ("altitude", 2, 1, True, "m", "altitude_m"),
-    122: ("load", 3, 1000, True, "", "load"),
-    125: ("concentration", 2, 1, False, "ppm", "concentration_ppm"),
-    128: ("power", 2, 1, False, "W", "power_w"),
-    130: ("distance", 4, 1000, False, "m", "distance_m"),
-    131: ("energy", 4, 1000, False, "kWh", "energy_kwh"),
-    132: ("direction", 2, 1, False, "deg", "direction_deg"),
-    133: ("time", 4, 1, False, "s", "unix_time"),
-    142: ("switch", 1, 1, False, "", "switch"),
+    LppDataType.GENERIC_SENSOR: ("generic_sensor", 4, 1, False, "", "generic_sensor"),
+    LppDataType.CURRENT: ("current", 2, 1000, True, "A", "current_a"),
+    LppDataType.FREQUENCY: ("frequency", 4, 1, False, "Hz", "frequency_hz"),
+    LppDataType.ALTITUDE: ("altitude", 2, 1, True, "m", "altitude_m"),
+    LppDataType.LOAD: ("load", 3, 1000, True, "", "load"),
+    LppDataType.CONCENTRATION: ("concentration", 2, 1, False, "ppm", "concentration_ppm"),
+    LppDataType.POWER: ("power", 2, 1, False, "W", "power_w"),
+    LppDataType.DISTANCE: ("distance", 4, 1000, False, "m", "distance_m"),
+    LppDataType.ENERGY: ("energy", 4, 1000, False, "kWh", "energy_kwh"),
+    LppDataType.DIRECTION: ("direction", 2, 1, False, "deg", "direction_deg"),
+    LppDataType.TIME: ("time", 4, 1, False, "s", "unix_time"),
+    LppDataType.SWITCH: ("switch", 1, 1, False, "", "switch"),
 }
 
 

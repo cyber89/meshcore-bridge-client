@@ -10,6 +10,8 @@ export class DialogController {
     this.backdropObserver.observe(document.body, { childList: true });
     document.addEventListener("keydown", (event) => this._onKeyDown(event), true);
     document.addEventListener("focusin", (event) => {
+      // Native modal dialogs own focus while they are in the browser top layer.
+      if (document.querySelector("dialog[open]")) return;
       const targetModal = event.target.closest?.('.modal-overlay[role="dialog"]');
       if (targetModal && !targetModal.classList.contains("hidden") && !targetModal.hidden &&
           this.entries.get(targetModal)?.phase === "closed") this.open(targetModal);
@@ -187,7 +189,7 @@ export class DialogController {
   }
 
   _onKeyDown(event) {
-    if (event.isComposing) return;
+    if (event.isComposing || document.querySelector("dialog[open]")) return;
     const entry = this.stack.at(-1);
     if (!entry) return;
     if (event.key === "Escape") {
