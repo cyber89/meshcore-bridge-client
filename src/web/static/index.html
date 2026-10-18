@@ -900,14 +900,38 @@
               </div>
 
               <!-- Resumen de Configuración Actual -->
-              <div class="panel-summary-strip">
-                <div class="summary-pill"><span data-i18n="ui.static_183">Frecuencia:</span> <strong id="localSummaryFreq">-- MHz</strong></div>
-                <div class="summary-pill"><span data-i18n="ui.static_184">Potencia TX:</span> <strong id="localSummaryPower">-- dBm</strong></div>
-                <div class="summary-pill"><span data-i18n="ui.static_185">Módem:</span> <strong id="localSummaryModem">--</strong></div>
-                <div class="summary-pill"><span data-i18n="ui.static_186">Reenvío (Repeat):</span> <strong id="localSummaryRepeat">--</strong></div>
-                <div class="summary-pill"><span data-i18n="ui.static_187">Cola TX:</span> <strong id="localSummaryQueue">0 paquetes</strong></div>
-                <div class="summary-pill"><span data-i18n="map.pos_label">Posición:</span> <strong id="localSummaryPos">--</strong></div>
-              </div>
+              <section class="card-panel local-summary-card" aria-labelledby="localSummaryTitle">
+                <div class="settings-card-title">
+                  <i class="bi bi-broadcast-pin" aria-hidden="true"></i>
+                  <h3 id="localSummaryTitle" data-i18n="settings.local_summary_title">Configuración actual</h3>
+                </div>
+                <dl class="local-summary-grid">
+                  <div class="local-summary-item">
+                    <dt data-i18n="ui.static_183">Frecuencia:</dt>
+                    <dd><strong id="localSummaryFreq">-- MHz</strong></dd>
+                  </div>
+                  <div class="local-summary-item">
+                    <dt data-i18n="ui.static_184">Potencia TX:</dt>
+                    <dd><strong id="localSummaryPower">-- dBm</strong></dd>
+                  </div>
+                  <div class="local-summary-item">
+                    <dt data-i18n="ui.static_185">Módem:</dt>
+                    <dd><strong id="localSummaryModem">--</strong></dd>
+                  </div>
+                  <div class="local-summary-item">
+                    <dt data-i18n="ui.static_186">Reenvío (Repeat):</dt>
+                    <dd><strong id="localSummaryRepeat">--</strong></dd>
+                  </div>
+                  <div class="local-summary-item">
+                    <dt data-i18n="ui.static_187">Cola TX:</dt>
+                    <dd><strong id="localSummaryQueue" data-i18n="settings.queue_packets" data-i18n-params='{"p0":0}'>0 paquetes</strong></dd>
+                  </div>
+                  <div class="local-summary-item">
+                    <dt data-i18n="map.pos_label">Posición:</dt>
+                    <dd><strong id="localSummaryPos">--</strong></dd>
+                  </div>
+                </dl>
+              </section>
 
               <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
               <div class="hardware-actions-section">

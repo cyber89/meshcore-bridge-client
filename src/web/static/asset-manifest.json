@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "7e6ff5a32e881cc83feceaf1ca6116a88b49b806e8cdcbc8567e38debd566bdf",
-      "sha256": "caffca529e7e53297199c93985a8b0041d28d882e2f9daa34886d047954ab255",
-      "gzip_sha256": "80d6a4d8f02c39eed05d7cf2a234668119997181ebeecd579f218efe0ce2dc4a",
-      "source_bytes": 150983,
-      "bytes": 120876,
-      "gzip_bytes": 21614
+      "source_sha256": "0ca8b4862fc0eff55e4a44d9b2d65f0e37df6334c270981936039af939f45897",
+      "sha256": "c6cfc63dae2808ddb60e97bdb6ad7df014a364a42d73a330528db4b12a78073c",
+      "gzip_sha256": "5bc9ab235b0ee6aac5d6ac7cc97820187016e66e899659e836af1ae1e53e65b1",
+      "source_bytes": 152050,
+      "bytes": 121791,
+      "gzip_bytes": 21774
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
@@ -58,12 +58,12 @@
     },
     "index.html": {
       "file": "index.html",
-      "source_sha256": "004009214bffc560b8f8f9d873b1ee4339dac789067e59eaa24d3b2346ea8f68",
-      "sha256": "004009214bffc560b8f8f9d873b1ee4339dac789067e59eaa24d3b2346ea8f68",
-      "gzip_sha256": "f61dd9e475afaabf452bc29d634e445be515a9f8bb69fa4ee9a1a7ccbb41e04b",
-      "source_bytes": 241755,
-      "bytes": 241755,
-      "gzip_bytes": 43311
+      "source_sha256": "f018c38b1e5c8d8d3eabf500376260fb3211ec753d3cf61ac9337c9db671a98d",
+      "sha256": "f018c38b1e5c8d8d3eabf500376260fb3211ec753d3cf61ac9337c9db671a98d",
+      "gzip_sha256": "4c756e6e88c71628ba7337f6ef277c695e4a2b2c3f944505629373652c5e74e9",
+      "source_bytes": 242639,
+      "bytes": 242639,
+      "gzip_bytes": 43418
     },
     "js/app.js": {
       "file": "js/app.min.js",
@@ -184,12 +184,12 @@
     },
     "js/i18n.js": {
       "file": "js/i18n.min.js",
-      "source_sha256": "1bc92b7aad49473b6a976ff982250600dbcfa78ddfec8d8657b08c0ae2d0ee48",
-      "sha256": "9383c72da22d3e6e2ed25c1f60500b77e54ce06b78237652e0d7c89385f2a342",
-      "gzip_sha256": "1f441b3dc5ca50670572ed1ae2ada574e5616dc4ce11b903e0fc57dc61892d3c",
-      "source_bytes": 232971,
-      "bytes": 191836,
-      "gzip_bytes": 57501
+      "source_sha256": "982bae2c624dbc8bc8287ddef991c626415476e04c4beff361936ec089d3fb02",
+      "sha256": "5fbd3fcad3d5fd8d61e65760045b2dff0469ac41427a3347f165dcb11170c42b",
+      "gzip_sha256": "7822a1285fa0b40709925dcae4dd1f6325f568033eb845074153d6dfcb46d76f",
+      "source_bytes": 233097,
+      "bytes": 191946,
+      "gzip_bytes": 57529
     },
     "js/leaflet.js": {
       "file": "js/leaflet.min.js",
