@@ -174,7 +174,7 @@
 
         <!-- Botón Toggler Móvil para Menú Lateral -->
         <button class="btn btn-outline-secondary btn-sm d-lg-none ms-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Abrir menú de navegación">
-          <i class="bi bi-list fs-5"></i>
+          <i class="bi bi-list fs-5" aria-hidden="true"></i>
         </button>
         <button type="button" class="btn btn-outline-secondary btn-sm auth-account-button" data-open-account data-i18n-title="auth.account" data-i18n-aria-label="auth.account" aria-label="Perfil" title="Perfil" aria-haspopup="dialog" aria-controls="accountDialog"><i class="bi bi-person-circle" aria-hidden="true"></i><span id="accountNameLabel" data-i18n="auth.account">Perfil</span></button>
       </div>
@@ -345,12 +345,12 @@
             <!-- Toolbar de Filtros y Búsqueda -->
             <div class="nodes-toolbar">
               <input type="search" id="nodesSearchInput" class="search-input" placeholder="Buscar nodo por nombre, alias, rol o clave pública..." aria-label="Buscar nodos"  data-i18n-placeholder="nodes.search_placeholder" data-i18n-aria-label="ui.static_043"/>
-              <div class="nodes-filter-pills" role="radiogroup" aria-label="Filtrar por rol" data-i18n-aria-label="ui.static_044">
-                <button type="button" class="filter-pill active" data-filter="all"><i class="bi bi-hdd-network chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_045">Todos</span> (<span id="countAllNodes">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="REPEATER"><i class="bi bi-broadcast-pin chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_046">Repetidores</span> (<span id="countRepeaters">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="SENSOR"><i class="bi bi-speedometer2 chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_047">Sensores</span> (<span id="countSensors">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="ROOM"><i class="bi bi-house chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_048">Salas</span> (<span id="countRooms">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="CLIENT"><i class="bi bi-person chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_049">Clientes</span> (<span id="countClients">0</span>)</button>
+              <div class="nodes-filter-pills" role="group" aria-label="Filtrar por rol" data-i18n-aria-label="ui.static_044">
+                <button type="button" class="filter-pill active" aria-pressed="true" data-filter="all"><i class="bi bi-hdd-network chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_045">Todos</span> (<span id="countAllNodes">0</span>)</button>
+                <button type="button" class="filter-pill" aria-pressed="false" data-filter="REPEATER"><i class="bi bi-broadcast-pin chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_046">Repetidores</span> (<span id="countRepeaters">0</span>)</button>
+                <button type="button" class="filter-pill" aria-pressed="false" data-filter="SENSOR"><i class="bi bi-speedometer2 chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_047">Sensores</span> (<span id="countSensors">0</span>)</button>
+                <button type="button" class="filter-pill" aria-pressed="false" data-filter="ROOM"><i class="bi bi-house chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_048">Salas</span> (<span id="countRooms">0</span>)</button>
+                <button type="button" class="filter-pill" aria-pressed="false" data-filter="CLIENT"><i class="bi bi-person chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_049">Clientes</span> (<span id="countClients">0</span>)</button>
               </div>
             </div>
 
@@ -428,11 +428,11 @@
 
             <div class="contacts-toolbar">
               <input type="search" id="contactsSearchInput" class="search-input" placeholder="Buscar contacto por nombre, alias o clave pública..." aria-label="Buscar contactos"  data-i18n-placeholder="contacts.search_placeholder" data-i18n-aria-label="ui.static_071"/>
-              <div class="contacts-filter-pills" role="radiogroup" aria-label="Filtrar contactos" data-i18n-aria-label="ui.static_072">
-                <button type="button" class="filter-pill active" data-contact-filter="all"><i class="bi bi-people chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_045">Todos</span> (<span id="countAllContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="favorites"><i class="bi bi-star chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_073">Favoritos</span> (<span id="countFavContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="online"><i class="bi bi-activity chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_074">En Línea</span> (<span id="countOnlineContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="gps"><i class="bi bi-geo-alt chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_075">Con Posición</span> (<span id="countGpsContacts">0</span>)</button>
+              <div class="contacts-filter-pills" role="group" aria-label="Filtrar contactos" data-i18n-aria-label="ui.static_072">
+                <button type="button" class="filter-pill active" aria-pressed="true" data-contact-filter="all"><i class="bi bi-people chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_045">Todos</span> (<span id="countAllContacts">0</span>)</button>
+                <button type="button" class="filter-pill" aria-pressed="false" data-contact-filter="favorites"><i class="bi bi-star chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_073">Favoritos</span> (<span id="countFavContacts">0</span>)</button>
+                <button type="button" class="filter-pill" aria-pressed="false" data-contact-filter="online"><i class="bi bi-activity chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_074">En Línea</span> (<span id="countOnlineContacts">0</span>)</button>
+                <button type="button" class="filter-pill" aria-pressed="false" data-contact-filter="gps"><i class="bi bi-geo-alt chip-icon" aria-hidden="true"></i> <span data-i18n="ui.static_075">Con Posición</span> (<span id="countGpsContacts">0</span>)</button>
               </div>
             </div>
             <div class="nodes-grid" id="contactsGridUi" role="region" aria-label="Lista de contactos" data-i18n-aria-label="ui.static_076">
@@ -516,7 +516,7 @@
                     <span class="badge-pill badge-primary text-xs" id="chartTrafficRangeBadge">24h</span>
                   </div>
                 </div>
-                <div id="chartTrafficTimeline" class="chart-canvas-container"></div>
+                <div id="chartTrafficTimeline" class="chart-canvas-container" role="region" tabindex="0" aria-label="Actividad Temporal de Tráfico (RX vs TX)" data-i18n-aria-label="analytics.chart_traffic_title"></div>
               </div>
 
               <!-- Gráfico Donut de Tipos de Trama -->
@@ -612,12 +612,12 @@
                   <table class="table table-hover table-striped table-sm align-middle data-table analytics-table">
                     <thead>
                       <tr>
-                        <th data-i18n="ui.static_082">Nodo / Alias</th>
-                        <th data-i18n="ui.static_083">Rol</th>
-                        <th data-i18n="ui.static_084">RX</th>
-                        <th data-i18n="ui.static_085">TX</th>
-                        <th data-i18n="ui.static_086">Total</th>
-                        <th data-i18n="ui.static_088">Calidad de Enlace</th>
+                        <th scope="col" data-i18n="ui.static_082">Nodo / Alias</th>
+                        <th scope="col" data-i18n="ui.static_083">Rol</th>
+                        <th scope="col" data-i18n="ui.static_084">RX</th>
+                        <th scope="col" data-i18n="ui.static_085">TX</th>
+                        <th scope="col" data-i18n="ui.static_086">Total</th>
+                        <th scope="col" data-i18n="ui.static_088">Calidad de Enlace</th>
                       </tr>
                     </thead>
                     <tbody id="analyticsTopActiveTable">
@@ -786,17 +786,17 @@
                 <table class="table table-hover table-striped table-sm align-middle data-table sniffer-table">
                   <thead>
                     <tr>
-                      <th class="col-w-50">#</th>
-                      <th class="col-w-85" data-i18n="ui.static_155">Hora</th>
-                      <th class="col-w-60" data-i18n="ui.static_156">Dir</th>
-                      <th class="col-w-80" data-i18n="ui.static_157">Tipo</th>
-                      <th class="col-w-60" data-i18n="ui.static_158">CH</th>
-                      <th class="col-w-130" data-i18n="ui.static_159">Origen</th>
-                      <th class="col-w-130" data-i18n="ui.static_160">Destino</th>
-                      <th class="col-w-100" data-i18n="ui.static_161">SNR / RSSI</th>
-                      <th class="col-w-60" data-i18n="ui.static_162">Bytes</th>
-                      <th data-i18n="ui.static_163">Contenido / Resumen</th>
-                      <th class="col-w-70 text-center" data-i18n="ui.static_164">Inspeccionar</th>
+                      <th scope="col" class="col-w-50">#</th>
+                      <th scope="col" class="col-w-85" data-i18n="ui.static_155">Hora</th>
+                      <th scope="col" class="col-w-60" data-i18n="ui.static_156">Dir</th>
+                      <th scope="col" class="col-w-80" data-i18n="ui.static_157">Tipo</th>
+                      <th scope="col" class="col-w-60" data-i18n="ui.static_158">CH</th>
+                      <th scope="col" class="col-w-130" data-i18n="ui.static_159">Origen</th>
+                      <th scope="col" class="col-w-130" data-i18n="ui.static_160">Destino</th>
+                      <th scope="col" class="col-w-100" data-i18n="ui.static_161">SNR / RSSI</th>
+                      <th scope="col" class="col-w-60" data-i18n="ui.static_162">Bytes</th>
+                      <th scope="col" data-i18n="ui.static_163">Contenido / Resumen</th>
+                      <th scope="col" class="col-w-70 text-center" data-i18n="ui.static_164">Inspeccionar</th>
                     </tr>
                   </thead>
                   <tbody id="snifferPacketsBody">
@@ -1302,9 +1302,9 @@
                   <table class="table table-hover table-striped table-sm align-middle data-table" id="localCustomVarsTable">
                     <thead>
                       <tr>
-                        <th class="col-w-35p" data-i18n="ui.static_267">Clave (Key)</th>
-                        <th class="col-w-45p" data-i18n="ui.static_268">Valor (Value)</th>
-                        <th class="col-w-20p text-end" data-i18n="ui.static_269">Acciones</th>
+                        <th scope="col" class="col-w-35p" data-i18n="ui.static_267">Clave (Key)</th>
+                        <th scope="col" class="col-w-45p" data-i18n="ui.static_268">Valor (Value)</th>
+                        <th scope="col" class="col-w-20p text-end" data-i18n="ui.static_269">Acciones</th>
                       </tr>
                     </thead>
                     <tbody id="localCustomVarsTableBody">
@@ -2752,12 +2752,12 @@
                 <table class="table table-hover table-striped table-sm align-middle data-table" id="neighborsTable">
                   <thead>
                     <tr>
-                      <th data-i18n="ui.static_504">Nodo Vecino</th>
-                      <th data-i18n="ui.static_505">Alias</th>
-                      <th data-i18n="ui.static_506">SNR (dB)</th>
-                      <th data-i18n="ui.static_507">Saltos (Hops)</th>
-                      <th data-i18n="ui.static_508">Último Contacto</th>
-                      <th data-i18n="ui.static_509">Acción</th>
+                      <th scope="col" data-i18n="ui.static_504">Nodo Vecino</th>
+                      <th scope="col" data-i18n="ui.static_505">Alias</th>
+                      <th scope="col" data-i18n="ui.static_506">SNR (dB)</th>
+                      <th scope="col" data-i18n="ui.static_507">Saltos (Hops)</th>
+                      <th scope="col" data-i18n="ui.static_508">Último Contacto</th>
+                      <th scope="col" data-i18n="ui.static_509">Acción</th>
                     </tr>
                   </thead>
                   <tbody id="neighborsTableBody">
@@ -2989,15 +2989,15 @@
             <div class="table-responsive">
               <table class="table table-hover table-striped table-sm align-middle data-table">
                 <tbody>
-                  <tr><th class="col-w-160" data-i18n="ui.static_561">Timestamp ISO</th><td id="inspFieldTime" class="font-mono">--</td></tr>
-                  <tr><th data-i18n="ui.static_562">Dirección / Flujo</th><td id="inspFieldDir">--</td></tr>
-                  <tr><th data-i18n="ui.static_563">Canal LoRa</th><td id="inspFieldChannel">--</td></tr>
-                  <tr><th data-i18n="ui.static_564">Tipo de Trama</th><td id="inspFieldType">--</td></tr>
-                  <tr><th data-i18n="ui.static_565">Emisor</th><td id="inspFieldSender" class="font-mono">--</td></tr>
-                  <tr><th data-i18n="ui.static_566">Destinatario</th><td id="inspFieldTarget" class="font-mono">--</td></tr>
-                  <tr><th data-i18n="ui.static_567">Métricas RF</th><td id="inspFieldRf">SNR: -- | RSSI: -- | LQI: --</td></tr>
-                  <tr><th data-i18n="ui.static_569">Tamaño Payload</th><td id="inspFieldSize">0 bytes</td></tr>
-                  <tr><th data-i18n="ui.static_570">Contenido / Decodificación</th><td><div id="inspFieldDecoded" class="inspector-decoded-box">--</div></td></tr>
+                  <tr><th scope="row" class="col-w-160" data-i18n="ui.static_561">Timestamp ISO</th><td id="inspFieldTime" class="font-mono">--</td></tr>
+                  <tr><th scope="row" data-i18n="ui.static_562">Dirección / Flujo</th><td id="inspFieldDir">--</td></tr>
+                  <tr><th scope="row" data-i18n="ui.static_563">Canal LoRa</th><td id="inspFieldChannel">--</td></tr>
+                  <tr><th scope="row" data-i18n="ui.static_564">Tipo de Trama</th><td id="inspFieldType">--</td></tr>
+                  <tr><th scope="row" data-i18n="ui.static_565">Emisor</th><td id="inspFieldSender" class="font-mono">--</td></tr>
+                  <tr><th scope="row" data-i18n="ui.static_566">Destinatario</th><td id="inspFieldTarget" class="font-mono">--</td></tr>
+                  <tr><th scope="row" data-i18n="ui.static_567">Métricas RF</th><td id="inspFieldRf">SNR: -- | RSSI: -- | LQI: --</td></tr>
+                  <tr><th scope="row" data-i18n="ui.static_569">Tamaño Payload</th><td id="inspFieldSize">0 bytes</td></tr>
+                  <tr><th scope="row" data-i18n="ui.static_570">Contenido / Decodificación</th><td><div id="inspFieldDecoded" class="inspector-decoded-box">--</div></td></tr>
                 </tbody>
               </table>
             </div>

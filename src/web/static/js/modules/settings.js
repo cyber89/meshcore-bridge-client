@@ -2593,7 +2593,7 @@ export class SettingsModule {
     if (!tbody) return;
     const entries = typeof varsObj === "object" && varsObj !== null ? Object.entries(varsObj) : [];
     if (entries.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="3" class="text-center" style="color: var(--color-text-secondary);">${I18n.t("settings.no_custom_vars")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="3" class="text-center text-body-secondary">${I18n.t("settings.no_custom_vars")}</td></tr>`;
       return;
     }
 
@@ -2604,7 +2604,7 @@ export class SettingsModule {
       tr.innerHTML = `
         <td class="font-mono"><strong>${escapeHtml(String(k))}</strong></td>
         <td><code>${escapeHtml(String(v))}</code></td>
-        <td style="text-align: right;">
+        <td class="text-end">
           <button type="button" disabled class="btn btn-danger btn-sm btn-del-custom-var" data-key="${escapeHtml(String(k))}" title="${I18n.t("settings.config_unsupported")}">
             ${I18n.t("settings.delete_variable_button")}
           </button>

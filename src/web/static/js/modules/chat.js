@@ -1463,7 +1463,7 @@ export class ChatModule {
           richCardHtml = `
             <div class="chat-contact-card" data-pk="${escapeHtml(cPk)}">
               <div class="card-top-row">
-                <div class="card-avatar">${isLocal ? "⭐" : "👤"}</div>
+                <div class="card-avatar"><i class="bi ${isLocal ? "bi-house-door" : "bi-person"}" aria-hidden="true"></i></div>
                 <div class="card-info">
                   <span class="card-name">${escapeHtml(cName)}</span>
                   <span class="card-sub"><span class="badge-pill ${isLocal ? 'badge-primary' : ''}">${escapeHtml(cRole)}</span> <span class="card-key-mono">${escapeHtml(cPk.slice(0, 10))}…</span></span>
@@ -1480,7 +1480,7 @@ export class ChatModule {
           richCardHtml = `
             <div class="chat-channel-card" data-idx="${chIdx}">
               <div class="card-top-row">
-                <div class="card-avatar">${isEnc ? "🔒" : "📻"}</div>
+                <div class="card-avatar"><i class="bi ${isEnc ? "bi-lock" : "bi-broadcast"}" aria-hidden="true"></i></div>
                 <div class="card-info">
                   <span class="card-name">${escapeHtml(chName)} (${I18n.t('chat.channel_number', { index: chIdx })})</span>
                   <span class="card-sub">${isEnc ? I18n.t("chat.encrypted_channel_icon") : I18n.t("chat.broadcast_channel_icon")}</span>
@@ -1512,7 +1512,7 @@ export class ChatModule {
         locationCardHtml = `
           <div class="chat-location-card">
             <div class="loc-card-header">
-              <span>📍</span> <strong>${window.I18n ? window.I18n.t('chat.gps_shared') : 'Ubicación GPS Compartida'}</strong>
+              <i class="bi bi-geo-alt" aria-hidden="true"></i> <strong>${window.I18n ? window.I18n.t('chat.gps_shared') : 'Ubicación GPS Compartida'}</strong>
             </div>
             <div class="loc-coords-badge">${detectedLat.toFixed(5)}, ${detectedLon.toFixed(5)}</div>
             <button type="button" class="btn-view-on-map" data-lat="${detectedLat}" data-lon="${detectedLon}">
@@ -1527,13 +1527,17 @@ export class ChatModule {
     let ackHtml = "";
     if (msg.is_outgoing) {
       if (msg.delivered) {
-        ackHtml = `<span class="ack-indicator ack-delivered" title="${window.I18n ? window.I18n.t('chat.delivered') : 'Entregado'}">✓✓</span>`;
+        const label = escapeHtml(I18n.t('chat.delivered'));
+        ackHtml = `<span class="ack-indicator ack-delivered" role="img" title="${label}" aria-label="${label}"><i class="bi bi-check-all" aria-hidden="true"></i></span>`;
       } else if (msg.status === "sent") {
-        ackHtml = `<span class="ack-indicator ack-sent" title="${window.I18n ? window.I18n.t('chat.sent') : 'Transmitido'}">✓</span>`;
+        const label = escapeHtml(I18n.t('chat.sent'));
+        ackHtml = `<span class="ack-indicator ack-sent" role="img" title="${label}" aria-label="${label}"><i class="bi bi-check-lg" aria-hidden="true"></i></span>`;
       } else if (msg.status === "failed") {
-        ackHtml = `<span class="ack-indicator ack-failed" title="${escapeHtml(I18n.t('chat.failed'))}">!</span>`;
+        const label = escapeHtml(I18n.t('chat.failed'));
+        ackHtml = `<span class="ack-indicator ack-failed" role="img" title="${label}" aria-label="${label}"><i class="bi bi-exclamation-circle" aria-hidden="true"></i></span>`;
       } else {
-        ackHtml = `<span class="ack-indicator ack-queued" title="${window.I18n ? window.I18n.t('chat.queued') : 'En cola'}">✓</span>`;
+        const label = escapeHtml(I18n.t('chat.queued'));
+        ackHtml = `<span class="ack-indicator ack-queued" role="img" title="${label}" aria-label="${label}"><i class="bi bi-clock" aria-hidden="true"></i></span>`;
       }
     }
 
@@ -1741,8 +1745,9 @@ export class ChatModule {
           const indicator = row.querySelector(".ack-indicator");
           if (indicator && !outgoingMsg.delivered) {
             indicator.className = "ack-indicator ack-sent";
-            indicator.textContent = "✓";
-            indicator.title = window.I18n ? window.I18n.t('chat.sent') : "Transmitido";
+            indicator.innerHTML = '<i class="bi bi-check-lg" aria-hidden="true"></i>';
+            indicator.title = I18n.t('chat.sent');
+            indicator.setAttribute("aria-label", indicator.title);
           }
         }
       }
@@ -1908,10 +1913,11 @@ export class ChatModule {
     if (row) {
       const indicator = row.querySelector(".ack-indicator");
       if (indicator) {
-        indicator.textContent = "✓✓";
+        indicator.innerHTML = '<i class="bi bi-check-all" aria-hidden="true"></i>';
         indicator.className = "ack-indicator ack-delivered";
         const rttText = tripTime ? ` (${tripTime} ms)` : "";
         indicator.title = (window.I18n ? window.I18n.t('chat.delivered') : "Entregado") + rttText;
+        indicator.setAttribute("aria-label", indicator.title);
       }
     }
 

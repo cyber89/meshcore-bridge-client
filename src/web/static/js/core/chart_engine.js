@@ -7,7 +7,7 @@
  * - renderHorizontalBarChart: Comparativa de barras con etiquetas y métricas relativas.
  * - renderSparkline: Micro-gráficos de tendencia para tarjetas KPI.
  *
- * Cumple con WCAG 2.2 AA, variables CSS de tema (tokens.css) y cero dependencias externas.
+ * Usa tokens del tema de app.css y SVG sin dependencias externas.
  */
 
 import { escapeHtml } from "./utils.js";
@@ -52,9 +52,9 @@ export function renderAreaChart(container, options = {}) {
     return;
   }
 
-  const width = 800;
+  const width = 640;
   const height = 240;
-  const padLeft = 46;
+  const padLeft = 64;
   const padRight = 16;
   const padTop = 16;
   const padBottom = 32;
@@ -126,7 +126,7 @@ export function renderAreaChart(container, options = {}) {
     txt.setAttribute("y", yPos + 3.5);
     txt.setAttribute("text-anchor", "end");
     txt.setAttribute("fill", "var(--text-muted, #94a3b8)");
-    txt.setAttribute("font-size", "11");
+    txt.setAttribute("font-size", "12");
     txt.setAttribute("font-family", "var(--font-mono, monospace)");
     txt.textContent = yVal.toLocaleString();
     gridG.appendChild(txt);
@@ -150,7 +150,7 @@ export function renderAreaChart(container, options = {}) {
     txt.setAttribute("y", height - 10);
     txt.setAttribute("text-anchor", i === 0 ? "start" : (i === xTicksCount - 1 ? "end" : "middle"));
     txt.setAttribute("fill", "var(--text-muted, #94a3b8)");
-    txt.setAttribute("font-size", "11");
+    txt.setAttribute("font-size", "12");
     txt.setAttribute("font-family", "var(--font-mono, monospace)");
     txt.textContent = timeLabel;
     xG.appendChild(txt);

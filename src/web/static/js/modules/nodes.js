@@ -93,8 +93,6 @@ export class NodesModule {
 
     document.querySelectorAll(".contacts-filter-pills .filter-pill").forEach((pill) => {
       pill.addEventListener("click", () => {
-        document.querySelectorAll(".contacts-filter-pills .filter-pill").forEach((p) => p.classList.remove("active"));
-        pill.classList.add("active");
         this.activeContactsFilter = pill.getAttribute("data-contact-filter") || "all";
         const q = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
         this.filterContactsGrid(q);
@@ -103,8 +101,6 @@ export class NodesModule {
 
     document.querySelectorAll(".nodes-filter-pills .filter-pill").forEach((pill) => {
       pill.addEventListener("click", () => {
-        document.querySelectorAll(".nodes-filter-pills .filter-pill").forEach((p) => p.classList.remove("active"));
-        pill.classList.add("active");
         this.activeNodesFilter = pill.getAttribute("data-filter") || "all";
         const q = this.dom.nodesSearchInput ? this.dom.nodesSearchInput.value : "";
         this.filterNodesGrid(q);
@@ -1093,7 +1089,16 @@ export class NodesModule {
     }
   }
 
+  _syncFilterPills(groupSelector, filterAttribute, selectedFilter = "all") {
+    document.querySelectorAll(`${groupSelector} .filter-pill`).forEach((pill) => {
+      const selected = pill.getAttribute(filterAttribute) === selectedFilter;
+      pill.classList.toggle("active", selected);
+      pill.setAttribute("aria-pressed", String(selected));
+    });
+  }
+
   filterContactsGrid(query) {
+    this._syncFilterPills(".contacts-filter-pills", "data-contact-filter", this.activeContactsFilter);
     const q = (query || "").toLowerCase().trim();
     const filter = this.activeContactsFilter || "all";
     const cards = this.dom.contactsGridUi ? this.dom.contactsGridUi.querySelectorAll(".contact-card") : [];
@@ -1144,6 +1149,7 @@ export class NodesModule {
   }
 
   filterNodesGrid(query) {
+    this._syncFilterPills(".nodes-filter-pills", "data-filter", this.activeNodesFilter);
     const q = (query || "").toLowerCase().trim();
     const roleFilter = (this.activeNodesFilter || "all").toUpperCase();
     const cards = this.dom.nodesUnifiedGridUi ? this.dom.nodesUnifiedGridUi.querySelectorAll(".node-card") : [];

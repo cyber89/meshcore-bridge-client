@@ -404,15 +404,19 @@ export class MapModule {
           const baseRadius = Math.max(500, Math.min(3500, (ptRssi + 135) * 45));
 
           let color = "#ef4444";
+          let textColor = "var(--accent-danger)";
           let qualityLabel = I18n.t('signal.weak');
           if (ptRssi >= -75 || (isLocal && ptRssi >= -85)) {
             color = "#10b981";
+            textColor = "var(--accent-success)";
             qualityLabel = I18n.t('signal.excellent');
           } else if (ptRssi >= -95) {
             color = "#06b6d4";
+            textColor = "var(--accent-info)";
             qualityLabel = I18n.t('signal.good');
           } else if (ptRssi >= -110) {
             color = "#f59e0b";
+            textColor = "var(--accent-warning)";
             qualityLabel = I18n.t('signal.marginal');
           }
 
@@ -439,13 +443,13 @@ export class MapModule {
           const roleLabel = I18n.role(pt.role || (isLocal ? "LOCAL" : "CLIENT"));
 
           const popupHtml = `
-            <div class="custom-map-popup" style="min-width: 190px;">
-              <div class="popup-title" style="color: ${color};">
+            <div class="custom-map-popup map-heatmap-popup">
+              <div class="popup-title">
                 <i class="bi bi-fire me-1" aria-hidden="true"></i> <strong>${escapeHtml(pt.name)}</strong>
               </div>
               <div class="popup-info">
                 <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill badge-pill-sm">${escapeHtml(roleLabel)}</span></div>
-                <div><span>${I18n.t('map.link_qual')}</span> <strong style="color: ${color};">${qualityLabel}</strong></div>
+                <div><span>${I18n.t('map.link_qual')}</span> <strong style="color: ${textColor};">${qualityLabel}</strong></div>
                 <div><span>${I18n.t('map.rssi_snr')}</span> <strong>${rssiPart} / ${snrPart}</strong></div>
                 <div><span>${I18n.t('map.noise_floor')}</span> <strong>${noisePart}</strong></div>
                 <div><span>${I18n.t('map.cov_radius')}</span> <code>~${(baseRadius / 1000).toFixed(1)} km</code></div>
@@ -822,22 +826,25 @@ export class MapModule {
     const isLocal = Boolean(node.is_local || String(node.role).toUpperCase() === "LOCAL");
     const isRepeater = String(node.role || "").toUpperCase() === "REPEATER";
     const isSensor = String(node.role || "").toUpperCase() === "SENSOR";
-    const markerColor = isLocal ? "#10b981" : (isRepeater ? "#8b5cf6" : (isSensor ? "#f59e0b" : "#0ea5e9"));
-    const iconSymbol = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : "👤"));
+    const isRoom = String(node.role || "").toUpperCase() === "ROOM";
+    const markerColor = isLocal ? "#10b981" : (isRepeater ? "#8b5cf6" : (isSensor ? "#06b6d4" : (isRoom ? "#f59e0b" : "#0ea5e9")));
+    const roleClass = isLocal ? "role-local" : (isRepeater ? "role-repeater" : (isSensor ? "role-sensor" : (isRoom ? "role-room" : "role-client")));
+    const iconName = isLocal ? "bi-house-door" : (isRepeater ? "bi-broadcast" : (isSensor ? "bi-thermometer-half" : (isRoom ? "bi-chat-square-text" : "bi-person")));
+    const iconSymbol = `<i class="bi ${iconName}" aria-hidden="true"></i>`;
     const name = node.name || node.alias || (isLocal ? I18n.t('map.local_station_you') : pk.slice(0, 8));
 
     const popupHtml = `
       <div class="custom-map-popup">
-        <div class="popup-title" style="color: ${markerColor};">
+        <div class="popup-title">
           <span>${iconSymbol}</span> <strong>${escapeHtml(name)}</strong>
         </div>
         <div class="popup-info">
-          <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill">${escapeHtml(I18n.role(node.role || (isLocal ? "LOCAL" : "CLIENT")))}</span></div>
+          <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill node-role-badge ${roleClass}">${escapeHtml(I18n.role(node.role || (isLocal ? "LOCAL" : "CLIENT")))}</span></div>
           <div><span>${I18n.t('map.key_label')}</span> <code>${escapeHtml(pk.slice(0, 8))}...</code></div>
           <div><span>${I18n.t('map.pos_label')}</span> <code>${lat.toFixed(5)}, ${lon.toFixed(5)}</code></div>
           ${node.last_rssi != null ? `<div><span>${I18n.t('map.rssi_label')}</span> <strong>${escapeHtml(String(node.last_rssi))} dBm</strong></div>` : ""}
           ${node.last_snr != null ? `<div><span>${I18n.t('map.snr_label')}</span> <strong>${escapeHtml(String(node.last_snr))} dB</strong></div>` : ""}
-          ${isLocal ? `<div style="color: var(--accent-success); font-weight: 600; margin-top: 4px;">📍 ${I18n.t('map.local_connected')}</div>` : ""}
+          ${isLocal ? `<div class="map-popup-local-note"><i class="bi bi-geo-alt" aria-hidden="true"></i> ${I18n.t('map.local_connected')}</div>` : ""}
         </div>
       </div>
     `;
@@ -851,7 +858,7 @@ export class MapModule {
 
     const customIcon = L.divIcon({
       className: `custom-leaflet-marker ${isLocal ? "marker-local-station" : ""}`,
-      html: `<div class="${isLocal ? "local-station-pulse-pin" : ""}" style="background: ${markerColor}; width: ${isLocal ? 22 : 16}px; height: ${isLocal ? 22 : 16}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 ${isLocal ? "10px #10b981" : "6px " + markerColor}; display: flex; align-items: center; justify-content: center; font-size: ${isLocal ? "11px" : "9px"}; color: white;">${iconSymbol}</div>`,
+      html: `<div class="${isLocal ? "local-station-pulse-pin" : ""}" style="background: ${markerColor}; width: ${isLocal ? 22 : 16}px; height: ${isLocal ? 22 : 16}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 ${isLocal ? "10px #10b981" : "6px " + markerColor}; display: flex; align-items: center; justify-content: center; font-size: ${isLocal ? "11px" : "9px"}; color: #0c1424;">${iconSymbol}</div>`,
       iconSize: [isLocal ? 22 : 16, isLocal ? 22 : 16],
       iconAnchor: [isLocal ? 11 : 8, isLocal ? 11 : 8],
     });

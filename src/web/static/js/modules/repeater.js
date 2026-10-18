@@ -1830,7 +1830,7 @@ export class RepeaterModule {
     const tbody = document.getElementById("neighborsTableBody");
     if (!tbody) return;
     if (!Array.isArray(neighbours) || neighbours.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="text-center" style="color: var(--color-text-secondary);">${I18n.t("repeater.no_neighbors")}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-body-secondary">${I18n.t("repeater.no_neighbors")}</td></tr>`;
       return;
     }
 
@@ -1851,8 +1851,8 @@ export class RepeaterModule {
         <td><span class="badge-pill badge-secondary">${I18n.t('repeater.hops', { n: hops })}</span></td>
         <td>${escapeHtml(String(lastSeen))}</td>
         <td>
-          <button type="button" class="btn btn-secondary btn-sm btn-neighbor-ping" data-target="${escapeHtml(pk)}" title="${I18n.t('repeater.direct_ping')}">
-            🎯 Ping
+          <button type="button" class="btn btn-secondary btn-sm btn-neighbor-ping" data-target="${escapeHtml(pk)}" title="${escapeHtml(I18n.t('repeater.direct_ping'))}" aria-label="${escapeHtml(`${I18n.t('nodes.ping_btn')}: ${name}`)}">
+            <i class="bi bi-bullseye" aria-hidden="true"></i> ${I18n.t('nodes.ping_btn')}
           </button>
         </td>
       `;

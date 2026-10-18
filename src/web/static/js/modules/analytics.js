@@ -519,7 +519,7 @@ export class AnalyticsModule {
     if (this.dom.statHwNoiseFloor) {
       const nf = hw.noise_floor_dbm;
       this.dom.statHwNoiseFloor.textContent = nf != null ? `${Number(nf)} dBm` : "-- dBm";
-      this.dom.statHwNoiseFloor.style.color = (nf != null && nf > -95) ? "var(--accent-danger, #ef4444)" : "var(--text-bright, #ffffff)";
+      this.dom.statHwNoiseFloor.style.color = (nf != null && nf > -95) ? "var(--accent-danger)" : "var(--text-main)";
     }
 
     if (this.dom.statHwSignal) {
@@ -540,7 +540,7 @@ export class AnalyticsModule {
     if (this.dom.statQueueDepth) {
       const qDepth = Number(rootData.queue_depth || 0);
       I18n.setText(this.dom.statQueueDepth, "analytics.packets_count", { n: qDepth });
-      this.dom.statQueueDepth.style.color = qDepth > 10 ? "var(--accent-danger, #ef4444)" : "var(--text-bright, #ffffff)";
+      this.dom.statQueueDepth.style.color = qDepth > 10 ? "var(--accent-danger)" : "var(--text-main)";
     }
 
     if (this.dom.statSerialStatus) {

@@ -1,6 +1,22 @@
 "use strict";
 
+// Apply the station preference before CSS renders. Without a saved preference,
+// CSS follows the operating system; restricted storage never blocks the viewer.
 (() => {
+  const syncTheme = () => {
+    let selected;
+    try { selected = localStorage.getItem("meshcore_theme"); }
+    catch (_) { /* Leave the operating-system fallback available. */ }
+    if (selected === "light" || selected === "dark") document.documentElement.setAttribute("data-bs-theme", selected);
+    else document.documentElement.removeAttribute("data-bs-theme");
+  };
+  syncTheme();
+  window.addEventListener("storage", (event) => {
+    if (event.key === "meshcore_theme" || event.key === null) syncTheme();
+  });
+})();
+
+document.addEventListener("DOMContentLoaded", () => {
   const HTTP_METHODS = new Set(["get", "put", "post", "delete", "options", "head", "patch", "trace"]);
   const ui = Object.fromEntries([
     "load-form", "api-key", "load-button", "clear-button", "status", "contract",
@@ -112,7 +128,11 @@
     const table = make("table");
     const head = make("thead");
     const headerRow = make("tr");
-    for (const label of ["Nombre", "Ubicación", "Obligatorio", "Descripción y esquema"]) headerRow.append(make("th", label));
+    for (const label of ["Nombre", "Ubicación", "Obligatorio", "Descripción y esquema"]) {
+      const header = make("th", label);
+      header.scope = "col";
+      headerRow.append(header);
+    }
     head.append(headerRow);
     const body = make("tbody");
     for (const original of parameters) {
@@ -266,4 +286,4 @@
   ui.method.addEventListener("change", renderOperations);
   ui.tag.addEventListener("change", renderOperations);
   window.addEventListener("pagehide", () => { cancelLoad(); forgetKey(); resetView(); });
-})();
+}, { once: true });

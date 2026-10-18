@@ -544,7 +544,7 @@ export class SnifferModule {
     this.dom.snifferPacketsBody.textContent = "";
     if (filtered.length === 0) {
       const emptyRow = document.createElement("tr");
-      emptyRow.innerHTML = `<td colspan="11" class="text-center text-muted" style="padding: 24px;">${I18n.t('sniffer.no_packets_filter')}</td>`;
+      emptyRow.innerHTML = `<td colspan="11" class="text-center text-muted p-4">${I18n.t('sniffer.no_packets_filter')}</td>`;
       this.dom.snifferPacketsBody.appendChild(emptyRow);
       return;
     }
@@ -571,7 +571,7 @@ export class SnifferModule {
       const timeStr = pkt.iso_time ? (pkt.iso_time.split("T")[1]?.split(".")[0] || pkt.iso_time) : new Date((pkt.timestamp || (Date.now() / 1000)) * 1000).toLocaleTimeString();
 
       const senderDisplay = pkt.sender_name || (pkt.sender ? `[${pkt.sender.substring(0, 8)}]` : "--");
-      const targetDisplay = pkt.target === "broadcast" ? "📢 Broadcast" : (pkt.target ? `[${pkt.target.substring(0, 8)}]` : "--");
+      const targetDisplay = pkt.target === "broadcast" ? "Broadcast" : (pkt.target ? `[${pkt.target.substring(0, 8)}]` : "--");
 
       let rfMetrics = "--";
       if (pkt.snr != null || pkt.rssi != null) {
@@ -590,10 +590,10 @@ export class SnifferModule {
         <td class="font-mono text-xs" title="${escapeHtml(pkt.target || "")}">${escapeHtml(targetDisplay)}</td>
         <td class="font-mono text-xs">${escapeHtml(rfMetrics)}</td>
         <td class="font-mono text-xs">${escapeHtml(String(pkt.size_bytes || 0))} B</td>
-        <td class="text-xs truncate" style="max-width: 280px;" title="${escapeHtml(pkt.text || "")}">${escapeHtml(summaryText)}</td>
-        <td style="text-align: center;">
-          <button type="button" class="btn-icon btn-xs" title="${I18n.t('sniffer.inspect_btn')}" data-pkt-id="${escapeHtml(String(pkt.packet_id))}">
-            🔍
+        <td class="text-xs truncate" title="${escapeHtml(pkt.text || "")}">${escapeHtml(summaryText)}</td>
+        <td class="text-center">
+          <button type="button" class="btn-icon btn-xs" title="${escapeHtml(I18n.t('sniffer.inspect_btn'))}" aria-label="${escapeHtml(`${I18n.t('sniffer.inspect_btn')} #${pkt.packet_id || 0}`)}" aria-haspopup="dialog" aria-controls="packetInspectorModal" data-pkt-id="${escapeHtml(String(pkt.packet_id))}">
+            <i class="bi bi-search button-icon" aria-hidden="true"></i>
           </button>
         </td>
       `;
