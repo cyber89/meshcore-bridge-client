@@ -95,7 +95,6 @@ class AuthStore:
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
         with self._lock:
-            self._restrict_files()
             connection = sqlite3.connect(self.path, timeout=30)
             connection.row_factory = sqlite3.Row
             try:

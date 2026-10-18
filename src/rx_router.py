@@ -870,120 +870,91 @@ class RxEventRouter:
             return local_name
         return str(self._ctx.serial_adapter.resolve_sender_name(prefix_or_key))
 
-    async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict[str, Any] | None:
-        if self._ctx.node_registry.is_local_key(msg.sender):
-            return None
-
-        # Deduplicación en memoria RAM para descartar ecos multihop repetidos en la malla LoRa
-        if self._ctx.deduplicator is not None:
-            clean_sender = str(msg.sender or "").strip().lower()
-            clean_text = str(msg.text or "").strip()
-            if msg.sender_timestamp is not None:
-                dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}::{msg.sender_timestamp}"
-            else:
-                dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}"
-            if await self._ctx.deduplicator.is_duplicate(dedup_key):
-                if self._ctx.bridge and hasattr(self._ctx.bridge, "dup_count"):
-                    self._ctx.bridge.dup_count += 1
-                elif hasattr(self._ctx.counters, "dup_count"):
-                    self._ctx.counters.dup_count += 1
-                logging.debug(f"[RX-DEDUP] Mensaje duplicado LoRa ignorado: de {msg.sender_name or clean_sender[:8]} (canal {msg.channel_idx})")
-                return None
-
-        tagged_cli = bool(re.match(r"^[0-9a-fA-F]{2}\|", msg.text))
-        # Scalar CLI replies need their request context; a password or latitude
-        # must never become battery telemetry through the generic text parser.
-        extracted_telem = {} if tagged_cli or msg.txt_type == 1 else self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
-        existing_contact = self._ctx.node_registry.get_contact(msg.sender)
-        should_treat_as_repeater = bool(
-            existing_contact and existing_contact.role in ("REPEATER", "ROUTER")
-        )
-
-        if extracted_telem and should_treat_as_repeater:
-            rep_update = NodeContactUpdate.from_dict(
-                extracted_telem,
-                last_seen=time.time(),
-                name=msg.sender_name,
-                role="REPEATER",
-                last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else extracted_telem.get("last_rssi"),
-                last_snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else extracted_telem.get("last_snr"),
-            )
-            updated_rep = self._ctx.node_registry.add_or_update(msg.sender, rep_update)
-            if updated_rep:
-                self._spawn_broadcast_task({
-                    "type": "contact_updated",
-                    "event_type": "contact_updated",
-                    "contact": updated_rep.to_dict(),
-                })
-
-        sender_contact = self._ctx.node_registry.get_contact(msg.sender)
-        is_repeater_sender = (
-            (sender_contact and sender_contact.role in ("REPEATER", "ROUTER"))
-            or should_treat_as_repeater
-        )
-        is_client_sender = bool(sender_contact and sender_contact.role in ("CLIENT", "ROOM", "SENSOR"))
-
-        if is_client_sender and msg.txt_type in (0, 2):
-            is_cmd_response = False
-        elif is_repeater_sender or msg.txt_type == 1:
-            is_cmd_response = True
+    async def _is_deduplicated_mesh_msg(self, msg: MeshMessageEvent) -> bool:
+        """Deduplicación en memoria RAM para descartar ecos multihop repetidos en la malla LoRa."""
+        if self._ctx.deduplicator is None:
+            return False
+        clean_sender = str(msg.sender or "").strip().lower()
+        clean_text = str(msg.text or "").strip()
+        if msg.sender_timestamp is not None:
+            dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}::{msg.sender_timestamp}"
         else:
-            is_cmd_response = is_command_or_system_message(msg.text, msg.txt_type)
+            dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}"
+        if await self._ctx.deduplicator.is_duplicate(dedup_key):
+            if self._ctx.bridge and hasattr(self._ctx.bridge, "dup_count"):
+                self._ctx.bridge.dup_count += 1
+            elif hasattr(self._ctx.counters, "dup_count"):
+                self._ctx.counters.dup_count += 1
+            logging.debug(f"[RX-DEDUP] Mensaje duplicado LoRa ignorado: de {msg.sender_name or clean_sender[:8]} (canal {msg.channel_idx})")
+            return True
+        return False
 
-        now_iso = datetime.now(UTC).isoformat()
+    def _process_repeater_command_response(
+        self,
+        msg: MeshMessageEvent,
+        extracted_telem: dict[str, Any],
+        tagged_cli: bool,
+        now_iso: str,
+    ) -> None:
+        """Procesa y enruta respuestas de comando y telemetría de repetidores."""
+        admin = getattr(self._ctx, "admin_handler", None)
+        cmd_resp_payload: dict[str, Any] = {"text": msg.text}
+        if admin:
+            cmd_resp_payload = {
+                "rssi": msg.rssi,
+                "snr_there": msg.snr,
+                "snr_back": msg.snr,
+                "snr": msg.snr,
+                "text": msg.text,
+                "message": msg.text,
+                "channel_idx": msg.channel_idx,
+                "telemetry": extracted_telem,
+                "source": "repeater_response",
+            }
+            if hasattr(admin, "notify_command_response"):
+                admin.notify_command_response(msg.sender, cmd_resp_payload)
+            elif hasattr(admin, "notify_ping_response"):
+                admin.notify_ping_response(msg.sender, cmd_resp_payload)
 
-        if is_cmd_response:
-            admin = getattr(self._ctx, "admin_handler", None)
-            cmd_resp_payload: dict[str, Any] = {"text": msg.text}
-            if admin:
-                cmd_resp_payload = {
-                    "rssi": msg.rssi,
-                    "snr_there": msg.snr,
-                    "snr_back": msg.snr,
-                    "snr": msg.snr,
-                    "text": msg.text,
-                    "message": msg.text,
-                    "channel_idx": msg.channel_idx,
-                    "telemetry": extracted_telem,
-                    "source": "repeater_response",
-                }
-                if hasattr(admin, "notify_command_response"):
-                    admin.notify_command_response(msg.sender, cmd_resp_payload)
-                elif hasattr(admin, "notify_ping_response"):
-                    admin.notify_ping_response(msg.sender, cmd_resp_payload)
+        if cmd_resp_payload.get("sensitive_response"):
+            public_text = "********"
+        elif (tagged_cli or msg.txt_type == 1) and not cmd_resp_payload.get("response_matched"):
+            public_text = "Respuesta de administración no asociada"
+        else:
+            public_text = redact_command_str(str(cmd_resp_payload.get("text", msg.text)))
 
-            if cmd_resp_payload.get("sensitive_response"):
-                public_text = "********"
-            elif (tagged_cli or msg.txt_type == 1) and not cmd_resp_payload.get("response_matched"):
-                public_text = "Respuesta de administración no asociada"
-            else:
-                public_text = redact_command_str(str(cmd_resp_payload.get("text", msg.text)))
-
-            rep_payload = {
-                "type": "repeater_response",
-                "event_type": "repeater_response",
+        rep_payload = {
+            "type": "repeater_response",
+            "event_type": "repeater_response",
+            "sender": msg.sender,
+            "sender_name": msg.sender_name,
+            "text": public_text,
+            "channel_idx": msg.channel_idx,
+            "channel_index": msg.channel_idx,
+            "telemetry": extracted_telem if extracted_telem else None,
+            "rssi": msg.rssi,
+            "snr": msg.snr,
+            "timestamp": now_iso,
+        }
+        if extracted_telem:
+            self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, json.dumps({
+                "event_type": "repeater_telemetry",
                 "sender": msg.sender,
                 "sender_name": msg.sender_name,
-                "text": public_text,
-                "channel_idx": msg.channel_idx,
-                "channel_index": msg.channel_idx,
-                "telemetry": extracted_telem if extracted_telem else None,
-                "rssi": msg.rssi,
-                "snr": msg.snr,
+                "telemetry": extracted_telem,
                 "timestamp": now_iso,
-            }
-            if extracted_telem:
-                self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, json.dumps({
-                    "event_type": "repeater_telemetry",
-                    "sender": msg.sender,
-                    "sender_name": msg.sender_name,
-                    "telemetry": extracted_telem,
-                    "timestamp": now_iso,
-                }), qos=0)
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
-            self._spawn_broadcast_task(rep_payload)
-            return None
+            }), qos=0)
+        self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
+        self._spawn_broadcast_task(rep_payload)
 
+    def _process_chat_message(
+        self,
+        msg: MeshMessageEvent,
+        event_type_str: str,
+        extracted_telem: dict[str, Any],
+        now_iso: str,
+    ) -> dict[str, Any]:
+        """Procesa, registra presencia y despacha mensajes de chat de usuario."""
         lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
         lqi_stat = LinkQualityEngine.classify_lqi_status(lqi_val)
 
@@ -1033,8 +1004,61 @@ class RxEventRouter:
         evt_json = json.dumps(evt_payload, sort_keys=True)
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
         self._spawn_broadcast_task(evt_payload)
-
         return evt_payload
+
+    async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict[str, Any] | None:
+        if self._ctx.node_registry.is_local_key(msg.sender):
+            return None
+
+        if await self._is_deduplicated_mesh_msg(msg):
+            return None
+
+        tagged_cli = bool(re.match(r"^[0-9a-fA-F]{2}\|", msg.text))
+        # Scalar CLI replies need their request context; a password or latitude
+        # must never become battery telemetry through the generic text parser.
+        extracted_telem = {} if tagged_cli or msg.txt_type == 1 else self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
+        existing_contact = self._ctx.node_registry.get_contact(msg.sender)
+        should_treat_as_repeater = bool(
+            existing_contact and existing_contact.role in ("REPEATER", "ROUTER")
+        )
+
+        if extracted_telem and should_treat_as_repeater:
+            rep_update = NodeContactUpdate.from_dict(
+                extracted_telem,
+                last_seen=time.time(),
+                name=msg.sender_name,
+                role="REPEATER",
+                last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else extracted_telem.get("last_rssi"),
+                last_snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else extracted_telem.get("last_snr"),
+            )
+            updated_rep = self._ctx.node_registry.add_or_update(msg.sender, rep_update)
+            if updated_rep:
+                self._spawn_broadcast_task({
+                    "type": "contact_updated",
+                    "event_type": "contact_updated",
+                    "contact": updated_rep.to_dict(),
+                })
+
+        sender_contact = self._ctx.node_registry.get_contact(msg.sender)
+        is_repeater_sender = (
+            (sender_contact and sender_contact.role in ("REPEATER", "ROUTER"))
+            or should_treat_as_repeater
+        )
+        is_client_sender = bool(sender_contact and sender_contact.role in ("CLIENT", "ROOM", "SENSOR"))
+
+        if is_client_sender and msg.txt_type in (0, 2):
+            is_cmd_response = False
+        elif is_repeater_sender or msg.txt_type == 1:
+            is_cmd_response = True
+        else:
+            is_cmd_response = is_command_or_system_message(msg.text, msg.txt_type)
+
+        now_iso = datetime.now(UTC).isoformat()
+        if is_cmd_response:
+            self._process_repeater_command_response(msg, extracted_telem, tagged_cli, now_iso)
+            return None
+
+        return self._process_chat_message(msg, event_type_str, extracted_telem, now_iso)
 
     async def _handle_mesh_channel_msg(self, msg: MeshMessageEvent) -> None:
         evt_payload = await self._handle_mesh_msg_common(msg, "public" if msg.channel_idx == 0 else "channel")
@@ -1079,6 +1103,85 @@ class RxEventRouter:
             f"[RX-DM] De: {msg.sender_name or msg.sender} -> Para: Estación Base Local | "
             f"Texto: '{msg.text}' | LQI: {evt_payload['lqi_score']}% [{evt_payload['lqi_status']}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
         )
+
+    def _handle_local_station_telemetry(
+        self,
+        ev_name: str,
+        payload_dict: dict[str, Any],
+        sender: str | None,
+    ) -> bool:
+        """Procesa y registra configuración y telemetría de la estación base local."""
+        is_self_info = ev_name in ("self_info", "SELF_INFO", "self") or "SELF" in ev_name.upper()
+        if is_self_info:
+            node_name = payload_dict.get("name") or "Estación Base"
+            pk_val = str(payload_dict.get("public_key", sender or "")).strip().lower()
+            freq = payload_dict.get("radio_freq", "--")
+            sf = payload_dict.get("radio_sf", "--")
+            bw = payload_dict.get("radio_bw", "--")
+            cr = payload_dict.get("radio_cr", "--")
+            tx_p = normalize_tx_power(payload_dict.get("tx_power"))
+
+            if pk_val and is_valid_node_key(pk_val):
+                self._ctx.node_registry.set_local_pubkey(pk_val)
+                self._ctx.node_registry.add_or_update(
+                    pk_val,
+                    NodeContactUpdate(
+                        name=node_name,
+                        alias=node_name,
+                        role="LOCAL",
+                        is_local=True,
+                        hops=0,
+                        fixed_position=True,
+                    ),
+                )
+            if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_local_config"):
+                cfg_update: dict[str, Any] = {"name": node_name}
+                if pk_val:
+                    cfg_update["public_key"] = pk_val
+                if freq != "--":
+                    try:
+                        cfg_update["frequency"] = float(freq)
+                        cfg_update["radio_freq"] = float(freq)
+                    except (ValueError, TypeError):
+                        pass
+                if sf != "--":
+                    try:
+                        cfg_update["spreading_factor"] = int(sf)
+                    except (ValueError, TypeError):
+                        pass
+                if bw != "--":
+                    try:
+                        cfg_update["bandwidth"] = float(bw)
+                    except (ValueError, TypeError):
+                        pass
+                if cr != "--":
+                    try:
+                        cfg_update["coding_rate"] = int(cr)
+                    except (ValueError, TypeError):
+                        pass
+                if tx_p is not None or ("tx_power" in payload_dict and payload_dict["tx_power"] is None):
+                    cfg_update["tx_power"] = tx_p
+                self._ctx.admin_handler._local_config.update(cfg_update)
+
+            logging.info(
+                f"[ESTACIÓN LOCAL] Configuración: {node_name} ({pk_val[:8] if pk_val else '??'}) | Freq: {freq} MHz, SF{sf}/BW{bw}/CR{cr}, TX: {tx_p} dBm"
+            )
+            return True
+
+        if ev_name in ("device_info", "DEVICE_INFO", "device"):
+            model = payload_dict.get("model") or "LoRa Device"
+            ver = payload_dict.get("ver") or payload_dict.get("firmware_version") or ""
+            build = payload_dict.get("fw_build") or ""
+            max_c = payload_dict.get("max_contacts", "--")
+            if "repeat" in payload_dict and self._ctx.admin_handler:
+                self._ctx.admin_handler._local_config["repeat"] = bool(payload_dict["repeat"])
+            rep_status = "ON" if payload_dict.get("repeat") else "OFF"
+            logging.info(
+                f"[ESTACIÓN LOCAL] Hardware: {model} {ver} (Build: {build}, Contactos Máx: {max_c}, Repetidor: {rep_status})"
+            )
+            return True
+
+        return False
 
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
         payload_dict = sanitize_public_payload(payload_dict)
@@ -1217,74 +1320,8 @@ class RxEventRouter:
                 logging.debug(f"Error actualizando ocupación de canal en rate limiter: {e}")
 
 
-        # Si el evento corresponde a configuración o hardware del nodo local, registrar con formato limpio [ESTACIÓN LOCAL]
-        if is_self_info:
-            node_name = payload_dict.get("name") or "Estación Base"
-            pk_val = str(payload_dict.get("public_key", sender or "")).strip().lower()
-            freq = payload_dict.get("radio_freq", "--")
-            sf = payload_dict.get("radio_sf", "--")
-            bw = payload_dict.get("radio_bw", "--")
-            cr = payload_dict.get("radio_cr", "--")
-            tx_p = normalize_tx_power(payload_dict.get("tx_power"))
-
-            if pk_val and is_valid_node_key(pk_val):
-                self._ctx.node_registry.set_local_pubkey(pk_val)
-                self._ctx.node_registry.add_or_update(
-                    pk_val,
-                    NodeContactUpdate(
-                        name=node_name,
-                        alias=node_name,
-                        role="LOCAL",
-                        is_local=True,
-                        hops=0,
-                        fixed_position=True,
-                    ),
-                )
-            if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_local_config"):
-                cfg_update: dict[str, Any] = {"name": node_name}
-                if pk_val:
-                    cfg_update["public_key"] = pk_val
-                if freq != "--":
-                    try:
-                        cfg_update["frequency"] = float(freq)
-                        cfg_update["radio_freq"] = float(freq)
-                    except (ValueError, TypeError):
-                        pass
-                if sf != "--":
-                    try:
-                        cfg_update["spreading_factor"] = int(sf)
-                    except (ValueError, TypeError):
-                        pass
-                if bw != "--":
-                    try:
-                        cfg_update["bandwidth"] = float(bw)
-                    except (ValueError, TypeError):
-                        pass
-                if cr != "--":
-                    try:
-                        cfg_update["coding_rate"] = int(cr)
-                    except (ValueError, TypeError):
-                        pass
-                if tx_p is not None or ("tx_power" in payload_dict and payload_dict["tx_power"] is None):
-                    cfg_update["tx_power"] = tx_p
-                self._ctx.admin_handler._local_config.update(cfg_update)
-
-            logging.info(
-                f"[ESTACIÓN LOCAL] Configuración: {node_name} ({pk_val[:8] if pk_val else '??'}) | Freq: {freq} MHz, SF{sf}/BW{bw}/CR{cr}, TX: {tx_p} dBm"
-            )
-            return
-
-        if ev_name in ("device_info", "DEVICE_INFO", "device"):
-            model = payload_dict.get("model") or "LoRa Device"
-            ver = payload_dict.get("ver") or payload_dict.get("firmware_version") or ""
-            build = payload_dict.get("fw_build") or ""
-            max_c = payload_dict.get("max_contacts", "--")
-            if "repeat" in payload_dict and self._ctx.admin_handler:
-                self._ctx.admin_handler._local_config["repeat"] = bool(payload_dict["repeat"])
-            rep_status = "ON" if payload_dict.get("repeat") else "OFF"
-            logging.info(
-                f"[ESTACIÓN LOCAL] Hardware: {model} {ver} (Build: {build}, Contactos Máx: {max_c}, Repetidor: {rep_status})"
-            )
+        # Si el evento corresponde a configuración o hardware del nodo local, procesar con el handler dedicado
+        if self._handle_local_station_telemetry(ev_name, payload_dict, sender):
             return
 
         sender_name_val = payload_dict.get("sender_name")

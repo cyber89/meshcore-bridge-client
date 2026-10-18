@@ -105,7 +105,6 @@ class StationDatabase:
             try:
                 connection.execute("PRAGMA synchronous = FULL")
                 connection.execute("PRAGMA foreign_keys = ON")
-                self._restrict_files()
                 with connection:
                     yield connection
             finally:

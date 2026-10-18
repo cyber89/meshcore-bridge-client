@@ -310,19 +310,6 @@ def parse_sensor_push_payload(response_data: bytes | str) -> dict[str, Any] | No
 
 
 
-class ControlType(IntEnum):
-    """Tipos de control (SDK packets.py)."""
-    NODE_DISCOVER_REQ = 0x80
-    NODE_DISCOVER_RESP = 0x90
-
-
-class AnonReqType(IntEnum):
-    """Tipos de solicitud anónima (SDK packets.py)."""
-    REGIONS = 0x01
-    OWNER = 0x02
-    BASIC = 0x03  # Reloj remoto / tiempo básico
-
-
 # Deprecated: Use PacketType instead. FirmwarePushCode was an alias maintained
 # for backward compatibility only.
 
