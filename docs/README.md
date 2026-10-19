@@ -21,6 +21,7 @@
 13. **[Autenticación de estación personal](AUTHENTICATION_PLAN.md)**: Plan por etapas, login, sesiones, API, CSRF y credenciales de instalación.
 14. **[Diseño del login y propuesta de recuperación](LOGIN_DESIGN_AND_RECOVERY.md)**: Mejora visual del acceso y contrato propuesto para recuperación local; distingue implementación y propuesta.
 15. **[Auditoría del login en navegador](LOGIN_AUDIT_2026-10-12.md)**: Reproducción virtual, adaptación a pantallas, estilos calculados y política de contraseñas de 8–64 caracteres.
+16. **[Evaluación y opciones de diseño del frontend](../diseño.md)**: Revisión multiagente de estilo, densidad por pantalla, tipografías, CSS crítico, carga de JavaScript, empaquetado y compresión; propuestas y aceptación pendiente.
 
 ---
 
