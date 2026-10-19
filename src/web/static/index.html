@@ -228,8 +228,15 @@
               </div>
 
               <!-- Feed de Mensajes Limpio -->
-              <div class="chat-messages is-empty-conversation" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat" data-i18n-aria-label="ui.static_029">
+              <div class="chat-messages is-empty-conversation" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat" data-i18n-aria-label="ui.static_029" tabindex="-1">
                 <div class="chat-empty-state"><p data-i18n="chat.write_below">Escribe un mensaje abajo para transmitir por la malla LoRa</p></div>
+              </div>
+
+              <div class="chat-unread-bar" id="chatNewMessagesBar" hidden>
+                <button type="button" class="btn btn-sm btn-secondary" id="btnChatNewMessages" aria-controls="chatMessageFeed">
+                  <i class="bi bi-arrow-down" aria-hidden="true"></i>
+                  <span id="chatNewMessagesLabel" data-i18n="chat.new_messages" data-i18n-params='{"count":0}'>Mensajes nuevos: 0</span>
+                </button>
               </div>
 
               <!-- Caja de Entrada de Mensaje con Adjuntos y Emojis -->

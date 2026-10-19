@@ -39,6 +39,8 @@ export class ChatModule {
     this.historyPages = new Map();
     this._historyStates = new Map();
     this._visibleFeedKey = null;
+    this._newMessagesBelow = 0;
+    this._readingResizeObserver = null;
     this._historyAccessDenied = false;
     this.chatSoundEnabled = readLocalPreference("meshcore_chat_sound_enabled") !== "false";
     this._sending = false;
@@ -128,7 +130,7 @@ export class ChatModule {
     this._renderEmojiGrid("smileys");
     this.updateCharCounter();
     this._updateActiveChatHeader();
-    if (window.innerWidth <= 900 && this.dom.sidebarChannelList) {
+    if (window.matchMedia("(max-width: 991.98px)").matches && this.dom.sidebarChannelList) {
       this.dom.sidebarChannelList.classList.add("mobile-open");
     }
   }
@@ -152,6 +154,9 @@ export class ChatModule {
   _bindElements() {
     this.dom = {
       chatMessageFeed: document.getElementById("chatMessageFeed"),
+      chatNewMessagesBar: document.getElementById("chatNewMessagesBar"),
+      chatNewMessagesLabel: document.getElementById("chatNewMessagesLabel"),
+      btnChatNewMessages: document.getElementById("btnChatNewMessages"),
       chatInputForm: document.getElementById("chatInputForm"),
       chatInputText: document.getElementById("chatInputText"),
       chatCharCounter: document.getElementById("chatCharCounter"),
@@ -193,6 +198,20 @@ export class ChatModule {
   }
 
   _bindEvents() {
+    const clearNoticeAtLatest = () => {
+      if (this._newMessagesBelow && this._isReadingLatest()) this._updateNewMessages(0);
+    };
+    this.dom.chatMessageFeed?.addEventListener("scroll", clearNoticeAtLatest, { passive: true });
+    if (this.dom.chatMessageFeed && window.ResizeObserver) {
+      this._readingResizeObserver?.disconnect();
+      this._readingResizeObserver = new ResizeObserver(clearNoticeAtLatest);
+      this._readingResizeObserver.observe(this.dom.chatMessageFeed);
+    }
+    this.dom.btnChatNewMessages?.addEventListener("click", () => {
+      this._scrollToLatest();
+      this.dom.chatMessageFeed?.focus({ preventScroll: true });
+    });
+
     // Botón de retorno a canales en móvil (estilo WhatsApp)
     const handleMobileBack = () => {
       const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
@@ -928,7 +947,7 @@ export class ChatModule {
     this._syncConversationSelection();
 
     const panel = document.querySelector(".chat-channels-panel");
-    if (panel && window.innerWidth <= 900) {
+    if (panel && window.matchMedia("(max-width: 991.98px)").matches) {
       panel.classList.remove("mobile-open");
     }
 
@@ -984,7 +1003,7 @@ export class ChatModule {
     if (navBtn) navBtn.click();
 
     const panel = document.querySelector(".chat-channels-panel");
-    if (panel && window.innerWidth <= 900) {
+    if (panel && window.matchMedia("(max-width: 991.98px)").matches) {
       panel.classList.remove("mobile-open");
     }
 
@@ -1035,6 +1054,7 @@ export class ChatModule {
   }
 
   async clearCurrentChat() {
+    this._updateNewMessages(0);
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
     const renderGeneration = ++this._renderGeneration;
     this._feedGenerations.set(feedKey, (this._feedGenerations.get(feedKey) || 0) + 1);
@@ -1219,6 +1239,7 @@ export class ChatModule {
   }
 
   _clearProtectedHistory() {
+    this._updateNewMessages(0);
     ++this._renderGeneration;
     this._historyAccessDenied = true;
     this.channelFeeds.clear();
@@ -1293,9 +1314,12 @@ export class ChatModule {
     const feed = this.dom.chatMessageFeed;
     if (!feed) return;
     const oldTop = feed.scrollTop;
+    const keepPosition = preserveScroll && this._visibleFeedKey === feedKey;
+    const followTail = !keepPosition || this._isReadingLatest();
     const msgs = this.channelFeeds.get(feedKey) || [];
     const page = this.historyPages.get(feedKey);
     const state = this._historyStates.get(feedKey) || (this._historyAccessDenied ? "auth" : (page?.offline ? "offline" : "ready"));
+    this._updateNewMessages(keepPosition && msgs.length && state !== "auth" ? this._newMessagesBelow : 0);
     feed.setAttribute("aria-busy", String(state === "loading"));
     feed.classList.toggle("is-empty-conversation", msgs.length === 0 && state === "ready");
     const frag = document.createDocumentFragment();
@@ -1359,7 +1383,7 @@ export class ChatModule {
 
     feed.replaceChildren(frag);
     this._visibleFeedKey = feedKey;
-    feed.scrollTop = preserveScroll ? oldTop : feed.scrollHeight;
+    feed.scrollTop = followTail ? feed.scrollHeight : oldTop;
   }
 
   createMessageBubble(msg) {
@@ -1708,7 +1732,7 @@ export class ChatModule {
     if (feed.length > MAX_FEED_MESSAGES) feed.shift();
 
     const visibleFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
-    if (visibleFeed === feedKey) this.appendChatMessage(outgoingMsg);
+    if (visibleFeed === feedKey) this.appendChatMessage(outgoingMsg, { scrollToEnd: true });
 
     await this._persistOutgoingMessage(() => this.ctx.storage?.saveMessage(feedKey, outgoingMsg));
     try {
@@ -1773,8 +1797,30 @@ export class ChatModule {
     return true;
   }
 
-  appendChatMessage(msg) {
+  _isReadingLatest() {
+    const feed = this.dom.chatMessageFeed;
+    // Round only for fractional scroll pixels; a hidden view is not being read.
+    return Boolean(feed && feed.clientHeight > 0 &&
+      Math.ceil(feed.scrollTop + feed.clientHeight) >= feed.scrollHeight);
+  }
+
+  _updateNewMessages(count) {
+    this._newMessagesBelow = count;
+    if (this.dom.chatNewMessagesBar) this.dom.chatNewMessagesBar.hidden = count === 0;
+    if (this.dom.chatNewMessagesLabel) {
+      I18n.setText(this.dom.chatNewMessagesLabel, "chat.new_messages", { count });
+    }
+  }
+
+  _scrollToLatest() {
+    this._updateNewMessages(0);
+    if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.scrollTop = this.dom.chatMessageFeed.scrollHeight;
+  }
+
+  appendChatMessage(msg, { scrollToEnd = false } = {}) {
     if (!this.dom.chatMessageFeed || this._historyAccessDenied) return;
+    const oldTop = this.dom.chatMessageFeed.scrollTop;
+    const followTail = scrollToEnd || this._isReadingLatest();
     const emptyState = this.dom.chatMessageFeed.querySelector(".chat-empty-state");
     if (emptyState) emptyState.remove();
     this.dom.chatMessageFeed.classList.remove("is-empty-conversation");
@@ -1806,7 +1852,11 @@ export class ChatModule {
 
     const bubble = this.createMessageBubble(msg);
     this.dom.chatMessageFeed.appendChild(bubble);
-    this.dom.chatMessageFeed.scrollTop = this.dom.chatMessageFeed.scrollHeight;
+    if (followTail) this._scrollToLatest();
+    else {
+      this._updateNewMessages(this._newMessagesBelow + 1);
+      this.dom.chatMessageFeed.scrollTop = oldTop;
+    }
   }
 
   async handleIncomingChatMessage(payload) {
