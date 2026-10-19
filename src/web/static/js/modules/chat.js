@@ -50,7 +50,8 @@ export class ChatModule {
     // Hilos de mensajes directos cerrados/archivados por el usuario
     try {
       const rawClosed = localStorage.getItem("meshcore_closed_dm_threads");
-      this.closedDmThreads = new Set(rawClosed ? JSON.parse(rawClosed) : []);
+      const parsed = rawClosed ? JSON.parse(rawClosed) : [];
+      this.closedDmThreads = new Set(Array.isArray(parsed) ? parsed : []);
     } catch (_) {
       this.closedDmThreads = new Set();
     }
@@ -386,14 +387,22 @@ export class ChatModule {
     const generation = this._renderGeneration;
     const authGeneration = this.ctx.storage.authGeneration;
 
+    if (!(this.conversationsWithMessages instanceof Set)) {
+      this.conversationsWithMessages = new Set();
+    }
+    if (!(this.closedDmThreads instanceof Set)) {
+      this.closedDmThreads = new Set();
+    }
+
     try {
       const localPk = (this.ctx.localNodePubkey || (typeof document !== "undefined" ? document.getElementById("localNodePubkey")?.value : "") || "").toLowerCase().trim();
       const dmThreads = await this.ctx.storage.getDmConversations(localPk);
       if (generation !== this._renderGeneration || authGeneration !== this.ctx.storage.authGeneration) return;
       if (dmThreads && dmThreads.length > 0) {
         for (const thread of dmThreads) {
+          if (!thread || !thread.pubkey) continue;
           const canonicalPk = this.resolveCanonicalPubkey(thread.pubkey);
-          if (this._isLocalTarget(canonicalPk)) continue;
+          if (!canonicalPk || this._isLocalTarget(canonicalPk)) continue;
           const node = this.ctx.knownNodes?.get(canonicalPk.toLowerCase());
           const roleUpper = String(node?.role || "").toUpperCase();
           if (roleUpper === "REPEATER" || roleUpper === "ROUTER") continue;
@@ -979,7 +988,7 @@ export class ChatModule {
 
     this._closeComposerPopovers();
     // Si el hilo estaba cerrado/archivado, reabrirlo
-    if (this.closedDmThreads.has(canonicalPk)) {
+    if (this.closedDmThreads instanceof Set && this.closedDmThreads.has(canonicalPk)) {
       this.closedDmThreads.delete(canonicalPk);
       this._saveClosedDmThreads();
     }
@@ -1080,7 +1089,8 @@ export class ChatModule {
 
   _saveClosedDmThreads() {
     try {
-      localStorage.setItem("meshcore_closed_dm_threads", JSON.stringify(Array.from(this.closedDmThreads)));
+      const items = (this.closedDmThreads instanceof Set) ? Array.from(this.closedDmThreads) : [];
+      localStorage.setItem("meshcore_closed_dm_threads", JSON.stringify(items));
     } catch (_) {}
   }
 
@@ -1105,6 +1115,10 @@ export class ChatModule {
   closeDmConversation(pubkey) {
     if (!pubkey) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    if (!canonicalPk) return;
+    if (!(this.closedDmThreads instanceof Set)) {
+      this.closedDmThreads = new Set();
+    }
     this.closedDmThreads.add(canonicalPk);
     this._saveClosedDmThreads();
 
@@ -1246,8 +1260,16 @@ export class ChatModule {
     this.historyPages.clear();
     this._historyStates.clear();
     this.pendingOutgoingAcks.clear();
-    this.conversationsWithMessages.clear();
-    this.unreadCounts.clear();
+    if (this.conversationsWithMessages instanceof Set) {
+      this.conversationsWithMessages.clear();
+    } else {
+      this.conversationsWithMessages = new Set();
+    }
+    if (this.unreadCounts instanceof Map) {
+      this.unreadCounts.clear();
+    } else {
+      this.unreadCounts = new Map();
+    }
     this._visibleFeedKey = null;
     if (this.dom.dmListUi) this.dom.dmListUi.textContent = "";
     if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
@@ -1261,8 +1283,10 @@ export class ChatModule {
 
   _updateGlobalUnreadBadge() {
     let total = 0;
-    for (const count of this.unreadCounts.values()) {
-      total += count;
+    if (this.unreadCounts instanceof Map) {
+      for (const count of this.unreadCounts.values()) {
+        total += count;
+      }
     }
     if (this.dom.globalChatUnreadBadge) {
       this.dom.globalChatUnreadBadge.textContent = String(total);
@@ -1274,7 +1298,7 @@ export class ChatModule {
     if (!this.dom.chatMessageFeed) return;
     const renderGeneration = ++this._renderGeneration;
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
-    if (this.unreadCounts.has(feedKey)) {
+    if (this.unreadCounts instanceof Map && this.unreadCounts.has(feedKey)) {
       this.unreadCounts.delete(feedKey);
       this._updateGlobalUnreadBadge();
     }
@@ -1959,12 +1983,20 @@ export class ChatModule {
     }
 
     if (isDm) {
-      this.conversationsWithMessages.add(peer);
-      if (this.closedDmThreads.has(peer)) {
-        this.closedDmThreads.delete(peer);
-        this._saveClosedDmThreads();
+      if (!(this.conversationsWithMessages instanceof Set)) {
+        this.conversationsWithMessages = new Set();
       }
-      this.addDmContact(peer, outgoing ? payload.dm_target_name : senderName);
+      if (!(this.closedDmThreads instanceof Set)) {
+        this.closedDmThreads = new Set();
+      }
+      if (peer) {
+        this.conversationsWithMessages.add(peer);
+        if (this.closedDmThreads.has(peer)) {
+          this.closedDmThreads.delete(peer);
+          this._saveClosedDmThreads();
+        }
+        this.addDmContact(peer, outgoing ? payload.dm_target_name : senderName);
+      }
     }
 
     const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
@@ -1972,10 +2004,12 @@ export class ChatModule {
     if (feedKey === currentFeed) {
       this.appendChatMessage(newMsg);
       if (!isChatActive && !outgoing) {
+        if (!(this.unreadCounts instanceof Map)) this.unreadCounts = new Map();
         this.unreadCounts.set(feedKey, (this.unreadCounts.get(feedKey) || 0) + 1);
         this._updateGlobalUnreadBadge();
       }
     } else if (!outgoing) {
+      if (!(this.unreadCounts instanceof Map)) this.unreadCounts = new Map();
       this.unreadCounts.set(feedKey, (this.unreadCounts.get(feedKey) || 0) + 1);
       this._updateGlobalUnreadBadge();
     }
