@@ -1251,10 +1251,7 @@ export class ChatModule {
     this._visibleFeedKey = null;
     if (this.dom.dmListUi) this.dom.dmListUi.textContent = "";
     if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
-    if (this.dom.globalChatUnreadBadge) {
-      this.dom.globalChatUnreadBadge.textContent = "0";
-      this.dom.globalChatUnreadBadge.classList.add("hidden");
-    }
+    this._updateGlobalUnreadBadge();
     if (this.dom.chatMessageFeed) {
       this.dom.chatMessageFeed.textContent = "";
       this.dom.chatMessageFeed.classList.remove("is-empty-conversation");
@@ -1262,10 +1259,25 @@ export class ChatModule {
     }
   }
 
+  _updateGlobalUnreadBadge() {
+    let total = 0;
+    for (const count of this.unreadCounts.values()) {
+      total += count;
+    }
+    if (this.dom.globalChatUnreadBadge) {
+      this.dom.globalChatUnreadBadge.textContent = String(total);
+      this.dom.globalChatUnreadBadge.classList.toggle("hidden", total === 0);
+    }
+  }
+
   async renderCurrentConversation({ refresh = true, before = null } = {}) {
     if (!this.dom.chatMessageFeed) return;
     const renderGeneration = ++this._renderGeneration;
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    if (this.unreadCounts.has(feedKey)) {
+      this.unreadCounts.delete(feedKey);
+      this._updateGlobalUnreadBadge();
+    }
     const feedGeneration = this._feedGenerations.get(feedKey) || 0;
     const authGeneration = this.ctx.storage?.authGeneration;
     const preserveScroll = this._visibleFeedKey === feedKey && (this.channelFeeds.get(feedKey)?.length || 0) > 0;
@@ -1852,10 +1864,32 @@ export class ChatModule {
 
     const bubble = this.createMessageBubble(msg);
     this.dom.chatMessageFeed.appendChild(bubble);
-    if (followTail) this._scrollToLatest();
-    else {
+
+    // CHAT-01: Podar nodos del DOM si exceden MAX_FEED_MESSAGES para prevenir fuga de memoria
+    const bubbles = this.dom.chatMessageFeed.querySelectorAll(".message-bubble-row");
+    const excess = bubbles.length - MAX_FEED_MESSAGES;
+    let removedHeight = 0;
+    if (excess > 0) {
+      for (let i = 0; i < excess; i++) {
+        const b = bubbles[i];
+        removedHeight += b.offsetHeight;
+        b.remove();
+      }
+      const separators = this.dom.chatMessageFeed.querySelectorAll(".chat-date-separator");
+      for (const sep of separators) {
+        const next = sep.nextElementSibling;
+        if (!next || next.classList.contains("chat-date-separator")) {
+          removedHeight += sep.offsetHeight;
+          sep.remove();
+        }
+      }
+    }
+
+    if (followTail) {
+      this._scrollToLatest();
+    } else {
       this._updateNewMessages(this._newMessagesBelow + 1);
-      this.dom.chatMessageFeed.scrollTop = oldTop;
+      this.dom.chatMessageFeed.scrollTop = Math.max(0, oldTop - removedHeight);
     }
   }
 
@@ -1934,8 +1968,16 @@ export class ChatModule {
     }
 
     const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    const isChatActive = document.querySelector('.nav-btn[data-tab="tab-chat"]')?.classList.contains("active");
     if (feedKey === currentFeed) {
       this.appendChatMessage(newMsg);
+      if (!isChatActive && !outgoing) {
+        this.unreadCounts.set(feedKey, (this.unreadCounts.get(feedKey) || 0) + 1);
+        this._updateGlobalUnreadBadge();
+      }
+    } else if (!outgoing) {
+      this.unreadCounts.set(feedKey, (this.unreadCounts.get(feedKey) || 0) + 1);
+      this._updateGlobalUnreadBadge();
     }
 
     if (!outgoing && this.chatSoundEnabled) {

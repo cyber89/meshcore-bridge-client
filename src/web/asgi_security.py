@@ -28,6 +28,7 @@ from src.web.access_policy import (
     response_headers,
     safe_log_path,
 )
+from src.web.authentication import PUBLIC_AUTH_PATHS
 from src.web.security_inspector import (
     HttpAccessEvent,
     SecurityTrafficInspector,
@@ -108,10 +109,24 @@ class BridgeSecurityMiddleware:
     contract; without it a controlled, credential-free exception is raised.
     """
 
-    def __init__(self, app: ASGIApp, *, auth_managed: bool = False) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        auth_managed: bool = False,
+        auth_service: Any = None,
+    ) -> None:
         self.app = app
         self.auth_managed = auth_managed
+        self.auth_service = auth_service
         self._reserved_websockets = 0
+        if self.auth_service is None and self.auth_managed:
+            curr: Any = app
+            while curr is not None:
+                if hasattr(curr, "service"):
+                    self.auth_service = curr.service
+                    break
+                curr = getattr(curr, "app", None)
 
     @property
     def active_websocket_reservations(self) -> int:
@@ -142,14 +157,20 @@ class BridgeSecurityMiddleware:
             # Failure of an audit sink must never bypass a rejection.
             pass
 
-    def _inspect(self, scope: Scope, target: str, headers: dict[str, str]) -> bool:
+    def _inspect(
+        self,
+        scope: Scope,
+        target: str,
+        headers: dict[str, str],
+        body_dict: dict[str, Any] | None = None,
+    ) -> bool:
         peer = _peer_ip(scope)
         try:
             suspicious, anomaly, _ = SecurityTrafficInspector.inspect_http_request(
                 method=str(scope.get("method", "GET")).upper(),
-                path=safe_log_path(target),
+                path=target,
                 headers=headers,
-                body_dict=None,
+                body_dict=body_dict,
                 client_ip=peer,
             )
         except Exception:
@@ -207,8 +228,11 @@ class BridgeSecurityMiddleware:
         receive: Receive,
         send: Send,
     ) -> _BufferedRequest | None:
+        cors_origin = calculate_cors_origin(headers)
         if headers.get("transfer-encoding"):
-            await self._reply_http(scope, send, 400, b"Unsupported Transfer-Encoding")
+            await self._reply_http(
+                scope, send, 400, b"Unsupported Transfer-Encoding", cors_origin=cors_origin
+            )
             return None
         expected: int | None = None
         if "content-length" in headers:
@@ -217,10 +241,12 @@ class BridgeSecurityMiddleware:
                 if expected < 0:
                     raise ValueError("Negative Content-Length")
             except (ValueError, TypeError):
-                await self._reply_http(scope, send, 400, b"Invalid Content-Length")
+                await self._reply_http(
+                    scope, send, 400, b"Invalid Content-Length", cors_origin=cors_origin
+                )
                 return None
         if expected is not None and expected > HTTP_MAX_BODY_BYTES:
-            await self._reject_large_body(scope, send)
+            await self._reject_large_body(scope, send, cors_origin=cors_origin)
             return None
 
         loop = asyncio.get_running_loop()
@@ -247,11 +273,13 @@ class BridgeSecurityMiddleware:
             # Check before extending; neither declared length nor segmented input
             # can make our accumulator exceed the existing one-MiB byte budget.
             if len(chunk) > HTTP_MAX_BODY_BYTES - len(body):
-                await self._reject_large_body(scope, send)
+                await self._reject_large_body(scope, send, cors_origin=cors_origin)
                 return None
             body.extend(chunk)
             if expected is not None and len(body) > expected:
-                await self._reply_http(scope, send, 400, b"Invalid Content-Length")
+                await self._reply_http(
+                    scope, send, 400, b"Invalid Content-Length", cors_origin=cors_origin
+                )
                 return None
             if not message.get("more_body", False):
                 break
@@ -274,12 +302,12 @@ class BridgeSecurityMiddleware:
                 400,
                 b'{"error": "Bad Request", "detail": "Malformed JSON payload"}',
                 content_type="application/json",
-                cors_origin=calculate_cors_origin(headers),
+                cors_origin=cors_origin,
             )
             return None
         return _BufferedRequest(raw, parsed)
 
-    async def _reject_large_body(self, scope: Scope, send: Send) -> None:
+    async def _reject_large_body(self, scope: Scope, send: Send, cors_origin: str = "") -> None:
         self._log_rejection(
             peer=_peer_ip(scope),
             path=_raw_request_target(scope),
@@ -287,10 +315,11 @@ class BridgeSecurityMiddleware:
             anomaly="PAYLOAD_SOBREDIMENSIONADO",
             detail="HTTP request body exceeds the existing one-MiB limit",
         )
-        # The native 413 is a bare response, an explicit exception to normal
-        # header assembly. Backend framing of this empty response needs wire QA.
+        headers = [(b"connection", b"close")]
+        if cors_origin:
+            headers.append((b"access-control-allow-origin", cors_origin.encode("utf-8")))
         await self._reply_http(
-            scope, send, 413, b"", headers=[(b"connection", b"close")]
+            scope, send, 413, b"", headers=headers
         )
 
     @staticmethod
@@ -323,17 +352,23 @@ class BridgeSecurityMiddleware:
         target = _raw_request_target(scope)
         headers = headers_to_legacy_dict(scope.get("headers", ()))
         started_at = time.perf_counter()
+        cors_origin = calculate_cors_origin(headers)
         if not self._inspect(scope, target, headers):
-            await self._reply_http(scope, send, 403, b"403 Forbidden - Security Violation")
+            await self._reply_http(
+                scope,
+                send,
+                403,
+                b"403 Forbidden - Security Violation",
+                cors_origin=cors_origin,
+            )
             return
-        buffered = await self._read_body(scope, headers, receive, send)
-        if buffered is None:
-            return
-        state = scope.setdefault("state", {})
-        state[BODY_BYTES_STATE] = buffered.raw
-        state[BODY_JSON_STATE] = buffered.parsed
-        decision = evaluate_http_access(str(scope["method"]).upper(), target, headers,
-                                        auth_managed=self.auth_managed)
+
+        decision = evaluate_http_access(
+            str(scope["method"]).upper(),
+            target,
+            headers,
+            auth_managed=self.auth_managed,
+        )
         if decision.route_kind == "preflight":
             await self._reply_http(
                 scope, send, 204, b"", headers=preflight_headers(decision.cors_origin)
@@ -363,6 +398,53 @@ class BridgeSecurityMiddleware:
                 401,
                 b'{"error": "Unauthorized"}',
                 content_type="application/json",
+                cors_origin=decision.cors_origin,
+            )
+            return
+
+        if self.auth_managed:
+            if self.auth_service is None:
+                curr: Any = self.app
+                while curr is not None:
+                    if hasattr(curr, "service"):
+                        self.auth_service = curr.service
+                        break
+                    curr = getattr(curr, "app", None)
+            if self.auth_service is not None:
+                clean_path = str(scope.get("path", "/")).rstrip("/") or "/"
+                if clean_path.startswith("/api/") and clean_path not in PUBLIC_AUTH_PATHS:
+                    session, valid = await self.auth_service.authenticate(scope)
+                    if not valid:
+                        self._log_rejection(
+                            peer=_peer_ip(scope),
+                            path=target,
+                            source="API-AUTH",
+                            anomaly="AUTENTICACION_API_FALLIDA",
+                            detail="Protected endpoint rejected an absent or invalid session or API key",
+                        )
+                        await self._reply_http(
+                            scope,
+                            send,
+                            401,
+                            b'{"error": "Unauthorized"}',
+                            content_type="application/json",
+                            cors_origin=decision.cors_origin,
+                        )
+                        return
+
+        buffered = await self._read_body(scope, headers, receive, send)
+        if buffered is None:
+            return
+        state = scope.setdefault("state", {})
+        state[BODY_BYTES_STATE] = buffered.raw
+        state[BODY_JSON_STATE] = buffered.parsed
+
+        if buffered.parsed and not self._inspect(scope, target, headers, body_dict=buffered.parsed):
+            await self._reply_http(
+                scope,
+                send,
+                403,
+                b"403 Forbidden - Security Violation",
                 cors_origin=decision.cors_origin,
             )
             return

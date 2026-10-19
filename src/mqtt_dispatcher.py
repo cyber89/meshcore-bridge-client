@@ -158,9 +158,16 @@ class MqttInboundDispatcher:
         """Clasifica el tópico entrante y delega en el manejador correspondiente."""
         try:
             repeater_base = self.topic_admin_repeater
-            if topic == self._ctx.mqtt.topic_tx:
+            tx_topic = getattr(self._ctx.mqtt, "topic_tx", None) if self._ctx.mqtt else None
+            admin_topic = getattr(self._ctx.mqtt, "topic_admin_cmd", None) if self._ctx.mqtt else None
+            is_tx = (
+                (tx_topic is not None and topic == tx_topic)
+                or topic.endswith("/tx")
+                or topic.endswith("/send")
+            )
+            if is_tx:
                 await self._handle_tx_request(payload_str)
-            elif topic == self._ctx.mqtt.topic_admin_cmd:
+            elif admin_topic is not None and topic == admin_topic:
                 await self._handle_admin_request(payload_str)
             elif topic.startswith(repeater_base + "/"):
                 relative = topic[len(repeater_base) + 1:].split("/")

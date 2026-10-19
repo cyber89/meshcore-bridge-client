@@ -60,7 +60,7 @@ posteriores incluyen [capas Companion](adr/0009-official-companion-protocol-laye
 | REST/WebSocket | `src/web/asgi_server.py`, `asgi_routes.py`, `asgi_ws_hub.py`, `api_router.py`, `controllers/` | ASGI es el backend seleccionado por el core; REST conserva dispatcher/controladores, WS usa el hub. Servidor HTTP nativo retirado, sin fallback. |
 | Contrato/documentación API | `src/web/asgi_docs.py`, `asgi_openapi.py`, `request_models.py`, `docs_ui/` | Visor propio de consulta `/docs` y alias `/redoc`; esquema `/openapi.json`. DTO abiertos para documentación, sin validación de solicitudes en ejecución; sin paquetes Swagger UI/ReDoc. |
 | SPA | `src/web/static/`, `src/web/static/index.html` | HTML, Vanilla CSS/JS, WebSocket y almacenamiento IndexedDB del navegador. |
-| Persistencia/cartografía | registros/canales/airtime JSON, `src/web/map_tile_service.py` | JSON atómico, buffers RAM y lectura SQLite MBTiles; no backend SQLite de chat/nodos. |
+| Persistencia/cartografía | `src/station_database.py` (ADR 0017), registros/canales/airtime JSON (migración), `src/web/map_tile_service.py` | SQLite transaccional como backend autoritativo de chat, nodos, canales, airtime y entregas; JSON para migración inicial y MBTiles para cartografía. |
 | QA | `tests/`, `pyproject.toml`, `scripts/run_quality_checks.py` | Suites sólo por petición explícita; temporal, virtual y loopback. No ejecutar scripts históricos por su nombre. |
 
 Runtime acordado: CPython estable >=3.12, con 3.13.5 recomendado y sin máximo;

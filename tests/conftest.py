@@ -9,12 +9,22 @@ import re
 from collections.abc import AsyncIterator, Iterator
 from contextlib import AsyncExitStack
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from frontend_browser_resources import is_expected_remote_map_tile, unexpected_request_failures
-from playwright.async_api import Page, Request, Route, async_playwright
+
+try:
+    from playwright.async_api import Page, Request, Route, async_playwright
+    _HAS_PLAYWRIGHT = True
+except ImportError:
+    Page = Any  # type: ignore[misc,assignment]
+    Request = Any  # type: ignore[misc,assignment]
+    Route = Any  # type: ignore[misc,assignment]
+    async_playwright = None  # type: ignore[assignment]
+    _HAS_PLAYWRIGHT = False
 
 with patch("dotenv.load_dotenv", return_value=False):
     import config
@@ -115,6 +125,8 @@ async def _cancel_bridge_tasks(bridge: MeshCoreBridge) -> None:
 @pytest_asyncio.fixture
 async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
     """Exercise the real SPA offline; fonts and CDN map rendering are separate checks."""
+    if not _HAS_PLAYWRIGHT or async_playwright is None:
+        pytest.skip("Playwright is not installed")
     server = virtual_bridge.web_server
     assert server is not None and server.server is not None
     origin = f"http://127.0.0.1:{server.server.sockets[0].getsockname()[1]}"

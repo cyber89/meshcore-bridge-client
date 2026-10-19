@@ -381,7 +381,6 @@ class AirtimeTracker:
                 "cutoff_enabled": self.cutoff_enabled,
                 "records": [r.to_dict() for r in self._history],
             }
-        self._last_save_time = now
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -404,6 +403,7 @@ class AirtimeTracker:
         with self._save_lock:
             if self.database is not None:
                 self.database.write_document("airtime", payload)
+                self._last_save_time = time.time()
                 return
             try:
                 assert self.history_file is not None
@@ -413,6 +413,7 @@ class AirtimeTracker:
                 with open(temp_path, "w", encoding="utf-8") as stream:
                     json.dump(payload, stream, indent=2, allow_nan=False)
                 os.replace(temp_path, self.history_file)
+                self._last_save_time = time.time()
             except Exception:
                 logging.warning("AirtimeTracker: Error al persistir historial")
 

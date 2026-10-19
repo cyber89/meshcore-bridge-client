@@ -24,6 +24,11 @@ from typing import Any
 from src.services_config import ExternalMqttConfig
 
 try:
+    import config
+except ImportError:
+    config = None  # type: ignore[assignment]
+
+try:
     import paho.mqtt.client as _paho_mqtt
     mqtt: Any = _paho_mqtt
 except ImportError:
@@ -518,8 +523,18 @@ class ExternalBridgeMQTTClient:
         try:
             topic = str(msg.topic)
             raw_payload = getattr(msg, "payload", b"")
-            payload_str = raw_payload.decode("utf-8", errors="replace").strip()
-            if not payload_str:
+            max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024) if config else 128 * 1024
+            if isinstance(raw_payload, (bytes, bytearray)) and len(raw_payload) > max_payload_size:
+                logger.warning(
+                    f"Payload MQTT entrante en downlink externo excede el límite permitido ({len(raw_payload)} > {max_payload_size} B). Descartando en {topic}."
+                )
+                return
+            payload_str = (
+                raw_payload.decode("utf-8", errors="replace").strip()
+                if isinstance(raw_payload, (bytes, bytearray))
+                else str(raw_payload).strip()
+            )
+            if not payload_str or len(payload_str.encode("utf-8")) > max_payload_size:
                 return
 
             # Echo Suppression: Si coincide con un hash recién enviado por nosotros, descartar

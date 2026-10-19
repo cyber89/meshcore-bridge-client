@@ -1165,9 +1165,16 @@ class MeshCoreBridge:
             logging.warning("Mensaje downlink externo descartado: Corte de seguridad por saturación de airtime activo.")
             return
 
-        # Procesar payload pasando por el dispatcher y la cola de rate limiting LoRa
+        max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+        if len(payload_str.encode("utf-8")) > max_payload_size:
+            logging.warning(
+                f"Payload downlink MQTT externo excede el límite máximo ({len(payload_str.encode('utf-8'))} > {max_payload_size} B). Descartando en {topic}."
+            )
+            return
+
+        # Procesar payload pasando por el dispatcher con control de admisión y la cola de rate limiting LoRa
         if hasattr(self, "mqtt_dispatcher"):
-            self._schedule_background(lambda: self.mqtt_dispatcher._handle_tx_request(payload_str))
+            self.mqtt_dispatcher.handle_incoming(topic, payload_str)
 
     def on_mqtt_message(self, client: Any, userdata: Any, msg: Any) -> None:
         """Compatibilidad con suites de pruebas y callbacks directos de paho-mqtt."""

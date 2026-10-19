@@ -31,8 +31,12 @@ _MESSAGE_FIELDS = frozenset({
     "status", "delivered", "expected_ack", "trip_time_ms", "is_direct",
 })
 _STATUSES = frozenset({"received", "queued", "sent", "failed", "delivered"})
-_SECRET_FIELDS = frozenset({"psk", "password", "api_key", "token", "secret", "private_key",
-                            "mqtt_password", "bridge_api_key", "companion_token"})
+_SECRET_FIELDS = frozenset({
+    "psk", "password", "passwd", "admin_password", "guest_password", "new_password",
+    "current_password", "api_key", "token", "secret", "secrets", "channel_secret",
+    "private_key", "privatekey", "prv_key", "mqtt_password", "bridge_api_key",
+    "companion_token", "pin", "devicepin", "ble_pin", "blepin", "wifi.pwd", "wifi.password",
+})
 
 
 def _json(data: Any) -> str:
@@ -42,7 +46,7 @@ def _json(data: Any) -> str:
 def _without_secrets(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _without_secrets(item) for key, item in value.items()
-                if str(key).lower() not in _SECRET_FIELDS}
+                if str(key).strip().lower().replace("-", "_") not in _SECRET_FIELDS}
     if isinstance(value, list):
         return [_without_secrets(item) for item in value]
     return value
@@ -381,10 +385,15 @@ class StationDatabase:
 
     @staticmethod
     def _prune_acks(connection: sqlite3.Connection) -> None:
-        connection.execute("DELETE FROM pending_acks WHERE timestamp <= ?", (time.time() - 3600,))
+        cutoff = time.time() - 3600
+        connection.execute("DELETE FROM pending_acks WHERE timestamp <= ?", (cutoff,))
         connection.execute("""DELETE FROM pending_acks WHERE req_id IN
             (SELECT msg_id FROM messages WHERE status='delivered') OR ('id:' || req_id) IN
             (SELECT event_key FROM delivery_events)""")
+        connection.execute("""DELETE FROM delivery_events WHERE
+            (event_key LIKE 'id:%' AND substr(event_key, 4) IN (SELECT msg_id FROM messages WHERE status='delivered'))
+            OR (event_key LIKE 'ack:%' AND substr(event_key, 5) IN (SELECT expected_ack FROM messages WHERE status='delivered' AND expected_ack != ''))
+            OR json_extract(payload, '$.received_at') <= ?""", (cutoff,))
 
     def save_pending_ack(self, expected_ack: str, req_id: str, target: str, epoch: float) -> str:
         """Retain the existing one-hour/200-entry delivery correlation contract."""

@@ -93,21 +93,25 @@ class AuthStore:
                         raise
 
     @contextmanager
-    def _connection(self) -> Iterator[sqlite3.Connection]:
+    def _connection(self, *, write: bool = True) -> Iterator[sqlite3.Connection]:
         with self._lock:
             connection = sqlite3.connect(self.path, timeout=30)
             connection.row_factory = sqlite3.Row
             try:
-                connection.execute("PRAGMA synchronous=FULL")
-                connection.execute("BEGIN IMMEDIATE")
+                if write:
+                    connection.execute("PRAGMA synchronous=FULL")
+                    connection.execute("BEGIN IMMEDIATE")
                 yield connection
-                connection.commit()
+                if write:
+                    connection.commit()
             except BaseException:
-                connection.rollback()
+                if write:
+                    connection.rollback()
                 raise
             finally:
                 connection.close()
-                self._restrict_files()
+                if write:
+                    self._restrict_files()
 
     def initialize(self) -> None:
         """Create only authentication tables, without replacing station schema/version."""
@@ -130,7 +134,7 @@ class AuthStore:
                     peer TEXT PRIMARY KEY, started REAL NOT NULL, attempts INTEGER NOT NULL)""")
 
     def has_account(self) -> bool:
-        with self._connection() as connection:
+        with self._connection(write=False) as connection:
             return connection.execute("SELECT 1 FROM auth_owner WHERE id=1").fetchone() is not None
 
     def bootstrap(
@@ -158,7 +162,7 @@ class AuthStore:
         return self.bootstrap("admin", "admin", must_change_credentials=True)
 
     def _account(self) -> sqlite3.Row:
-        with self._connection() as connection:
+        with self._connection(write=False) as connection:
             row = connection.execute("SELECT * FROM auth_owner WHERE id=1").fetchone()
         if not isinstance(row, sqlite3.Row):
             raise RuntimeError("Authentication owner has not been initialized")
@@ -235,7 +239,7 @@ class AuthStore:
     def session(self, token: str) -> AuthSession | None:
         if not token or len(token) > 128:
             return None
-        with self._connection() as connection:
+        with self._connection(write=False) as connection:
             row = connection.execute(
                 """SELECT s.*, o.username, o.must_change FROM auth_sessions s
                 JOIN auth_owner o ON s.generation=o.generation WHERE s.digest=? AND s.expires>?""",
@@ -262,13 +266,13 @@ class AuthStore:
     def valid_api_token(self, token: str) -> bool:
         if not token or len(token) > 1024:
             return False
-        with self._connection() as connection:
+        with self._connection(write=False) as connection:
             row = connection.execute("""SELECT t.digest FROM auth_api_tokens t
                 JOIN auth_owner o ON o.id=t.id WHERE o.must_change=0""").fetchone()
         return row is not None and hmac.compare_digest(_digest(token), str(row["digest"]))
 
     def api_token_configured(self) -> bool:
-        with self._connection() as connection:
+        with self._connection(write=False) as connection:
             return connection.execute("SELECT 1 FROM auth_api_tokens").fetchone() is not None
 
     def _authorize_password(

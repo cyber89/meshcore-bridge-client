@@ -8,7 +8,7 @@ SQLite is the authoritative store for station state and chat history. Browser st
 | IndexedDB | Messages already downloaded, separated by persistent station UUID; quick conversation loading and offline reading. The old browser store remains available for explicit import. |
 | SQLite | Received and outgoing chat, conversations, delivery states, node registry, channels and PSKs, services and MQTT presets, airtime history, and repeater cooldown timestamps. |
 
-API credentials use tab-scoped SessionStorage. Existing LocalStorage API credentials are moved and removed from LocalStorage when the interface initializes. The database may contain channel and service credentials: restrict access to the station account and protect backups as secrets. SQLite files and backups use mode 0600 on POSIX; on Windows this does not configure NTFS ACLs, so restrict the directory and account permissions separately.
+API credentials and browser sessions use an HttpOnly session cookie (`meshcore_session`) and an in-memory CSRF token (`X-CSRF-Token`). Credentials and session tokens are never stored in LocalStorage or SessionStorage. The database may contain channel and service credentials: restrict access to the station account and protect backups as secrets. SQLite files and backups use mode 0600 on POSIX; on Windows this does not configure NTFS ACLs, so restrict the directory and account permissions separately.
 
 ## Location and migration
 

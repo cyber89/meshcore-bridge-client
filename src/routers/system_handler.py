@@ -114,7 +114,7 @@ class SystemHandler(BaseRxHandler):
         opaque: dict[str, Any] = {
             "type": "binary_response",
             "event_type": "binary_response",
-            "tag": raw_tag,
+            "tag": "********",
             "data": data_hex,
             "byte_len": byte_len,
             "sender": None,

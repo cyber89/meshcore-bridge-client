@@ -306,17 +306,26 @@ class RxEventRouter:
                 if getattr(self._ctx, "packet_buffer", None) is not None:
                     try:
                         raw_b = getattr(event, "raw_payload", b"")
+                        hdr = getattr(event, "header", None)
+                        pld = getattr(event, "payload", None)
+                        pkt_type_name = hdr.packet_type.name if hdr and hasattr(hdr, "packet_type") else "FRAME"
+                        src_id = f"0x{hdr.src_node_id:04X}" if hdr and hasattr(hdr, "src_node_id") else ""
+                        dst_id = ("broadcast" if hdr.dst_node_id == 0xFFFF else f"0x{hdr.dst_node_id:04X}") if hdr and hasattr(hdr, "dst_node_id") else "broadcast"
+                        ch_idx = getattr(pld, "channel_idx", 0) if pld else 0
+                        txt = getattr(pld, "text", "") if pld else ""
+                        rssi_val = getattr(pld, "rssi_dbm", None) if pld else None
+                        snr_val = getattr(pld, "snr_db", None) if pld else None
                         pkt = self._ctx.packet_buffer.record(
                             direction="rx",
-                            channel_idx=getattr(event, "channel_idx", 0),
-                            packet_type=str(getattr(event, "frame_type", "FRAME")),
-                            sender=str(getattr(event, "sender_pubkey", "")),
-                            target=str(getattr(event, "recipient_pubkey", "broadcast")),
-                            text="",
-                            rssi=getattr(event, "rssi", None),
-                            snr=getattr(event, "snr", None),
+                            channel_idx=ch_idx,
+                            packet_type=pkt_type_name,
+                            sender=src_id,
+                            target=dst_id,
+                            text=txt,
+                            rssi=rssi_val,
+                            snr=snr_val,
                             raw_bytes=raw_b,
-                            redact_content=event.header.packet_type == PacketType.CLI_REPLY,
+                            redact_content=hdr.packet_type == PacketType.CLI_REPLY if hdr and hasattr(hdr, "packet_type") else False,
                         )
                         if pkt and self._ctx.web_server:
                             self._spawn_broadcast_task({"type": "rf_packet", "event": "rf_packet", "data": pkt.to_dict()})
@@ -591,8 +600,8 @@ class RxEventRouter:
             payload_dict.pop("sender", None)
             payload_dict.pop("sender_name", None)
         elif not sender:
-            if any(k in ev_upper_cand for k in (
-                "SELF", "BATTERY", "DEVICE_INFO", "LOCAL", "STATS", "TUNING", "CUSTOM_VARS", "TIME", "STATUS"
+            if payload_dict.get("is_local") is True or any(k in ev_upper_cand for k in (
+                "SELF", "BATTERY", "DEVICE_INFO", "LOCAL", "STATS", "TUNING", "CUSTOM_VARS", "TIME", "LOCAL_STATUS", "SELF_STATUS"
             )):
                 local_pk = (
                     self._ctx.node_registry.get_local_pubkey()

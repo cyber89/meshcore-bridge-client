@@ -128,7 +128,7 @@ Para clientes Companion, incluido el SDK Python (`meshcore_py`) y el CLI (`meshc
 +-------------------+----------------------------+------------------------+
 ```
 
-* **Límite de seguridad del servidor del bridge**: `MAX_FRAME_SIZE = 512` bytes de payload (`src/tcp_companion_server.py`); no describe una capacidad universal de cada firmware.
+* **Límite de seguridad del servidor del bridge**: `MAX_FRAME_SIZE = 300` bytes de payload (`src/tcp_companion_server.py`); no describe una capacidad universal de cada firmware.
 * **Comandos Principales**: `0x01` (`CMD_APP_START`), `0x02` (`CMD_SEND_TXT_MSG`), `0x03` (`CMD_SEND_CHANNEL_TXT_MSG`), `0x04` (`CMD_GET_CONTACTS`), `0x14` (`CMD_GET_BATT_AND_STORAGE`), `0x1F` (`CMD_GET_CHANNEL`).
 * **Eventos/Respuestas Principales**: `0x00` (`PACKET_OK`), `0x02` (`CONTACT_START`), `0x03` (`CONTACT`), `0x04` (`CONTACT_END`), `0x05` (`SELF_INFO`), `0x06` (`MSG_SENT`), `0x08` (`CHANNEL_MSG_RECV`), `0x0C` (`BATTERY`), `0x80` (`ADVERTISEMENT`), `0x88` (`LOG_DATA`).
 
@@ -418,7 +418,7 @@ A nivel de transporte TCP (por defecto `5000` tanto en el firmware Companion WiF
 ```text
 +---------------------+-------------------------------+--------------------------------+
 | Indicador Dirección | Longitud Payload (uint16_t LE) | Payload de Comando / Respuesta |
-| 1 Byte (0x3C / 0x3E)|            2 Bytes            |          N Bytes (0..512)      |
+| 1 Byte (0x3C / 0x3E)|            2 Bytes            |          N Bytes (0..300)      |
 +---------------------+-------------------------------+--------------------------------+
 ```
 - **App $\to$ Radio (`0x3C` / `<`)**: Tramas emitidas desde la aplicación hacia el nodo (ej. `CMD_APP_START (0x01)`, `CMD_SEND_TXT_MSG (0x02)`, `CMD_SEND_CHANNEL_TXT_MSG (0x03)`, `CMD_GET_CONTACTS (0x04)`).
@@ -554,10 +554,10 @@ Fuente en firmware 1.18: `examples/simple_sensor/SensorMesh.cpp` (`REQ_TYPE_SUBS
 
 - **Solicitud `BinaryReqType.SUBSCRIBE (0x08)`** (enviada vía `CMD_SEND_BINARY_REQ = 50`):
   - Layout de `request_data` (después de `[0x32][pubkey 32B]` que construye el SDK):
-    `[0x08 (1B)][push_tag (4B)][timeout_s (uint32 LE, 4B)][deltas (N * 4B)]` (endianness Little-Endian en `timeout_s`, sin padding ni CRC adicional).
-  - Cada tupla de umbral mínimo de cambio (`delta`) ocupa 4 bytes: `[channel (1B)][lpp_type (1B)][min_delta (uint16 BE, 2B)]`.
+    `[0x08 (1B)][push_tag (4B)][timeout_s (uint16 LE, 2B)][reserved (0x00, 1B)][min_deltas_len (uint8, 1B)][deltas (N bytes)]` (timeout en uint16 Little-Endian, longitud 3..14 bytes).
+  - Cada tupla de umbral mínimo de cambio (`delta`) ocupa formato CayenneLPP: `[channel (1B)][lpp_type (1B)][min_delta (uint16 BE, 2B)]`.
   - **Preset equilibrado implementado**: `timeout_s = 3600` (1 hora) y deltas `b"\x01\x67\x00\x05\x01\x74\x00\x0a"` (temperatura `0x67` con cambio mínimo de $0.5\,^\circ\text{C}$, voltaje `0x74` con cambio mínimo de $0.10\,\text{V}$).
-  - **Respuesta `BINARY_RESPONSE (0x8C)` a `SUBSCRIBE`**: `data` de 4 bytes `[err_code (uint8)][0x00][0x00][0x00]`, donde `err_code == 0` confirma registro o renovación.
+  - **Respuesta `BINARY_RESPONSE (0x8C)` a `SUBSCRIBE`**: `data` de `[actual_timeout_secs (uint16 LE, 2B)][reserved (0x0000, 2B)][scope_name]`, donde `actual_timeout_secs > 0` confirma registro/renovación y `0x0000` denota rechazo.
 - **Solicitud `BinaryReqType.UNSUBSCRIBE (0x09)`**:
   - Layout de `request_data`: `[0x09 (1B)][push_tag (4B)]` (5 bytes, sin padding ni CRC).
   - **Respuesta `BINARY_RESPONSE (0x8C)` a `UNSUBSCRIBE`**: `data` de 1 byte `[err_code (uint8)]` (`0x00` = cancelada).

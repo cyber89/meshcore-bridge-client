@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import time
 from dataclasses import dataclass, field
@@ -169,7 +170,6 @@ class WebSocketHub:
                 await close_task
         except asyncio.CancelledError:
             close_task.cancel()
-            raise
         except Exception:
             pass
         finally:
@@ -231,15 +231,16 @@ class WebSocketHub:
                         await websocket.send_text(json.dumps({
                             "type": "pong", "timestamp": int(time.time())
                         }))
-        except asyncio.CancelledError:
-            raise
-        except WebSocketDisconnect:
-            pass
+        except (asyncio.CancelledError, WebSocketDisconnect):
+            logger.debug("WebSocket endpoint disconnected cleanly")
         except Exception as error:
             logger.debug("WebSocket endpoint ended with %s", type(error).__name__)
         finally:
             self._remove_peer(peer)
-            await self._close_peer(peer)
+            try:
+                await self._close_peer(peer)
+            except (asyncio.CancelledError, Exception):
+                pass
 
     async def _send_to_peer(self, peer: _Peer, text: str) -> None:
         async with peer.lock:
@@ -328,7 +329,16 @@ class WebSocketHub:
         return result
 
     async def _metrics_loop(self) -> None:
-        interval = float(os.getenv("WS_METRICS_INTERVAL_SEC", "5.0"))
+        raw_interval = os.getenv("WS_METRICS_INTERVAL_SEC", "5.0")
+        try:
+            interval = float(raw_interval)
+            if not math.isfinite(interval) or interval <= 0.0:
+                logger.warning("WS_METRICS_INTERVAL_SEC no válido (%.2f), usando 5.0s", interval)
+                interval = 5.0
+        except (ValueError, TypeError):
+            logger.warning("WS_METRICS_INTERVAL_SEC inválido (%r), usando 5.0s", raw_interval)
+            interval = 5.0
+
         while self.running:
             try:
                 await asyncio.sleep(interval)
