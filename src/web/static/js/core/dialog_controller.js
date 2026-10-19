@@ -62,6 +62,7 @@ export class DialogController {
         event.preventDefault();
         return;
       }
+      this._relieveModalFocus(entry);
       entry.phase = "closing";
       modal.hidden = false;
       modal.classList.remove("hidden");
@@ -82,6 +83,18 @@ export class DialogController {
     return this.stack.at(-1)?.modal === modal;
   }
 
+  _relieveModalFocus(entry) {
+    const active = document.activeElement;
+    if (active && entry.modal.contains(active)) {
+      const target = entry.previousFocus;
+      if (this._visible(target) && !entry.modal.contains(target)) {
+        try { target.focus(); } catch (_) { active.blur(); }
+      } else {
+        active.blur();
+      }
+    }
+  }
+
   open(modal, { initialFocus = null, dismiss = null } = {}) {
     const entry = this.register(modal);
     entry.initialFocus = initialFocus;
@@ -93,14 +106,15 @@ export class DialogController {
     entry.originalZIndex = modal.style.zIndex;
     entry.closeRequested = false;
     entry.phase = "opening";
+    modal.inert = false;
     modal.hidden = false;
     modal.classList.remove("hidden");
+    modal.removeAttribute("aria-hidden");
     this.stack.push(entry);
     this._syncStack();
     if (entry.adapter) entry.adapter.show();
     else {
       modal.setAttribute("aria-modal", "true");
-      modal.removeAttribute("aria-hidden");
       entry.phase = "open";
       this._focus(entry);
     }
@@ -122,6 +136,7 @@ export class DialogController {
   }
 
   _beginClose(entry) {
+    this._relieveModalFocus(entry);
     entry.phase = "closing";
     if (entry.adapter) {
       // Keep the element renderable until Bootstrap finishes its hide transition.
@@ -135,18 +150,20 @@ export class DialogController {
     if (entry.phase === "closed") return;
     const wasTop = this.isTop(entry.modal);
     entry.phase = "closed";
+    this._relieveModalFocus(entry);
+    entry.modal.inert = true;
     entry.modal.classList.add("hidden");
     entry.modal.setAttribute("aria-hidden", "true");
     entry.modal.removeAttribute("aria-modal");
-    entry.modal.inert = entry.originalInert;
     entry.modal.style.zIndex = entry.originalZIndex;
     this.stack = this.stack.filter((item) => item !== entry);
     this._syncStack();
     if (wasTop) {
       const parent = this.stack.at(-1);
       const target = entry.previousFocus;
-      if (this._visible(target) && (!parent || parent.modal.contains(target))) target.focus();
-      else if (parent) this._focus(parent);
+      if (this._visible(target) && (!parent || parent.modal.contains(target))) {
+        if (document.activeElement !== target) target.focus();
+      } else if (parent) this._focus(parent);
     }
     const waiters = entry.waiters.splice(0);
     waiters.forEach((resolve) => resolve());

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" data-bs-theme="dark">
+<html lang="es" data-bs-theme="dark" class="density-compact">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -120,23 +120,19 @@
           </span>
         </div>
 
-        <button id="themeToggleBtn" type="button" class="btn btn-header-action rounded-circle btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">
+        <button id="themeToggleBtn" type="button" class="btn btn-header-action btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">
           <i class="bi bi-sun" aria-hidden="true"></i>
         </button>
 
-        <button id="densityToggleBtn" type="button" class="btn btn-header-action rounded-circle btn-icon" title="Cambiar densidad visual (Normal / Compacta)" aria-label="Cambiar densidad visual" data-i18n-title="ui.toggle_density" data-i18n-aria-label="ui.toggle_density">
-          <i class="bi bi-aspect-ratio" aria-hidden="true"></i>
-        </button>
-
-        <button id="langToggleBtn" type="button" class="btn btn-header-action btn-lang-toggle rounded-pill px-2 py-1" title="Switch to English" aria-label="Switch language" data-i18n-title="lang.title" data-i18n-aria-label="ui.static_008">
-          <i class="bi bi-translate me-1" aria-hidden="true"></i><span class="lang-code-text">EN</span>
+        <button id="langToggleBtn" type="button" class="btn btn-header-action btn-lang-toggle" title="Switch to English" aria-label="Switch language" data-i18n-title="lang.title" data-i18n-aria-label="ui.static_008">
+          <i class="bi bi-translate me-1" aria-hidden="true"></i><span class="lang-code-text d-none d-sm-inline">EN</span>
         </button>
 
         <!-- Botón Toggler Móvil para Menú Lateral -->
-        <button class="btn btn-outline-secondary btn-sm d-lg-none ms-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Abrir menú de navegación">
+        <button class="btn btn-header-action btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Abrir menú de navegación" id="btnToggleSidebarMobile">
           <i class="bi bi-list fs-5" aria-hidden="true"></i>
         </button>
-        <button type="button" class="btn btn-outline-secondary btn-sm auth-account-button" data-open-account data-i18n-title="auth.account" data-i18n-aria-label="auth.account" aria-label="Perfil" title="Perfil" aria-haspopup="dialog" aria-controls="accountDialog"><i class="bi bi-person-circle" aria-hidden="true"></i><span id="accountNameLabel" data-i18n="auth.account">Perfil</span></button>
+        <button type="button" class="btn btn-header-action auth-account-button" data-open-account data-i18n-title="auth.account" data-i18n-aria-label="auth.account" aria-label="Perfil" title="Perfil" aria-haspopup="dialog" aria-controls="accountDialog"><i class="bi bi-person-circle" aria-hidden="true"></i><span id="accountNameLabel" class="d-none d-sm-inline ms-1" data-i18n="auth.account">Perfil</span></button>
       </div>
     </div>
   </header>

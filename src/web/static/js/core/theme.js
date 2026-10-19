@@ -24,24 +24,13 @@ export function applyThemePreference(theme, persist = true) {
 }
 
 export function readDensityPreference() {
-  try {
-    const saved = localStorage.getItem("meshcore_ui_density");
-    if (saved === "compact" || saved === "normal") return saved;
-  } catch (_) { /* Retain the preference in the DOM when storage is unavailable. */ }
-  return document.documentElement.classList.contains("density-compact") ? "compact" : "normal";
+  return "compact";
 }
 
-export function applyDensityPreference(density, persist = true) {
-  const selected = density === "compact" ? "compact" : "normal";
-  const isCompact = selected === "compact";
-  document.documentElement.classList.toggle("density-compact", isCompact);
-  const btn = document.getElementById("densityToggleBtn");
-  if (btn) {
-    btn.setAttribute("aria-pressed", String(isCompact));
-    btn.classList.toggle("active", isCompact);
-  }
+export function applyDensityPreference(density = "compact", persist = true) {
+  document.documentElement.classList.add("density-compact");
   if (persist) {
-    try { localStorage.setItem("meshcore_ui_density", selected); }
+    try { localStorage.setItem("meshcore_ui_density", "compact"); }
     catch (_) {}
   }
 }

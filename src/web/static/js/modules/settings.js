@@ -556,6 +556,9 @@ export class SettingsModule {
       if (this.dom.contactModalPubKey) this.dom.contactModalPubKey.focus();
     };
     const closeCreateContact = () => {
+      if (this.dom.createContactModal?.contains(document.activeElement)) {
+        document.activeElement.blur();
+      }
       if (this.dom.createContactModal) this.dom.createContactModal.classList.add("hidden");
     };
 
