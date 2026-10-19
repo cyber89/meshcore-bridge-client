@@ -10,7 +10,7 @@ import { MeshCoreWebSocketClient } from "./core/websocket.js";
 import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders, readLocalPreference, writeLocalPreference } from "./core/utils.js";
 import { store } from "./core/store.js";
 import { BrowserAuthentication } from "./core/auth.js";
-import { applyThemePreference, readThemePreference } from "./core/theme.js";
+import { applyThemePreference, readThemePreference, applyDensityPreference, readDensityPreference } from "./core/theme.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -123,6 +123,7 @@ class MeshCoreApp {
   _bindElements() {
     this.dom = {
       themeToggleBtn: document.getElementById("themeToggleBtn"),
+      densityToggleBtn: document.getElementById("densityToggleBtn"),
       appSidebar: document.getElementById("appSidebar"),
       btnToggleSidebar: document.getElementById("btnToggleSidebar"),
       btnCommandPalette: document.getElementById("btnCommandPalette"),
@@ -153,6 +154,10 @@ class MeshCoreApp {
     const savedTheme = readThemePreference();
     this._applyTheme(savedTheme);
 
+    const savedDensity = readDensityPreference();
+    applyDensityPreference(savedDensity, false);
+    this._updateDensityButton(savedDensity);
+
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener("click", () => {
         const isDark = document.body.classList.contains("dark-theme") || document.documentElement.getAttribute("data-bs-theme") === "dark";
@@ -160,6 +165,16 @@ class MeshCoreApp {
         this._applyTheme(next);
       });
     }
+
+    if (this.dom.densityToggleBtn) {
+      this.dom.densityToggleBtn.addEventListener("click", () => {
+        const current = readDensityPreference();
+        const next = current === "compact" ? "normal" : "compact";
+        applyDensityPreference(next, true);
+        this._updateDensityButton(next);
+      });
+    }
+
     // i18n: wire language toggle button
     const langBtn = document.getElementById("langToggleBtn");
     if (langBtn && window.I18n) {
@@ -169,6 +184,7 @@ class MeshCoreApp {
       this.updateRadioBadge(this._lastRadioConnected ?? false, this._lastRadioPort ?? "");
       const isDark = !document.body.classList.contains("light-theme");
       this._updateThemeIcon(isDark ? "dark" : "light");
+      this._updateDensityButton(readDensityPreference());
       this._updateSidebarState();
       if (this._lastAirtimePayload) this.updateAirtimeBadge(this._lastAirtimePayload);
       Object.values(this.modules).forEach((module) => module.onLanguageChange?.());
@@ -176,6 +192,18 @@ class MeshCoreApp {
     // Apply translations on init (i18n.js auto-applies on DOMContentLoaded,
     // but calling again here ensures post-module-load elements are covered)
     if (window.I18n) window.I18n.apply();
+  }
+
+  _updateDensityButton(density) {
+    if (!this.dom.densityToggleBtn) return;
+    const isCompact = density === "compact";
+    this.dom.densityToggleBtn.classList.toggle("active", isCompact);
+    this.dom.densityToggleBtn.setAttribute("aria-pressed", String(isCompact));
+    const title = window.I18n
+      ? window.I18n.t(isCompact ? "ui.density_compact" : "ui.density_normal")
+      : (isCompact ? "Densidad: Compacta" : "Densidad: Normal");
+    this.dom.densityToggleBtn.title = title;
+    this.dom.densityToggleBtn.setAttribute("aria-label", title);
   }
 
   _updateThemeIcon(theme) {

@@ -1625,6 +1625,9 @@
       'app.radio_offline':          'Radio: Desconectada',
       'app.dark_theme_title':       'Cambiar a tema claro',
       'app.light_theme_title':      'Cambiar a tema oscuro',
+      'ui.toggle_density':          'Cambiar densidad visual (Normal / Compacta)',
+      'ui.density_compact':         'Densidad: Compacta',
+      'ui.density_normal':          'Densidad: Normal',
 
       // Time & Presence
       'time.online_local':          'En línea (Local)',
@@ -3349,6 +3352,9 @@
       'app.radio_offline':          'Radio: Disconnected',
       'app.dark_theme_title':       'Switch to light theme',
       'app.light_theme_title':      'Switch to dark theme',
+      'ui.toggle_density':          'Toggle visual density (Normal / Compact)',
+      'ui.density_compact':         'Density: Compact',
+      'ui.density_normal':          'Density: Normal',
 
       // Time & Presence
       'time.online_local':          'Online (Local)',

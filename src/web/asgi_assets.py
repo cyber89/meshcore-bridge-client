@@ -97,6 +97,7 @@ class AssetsAdapter:
         self._cache_lock = threading.RLock()
         self._manifest_signature: tuple[str, int, int] | None = None
         self._manifest: dict[str, dict[str, str]] = {}
+        self._dest_manifest: dict[str, dict[str, str]] = {}
 
     async def dispatch(self, request: Request) -> Response:
         target = _raw_request_target(request.scope)
@@ -174,6 +175,7 @@ class AssetsAdapter:
             signature = (str(root), stat.st_mtime_ns, stat.st_size)
             if signature != self._manifest_signature:
                 self._manifest = {}
+                self._dest_manifest = {}
                 self._manifest_signature = signature
                 if stat.st_size > 1024 * 1024:
                     return {}
@@ -187,11 +189,16 @@ class AssetsAdapter:
                     if isinstance(source, str) and isinstance(entry, dict):
                         fields = ("file", "source_sha256", "sha256", "gzip_sha256")
                         if all(isinstance(entry.get(field), str) for field in fields):
-                            self._manifest[source] = {field: entry[field] for field in fields}
+                            cleaned = {field: entry[field] for field in fields}
+                            self._manifest[source] = cleaned
+                            dest_file = cleaned["file"]
+                            if dest_file not in self._dest_manifest:
+                                self._dest_manifest[dest_file] = cleaned
             return self._manifest
         except (OSError, ValueError, RuntimeError):
             self._manifest_signature = None
             self._manifest = {}
+            self._dest_manifest = {}
             return {}
 
     def _asset(self, target: Path, root: Path) -> _CachedAsset:
@@ -237,8 +244,14 @@ class AssetsAdapter:
 
     def _select_asset(self, target: Path, root: Path) -> tuple[Path, _CachedAsset, bool]:
         original = self._asset(target, root)
-        entry = self._load_manifest(root).get(target.relative_to(root).as_posix())
+        rel_posix = target.relative_to(root).as_posix()
+        manifest = self._load_manifest(root)
+        entry = manifest.get(rel_posix)
         if entry is None:
+            # Check if requested target is a validated compiled asset (e.g. /js/leaflet.min.js or /css/bootstrap-zephyr.local.min.css)
+            dest_entry = self._dest_manifest.get(rel_posix)
+            if dest_entry is not None and original.digest == dest_entry["sha256"]:
+                return target, original, original.compressed_digest == dest_entry["gzip_sha256"]
             # Sidecars without a validated build receipt are not selected: their
             # modification time alone cannot establish that they match the file.
             return target, original, False

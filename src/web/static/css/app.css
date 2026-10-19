@@ -236,6 +236,26 @@ body.auth-pending > #app { display: none !important; }
   --font-fluid-heading: clamp(1.125rem, 1.05rem + 0.4vw, 1.375rem);
 }
 
+/* Modo Densidad Compacta (Opción A & C de diseño.md) */
+html.density-compact {
+  --control-height: 32px;
+  --control-height-sm: 28px;
+  --card-padding: 0.75rem;
+  --card-gap: 0.5rem;
+  --space-sm: 6px;
+  --space-md: 12px;
+  --font-body: 0.85rem;
+  --font-label: 0.8rem;
+  --font-meta: 0.75rem;
+}
+
+/* Salvaguarda ergonómica táctil: WCAG 2.2 AA exige al menos 44x44px en punteros gruesos */
+@media (pointer: coarse) {
+  html.density-compact :is(.btn, .form-control, .channel-item, .local-subtab-btn, .nav-btn, .btn-header-action) {
+    min-height: 44px;
+  }
+}
+
 /* Modo Slate (Oscuro) - Variables Específicas */
 [data-bs-theme="dark"], body.dark-theme {
   --bs-body-bg: #0c1424;
@@ -3767,7 +3787,95 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   min-width: 0;
 }
 
+.settings-content-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+  min-width: 0;
+  width: 100%;
+}
+
+.settings-cards-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+  min-width: 0;
+  width: 100%;
+}
+
 .settings-stack { display: flex; flex-direction: column; gap: var(--card-gap); min-width: 0; max-width: 56rem; }
+
+@media (min-width: 1024px) {
+  .settings-cards-col.settings-stack {
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+    gap: var(--card-gap);
+    align-items: start;
+  }
+
+  .settings-cards-col > .settings-card.span-full,
+  .settings-cards-col > .card-panel.span-full {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Divulgación Progresiva Accesible (Opción C de diseño.md) */
+details.settings-disclosure {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-elevated);
+  padding: 0;
+  margin-top: var(--space-sm);
+  transition: border-color 0.16s ease;
+}
+
+details.settings-disclosure[open] {
+  border-color: var(--bs-primary);
+}
+
+details.settings-disclosure > summary {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-label);
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  list-style: none;
+}
+
+details.settings-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.settings-disclosure > summary::after {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  margin-left: auto;
+}
+
+details.settings-disclosure[open] > summary::after {
+  transform: rotate(-135deg);
+}
+
+details.settings-disclosure > .disclosure-content {
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+}
+
 .settings-inline-controls { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); min-width: 0; }
 .settings-inline-controls > input,
 .settings-inline-controls > select,
@@ -3877,7 +3985,13 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 .grid-form-2col > .form-group,
-.grid-form-3col > .form-group {
+.grid-form-3col > .form-group,
+.settings-form > .form-group,
+.settings-stack > .form-group,
+.card-panel > .form-group,
+.settings-card > .form-group,
+.settings-form > .grid-form-2col,
+.settings-form > .grid-form-3col {
   margin-bottom: 0;
 }
 
@@ -5348,42 +5462,66 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    mask-image: linear-gradient(to right, transparent, black 8px, black calc(100% - 8px), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 8px, black calc(100% - 8px), transparent);
+    padding-inline: 4px;
   }
 
   .local-settings-subtabs .local-subtab-btn,
   .repeater-subtabs .subtab-btn { flex-shrink: 0; white-space: nowrap; }
 
+  .app-header {
+    padding-block: 4px !important;
+  }
+
   .app-header > .container-fluid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--space-sm);
-  }
-
-  .header-right {
-    display: grid !important;
-    grid-template-columns: repeat(3, auto);
-    justify-content: end;
-    gap: 4px !important;
-  }
-
-  .header-right > .auth-account-button {
-    grid-column: 1 / -1;
-    grid-row: 1;
-    justify-self: end;
-    min-height: 44px;
-  }
-
-  .header-right > button:not(.auth-account-button) { grid-row: 2; }
-
-  .app-main {
-    padding: var(--space-sm) !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding-inline: 8px;
   }
 
   .header-left {
-    flex-direction: column;
-    align-items: flex-start !important;
+    display: flex;
+    flex-direction: row;
+    align-items: center !important;
     gap: 6px !important;
+    min-width: 0;
+  }
+
+  .header-left .brand-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+  }
+
+  .header-right {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px !important;
     flex-shrink: 0;
+  }
+
+  .header-right > .btn-header-action {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .header-right > .auth-account-button {
+    min-height: 32px;
+    padding: 2px 8px;
+    font-size: 0.8125rem;
+  }
+
+  .app-main {
+    padding: var(--space-sm) !important;
   }
 
   .connection-status {
@@ -6004,6 +6142,54 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   background: var(--bs-tertiary-bg);
   color: var(--bs-secondary-color);
   border: 1px solid var(--bs-border-color);
+}
+
+/* ==========================================================================
+   Consola Técnica y Tablas Numéricas Tabulares (Opción B de diseño.md)
+   ========================================================================== */
+.tabular-nums,
+.metric-chip,
+.metric-chip strong,
+.val-badge,
+.telemetry-val,
+.sniffer-table td,
+.sniffer-table th,
+.nodes-table td,
+.nodes-table th,
+.table-tabular td,
+.table-tabular th {
+  font-variant-numeric: tabular-nums;
+}
+
+.sniffer-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+}
+
+.sniffer-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bs-tertiary-bg);
+  border-bottom: 2px solid var(--bs-border-color);
+  font-weight: 600;
+  padding: 6px 10px;
+  z-index: 2;
+}
+
+.sniffer-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--bs-border-color-subtle, var(--bs-border-color));
+  vertical-align: middle;
+}
+
+.sniffer-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.sniffer-table tbody tr:hover {
+  background: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.08);
 }
 
 .sniffer-table td.truncate {

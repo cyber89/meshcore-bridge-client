@@ -124,6 +124,10 @@
           <i class="bi bi-sun" aria-hidden="true"></i>
         </button>
 
+        <button id="densityToggleBtn" type="button" class="btn btn-header-action rounded-circle btn-icon" title="Cambiar densidad visual (Normal / Compacta)" aria-label="Cambiar densidad visual" data-i18n-title="ui.toggle_density" data-i18n-aria-label="ui.toggle_density">
+          <i class="bi bi-aspect-ratio" aria-hidden="true"></i>
+        </button>
+
         <button id="langToggleBtn" type="button" class="btn btn-header-action btn-lang-toggle rounded-pill px-2 py-1" title="Switch to English" aria-label="Switch language" data-i18n-title="lang.title" data-i18n-aria-label="ui.static_008">
           <i class="bi bi-translate me-1" aria-hidden="true"></i><span class="lang-code-text">EN</span>
         </button>
@@ -1706,7 +1710,7 @@
                 <div class="settings-cards-col settings-stack">
 
                   <!-- Tarjeta 1: Servidor MQTT Externo & Gestor de Presets -->
-                  <div class="settings-card">
+                  <div class="settings-card span-full">
                     <div class="card-title-row">
                       <div class="card-heading settings-card-title">
                         <i class="bi bi-globe section-icon" aria-hidden="true"></i>
@@ -2004,7 +2008,7 @@
                   </div>
 
                   <!-- Botón Principal Guardar y Aplicar -->
-                  <div class="settings-form-actions">
+                  <div class="settings-form-actions span-full">
                     <button type="button" class="btn btn-primary" id="btnSaveServicesConfig">
                       <i class="bi bi-floppy" aria-hidden="true"></i> <span data-i18n="services.btn_save_all">Guardar y Aplicar Servicios</span>
                     </button>
