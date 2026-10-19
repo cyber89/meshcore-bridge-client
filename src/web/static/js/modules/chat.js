@@ -52,6 +52,8 @@ export class ChatModule {
     } catch (_) {
       this.closedDmThreads = new Set();
     }
+    this.conversationsWithMessages = new Set();
+    this.unreadCounts = new Map();
 
     // Estado del selector de emojis y compartir
     this.activeEmojiTab = "smileys";

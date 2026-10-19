@@ -211,12 +211,12 @@
     },
     "js/modules/chat.js": {
       "file": "js/modules/chat.min.js",
-      "source_sha256": "33cea35e9fee556734949f50aa556c7df80689f935537fb090d8cf6e26dcb787",
-      "sha256": "d42e9abce2f8ae17af803d0362ab83695b2e6ef62c0532861ba585bd6f38f66f",
-      "gzip_sha256": "9901644231a1e94d98934916ae8fa6087bfa0e4ed03fbb329578960e57a5f440",
-      "source_bytes": 85066,
-      "bytes": 55730,
-      "gzip_bytes": 14426
+      "source_sha256": "b909c080f420de73511d3a7523b11efb98a9c8c2d2a6f639925265f18cb2285f",
+      "sha256": "7b1553cc62a3a957d262be29bc145c438e66e271179d5408eb608488a5c58c3a",
+      "gzip_sha256": "66657a86dce6ef6f0375c135910a82293ad62d0440ff277f15eee16d5a00fec9",
+      "source_bytes": 85149,
+      "bytes": 55795,
+      "gzip_bytes": 14440
     },
     "js/modules/map.js": {
       "file": "js/modules/map.min.js",
