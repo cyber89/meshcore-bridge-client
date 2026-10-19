@@ -10,7 +10,7 @@ import { MeshCoreWebSocketClient } from "./core/websocket.js";
 import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders, readLocalPreference, writeLocalPreference } from "./core/utils.js";
 import { store } from "./core/store.js";
 import { BrowserAuthentication } from "./core/auth.js";
-import { applyThemePreference, readThemePreference, applyDensityPreference, readDensityPreference } from "./core/theme.js";
+import { applyThemePreference, readThemePreference, applyDensityPreference } from "./core/theme.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -118,6 +118,11 @@ class MeshCoreApp {
     // Conectar WebSocket
     this.wsClient.connect();
     window.addEventListener("meshcore:auth_expired", () => this.wsClient.close());
+    document.addEventListener("submit", (e) => {
+      if (e.target.matches("form.settings-form, #formAddCustomVar, #repeaterGateForm")) {
+        e.preventDefault();
+      }
+    });
   }
 
   _bindElements() {

@@ -1300,7 +1300,7 @@
                   </table>
                 </div>
 
-                <form id="formAddCustomVar" class="grid-form-3col settings-form-end" onsubmit="return false;" aria-label="Variables personalizadas" data-i18n-aria-label="ui.form_variables">
+                <form id="formAddCustomVar" class="grid-form-3col settings-form-end" aria-label="Variables personalizadas" data-i18n-aria-label="ui.form_variables">
                   <div class="form-group">
                     <label for="inputCustomVarKey" data-i18n="ui.static_271">Nombre / Clave:</label>
                     <input type="text" id="inputCustomVarKey" placeholder="Ej: gps_interval" required  data-i18n-placeholder="ui.static_272"/>
@@ -1608,7 +1608,7 @@
                       <span class="badge rounded-pill badge-primary" data-i18n="ui.static_351">Control de Acceso</span>
                     </div>
                     <p class="card-desc" data-i18n="auth.security_description">La sesión protege todas las rutas de API y WebSocket. Desde Perfil puedes cambiar las credenciales, cerrar sesión y generar tokens para automatizaciones.</p>
-                    <button class="btn btn-primary btn-sm" type="button" data-open-account data-i18n="auth.account">Perfil</button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" data-open-account data-i18n="auth.account">Perfil</button>
                   </div>
 
                   <!-- Tarjeta de Ámbito de Inundación (Flood Scope) -->
@@ -1620,7 +1620,7 @@
                     <p class="card-desc">
                       <span data-i18n="ui.mixed_scope_before">Permite aislar el tráfico broadcast de la malla dentro de un canal o grupo cerrado (*Transport Scope Key* de 16B - CMD 54/63/64). Deja vacío o introduce</span> <code>*</code> <span data-i18n="ui.mixed_scope_after">para volver al alcance global por defecto.</span>
                     </p>
-                    <form class="settings-form" id="floodScopeForm" onsubmit="return false;" aria-label="Alcance de difusión" data-i18n-aria-label="ui.form_scope">
+                    <form class="settings-form" id="floodScopeForm" aria-label="Alcance de difusión" data-i18n-aria-label="ui.form_scope">
                       <div class="form-group">
                         <label for="inputFloodScope" data-i18n="ui.static_357">Nombre de Scope (#grupo) o Clave Hexadecimal de Transporte:</label>
                         <div class="settings-inline-controls">
@@ -1642,7 +1642,7 @@
                     <p class="card-desc" data-i18n="ui.static_364">
                       Configura la máscara de bits y directivas del transceptor cuando escucha paquetes de nodos desconocidos en el medio RF (CMD 58/59).
                     </p>
-                    <form class="settings-form" id="autoAddConfigForm" onsubmit="return false;" aria-label="Política de contactos" data-i18n-aria-label="ui.form_contacts">
+                    <form class="settings-form" id="autoAddConfigForm" aria-label="Política de contactos" data-i18n-aria-label="ui.form_contacts">
                       <div class="form-group settings-choice-group">
                         <label for="chkAutoAddChat" class="settings-choice-row">
                           <input type="checkbox" id="chkAutoAddChat" checked />
@@ -1744,7 +1744,7 @@
                       <small id="presetDescriptionText" class="settings-status-hint"></small>
                     </div>
 
-                    <form id="externalMqttForm" onsubmit="return false;" class="settings-form">
+                    <form id="externalMqttForm" class="settings-form">
                       <div class="form-row-2col">
                         <div class="form-group">
                           <label for="inputExtMqttHost" data-i18n="services.host">Servidor / Host:</label>
@@ -1925,7 +1925,7 @@
                     <p class="card-desc" data-i18n="services.local_mqtt_desc">
                       Conecta el bridge con tu broker local (Mosquitto/EMQX) para automatizaciones con n8n, Home Assistant o Node-RED en tu red LAN.
                     </p>
-                    <form id="localMqttForm" onsubmit="return false;" class="settings-form">
+                    <form id="localMqttForm" class="settings-form">
                       <div class="form-row-2col">
                         <div class="form-group">
                           <label for="inputLocalMqttHost" data-i18n="services.local_host">Host / IP Local:</label>
@@ -1976,7 +1976,7 @@
                     <p class="card-desc" data-i18n="services.tcp_desc">
                       Abre un socket TCP transparente en el puerto 5000 para conectar la App Oficial de MeshCore (Android/iOS) o clientes meshcore-cli por WiFi/LAN.
                     </p>
-                    <form id="tcpServerForm" onsubmit="return false;" class="settings-form">
+                    <form id="tcpServerForm" class="settings-form">
                       <div class="form-row-2col">
                         <div class="form-group">
                           <label for="selTcpServerHost" data-i18n="services.tcp_interface">Interfaz de Escucha:</label>
@@ -2309,7 +2309,7 @@
             <h4 data-i18n="rep.restricted_access">Acceso de Administración Restringido</h4>
             <p data-i18n="rep.restricted_desc">Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.</p>
             
-            <form id="repeaterGateForm" class="auth-gate-form" onsubmit="return false;" aria-labelledby="repeaterAdminTitle">
+            <form id="repeaterGateForm" class="auth-gate-form" aria-labelledby="repeaterAdminTitle">
               <input type="text" name="username" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario" data-i18n-aria-label="ui.static_352"/>
               <div class="auth-gate-input-wrapper">
                 <label for="repeaterGatePassword" class="auth-gate-label" data-i18n="rep.pin_label">Contraseña de Administración (PIN):</label>
