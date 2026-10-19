@@ -15,6 +15,11 @@ export class BrowserAuthentication {
   }
 
   async init() {
+    const initialRequest = window.meshcoreSessionStartup;
+    window.meshcoreSessionStartup = null;
+    const sessionRequest = initialRequest || this.nativeFetch("/api/auth/session", {
+      credentials: "same-origin", cache: "no-store",
+    }).catch(() => null);
     applyThemePreference(readThemePreference(), false);
     this._updateThemeButton();
     // Remove secrets saved by the former API-key login without migrating them.
@@ -34,7 +39,8 @@ export class BrowserAuthentication {
     window.addEventListener("meshcore:auth_expired", () => this._expire());
     this.channel?.addEventListener("message", () => this._expire());
     try {
-      const response = await this.nativeFetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
+      const response = await sessionRequest;
+      if (!response) throw new Error("Session unavailable");
       if (response.status === 401) { this._showLogin(); return; }
       if (!response.ok) throw new Error("Session unavailable");
       this._acceptSession(await response.json());
@@ -117,7 +123,11 @@ export class BrowserAuthentication {
     };
   }
 
-  _showLogin() {
+  _showLogin({ requires_initial_setup = false } = {}) {
+    document.body.classList.add("auth-pending");
+    document.getElementById("authStartup").hidden = true;
+    document.getElementById("authGate").hidden = false;
+    document.getElementById("authFirstLogin").hidden = requires_initial_setup !== true;
     document.getElementById("authLoading").hidden = true;
     this.loginForm.hidden = false;
     this.loginForm.elements.username.focus();
@@ -143,17 +153,19 @@ export class BrowserAuthentication {
   }
 
   _acceptSession(session) {
-    if (!session.authenticated) { this._showLogin(); return; }
+    if (!session.authenticated) { this._showLogin(session); return; }
     this.session = session;
     setSessionCsrfToken(session.csrf_token);
     this.loginForm.reset();
     this._setPasswordVisible(false);
     document.getElementById("authLoading").hidden = true;
     this.loginForm.hidden = true;
+    document.getElementById("authFirstLogin").hidden = session.requires_initial_setup !== true;
+    document.getElementById("authGate").hidden = true;
+    document.getElementById("authStartup").hidden = !session.must_change_credentials;
     if (session.must_change_credentials) { this._openAccount(); return; }
     this.dialog.open && this.dialog.close();
     document.body.classList.remove("auth-pending");
-    document.getElementById("authGate").hidden = true;
     if (!this.started) {
       this.started = true;
       this.startApplication();

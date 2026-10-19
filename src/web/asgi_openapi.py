@@ -340,10 +340,11 @@ def build_openapi_schema() -> dict[str, Any]:
         }
     paths["/api/map/tiles/{z}/{x}/{y}"] = {"get": _tile_operation()}
     schemas["AuthSession"] = {
-        "type": "object", "required": ["authenticated", "username", "csrf_token", "must_change_credentials", "api_key_configured"],
+        "type": "object", "required": ["authenticated", "username", "csrf_token", "must_change_credentials", "api_key_configured", "requires_initial_setup"],
         "properties": {"authenticated": {"type": "boolean"}, "username": {"type": ["string", "null"]},
                        "csrf_token": {"type": ["string", "null"]}, "must_change_credentials": {"type": "boolean"},
-                       "api_key_configured": {"type": "boolean"}},
+                       "api_key_configured": {"type": "boolean"},
+                       "requires_initial_setup": {"type": "boolean", "description": "The station still requires its initial password change, independent of a browser session."}},
     }
     username = {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_.-]+$"}
     password = {"type": "string", "minLength": 1, "maxLength": 128, "writeOnly": True}

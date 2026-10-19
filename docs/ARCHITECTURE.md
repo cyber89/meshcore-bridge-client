@@ -812,3 +812,25 @@ locales y ROOM, locks, timeouts y delays de protocolo. El gateway administrativo
 usa serialización SDK; la cola TxRateLimiter de chat no es un gateway universal
 de administración. No se incorporan sondeos, timers, setters nuevos, migraciones
 ni emisiones durante QA. [Contrato y resultados](audits/2026-10-17-meshcore-1.18-manual-admin.md).
+
+## Entrada web y estado de instalación inicial (2026-10-18)
+
+El contrato `AuthSession` de sesión, login y cambio de credenciales incorpora
+`requires_initial_setup`, booleano que indica si sigue pendiente el cambio de
+contraseña inicial. Con una sesión procede del estado autenticado; para una
+consulta anónima procede de `AuthStore.account_ready()` en SQLite, ejecutado
+fuera del event loop. El usuario y el token CSRF siguen siendo nulos sin sesión.
+La ayuda de primer acceso sólo aparece cuando el servidor confirma ese estado;
+un fallo de red no se interpreta como una instalación nueva.
+
+Un script externo pequeño inicia `GET /api/auth/session` desde el head y comparte
+su promesa con el módulo de autenticación. Si llega tarde, el módulo hace la
+consulta y evita duplicarla. Mientras se valida la cookie se presenta la marca
+con un estado accesible, manteniendo ocultos el formulario y los datos de la
+estación. Una sesión aceptada abre la aplicación; una sesión inicial exige el
+cambio de contraseña en el diálogo existente antes de arrancarla.
+
+La decisión de acceso permanece en el servidor y usa la cookie HttpOnly y CSRF
+existentes. No se guardan secretos ni indicadores locales de autenticación. La
+opción de recordar sesión conserva sus 30 días; una contraseña guardada por el
+navegador no sustituye una cookie válida. [Evidencia y límites](AUTH_STARTUP_FIX_2026-10-18.md).

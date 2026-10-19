@@ -143,6 +143,9 @@ class AuthenticationService:
     async def session_payload(self, session: AuthSession | None) -> dict[str, Any]:
         return {
             "authenticated": session is not None,
+            "requires_initial_setup": session.must_change_credentials
+            if session is not None
+            else not await asyncio.to_thread(self.store.account_ready),
             "username": session.username if session is not None else None,
             "csrf_token": session.csrf_token if session is not None else None,
             "must_change_credentials": session.must_change_credentials

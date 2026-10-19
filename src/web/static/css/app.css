@@ -1,6 +1,17 @@
 /* Hide station data until the server authenticates and accepts the credentials. */
 body.auth-pending > .app-header,
 body.auth-pending > #app { display: none !important; }
+.auth-startup {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  color: var(--text-muted);
+  background: var(--bg-body);
+}
 .auth-gate {
   min-height: 100dvh;
   height: 100dvh;
@@ -10,7 +21,7 @@ body.auth-pending > #app { display: none !important; }
   padding: clamp(0.5rem, 2vw, 2rem);
   background: radial-gradient(ellipse at 20% 15%, rgba(var(--bs-primary-rgb), 0.09), transparent 55%), var(--bg-body);
 }
-.auth-gate[hidden], .auth-token-result[hidden], .auth-form[hidden], .auth-loading[hidden] { display: none; }
+.auth-startup[hidden], .auth-gate[hidden], .auth-first-login[hidden], .auth-token-result[hidden], .auth-form[hidden], .auth-loading[hidden] { display: none; }
 .auth-dialog {
   width: min(100%, 30rem);
   max-width: calc(100vw - 2rem);
