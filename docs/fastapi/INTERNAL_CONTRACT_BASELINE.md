@@ -13,7 +13,7 @@ La autorización del usuario permite comenzar las fases sucesivas. La respuesta
 compatibilidad o rendimiento en cualquier plataforma. Este documento separa el
 comportamiento leído del diseño pendiente de implementación y verificación.
 
-Referencias: [plan](../../PROYECTO.md), [dominio](../../CONTEXT.md),
+Referencias: [plan](HISTORICAL_PROPOSAL.md), [dominio](../../CONTEXT.md),
 [reglas](../../AGENTS.md), [índice](../README.md),
 [ADR 0009](../adr/0009-official-companion-protocol-layers.md) y
 [ADR 0010](../adr/0010-duty-cycle-configurable-budget.md).

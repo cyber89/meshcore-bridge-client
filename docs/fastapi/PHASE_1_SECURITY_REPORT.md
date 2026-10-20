@@ -138,4 +138,4 @@ composición actual; ASGI no los reconstruye ni cierra el mapa. Antes del corte
 de producción debe transferirse su cierre al propietario compartido, evitando
 que detener el adaptador anterior invalide el mapa prestado al candidato.
 El servidor predeterminado y los formatos persistidos siguen vigentes. Las
-fases 2–6 y las puertas operativas se mantienen en [PROYECTO.md](../../PROYECTO.md).
+fases 2–6 y las puertas operativas se mantienen en [HISTORICAL_PROPOSAL.md](HISTORICAL_PROPOSAL.md).

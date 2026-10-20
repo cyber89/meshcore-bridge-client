@@ -2,7 +2,7 @@
 
 **Estado actual (2026-10-09):** FastAPI/Uvicorn es el transporte web seleccionado en el código; el servidor HTTP nativo fue retirado en `933ccce`. La aceptación operativa sigue pendiente. Las secciones de propuesta y preparación conservan su contexto histórico.
 
-La [auditoría por capas](docs/audits/2026-10-09-layer-audit.md) concilia el checkout actual, los cambios de seguridad y las limitaciones de verificación. Adopción en código no equivale a certificación de producción.
+La [auditoría por capas](../audits/2026-10-09-layer-audit.md) concilia el checkout actual, los cambios de seguridad y las limitaciones de verificación. Adopción en código no equivale a certificación de producción.
 
 **Fecha de revisión:** 2026-10-09; revisión inicial 2026-10-08.
 
@@ -18,7 +18,7 @@ La recomendación técnica es **FastAPI modular con Uvicorn embebido**, mantenie
 
 La revisión documental inicial no aprobaba la migración. El usuario autorizó después comenzar las fases; esta autorización permite su preparación, manteniendo las condiciones de adopción. El plan inicial contenía interfaces incompletas, rutas inexistentes, límites de protocolo incorrectos y cifras sin medición. Esta revisión los corrige y registra las decisiones abiertas.
 
-[AGENTS.md](AGENTS.md) fija las reglas operativas; [CONTEXT.md](CONTEXT.md) define el dominio; el [índice documental](docs/README.md) distingue guías vigentes e históricas. Firmware/SDK oficiales determinan el protocolo; el código actual determina las capacidades implementadas. Este documento propone el futuro y no sustituye esas fuentes.
+[AGENTS.md](../../AGENTS.md) fija las reglas operativas; [CONTEXT.md](../../CONTEXT.md) define el dominio; el [índice documental](../README.md) distingue guías vigentes e históricas. Firmware/SDK oficiales determinan el protocolo; el código actual determina las capacidades implementadas. Este documento propone el futuro y no sustituye esas fuentes.
 
 ### 1.1 Acta de la reunión técnica
 
@@ -55,7 +55,7 @@ Se resolvieron tres tensiones: reutilizar controladores frente a reescribirlos t
 | Responder sólo request_id al encolar | TX actual espera resultado; admisión asíncrona sería una función nueva |
 | Calendario de 21 días desde el 9 de octubre | Sin compromiso sustentado; sustituido por puertas de aceptación |
 
-Evidencia: servidor ([asgi_server.py](src/web/asgi_server.py)), [router](src/web/api_router.py), [manifiesto](pyproject.toml), [dependencias directas](requirements.txt) y [SDK de referencia](reference/meshcore_py/pyproject.toml). Los conteos físicos no son mediciones de complejidad ni ahorro futuro.
+Evidencia: servidor ([asgi_server.py](../../src/web/asgi_server.py)), [router](../../src/web/api_router.py), [manifiesto](../../pyproject.toml), [dependencias directas](../../requirements.txt) y [SDK de referencia](../../reference/meshcore_py/pyproject.toml). Los conteos físicos no son mediciones de complejidad ni ahorro futuro.
 
 ## 2. Alternativas y futuro recomendado
 
@@ -75,7 +75,7 @@ La primera entrega futura sustituye transporte y conserva contratos. Después po
 ## 3. Invariantes de la arquitectura objetivo
 
 1. Python 3.10 sigue siendo el mínimo. No introducir TaskGroup, asyncio.timeout, typing.Self o except* sin cambiar explícitamente el contrato o declarar backport.
-2. FastAPI/Starlette/Pydantic permanecen en la frontera web. Los DTO no sustituyen dataclasses/enums del dominio ni [protocol_types.py](src/protocol_types.py).
+2. FastAPI/Starlette/Pydantic permanecen en la frontera web. Los DTO no sustituyen dataclasses/enums del dominio ni [protocol_types.py](../../src/protocol_types.py).
 3. Clasificación oficial: NONE/CHAT → CLIENT; REPEATER → REPEATER; ROOM → ROOM; SENSOR → SENSOR. LOCAL es identidad del host, no opcode de advert. No inferir roles por nombre.
 4. REPEATER/LOCAL se excluyen de contactos y chat; nunca dirigir mensajería a la clave local. Administración de repetidores conserva su vía propia.
 5. Una instancia de MeshCoreBridge, un contexto y un propietario de radio/MQTT/colas/timers. Uvicorn embebido con un worker y sin reload del proceso.
@@ -98,16 +98,16 @@ Las fases se entregan secuencialmente. El usuario autorizó comenzar y continuar
 
 | Etapa | Estado actual | Evidencia / pendiente |
 |---|---|---|
-| 0 | Preparación documental y binaria entregada | [Informe](docs/fastapi/PHASE_0_REPORT.md); seis cierres con wheels, catálogos y snapshot. Recursos e interoperabilidad sin medir |
-| 1 | Infraestructura y seguridad ASGI preparadas; aceptación operativa pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md) y [seguridad](docs/fastapi/PHASE_1_SECURITY_REPORT.md); servidor actual predeterminado. Lifecycle y paridad en ejecución sin verificar |
-| 2 | DTO y errores del framework preparados; aceptación pendiente | [Informe](docs/fastapi/PHASE_2_REPORT.md), [inventario](docs/fastapi/PHASE_2_REQUEST_INVENTORY.json) y [ejemplos sanitizados](docs/fastapi/PHASE_2_COMPATIBILITY_CASES.json); sin validación en ejecución |
-| 3 | Seis lotes REST JSON conectados a ASGI | [Informe](docs/fastapi/PHASE_3_REPORT.md) y [registro estático](docs/fastapi/PHASE_3_ROUTE_REGISTRY.json); 90 operaciones canónicas + 50 de alias, dispatcher compartido, redacción selectiva. Contratos/efectos en ejecución pendientes |
-| 4 | WS, SPA/assets y tiles conectados a ASGI | [Informe](docs/fastapi/PHASE_4_REPORT.md) y [registro estático](docs/fastapi/PHASE_4_ADAPTER_REGISTRY.json); lifecycle compartido, diferencias de transporte explícitas. Aceptación operativa pendiente |
-| 5 | OpenAPI y visor local implementados | [Informe histórico](docs/fastapi/PHASE_5_REPORT.md); generación y contratos en ejecución pendientes |
-| 6 | ASGI seleccionado, servidor nativo retirado e instaladores actualizados | [Informe rectificado](docs/fastapi/PHASE_6_REPORT.md); pruebas de instalación, recursos y operación pendientes |
-| Auditoría actual | Revisión por capas e integración de correcciones | [Acta e informe](docs/audits/2026-10-09-layer-audit.md); evidencia estática separada de QA suspendida |
+| 0 | Preparación documental y binaria entregada | [Informe](PHASE_0_REPORT.md); seis cierres con wheels, catálogos y snapshot. Recursos e interoperabilidad sin medir |
+| 1 | Infraestructura y seguridad ASGI preparadas; aceptación operativa pendiente | [Informe](PHASE_1_REPORT.md) y [seguridad](PHASE_1_SECURITY_REPORT.md); servidor actual predeterminado. Lifecycle y paridad en ejecución sin verificar |
+| 2 | DTO y errores del framework preparados; aceptación pendiente | [Informe](PHASE_2_REPORT.md), [inventario](PHASE_2_REQUEST_INVENTORY.json) y [ejemplos sanitizados](PHASE_2_COMPATIBILITY_CASES.json); sin validación en ejecución |
+| 3 | Seis lotes REST JSON conectados a ASGI | [Informe](PHASE_3_REPORT.md) y [registro estático](PHASE_3_ROUTE_REGISTRY.json); 90 operaciones canónicas + 50 de alias, dispatcher compartido, redacción selectiva. Contratos/efectos en ejecución pendientes |
+| 4 | WS, SPA/assets y tiles conectados a ASGI | [Informe](PHASE_4_REPORT.md) y [registro estático](PHASE_4_ADAPTER_REGISTRY.json); lifecycle compartido, diferencias de transporte explícitas. Aceptación operativa pendiente |
+| 5 | OpenAPI y visor local implementados | [Informe histórico](PHASE_5_REPORT.md); generación y contratos en ejecución pendientes |
+| 6 | ASGI seleccionado, servidor nativo retirado e instaladores actualizados | [Informe rectificado](PHASE_6_REPORT.md); pruebas de instalación, recursos y operación pendientes |
+| Auditoría actual | Revisión por capas e integración de correcciones | [Acta e informe](../audits/2026-10-09-layer-audit.md); evidencia estática separada de QA suspendida |
 
-[ADR 0011](docs/adr/0011-staged-asgi-migration.md) registra la preparación autorizada y sus condiciones de adopción. No se convierte una comprobación pendiente en aprobada por no ejecutar suites.
+[ADR 0011](../adr/0011-staged-asgi-migration.md) registra la preparación autorizada y sus condiciones de adopción. No se convierte una comprobación pendiente en aprobada por no ejecutar suites.
 
 ### Fase 0. Preparación y decisión de viabilidad
 
@@ -137,7 +137,7 @@ Congelar WS por dirección, discriminador y campos; separar nombres del bus Java
 
 La interfaz actual usa start(), stop() y broadcast_event(event); broadcast_ws es callback de ApiContext. Además:
 
-- [bridge_core.py](src/bridge_core.py), [rx_router.py](src/rx_router.py) y [system_handler.py](src/routers/system_handler.py) acceden a .router.channels.
+- [bridge_core.py](../../src/bridge_core.py), [rx_router.py](../../src/rx_router.py) y [system_handler.py](../../src/routers/system_handler.py) acceden a .router.channels.
 - broadcast_event registra eventos antes de comprobar clientes y alimenta historiales aun sin conexiones.
 - El router construye buffers, ApiContext, controladores, canales, mapas y tareas. No basta con borrar su dispatcher.
 
@@ -166,7 +166,7 @@ La fábrica recibe fachada/contexto existente, no crea otra radio/bridge/MQTT/sc
 #### 1.2 Arranque, señales y parada
 
 - Supervisar tarea Server.serve(); start espera listener listo o fallo. Sólo create_task cambia el contrato actual. Propagar bind ocupado, fallo lifespan y terminación posterior al propietario.
-- En Uvicorn 0.54.0 seleccionado, serve usa capture_signals; la subclase localizada deja señales al bridge y conserva serve público. Bind/lifespan pueden lanzar SystemExit: convertirlo dentro de la tarea supervisada en fallo de arranque, conservando cancelación. La [inspección del wheel](docs/fastapi/DEPENDENCY_DECISIONS.md) registra fuentes y obligaciones; la observación inicial de 0.30.0 se conserva como antecedente, no como versión elegida.
+- En Uvicorn 0.54.0 seleccionado, serve usa capture_signals; la subclase localizada deja señales al bridge y conserva serve público. Bind/lifespan pueden lanzar SystemExit: convertirlo dentro de la tarea supervisada en fallo de arranque, conservando cancelación. La [inspección del wheel](DEPENDENCY_DECISIONS.md) registra fuentes y obligaciones; la observación inicial de 0.30.0 se conserva como antecedente, no como versión elegida.
 - Parada idempotente, segura ante cancelación: cesar admisión, cerrar conexiones/tareas, solicitar salida, esperar/cancelar según presupuesto y liberar mapas. Consumir excepciones; no cancelar tareas ajenas.
 - Conciliar presupuesto: core actual permite 1,5 s por subsistema y 5 s globales por señal. Timeout web nuevo de 2 s contradice ese orden. Diseñar/acordar presupuesto conjunto, sin imponer otro número.
 - Conservar paso seguro de callbacks Paho desde threads al loop mediante mecanismo actual.
@@ -198,7 +198,7 @@ Retirar X-XSS-Protection: 1; mode=block como requisito añadido sin fundamento e
 
 Preparación entregada el 2026-10-09: DTO permisivos por familia/operación,
 inventario de 90 operaciones JSON/69 rutas y errores seguros del framework
-registrados en la fábrica inactiva. La [fase 2](docs/fastapi/PHASE_2_REPORT.md)
+registrados en la fábrica inactiva. La [fase 2](PHASE_2_REPORT.md)
 explica presencia/coerción/extras, límites de seguridad y aceptación pendiente.
 Los handlers no redactan respuestas que el router ya convierte en errores;
 la continuación de fase 3 incorpora una política selectiva y correcciones
@@ -209,14 +209,14 @@ compartidas, con límites de redacción documentados.
 Esquemas web por familia, convirtiendo a servicios/controladores existentes. No imponer strict=True ni rechazo global de extras: documentar coerciones, incluidas cadenas query. La política debe elegirse por operación. [Modo estricto Pydantic](https://pydantic.dev/docs/validation/latest/concepts/strict_mode/).
 
 - Contactos: clave completa 32 bytes/64 hex. TX acepta variantes de destino; no regex global de clave completa a target. Resolver identidad/ambigüedad antes de rol/localidad.
-- DM: máximo actual 160 **bytes UTF-8**, sin NUL; canal descuenta nombre local y ': '. max_length=160 cuenta caracteres y no basta. Conservar protección del adaptador. [sdk_adapter.py](src/serial/sdk_adapter.py), [BaseChatMesh.h](reference/meshcore/src/helpers/BaseChatMesh.h), [BaseChatMesh.cpp](reference/meshcore/src/helpers/BaseChatMesh.cpp).
-- No hops 0..7 universal: autoadd max_hops 0..64; raw propio hop_limit 0..15; ruta RF con buffer de 64 bytes y modos de hash. Bytes/saltos/TTL no son equivalentes. [config_controller.py](src/web/controllers/config_controller.py), [protocol_types.py](src/protocol_types.py), [MeshCore.h](reference/meshcore/src/MeshCore.h), [Packet.h](reference/meshcore/src/Packet.h).
+- DM: máximo actual 160 **bytes UTF-8**, sin NUL; canal descuenta nombre local y ': '. max_length=160 cuenta caracteres y no basta. Conservar protección del adaptador. [sdk_adapter.py](../../src/serial/sdk_adapter.py), [BaseChatMesh.h](../../reference/meshcore/src/helpers/BaseChatMesh.h), [BaseChatMesh.cpp](../../reference/meshcore/src/helpers/BaseChatMesh.cpp).
+- No hops 0..7 universal: autoadd max_hops 0..64; raw propio hop_limit 0..15; ruta RF con buffer de 64 bytes y modos de hash. Bytes/saltos/TTL no son equivalentes. [config_controller.py](../../src/web/controllers/config_controller.py), [protocol_types.py](../../src/protocol_types.py), [MeshCore.h](../../reference/meshcore/src/MeshCore.h), [Packet.h](../../reference/meshcore/src/Packet.h).
 - `/api/packets`: `limit` por defecto 100, rango 1..500; `offset` por defecto 0, rango 0..100000; `order` asc/desc y filtros. Retirar el ejemplo con valores 50/1000. Firmas Python: parámetros requeridos antes de defaults o sólo por palabra clave.
 - Respuestas: wrappers/campos actuales, incluidos partial/applied/config/action/dispatched_commands/target_node. No activar response_model incompleto que los filtre.
 
 #### 2.2 Problem Details y status
 
-Helper actual: type/title/status/detail/error/message/timestamp. Conservar esos campos; instance sería adición. RFC vigente 9457 reemplaza 7807; la actualización normativa no obliga a romper extensiones. [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html), [helper](src/web/controllers/base.py).
+Helper actual: type/title/status/detail/error/message/timestamp. Conservar esos campos; instance sería adición. RFC vigente 9457 reemplaza 7807; la actualización normativa no obliga a romper extensiones. [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html), [helper](../../src/web/controllers/base.py).
 
 Cubrir validación, JSON malformado, `HTTPException` de Starlette, 404/405, middleware y negocio. Elegir status por catálogo; no convertir todo a 422. Si se adopta `application/problem+json`, comprobar consumidores y registrar cambio de content type. [Errores FastAPI](https://fastapi.tiangolo.com/tutorial/handling-errors/).
 
@@ -231,7 +231,7 @@ No todo error actual sigue ese formato: auth REST devuelve {error:Unauthorized};
 Preparación del 2026-10-09: los seis lotes JSON se registran en la fábrica
 candidata mediante APIRouter y un adaptador al dispatcher existente. Se conserva
 body/target original, alias y fallback de métodos/slashes; los DTO son metadata,
-sin reserialización de entrada. La [fase 3](docs/fastapi/PHASE_3_REPORT.md)
+sin reserialización de entrada. La [fase 3](PHASE_3_REPORT.md)
 registra 140 operaciones JSON, redacción explícita de errores y puertas pendientes.
 El servidor predeterminado sólo cambia textos del catch global `500` y errores
 de enteros para no reflejar excepciones/valores; sus códigos y validación siguen.
@@ -254,11 +254,11 @@ Retirar rutas inventadas /api/logs/system, /api/logs/clear, /api/services y /api
 
 Contactos REPEATER/LOCAL se rechazan actualmente con 400; creación usa 201 y actualización 200. No convertir rechazo a 403 dentro de paridad. Cubrir import/sync/accept/share/envío, además de listado/creación. Regla en dominio/adaptador, no sólo DTO.
 
-Discrepancia previa: creación admite ROOM/SENSOR, list_client_contacts devuelve CLIENT. Resolver expresamente sin inferir nueva política de FastAPI. [ContactsController](src/web/controllers/contacts_controller.py), [NodeRegistry](src/contact_manager.py).
+Discrepancia previa: creación admite ROOM/SENSOR, list_client_contacts devuelve CLIENT. Resolver expresamente sin inferir nueva política de FastAPI. [ContactsController](../../src/web/controllers/contacts_controller.py), [NodeRegistry](../../src/contact_manager.py).
 
 `POST /api/tx` usa `submit`, espera el future hasta 30 s y retorna 200 con `status`/`data`; timeout 408, rechazo de admisión 429 e indisponibilidad 503. `request_id` correlaciona, no sustituye resultado. 202/pending necesita propuesta propia, confirmación posterior y SPA/n8n. No equiparar éxito de comando y ACK remoto sin respetar semántica actual.
 
-No añadir rechazo 429 general al cutoff: hay descarte selectivo por prioridad y controles específicos. No hay reapertura garantizada para inventar `Retry-After`. Preservar [TxRateLimiter](src/rate_limiter.py) y [ADR 0010](docs/adr/0010-duty-cycle-configurable-budget.md).
+No añadir rechazo 429 general al cutoff: hay descarte selectivo por prioridad y controles específicos. No hay reapertura garantizada para inventar `Retry-After`. Preservar [TxRateLimiter](../../src/rate_limiter.py) y [ADR 0010](../adr/0010-duty-cycle-configurable-budget.md).
 
 Chat TX mantiene cola; admin/config mantienen fachadas, serialización y controles propios. No afirmar que todo comando SDK pasa actualmente por TxRateLimiter ni forzar esa refactorización aquí. Conservar RepeaterManager e intervalos por categoría: min_cmd_interval_s, min_telemetry_interval_s, min_ping_interval_s, min_traceroute_interval_s, min_neighbours_interval_s y persistencia existente.
 
@@ -274,7 +274,7 @@ Mantener `/ws` usado por la SPA y el upgrade en cualquier ruta que admite el ser
 
 Primero event_type=ws_connected, message/timestamp; después metrics_update con event/type. Conservar RX/TX/cola/radio/serial/uptime y airtime/alertas completos. Frontend interpreta type || event_type || event.
 
-Inventariar emisiones reales: rf_packet, system_log, metrics_update, duty_cycle_alert, airtime_cutoff_change, contact_updated/discovered, repeater_response/telemetry, contacts_updated, channels_updated, self_info, clock_synced, metrics_reset, entre otras. RX_PACKET es nombre interno EventBus, no necesariamente wire rx_packet. [websocket.js](src/web/static/js/core/websocket.js), servidor, RX/controladores son evidencia.
+Inventariar emisiones reales: rf_packet, system_log, metrics_update, duty_cycle_alert, airtime_cutoff_change, contact_updated/discovered, repeater_response/telemetry, contacts_updated, channels_updated, self_info, clock_synced, metrics_reset, entre otras. RX_PACKET es nombre interno EventBus, no necesariamente wire rx_packet. [websocket.js](../../src/web/static/js/core/websocket.js), servidor, RX/controladores son evidencia.
 
 El navegador envía JSON `type=ping` cada 15 s; el servidor responde JSON `type=pong`. Conservar formatos/unidades. Ping RFC del backend no sustituye heartbeat JSON. Mantener idle y `WS_METRICS_INTERVAL_SEC` sin duplicar tareas.
 
@@ -290,11 +290,11 @@ Montar estáticos tras API/WS/docs. StaticFiles(html=True) no demuestra fallback
 
 Los estáticos actuales aceptan todos los métodos que alcanzan el dispatcher; OPTIONS se resuelve antes y HEAD suprime representación. Conservar esa amplitud, MIME, traversal/pertenencia al root, ETag/304, gzip/Vary, HTML sin caché y caché de assets. Diseñar equivalencia, no asumirla por StaticFiles. Las teselas sólo aceptan GET, incluido rechazo 405 para HEAD.
 
-Conservar XYZ/MBTiles, TMS/XYZ, PNG/JPG/JPEG/WebP/PBF, MIME, status/reload. Tiles ya usan `asyncio.to_thread`; mantener locks/cierre/coordenadas/headers. No limitar router a `.png`. [MapTileService](src/web/map_tile_service.py) y `_serve_map_tile` acreditan comportamiento actual.
+Conservar XYZ/MBTiles, TMS/XYZ, PNG/JPG/JPEG/WebP/PBF, MIME, status/reload. Tiles ya usan `asyncio.to_thread`; mantener locks/cierre/coordenadas/headers. No limitar router a `.png`. [MapTileService](../../src/web/map_tile_service.py) y `_serve_map_tile` acreditan comportamiento actual.
 
 **Puerta:** bajo autorización, SPA/WS virtuales, desconexión/clientes lentos, historial sin clientes, mapas/offline. No afirmar carga en 100 ms sin medición comparable.
 
-**Preparación entregada el 2026-10-09:** [fase 4](docs/fastapi/PHASE_4_REPORT.md).
+**Preparación entregada el 2026-10-09:** [fase 4](PHASE_4_REPORT.md).
 El hub presta el bridge/router y los mapas; el lifespan inicia sólo métricas web pasivas.
 El plazo de apagado procede del propietario y no se renueva entre hub/Uvicorn/lifespan.
 Ping RFC vacío conserva `WS_IDLE_TIMEOUT_SEC` (30 s por defecto) sin exigir pong;
@@ -329,11 +329,11 @@ ASGITransport no activa lifespan ni prueba WS, streaming TCP/backpressure o inte
 
 Conservar regresiones actuales. test_web_server.py llama directamente al router, no es por sí solo suite de sockets. Adaptar fixtures de conftest que acceden a server.sockets, tile_service y router.channels_ctrl sin rebajar expectativas. Mantener test_web_official_compatibility, remaining_web_regressions/races, security_audit y http_cache_contract; helpers privados retirados necesitan cobertura observable equivalente.
 
-[verify_api_parity.py](.agents/skills/contract-openapi-sync/scripts/verify_api_parity.py) compara parcialmente literales/prefijos y depende del router actual; adaptarlo al retirar archivo. No demuestra métodos/schemas/WS ni el 100% del contrato. Combinar catálogo/OpenAPI y pruebas observables.
+[verify_api_parity.py](../../.agents/skills/contract-openapi-sync/scripts/verify_api_parity.py) compara parcialmente literales/prefijos y depende del router actual; adaptarlo al retirar archivo. No demuestra métodos/schemas/WS ni el 100% del contrato. Combinar catálogo/OpenAPI y pruebas observables.
 
-Conservar Python 3.10 y versiones soportadas; CI actual con 3.10/3.12. Datos temporales/limpieza garantizada, sin `.env` ni nodos/canales/airtime operativos. [TESTING.md](docs/TESTING.md) define suite; autorizaciones históricas no activan suites aquí.
+Conservar Python 3.10 y versiones soportadas; CI actual con 3.10/3.12. Datos temporales/limpieza garantizada, sin `.env` ni nodos/canales/airtime operativos. [TESTING.md](../TESTING.md) define suite; autorizaciones históricas no activan suites aquí.
 
-**Estado de fase 5:** Preparación estática completada en [`PHASE_5_REPORT.md`](docs/fastapi/PHASE_5_REPORT.md) y [`PHASE_5_DOCUMENTATION_REGISTRY.json`](docs/fastapi/PHASE_5_DOCUMENTATION_REGISTRY.json). OpenAPI 3.1.0 diferido (70 rutas, 90 operaciones canónicas, 50 alias, 25 DTOs), visor local en [`src/web/docs_ui/`](src/web/docs_ui/), CSP restrictivo y autenticación estricta por cabecera. El candidato permanece inactivo en el core.
+**Estado de fase 5:** Preparación estática completada en [`PHASE_5_REPORT.md`](PHASE_5_REPORT.md) y [`PHASE_5_DOCUMENTATION_REGISTRY.json`](PHASE_5_DOCUMENTATION_REGISTRY.json). OpenAPI 3.1.0 diferido (70 rutas, 90 operaciones canónicas, 50 alias, 25 DTOs), visor local en [`src/web/docs_ui/`](../../src/web/docs_ui/), CSP restrictivo y autenticación estricta por cabecera. El candidato permanece inactivo en el core.
 
 **Puerta:** 16 compuertas registradas en el catálogo de fase 5 pendientes de ejecución autorizada. Sin suites ejecutadas.
 
@@ -343,13 +343,13 @@ Conservar Python 3.10 y versiones soportadas; CI actual con 3.10/3.12. Datos tem
 
 #### 6.1 Instaladores y checker
 
-Actualizar manifests/perfil, [check_runtime_dependencies.py](scripts/check_runtime_dependencies.py), instaladores raíz y guías. Checker sólo verifica cuatro paquetes y Windows lo usa para decidir instalación: añadir requirements sin checker puede omitir FastAPI. Verificar imports/versiones/backend WS por perfil y coherencia de resolución.
+Actualizar manifests/perfil, [check_runtime_dependencies.py](../../scripts/check_runtime_dependencies.py), instaladores raíz y guías. Checker sólo verifica cuatro paquetes y Windows lo usa para decidir instalación: añadir requirements sin checker puede omitir FastAPI. Verificar imports/versiones/backend WS por perfil y coherencia de resolución.
 
 Mantener entrypoint meshcore_bridge.py y Uvicorn embebido; no CLI multiproceso/reload. Verificaciones operativas en instalación aislada autorizada.
 
 #### 6.2 Rollback y retiro
 
-Reutilizar staging de [install.sh](install.sh) y [staged_update.py](scripts/staged_update.py), incluyendo manifests/constraints nuevos en componentes. Conservar configuración/datos/mapas/logs según mecanismo actual; sin cambio de formatos. Registrar recuperación y evitar doble propiedad de radio.
+Reutilizar staging de [install.sh](../../install.sh) y [staged_update.py](../../scripts/staged_update.py), incluyendo manifests/constraints nuevos en componentes. Conservar configuración/datos/mapas/logs según mecanismo actual; sin cambio de formatos. Registrar recuperación y evitar doble propiedad de radio.
 
 Retirar http_server/dispatcher/controladores sólo tras reubicar responsabilidades, revisar consumidores y preservar regresiones. No borrar lógica por contar líneas. Medir reducción neta, incluyendo adaptadores/modelos/tareas. No afirmar transacción atómica del árbol o recuperación ante pérdida eléctrica sin evidencia.
 
@@ -363,7 +363,7 @@ Actualizar arquitectura/manuales/CONTEXT cuando proceda, despliegue/pruebas/índ
 
 Publicar sólo archivos/hunks propios conforme AGENTS, verificando rama/remoto/índice, sin force push. Publicación de esta revisión documental distinta de release FastAPI.
 
-**Estado de fase 6:** Preparación completada en [`PHASE_6_REPORT.md`](docs/fastapi/PHASE_6_REPORT.md) y [`PHASE_6_RELEASE_REGISTRY.json`](docs/fastapi/PHASE_6_RELEASE_REGISTRY.json). Perfiles `core` y `web` implementados en [`check_runtime_dependencies.py`](scripts/check_runtime_dependencies.py) y [`staged_update.py`](scripts/staged_update.py). Guías de despliegue sincronizadas en [`DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md). Todas las 6 fases preparatorias de la migración están concluidas y registradas.
+**Estado de fase 6:** Preparación completada en [`PHASE_6_REPORT.md`](PHASE_6_REPORT.md) y [`PHASE_6_RELEASE_REGISTRY.json`](PHASE_6_RELEASE_REGISTRY.json). Perfiles `core` y `web` implementados en [`check_runtime_dependencies.py`](../../scripts/check_runtime_dependencies.py) y [`staged_update.py`](../../scripts/staged_update.py). Guías de despliegue sincronizadas en [`DEPLOYMENT_GUIDE.md`](../DEPLOYMENT_GUIDE.md). Todas las 6 fases preparatorias de la migración están concluidas y registradas.
 
 **Puerta final:** 9 compuertas de release formalizadas. La activación en producción de FastAPI y cambio de servidor predeterminado en `BridgeCore` permanecen condicionados a la ejecución autorizada de las pruebas de integración en entorno virtual.
 
@@ -391,17 +391,17 @@ Las ubicaciones siguientes permiten reproducir los hallazgos principales por lec
 
 | Hallazgo | Ubicación de evidencia local |
 |---|---|
-| Roles de advert oficiales | [AdvertDataHelpers.h](reference/meshcore/src/helpers/AdvertDataHelpers.h), líneas 7–11; [protocol_types.py](src/protocol_types.py), 115–122 |
-| Imports headless y fábrica | [bridge_core.py](src/bridge_core.py), 45 y 364–372; [exports web](src/web/__init__.py), 7–8 |
-| Estado y diez controladores | [api_router.py](src/web/api_router.py), 119–152 |
-| Contrato interno de canales | [bridge_core.py](src/bridge_core.py), 745; [rx_router.py](src/rx_router.py), 419–420; [system_handler.py](src/routers/system_handler.py), 63–64 |
-| Historial anterior a difusión | [asgi_ws_hub.py](src/web/asgi_ws_hub.py), 80–95 |
-| Auth HTTP/WS y clave prioritaria | [access_policy.py](src/web/access_policy.py), 100–125 |
-| Logs y servicios reales | [api_router.py](src/web/api_router.py), 395–443 y 746–775 |
-| Límites por bytes DM/canal | [sdk_adapter.py](src/serial/sdk_adapter.py), 1044–1050 y 1101–1104 |
-| TX espera resultado | [tx_controller.py](src/web/controllers/tx_controller.py), 65–134 |
-| Presupuesto de parada | [bridge_core.py](src/bridge_core.py), 684–696 y 1126 |
-| Checker e instalación Windows | [check_runtime_dependencies.py](scripts/check_runtime_dependencies.py), 11–16; [install.ps1](install.ps1), 66–75 |
+| Roles de advert oficiales | [AdvertDataHelpers.h](../../reference/meshcore/src/helpers/AdvertDataHelpers.h), líneas 7–11; [protocol_types.py](../../src/protocol_types.py), 115–122 |
+| Imports headless y fábrica | [bridge_core.py](../../src/bridge_core.py), 45 y 364–372; [exports web](../../src/web/__init__.py), 7–8 |
+| Estado y diez controladores | [api_router.py](../../src/web/api_router.py), 119–152 |
+| Contrato interno de canales | [bridge_core.py](../../src/bridge_core.py), 745; [rx_router.py](../../src/rx_router.py), 419–420; [system_handler.py](../../src/routers/system_handler.py), 63–64 |
+| Historial anterior a difusión | [asgi_ws_hub.py](../../src/web/asgi_ws_hub.py), 80–95 |
+| Auth HTTP/WS y clave prioritaria | [access_policy.py](../../src/web/access_policy.py), 100–125 |
+| Logs y servicios reales | [api_router.py](../../src/web/api_router.py), 395–443 y 746–775 |
+| Límites por bytes DM/canal | [sdk_adapter.py](../../src/serial/sdk_adapter.py), 1044–1050 y 1101–1104 |
+| TX espera resultado | [tx_controller.py](../../src/web/controllers/tx_controller.py), 65–134 |
+| Presupuesto de parada | [bridge_core.py](../../src/bridge_core.py), 684–696 y 1126 |
+| Checker e instalación Windows | [check_runtime_dependencies.py](../../scripts/check_runtime_dependencies.py), 11–16; [install.ps1](../../install.ps1), 66–75 |
 
 - Lectura de guía/AGENTS/CONTEXT/índice/arquitectura/ADRs/manifests, instaladores/checker, core/web/controladores/consumidores JS y fuentes oficiales citadas.
 - Al cerrar: comprobaciones de estructura, conteos, enlaces y diff documental. Acreditan el artefacto y referencias locales, no ejecución ASGI ni equivalencia funcional.

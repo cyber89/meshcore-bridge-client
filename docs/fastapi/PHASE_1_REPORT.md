@@ -109,4 +109,4 @@ de radio y no se cambian límites/intervalos de la malla. La
 [preparación de DTO/errores de fase 2](PHASE_2_REPORT.md) avanzó el 2026-10-09;
 no declara superadas estas puertas. La [fase 3](PHASE_3_REPORT.md) prepara
 rutas JSON; su aceptación y las fases 4 a 6 siguen pendientes en
-[PROYECTO.md](../../PROYECTO.md).
+[HISTORICAL_PROPOSAL.md](HISTORICAL_PROPOSAL.md).

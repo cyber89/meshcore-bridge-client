@@ -739,7 +739,7 @@ ausencia de regresiones se valida mediante la suite automatizada de pruebas unit
 
 ## Preparación de MeshCore 1.18 (2026-10-15)
 
-La [investigación contrastada](../new1.18.md) y el [plan por capas](MESHCORE_1_18_UPGRADE_PLAN.md) distinguen cambios implementados y propuestas. El SDK de producción permanece fijado en2.3.15; no se actualizó el checkout de referencias ni se añadió un transporte nuevo. El adapter ya soportaba TCP Companion remoto.
+El [plan por capas](MESHCORE_1_18_UPGRADE_PLAN.md) y el [informe de integración](audits/2026-10-15-meshcore-1.18-integration.md) distinguen cambios implementados y propuestas. El SDK de producción permanece fijado en2.3.15; no se actualizó el checkout de referencias ni se añadió un transporte nuevo. El adapter ya soportaba TCP Companion remoto.
 
 La primera entrega incorpora enum66, respuesta terminal29 en el proxy raw, lectura de frecuencias de cuatro dígitos y ocultación de claves WiFi en backend/terminal web. No modifica endpoints REST, eventos WS, esquemas MQTT/SQLite, colas TX, parámetros RF ni timers. Se conserva la serialización de respuestas con el lock existente y los timeouts no añaden retransmisiones.
 

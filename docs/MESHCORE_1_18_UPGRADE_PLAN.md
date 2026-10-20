@@ -4,8 +4,7 @@ Fecha inicial: 2026-10-15. Actualización: 2026-10-17. Capas 1, 2, 3, 4 y 5
 implementadas en su totalidad conforme a las decisiones del usuario; Capa 6
 consolidada a nivel documental y de verificación estática (ejecución de suites
 de pruebas y ensayo físico pendientes de orden explícita).
-Investigación: [new1.18.md](../new1.18.md).
-Evidencia de integración y QA: [ledger de la entrega](audits/2026-10-15-meshcore-1.18-integration.md).
+Investigación e integración: [ledger de la entrega](audits/2026-10-15-meshcore-1.18-integration.md).
 Evolución: [capas 2/3 y verificación](audits/2026-10-16-meshcore-1.18-layers-2-3.md),
 [selector de transporte](audits/2026-10-17-companion-connection.md),
 [preferencias locales](audits/2026-10-17-firmware-preferences.md),

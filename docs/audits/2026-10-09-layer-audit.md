@@ -44,7 +44,7 @@ Cada especialista tuvo archivos propios; el líder integró contratos y evidenci
 | Frontera de seguridad | [access_policy.py](../../src/web/access_policy.py), middleware, controladores y [services_config.py](../../src/services_config.py) | Presets propios y agregados usan proyección sin secretos. Fallos revisados omiten valores de excepción en respuesta/log y ACK MQTT. Se conservan códigos, metadatos y exportaciones autenticadas intencionales. |
 | SPA | [map.js](../../src/web/static/js/modules/map.js) y consumidores REST/WS | Se escapan seis interpolaciones HTML de métricas remotas. Se conserva frontend Vanilla. Sintaxis comprobada; navegador y explotación no ejecutados. |
 | Instalación | [checker](../../scripts/check_runtime_dependencies.py), manifiestos e instaladores raíz | Web predeterminado y seis pins exactos; probes explícitos `--profile web`, perfil desconocido falla cerrado. Core es perfil de comprobación; `WEB_ENABLED` decide construcción. |
-| Documentación | [índice](../README.md), [plan](../../PROYECTO.md), [ADR 0011](../adr/0011-staged-asgi-migration.md), manuales y fase 6 | Firmas y rutas reales, diagramas Mermaid ASGI y snapshots históricos identificados. Retiradas cifras RSS, instalación garantizada y rollback atómico global sin evidencia. |
+| Documentación | [índice](../README.md), [plan](../fastapi/HISTORICAL_PROPOSAL.md), [ADR 0011](../adr/0011-staged-asgi-migration.md), manuales y fase 6 | Firmas y rutas reales, diagramas Mermaid ASGI y snapshots históricos identificados. Retiradas cifras RSS, instalación garantizada y rollback atómico global sin evidencia. |
 
 Los endpoints mantienen validación y coerciones en los controladores. DTO con
 `Any` y extras son metadatos OpenAPI; no se llama a validación Pydantic para alterar

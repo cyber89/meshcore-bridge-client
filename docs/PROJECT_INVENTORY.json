@@ -1,6 +1,6 @@
-﻿{
-  "generated_at_utc": "2026-10-10T04:27:33.690587+00:00",
-  "project_head": "930823f81fefb1393a68841bcd044fa43111d5c2",
+{
+  "generated_at_utc": "2026-10-20T21:38:36.231574+00:00",
+  "project_head": "2b796a76aef51166ef45d0f08e376b2c245c48b0",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,9 +14,9 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 53,
+    "documents": 87,
     "references": 15,
-    "source_files": 103,
+    "source_files": 149,
     "project_skills": 22,
     "vendor_skills": 8
   },
@@ -48,7 +48,7 @@
     {
       "path": "docs/adr/0005-json-atomic-persistence-over-sqlite.md",
       "category": "maintained-or-decision",
-      "sha256": "8fb7a4786589d8afa6e26ee629d383168d2c6c6089b4f3c0b46cb5cbe20deebf",
+      "sha256": "9a82687c527a57de279bd9a7be582b0ac41fabd8d5430d696c8eb5f6bd4f963f",
       "lines": 52
     },
     {
@@ -84,7 +84,7 @@
     {
       "path": "docs/adr/0011-staged-asgi-migration.md",
       "category": "maintained-or-decision",
-      "sha256": "44e9764755a1624d73a600c23020c680f4eef1cdf2edb352767adb540634d5da",
+      "sha256": "8d597106237aa085824c018b53868d2e20cd9e0eacdb27da5510cbf2eab48b66",
       "lines": 149
     },
     {
@@ -96,20 +96,128 @@
     {
       "path": "docs/adr/0013-python-3-14-modernization.md",
       "category": "maintained-or-decision",
-      "sha256": "8278e65b8e0b34b086742456614c7b9f2bca17e4721312f22eb4600c1a039f9a",
-      "lines": 55
+      "sha256": "4ab261f34a9c37c94e6dbefff48e3152f7d1b4f28725d35956c2b3e7ac4032c2",
+      "lines": 62
+    },
+    {
+      "path": "docs/adr/0014-python-3-15-baseline.md",
+      "category": "maintained-or-decision",
+      "sha256": "28eeb2e6a0d7719f7109230562c174351c7972a9128a68420ffcba2aa9774eba",
+      "lines": 60
+    },
+    {
+      "path": "docs/adr/0015-python-3-14-8-baseline.md",
+      "category": "maintained-or-decision",
+      "sha256": "3d67b713279dc51caa2e61710aebd6005fdcc37f4fa5c1f80e1c9f6697fd4129",
+      "lines": 62
+    },
+    {
+      "path": "docs/adr/0016-python-3-12-baseline.md",
+      "category": "maintained-or-decision",
+      "sha256": "7f1023006d08bf82de0cd9e6d77d824395797a09062901708d33050da06a3ac3",
+      "lines": 66
+    },
+    {
+      "path": "docs/adr/0017-sqlite-station-browser-cache.md",
+      "category": "maintained-or-decision",
+      "sha256": "3209b52f82e0e7e95379ea86ce4e92c4a5d53c7dd4a56667a6dfe3679f802870",
+      "lines": 25
+    },
+    {
+      "path": "docs/adr/0018-personal-station-authentication.md",
+      "category": "maintained-or-decision",
+      "sha256": "caeabcc390b99a1eb4cea266f450c86c35eefa4cc6b098a981eadc9a221915ae",
+      "lines": 35
     },
     {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "a0c6c561fb1764c47dc47da48bc1f56ca04477fc283c6d7f3ef2964091325af2",
-      "lines": 597
+      "sha256": "bd725d1e072e74ba9266a9f9ae09896f5b579cf3973cd154f76aad4537c0cddb",
+      "lines": 836
     },
     {
       "path": "docs/audits/2026-10-09-layer-audit.md",
       "category": "maintained-or-decision",
-      "sha256": "bc81669ad49f4e14afc6e671da601c8b22528427e2fe69c960f2ceb182138850",
+      "sha256": "e1c5eb561d3a3406eef37126a40f31924ffa21ffed4bcc65d75bd2c1ffdddb52",
       "lines": 105
+    },
+    {
+      "path": "docs/audits/2026-10-15-meshcore-1.18-backend.md",
+      "category": "maintained-or-decision",
+      "sha256": "50563339c86c3ef9373cd44c330388f520366f5ac2ec9b16302f169b5877c77f",
+      "lines": 156
+    },
+    {
+      "path": "docs/audits/2026-10-15-meshcore-1.18-integration.md",
+      "category": "maintained-or-decision",
+      "sha256": "335f7bc2b09fcff12dc5638ae353e0284abe18303c20ce82213dc1ac0258eccf",
+      "lines": 214
+    },
+    {
+      "path": "docs/audits/2026-10-15-meshcore-1.18-protocol.md",
+      "category": "maintained-or-decision",
+      "sha256": "068fc73b25139b31427f1ba872212335d9b2ccbcb9fee442593fdce88495c3e5",
+      "lines": 116
+    },
+    {
+      "path": "docs/audits/2026-10-15-meshcore-1.18-web.md",
+      "category": "maintained-or-decision",
+      "sha256": "4674ae702db26fa97a3afe1664e1b9cc12d8b3b20acd2c7eb5a963468050f993",
+      "lines": 283
+    },
+    {
+      "path": "docs/audits/2026-10-16-meshcore-1.18-layer2-protocol.md",
+      "category": "maintained-or-decision",
+      "sha256": "44367a9418d0373b6ae30bc74035d5448a94b573dc52a555bc015d8eeb151fcf",
+      "lines": 58
+    },
+    {
+      "path": "docs/audits/2026-10-16-meshcore-1.18-layers-2-3.md",
+      "category": "maintained-or-decision",
+      "sha256": "8f405fce84dd2f1d9cd0fbf7eedc7fc740e20498337d0f6b2c83911b85e0d201",
+      "lines": 173
+    },
+    {
+      "path": "docs/audits/2026-10-16-meshcore-1.18-remote-plan.md",
+      "category": "maintained-or-decision",
+      "sha256": "adf17d9b04a0ee3e935e017d13028fa9a549af700cae67426c0eae101d8aaee6",
+      "lines": 53
+    },
+    {
+      "path": "docs/audits/2026-10-17-companion-connection.md",
+      "category": "maintained-or-decision",
+      "sha256": "ae07b68999d1d3c6e8e7c17b544bf8b4d111894c2933008659e897ca762f7366",
+      "lines": 89
+    },
+    {
+      "path": "docs/audits/2026-10-17-firmware-preferences.md",
+      "category": "maintained-or-decision",
+      "sha256": "e9aaf1825e7ef61dcc404e80be51676caafed9020c1f1d175d16e29965f5a530",
+      "lines": 107
+    },
+    {
+      "path": "docs/audits/2026-10-17-firmware-wifi.md",
+      "category": "maintained-or-decision",
+      "sha256": "aff433e8cca109abe41a228a67b412f0c83d48250941d574e13fe71a863f0bd5",
+      "lines": 66
+    },
+    {
+      "path": "docs/audits/2026-10-17-meshcore-1.18-manual-admin.md",
+      "category": "maintained-or-decision",
+      "sha256": "ef978485ccd8c377657c5e542ee572b644ddae2e50320ab5d234566303f1d535",
+      "lines": 77
+    },
+    {
+      "path": "docs/audits/2026-10-17-remote-firmware-preferences.md",
+      "category": "maintained-or-decision",
+      "sha256": "36bdb5726c603c45a876b5edb3de546acd5a08780271e3fc77d440b24a067242",
+      "lines": 121
+    },
+    {
+      "path": "docs/audits/2026-10-17-sensor-subscriptions.md",
+      "category": "maintained-or-decision",
+      "sha256": "7d5855cf60835da74141cf351107c7cb974649cd8df9e4ba6bffef26253f4149",
+      "lines": 28
     },
     {
       "path": "docs/audits/node-config-2026-10-03/backend/README.md",
@@ -160,27 +268,63 @@
       "lines": 131
     },
     {
+      "path": "docs/AUTH_STARTUP_FIX_2026-10-18.md",
+      "category": "maintained-or-decision",
+      "sha256": "1e4371567f332a5e00f797594058d8606d5012e478d1ce4928cf5d39fb4e473e",
+      "lines": 57
+    },
+    {
+      "path": "docs/AUTHENTICATION_PLAN.md",
+      "category": "maintained-or-decision",
+      "sha256": "98bc332b8416b4bd873c8da35557f041d4f983092c61d3848e04aeb62bb25e90",
+      "lines": 93
+    },
+    {
+      "path": "docs/CHAT_READING_IMPROVEMENTS_2026-10-18.md",
+      "category": "maintained-or-decision",
+      "sha256": "73f55238abcf2c364935572754ce53fc49ed5a27875e48c118337958e9354c12",
+      "lines": 81
+    },
+    {
       "path": "docs/CODE_EXPLANATION.md",
       "category": "maintained-or-decision",
-      "sha256": "c7acb08c1baf42c70e750ab411304f124d8b77de361d2dc753c58fa93695e4e3",
-      "lines": 82
+      "sha256": "74d48ce0baa3d5648882a959f7f0d3e0c2f82609ff28e8d82b7490b23e691f77",
+      "lines": 90
+    },
+    {
+      "path": "docs/CSS_VISUAL_REVIEW_2026-10-18.md",
+      "category": "maintained-or-decision",
+      "sha256": "9c4f23dbaf644e82ebcfe652ecaeed13a6b6c469867c0c39b70add79b036b91a",
+      "lines": 77
     },
     {
       "path": "docs/DEPLOYMENT_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "d71bd3f523b36e7e2e42d0f005289486feadc9731c92177e090f2c270e308a7a",
-      "lines": 290
+      "sha256": "e9fd14bdb05d3b9ede1b6140421e228f764a0bae9549af17c1a0217fdcf23fd1",
+      "lines": 314
+    },
+    {
+      "path": "docs/DIALOG_TOAST_REFINEMENT_2026-10-17.md",
+      "category": "maintained-or-decision",
+      "sha256": "33c3af297ae246c4a9eff5deead142c7965cd14e82a397aa23466297353a4157",
+      "lines": 68
     },
     {
       "path": "docs/fastapi/DEPENDENCY_DECISIONS.md",
       "category": "maintained-or-decision",
-      "sha256": "1af3f10fb305e6792338fe075f9a3be11f0cc00fd9f633f75b19701d1467eea7",
-      "lines": 313
+      "sha256": "7b89a2458afeb99934f58e5548e33849fc76c11452db6ea63a653f55058cb273",
+      "lines": 319
+    },
+    {
+      "path": "docs/fastapi/HISTORICAL_PROPOSAL.md",
+      "category": "maintained-or-decision",
+      "sha256": "a6eddd16d9ea085133c87eb0610013632fdab727137e242a73f4d744d6e8a7f9",
+      "lines": 410
     },
     {
       "path": "docs/fastapi/INTERNAL_CONTRACT_BASELINE.md",
       "category": "maintained-or-decision",
-      "sha256": "7de8b92fa16a5cd4d059def73b7dcaaffb4859f3e7e18eefbc8c804bae6b8ecf",
+      "sha256": "c2d0981c53e646f4b22b9220af48a4887b1ffc0f22cc3a16ebc4521da99d8f8e",
       "lines": 386
     },
     {
@@ -192,13 +336,13 @@
     {
       "path": "docs/fastapi/PHASE_1_REPORT.md",
       "category": "maintained-or-decision",
-      "sha256": "06bd3fcbe4a9ec0a88aa3108b7b03ccde7e2cac83776183b5f83d27200286c9a",
+      "sha256": "ed50b19f51fcdf4a1d91b80328ff392f7f42e07188b4d4c6fc7cf6f3022f64d1",
       "lines": 112
     },
     {
       "path": "docs/fastapi/PHASE_1_SECURITY_REPORT.md",
       "category": "maintained-or-decision",
-      "sha256": "8c8f1361675219c16442155441a29e99ab7f28e8d99377fe752105502830419b",
+      "sha256": "8f44a581a0b440c8ccf539cf36a035c158645593f402a21599b7cd2f4a261c4f",
       "lines": 141
     },
     {
@@ -244,6 +388,42 @@
       "lines": 410
     },
     {
+      "path": "docs/FRONTEND_DELIVERY.md",
+      "category": "maintained-or-decision",
+      "sha256": "f17ba9923cae661692e102bfc22199dc2e5a61b328448d59babfce398f7bb303",
+      "lines": 237
+    },
+    {
+      "path": "docs/FRONTEND_MODERNIZATION_PLAN.md",
+      "category": "maintained-or-decision",
+      "sha256": "94431bc3fe2470e74387cc15f734936afb608ac1274d296326d21cb7a2aca063",
+      "lines": 238
+    },
+    {
+      "path": "docs/JS_FRONTEND_AUDIT_2026-10-18.md",
+      "category": "maintained-or-decision",
+      "sha256": "93c989b1ab4c44b9bcdb194254de354c253cc86760f38e0f14926ea900923aaa",
+      "lines": 134
+    },
+    {
+      "path": "docs/LOGIN_AUDIT_2026-10-12.md",
+      "category": "maintained-or-decision",
+      "sha256": "3bc4abdd6cda05ac8185119cb7541fdfd7e126d260dac73c62c304c36f3b94c6",
+      "lines": 36
+    },
+    {
+      "path": "docs/LOGIN_DESIGN_AND_RECOVERY.md",
+      "category": "maintained-or-decision",
+      "sha256": "072bdb8080a6debad841e05723ce365cc17e5b7f20efbc2e87e338507ebbb6a5",
+      "lines": 64
+    },
+    {
+      "path": "docs/MESHCORE_1_18_UPGRADE_PLAN.md",
+      "category": "maintained-or-decision",
+      "sha256": "515cf9b182365b898f756f832c4c2dd5759c29002c2cea28cca9063dda46ec9a",
+      "lines": 312
+    },
+    {
       "path": "docs/N8N_WORKFLOW_GUIDE.md",
       "category": "maintained-or-decision",
       "sha256": "4c5c6def02cf82bb706e59a95ecc4a0be6c2eed30035ef4f8c7af9124c78fd2c",
@@ -252,20 +432,26 @@
     {
       "path": "docs/PROJECT_KNOWLEDGE.md",
       "category": "maintained-or-decision",
-      "sha256": "198f212b1f6aca7da5717a06b2a0dcdb3d1a0c193baee27967b961225d5b31b9",
-      "lines": 196
+      "sha256": "e7b1a224f22b75416fa6dac0b3fa6b0b8bbd5075e9c9d337a46e5289b1f02538",
+      "lines": 203
     },
     {
       "path": "docs/PROTOCOL_SPEC.md",
       "category": "maintained-or-decision",
-      "sha256": "f78e5048f47497593c391e5dc827e8f1c4fc5d38333ce9e7d0c12d89ab793ef5",
-      "lines": 507
+      "sha256": "0b6bb21636a9513335598f7aaf698a147ea53d223872a9f213485e87b673494a",
+      "lines": 570
+    },
+    {
+      "path": "docs/PYTHON_314_MODERNIZATION_REPORT.md",
+      "category": "maintained-or-decision",
+      "sha256": "2e218bebccb3f4d2b2c432ea4266cc53a04b9e2b4b16094dbe85be3c97f14f04",
+      "lines": 52
     },
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "0f0b0bc3daa411291ff5f35dbe6fa1ec2448db0c0f1a5061ee58ce69624d13ee",
-      "lines": 73
+      "sha256": "0e85877358137f2a5f5cc63677471276eff43b1f557f9145971e22903b0aaf85",
+      "lines": 89
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",
@@ -292,39 +478,57 @@
       "lines": 80
     },
     {
+      "path": "docs/STORAGE.md",
+      "category": "maintained-or-decision",
+      "sha256": "8b7aeff1bcaf04a94d4ae6963b89cf31b6a149358f2e6782610d00369ca38b42",
+      "lines": 52
+    },
+    {
+      "path": "docs/STORAGE_INTEGRATION_PLAN.md",
+      "category": "maintained-or-decision",
+      "sha256": "1d9b28db01a2e41722aba8173fcd451632bae275f80ae63b89c5c15214f6f2b5",
+      "lines": 84
+    },
+    {
       "path": "docs/SYSTEM_LAYERS_MANUAL.md",
       "category": "maintained-or-decision",
-      "sha256": "2880843156056b4e8910123cba228a985f0643ed3c61a435483686a3d14cadb8",
-      "lines": 454
+      "sha256": "952669f82b2b25a995bcb18cd1d412584ca09f656b245978ef3d9387ab6e43f7",
+      "lines": 485
     },
     {
       "path": "docs/TEST_INVENTORY.md",
       "category": "maintained-or-decision",
-      "sha256": "4ec8f714db0dbd7eaf5932f4d22988c9873d9ac062422ccf5f86b17f4522fbe5",
+      "sha256": "9a4061c5039d1f8a8be7d3ad12d22503ca985b5e287b85daf85f9427e7642892",
       "lines": 90
     },
     {
       "path": "docs/TESTING.md",
       "category": "maintained-or-decision",
-      "sha256": "d7a6e5933ee7f93be4775f349c64bcca729745557c139fca2de2fd3008f7538f",
-      "lines": 97
+      "sha256": "9b915149b52cfff868f43899c400996631394e0b7f6dce1516daf9e83dd38775",
+      "lines": 138
+    },
+    {
+      "path": "docs/WEB_VISUAL_REFINEMENT_2026-10-17.md",
+      "category": "maintained-or-decision",
+      "sha256": "f74277847215c38996790c96980987fa4eafa20003e86128f08074a51e614fce",
+      "lines": 118
     },
     {
       "path": "README.md",
       "category": "maintained-or-decision",
-      "sha256": "d52b40ba1d5ddf84929764a9d32bfa0b44148e746f96fe56b0bd5169a9538c10",
-      "lines": 235
+      "sha256": "cf548dbf778cc7243c924f69f9b0b70c49436f719d608eb8ebd875b4c640aac9",
+      "lines": 216
     },
     {
       "path": "AGENTS.md",
       "category": "maintained-or-decision",
-      "sha256": "3352c9b7fa4988cb587164cdee9e806398aad712ed40d7afac2b80cffea35683",
-      "lines": 264
+      "sha256": "c60746e3cd2ea184631b188746127c2843a61d59c7e48c1cda7ede078f45785a",
+      "lines": 265
     },
     {
       "path": "CONTEXT.md",
       "category": "maintained-or-decision",
-      "sha256": "cd7fba5ac5a780f1a1ef31f0e68bd67fc2fd20894353d1fbdaabc011c89a9d00",
+      "sha256": "235e69b416caffbabc1f57b43937012375fd281dbcc480de71709bd863e52738",
       "lines": 91
     },
     {
@@ -336,7 +540,7 @@
     {
       "path": ".agents/README.md",
       "category": "maintained-or-decision",
-      "sha256": "352b133a4ec9de2971f78735d6b41d16821ac33d24541e900e1e014411701c97",
+      "sha256": "5e8bae48b1d96134689efddd795bc1d953cb008b7c5f50134819004b7fb83f45",
       "lines": 46
     }
   ],
@@ -1181,7 +1385,7 @@
       "name": "api-design-testing",
       "path": ".agents/skills/api-design-testing/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Dise├▒o, especificaci├│n OpenAPI/Swagger, est├índares RESTful (RFC 7807 Problem Details),\n  manejo estricto de c├│digos HTTP (200, 201, 204, 400, 401, 403, 404, 413, 422, 429),\n  idempotencia, CORS, OpenAPI 3.1, rate limiting y pruebas automatizadas de contratos.",
+      "description": ">-\n  Diseño, especificación OpenAPI/Swagger, estándares RESTful (RFC 7807 Problem Details),\n  manejo estricto de códigos HTTP (200, 201, 204, 400, 401, 403, 404, 413, 422, 429),\n  idempotencia, CORS, OpenAPI 3.1, rate limiting y pruebas automatizadas de contratos.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/api-design-testing/scripts/validate_api_contract.py"
@@ -1199,7 +1403,7 @@
       "name": "async-concurrency-engineering",
       "path": ".agents/skills/async-concurrency-engineering/SKILL.md",
       "ownership": "project",
-      "description": "Revisar tareas, locks, backpressure y apagado de MeshCore Bridge sin bloquear asyncio; mantener compatibilidad Python 3.10.",
+      "description": "Revisar tareas, locks, backpressure y apagado de MeshCore Bridge sin bloquear asyncio; usar CPython 3.12+.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/async-concurrency-engineering/scripts/audit_async_concurrency.py"
@@ -1209,7 +1413,7 @@
       "name": "asyncio-profiler-leak-detector",
       "path": ".agents/skills/asyncio-profiler-leak-detector/SKILL.md",
       "ownership": "project",
-      "description": "Medir event-loop lag y asignaciones con tracemalloc en escenarios aislados; distinguir el benchmark sint├⌐tico del perfilado del servicio real.",
+      "description": "Medir event-loop lag y asignaciones con tracemalloc en escenarios aislados; distinguir el benchmark sintético del perfilado del servicio real.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/asyncio-profiler-leak-detector/scripts/profile_async_health.py"
@@ -1229,7 +1433,7 @@
       "name": "clean-code-solid",
       "path": ".agents/skills/clean-code-solid/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Auditor├¡a y aplicaci├│n de principios SOLID, patrones de dise├▒o GoF, reducci├│n de complejidad\n  ciclom├ítica y detecci├│n de Code Smells (God Classes, Long Methods, Feature Envy, Primitive Obsession).",
+      "description": ">-\n  Auditoría y aplicación de principios SOLID, patrones de diseño GoF, reducción de complejidad\n  ciclomática y detección de Code Smells (God Classes, Long Methods, Feature Envy, Primitive Obsession).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/clean-code-solid/scripts/audit_architecture_contracts.py",
@@ -1248,7 +1452,7 @@
       "name": "contract-openapi-sync",
       "path": ".agents/skills/contract-openapi-sync/SKILL.md",
       "ownership": "project",
-      "description": "Revisar compatibilidad REST y WebSocket entre Python y la SPA de MeshCore Bridge; usar comparaci├│n l├⌐xica de rutas como se├▒al parcial y pruebas aisladas para contratos reales.",
+      "description": "Revisar compatibilidad REST y WebSocket entre Python y la SPA de MeshCore Bridge; usar comparación léxica de rutas como señal parcial y pruebas aisladas para contratos reales.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/contract-openapi-sync/scripts/verify_api_parity.py"
@@ -1266,7 +1470,7 @@
       "name": "distributed-mesh-simulation",
       "path": ".agents/skills/distributed-mesh-simulation/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Simulaci├│n avanzada de redes de malla distribuidas e ingenier├¡a del caos para LoRa/MeshCore.\n  Protocolos de pruebas de estr├⌐s multi-nodo, particiones de red, latencia por saltos,\n  inyecci├│n de tramas binarias corruptas, saturaci├│n de colas y an├ílisis automatizado de logs.",
+      "description": ">-\n  Simulación avanzada de redes de malla distribuidas e ingeniería del caos para LoRa/MeshCore.\n  Protocolos de pruebas de estrés multi-nodo, particiones de red, latencia por saltos,\n  inyección de tramas binarias corruptas, saturación de colas y análisis automatizado de logs.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1274,7 +1478,7 @@
       "name": "domain-adr-keeper",
       "path": ".agents/skills/domain-adr-keeper/SKILL.md",
       "ownership": "project",
-      "description": "Mantener CONTEXT.md y ADRs coherentes con invariantes y capacidades implementadas; conservar decisiones hist├│ricas y registrar discrepancias expl├¡citas.",
+      "description": "Mantener CONTEXT.md y ADRs coherentes con invariantes y capacidades implementadas; conservar decisiones históricas y registrar discrepancias explícitas.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/domain-adr-keeper/scripts/audit_domain_adr.py"
@@ -1284,7 +1488,7 @@
       "name": "gof-design-patterns-expert",
       "path": ".agents/skills/gof-design-patterns-expert/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Cat├ílogo y directrices de implementaci├│n de patrones de dise├▒o cl├ísicos (GoF) y micro-patrones\n  en Python moderno: Strategy, Factory Method, Adapter, Observer, Command, State Machine,\n  Facade, Builder y Object Pool.",
+      "description": ">-\n  Catálogo y directrices de implementación de patrones de diseño clásicos (GoF) y micro-patrones\n  en Python moderno: Strategy, Factory Method, Adapter, Observer, Command, State Machine,\n  Facade, Builder y Object Pool.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/gof-design-patterns-expert/scripts/analyze_design_patterns.py"
@@ -1294,7 +1498,7 @@
       "name": "html-css-modern-js",
       "path": ".agents/skills/html-css-modern-js/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Est├índares de frontend moderno: HTML5 sem├íntico (header, nav, main, section, aside),\n  CSS moderno (Flexbox, CSS Grid, Custom Properties, clamp()), y JavaScript ES6-ES2024\n  (async/await, AbortController, WebSocket auto-reconnect, CustomEvents, sanitizaci├│n DOM).",
+      "description": ">-\n  Estándares de frontend moderno: HTML5 semántico (header, nav, main, section, aside),\n  CSS moderno (Flexbox, CSS Grid, Custom Properties, clamp()), y JavaScript ES6-ES2024\n  (async/await, AbortController, WebSocket auto-reconnect, CustomEvents, sanitización DOM).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/html-css-modern-js/scripts/lint_frontend_standards.py"
@@ -1312,7 +1516,7 @@
       "name": "installer-release-maintenance",
       "path": ".agents/skills/installer-release-maintenance/SKILL.md",
       "ownership": "project",
-      "description": "Revisar o mantener instaladores ra├¡z, servicio systemd y publicaci├│n Git de MeshCore Bridge; comprobar rutas, entorno Python y c├│digos de salida antes de ejecutar cambios autorizados.",
+      "description": "Revisar o mantener instaladores raíz, servicio systemd y publicación Git de MeshCore Bridge; comprobar rutas, entorno Python y códigos de salida antes de ejecutar cambios autorizados.",
       "ui_metadata": ".agents/skills/installer-release-maintenance/agents/openai.yaml",
       "scripts": []
     },
@@ -1320,7 +1524,7 @@
       "name": "lora-frame-validator",
       "path": ".agents/skills/lora-frame-validator/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Herramienta de an├ílisis, c├ílculo y verificaci├│n de tramas binarias de protocolo LoRa/MeshCore.\n  Permite validar delimitaci├│n SOF/EOF, secuencias de escape (byte stuffing) y calcular\n  m├║ltiples algoritmos de CRC (CRC-CCITT, CRC-16-IBM, CRC-32, Fletcher-16, XOR). Usar para\n  validar capturas de tramas UART/LoRa reales o depurar serializadores/deserializadores.",
+      "description": ">-\n  Herramienta de análisis, cálculo y verificación de tramas binarias de protocolo LoRa/MeshCore.\n  Permite validar delimitación SOF/EOF, secuencias de escape (byte stuffing) y calcular\n  múltiples algoritmos de CRC (CRC-CCITT, CRC-16-IBM, CRC-32, Fletcher-16, XOR). Usar para\n  validar capturas de tramas UART/LoRa reales o depurar serializadores/deserializadores.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/lora-frame-validator/scripts/validate_frame.py"
@@ -1330,7 +1534,7 @@
       "name": "lora-packet-simulator",
       "path": ".agents/skills/lora-packet-simulator/SKILL.md",
       "ownership": "project",
-      "description": "Reproducir escenarios virtuales y regresiones MeshCore sin hardware; no sustituye la interoperabilidad con radio oficial ni incluye replay PCAP gen├⌐rico.",
+      "description": "Reproducir escenarios virtuales y regresiones MeshCore sin hardware; no sustituye la interoperabilidad con radio oficial ni incluye replay PCAP genérico.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/lora-packet-simulator/scripts/simulate_virtual_mesh.py"
@@ -1340,7 +1544,7 @@
       "name": "meshcore-source-inspector",
       "path": ".agents/skills/meshcore-source-inspector/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Herramienta especializada para analizar el c├│digo fuente de referencia en C/C++ y Python\n  de MeshCore (/reference/). Extrae structs binarios, enums, constantes de framing (#define)\n  y algoritmos de CRC sin saturar la ventana de contexto. Usar cuando se requiera investigar\n  tipos, formatos de tramas o layouts de memoria del firmware.",
+      "description": ">-\n  Herramienta especializada para analizar el código fuente de referencia en C/C++ y Python\n  de MeshCore (/reference/). Extrae structs binarios, enums, constantes de framing (#define)\n  y algoritmos de CRC sin saturar la ventana de contexto. Usar cuando se requiera investigar\n  tipos, formatos de tramas o layouts de memoria del firmware.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/meshcore-source-inspector/scripts/inspect_meshcore_ast.py"
@@ -1350,7 +1554,7 @@
       "name": "project-reference-audit",
       "path": ".agents/skills/project-reference-audit/SKILL.md",
       "ownership": "project",
-      "description": "Inventariar y verificar documentaci├│n y procedencia de referencias de MeshCore Bridge; contrastar afirmaciones con el checkout y parsers oficiales sin arrancar servicios.",
+      "description": "Inventariar y verificar documentación y procedencia de referencias de MeshCore Bridge; contrastar afirmaciones con el checkout y parsers oficiales sin arrancar servicios.",
       "ui_metadata": ".agents/skills/project-reference-audit/agents/openai.yaml",
       "scripts": []
     },
@@ -1358,7 +1562,7 @@
       "name": "python-patterns-typing",
       "path": ".agents/skills/python-patterns-typing/SKILL.md",
       "ownership": "project",
-      "description": "Mantener Python 3.10 compatible, tipos estrictos y modelos de dominio de MeshCore Bridge; usar al modificar Python del proyecto.",
+      "description": "Mantener CPython 3.12+, tipos estrictos y modelos de dominio de MeshCore Bridge; usar al modificar Python del proyecto.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/python-patterns-typing/scripts/verify_python_standards.py"
@@ -1368,7 +1572,7 @@
       "name": "refactoring-clean-architecture",
       "path": ".agents/skills/refactoring-clean-architecture/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Cat├ílogo de t├⌐cnicas de refactorizaci├│n de Martin Fowler, m├⌐tricas de calidad de c├│digo\n  (complejidad ciclom├ítica de McCabe, longitud de m├⌐todos, acoplamiento aferente/eferente)\n  y principios de Clean Architecture.",
+      "description": ">-\n  Catálogo de técnicas de refactorización de Martin Fowler, métricas de calidad de código\n  (complejidad ciclomática de McCabe, longitud de métodos, acoplamiento aferente/eferente)\n  y principios de Clean Architecture.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/refactoring-clean-architecture/scripts/evaluate_refactoring_metrics.py"
@@ -1378,7 +1582,7 @@
       "name": "security-code-auditor",
       "path": ".agents/skills/security-code-auditor/SKILL.md",
       "ownership": "project",
-      "description": "Auditar entradas, secretos, permisos y l├¡mites de MeshCore Bridge con evidencia de c├│digo y regresiones aisladas; distinguir heur├¡sticas de pruebas de seguridad.",
+      "description": "Auditar entradas, secretos, permisos y límites de MeshCore Bridge con evidencia de código y regresiones aisladas; distinguir heurísticas de pruebas de seguridad.",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/security-code-auditor/scripts/run_security_audit.py"
@@ -1388,7 +1592,7 @@
       "name": "software-architecture-patterns",
       "path": ".agents/skills/software-architecture-patterns/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Est├índares y directrices para Arquitectura Hexagonal (Ports & Adapters), Arquitectura Dirigida\n  por Eventos (EDA), Domain-Driven Design (DDD), CQRS, State Machines y Patrones de Resiliencia\n  (Circuit Breaker, Exponential Backoff, Bulkhead, Fallback).",
+      "description": ">-\n  Estándares y directrices para Arquitectura Hexagonal (Ports & Adapters), Arquitectura Dirigida\n  por Eventos (EDA), Domain-Driven Design (DDD), CQRS, State Machines y Patrones de Resiliencia\n  (Circuit Breaker, Exponential Backoff, Bulkhead, Fallback).",
       "ui_metadata": null,
       "scripts": [
         ".agents/skills/software-architecture-patterns/scripts/audit_architecture.py"
@@ -1414,7 +1618,7 @@
       "name": "tgrep-code-search",
       "path": ".agents/skills/tgrep-code-search/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Motor de b├║squeda indexada por trigramas de alto rendimiento (microsoft/tgrep).\n  Permite realizar b├║squedas regex ultra-r├ípidas (seg├║n ├¡ndice y carga) en miles de archivos del\n  repositorio, bases de c├│digo C/C++ de referencia (/reference/) y m├│dulos del bridge.",
+      "description": ">-\n  Motor de búsqueda indexada por trigramas de alto rendimiento (microsoft/tgrep).\n  Permite realizar búsquedas regex ultra-rápidas (según índice y carga) en miles de archivos del\n  repositorio, bases de código C/C++ de referencia (/reference/) y módulos del bridge.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1422,7 +1626,7 @@
       "name": "ui-ux-pro-max",
       "path": ".agents/skills/ui-ux-pro-max/SKILL.md",
       "ownership": "vendor",
-      "description": ">-\n  Inteligencia de dise├▒o UI/UX para web, m├│vil y escritorio. Sistema integral de dise├▒o con 79 estilos (50 activos),\n  192 paletas de color con perfiles de razonamiento, 74 emparejamientos tipogr├íficos, 119 reglas de experiencia de usuario (UX),\n  105 iconos curados, 17 presets de animaci├│n y 25 tipos de gr├íficos sin dependencias pesadas.",
+      "description": ">-\n  Inteligencia de diseño UI/UX para web, móvil y escritorio. Sistema integral de diseño con 79 estilos (50 activos),\n  192 paletas de color con perfiles de razonamiento, 74 emparejamientos tipográficos, 119 reglas de experiencia de usuario (UX),\n  105 iconos curados, 17 presets de animación y 25 tipos de gráficos sin dependencias pesadas.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1438,7 +1642,7 @@
       "name": "web-browser-inspection",
       "path": ".agents/skills/web-browser-inspection/SKILL.md",
       "ownership": "project",
-      "description": "Inspeccionar la SPA con Playwright autorizado, servidor virtual propio y capturas desktop/mobile; no usar una estaci├│n operativa como fixture.",
+      "description": "Inspeccionar la SPA con Playwright autorizado, servidor virtual propio y capturas desktop/mobile; no usar una estación operativa como fixture.",
       "ui_metadata": null,
       "scripts": []
     },
@@ -1446,7 +1650,7 @@
       "name": "web-ui-design-system",
       "path": ".agents/skills/web-ui-design-system/SKILL.md",
       "ownership": "project",
-      "description": ">-\n  Dise├▒o visual de interfaces de grado profesional: Sistema de tokens de dise├▒o, paletas arm├│nicas HSL,\n  escala tipogr├ífica fluida (clamp), grilla espacial de 8pt, contraste accesible WCAG 2.2 AA (al menos 4.5:1),\n  micro-animaciones y soporte responsivo desktop/mobile.",
+      "description": ">-\n  Diseño visual de interfaces de grado profesional: Sistema de tokens de diseño, paletas armónicas HSL,\n  escala tipográfica fluida (clamp), grilla espacial de 8pt, contraste accesible WCAG 2.2 AA (al menos 4.5:1),\n  micro-animaciones y soporte responsivo desktop/mobile.",
       "ui_metadata": null,
       "scripts": []
     }
@@ -1462,6 +1666,7 @@
     "src/admin/traceroute_executor.py",
     "src/admin_handler.py",
     "src/bridge_core.py",
+    "src/companion_connection.py",
     "src/contact_manager.py",
     "src/deduplicator.py",
     "src/diagnostics.py",
@@ -1496,6 +1701,8 @@
     "src/services_config.py",
     "src/services_manager.py",
     "src/shared_utils.py",
+    "src/station_database.py",
+    "src/storage_validation.py",
     "src/target_resolver.py",
     "src/tcp_companion_server.py",
     "src/virtual_mesh_adapter.py",
@@ -1504,6 +1711,7 @@
     "src/web/api_error_policy.py",
     "src/web/api_router.py",
     "src/web/asgi_assets.py",
+    "src/web/asgi_compression.py",
     "src/web/asgi_docs.py",
     "src/web/asgi_errors.py",
     "src/web/asgi_http.py",
@@ -1516,11 +1724,14 @@
     "src/web/asgi_server.py",
     "src/web/asgi_websocket.py",
     "src/web/asgi_ws_hub.py",
+    "src/web/auth_store.py",
+    "src/web/authentication.py",
     "src/web/controllers/__init__.py",
     "src/web/controllers/base.py",
     "src/web/controllers/channels_controller.py",
     "src/web/controllers/config_controller.py",
     "src/web/controllers/contacts_controller.py",
+    "src/web/controllers/history_controller.py",
     "src/web/controllers/logs_controller.py",
     "src/web/controllers/nodes_controller.py",
     "src/web/controllers/packets_controller.py",
@@ -1535,26 +1746,65 @@
     "src/web/request_models.py",
     "src/web/security_inspector.py",
     "src/web/server_protocol.py",
+    "src/web/static/css/app.css",
+    "src/web/static/css/app.min.css",
     "src/web/static/css/bootstrap-icons.min.css",
+    "src/web/static/css/bootstrap-slate.min.css",
+    "src/web/static/css/bootstrap-zephyr.local.min.css",
+    "src/web/static/css/bootstrap-zephyr.min.css",
     "src/web/static/css/bootstrap.min.css",
+    "src/web/static/css/leaflet.css",
+    "src/web/static/css/leaflet.min.css",
     "src/web/static/index.html",
     "src/web/static/js/app.js",
+    "src/web/static/js/app.min.js",
     "src/web/static/js/bootstrap.bundle.min.js",
+    "src/web/static/js/core/auth.js",
+    "src/web/static/js/core/auth.min.js",
     "src/web/static/js/core/chart_engine.js",
+    "src/web/static/js/core/chart_engine.min.js",
+    "src/web/static/js/core/dialog_controller.js",
+    "src/web/static/js/core/dialog_controller.min.js",
     "src/web/static/js/core/eventbus.js",
+    "src/web/static/js/core/eventbus.min.js",
+    "src/web/static/js/core/form_feedback.js",
+    "src/web/static/js/core/form_feedback.min.js",
     "src/web/static/js/core/storage.js",
+    "src/web/static/js/core/storage.min.js",
+    "src/web/static/js/core/store.js",
+    "src/web/static/js/core/store.min.js",
+    "src/web/static/js/core/tabs.js",
+    "src/web/static/js/core/tabs.min.js",
+    "src/web/static/js/core/theme.js",
+    "src/web/static/js/core/theme.min.js",
     "src/web/static/js/core/utils.js",
+    "src/web/static/js/core/utils.min.js",
     "src/web/static/js/core/websocket.js",
+    "src/web/static/js/core/websocket.min.js",
     "src/web/static/js/i18n.js",
-    "src/web/static/js/icons.js",
+    "src/web/static/js/i18n.min.js",
+    "src/web/static/js/leaflet.js",
+    "src/web/static/js/leaflet.min.js",
     "src/web/static/js/modules/analytics.js",
+    "src/web/static/js/modules/analytics.min.js",
     "src/web/static/js/modules/chat.js",
+    "src/web/static/js/modules/chat.min.js",
     "src/web/static/js/modules/map.js",
+    "src/web/static/js/modules/map.min.js",
     "src/web/static/js/modules/nodes.js",
+    "src/web/static/js/modules/nodes.min.js",
     "src/web/static/js/modules/repeater.js",
+    "src/web/static/js/modules/repeater.min.js",
     "src/web/static/js/modules/settings.js",
+    "src/web/static/js/modules/settings.min.js",
     "src/web/static/js/modules/sniffer.js",
-    "src/web/static/js/qrcode.js"
+    "src/web/static/js/modules/sniffer.min.js",
+    "src/web/static/js/qrcode.js",
+    "src/web/static/js/qrcode.min.js",
+    "src/web/static/js/session_startup.js",
+    "src/web/static/js/session_startup.min.js",
+    "src/web/static/js/workers/packet_worker.js",
+    "src/web/static/js/workers/packet_worker.min.js"
   ],
   "root_entrypoints": [
     "config.py",

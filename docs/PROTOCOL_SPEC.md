@@ -512,7 +512,7 @@ de ventana con último intervalo partial y includes_current_minute.
 
 ## 15. Companion 1.18 / protocolo 14 (revisión 2026-10-17)
 
-Fuente fijada: [MyMesh.cpp 1.18](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/examples/companion_radio/MyMesh.cpp). La revisión detallada y sus límites están en [investigación 1.18](../new1.18.md) y [auditoría de protocolo](audits/2026-10-15-meshcore-1.18-protocol.md).
+Fuente fijada: [MyMesh.cpp 1.18](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/examples/companion_radio/MyMesh.cpp). La revisión detallada y sus límites están en el [plan de actualización](MESHCORE_1_18_UPGRADE_PLAN.md) y la [auditoría de protocolo](audits/2026-10-15-meshcore-1.18-protocol.md).
 
 - `CMD_RUN_CLI_COMMAND=66 (0x42)` lleva texto; responde `CLI_REPLY=29 (0x1D)` con texto sin NUL transmitido. No responde OK como éxito normal. El bridge identifica ese contrato en enum y tabla de transacciones raw. Recibir 29 acredita respuesta de transporte, no éxito semántico del texto.
 - El código numérico 14 se obtiene de `DEVICE_INFO['fw ver']`, no de `SELF_INFO`. La presencia del opcode por sí sola no habilita CLI; se requiere sesión vigente (`session_generation`), `fw ver >= 14` y método SDK `commands.run_cli_command` disponible.

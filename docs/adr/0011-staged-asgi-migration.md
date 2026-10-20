@@ -8,7 +8,7 @@
 
 ## Contexto y Problema
 
-[PROYECTO.md](../../PROYECTO.md) propone migrar el transporte web a FastAPI.
+[HISTORICAL_PROPOSAL.md](../fastapi/HISTORICAL_PROPOSAL.md) propone migrar el transporte web a FastAPI.
 El servidor actual integra HTTP, WS y estáticos; el router conserva contexto,
 canales, historiales y mapas utilizados también por el core. La migración no puede
 duplicar el bridge ni romper contratos REST/WS o instalar dependencias por sorpresa.
@@ -33,7 +33,7 @@ el router existente; no creará radio, MQTT o schedulers.
 El servidor actual continúa siendo el predeterminado. El adaptador inicial no
 contiene endpoints de negocio, WS ni SPA; no se ofrece como sustituto operativo.
 Seguridad perimetral, DTO, rutas, WS, documentación e instaladores se trasladarán
-en las fases de [PROYECTO.md](../../PROYECTO.md), conservando sus puertas.
+en las fases de [HISTORICAL_PROPOSAL.md](../fastapi/HISTORICAL_PROPOSAL.md), conservando sus puertas.
 
 No ejecutar suites por instrucción expresa del usuario. Lectura de fuentes,
 análisis sintáctico y revisión de metadatos documentan preparación; no reemplazan

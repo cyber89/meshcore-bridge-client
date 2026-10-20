@@ -21,7 +21,7 @@
 13. **[Autenticación de estación personal](AUTHENTICATION_PLAN.md)**: Plan por etapas, login, sesiones, API, CSRF y credenciales de instalación.
 14. **[Diseño del login y propuesta de recuperación](LOGIN_DESIGN_AND_RECOVERY.md)**: Mejora visual del acceso y contrato propuesto para recuperación local; distingue implementación y propuesta.
 15. **[Auditoría del login en navegador](LOGIN_AUDIT_2026-10-12.md)**: Reproducción virtual, adaptación a pantallas, estilos calculados y política de contraseñas de 8–64 caracteres.
-16. **[Evaluación y opciones de diseño del frontend](../diseño.md)**: Revisión multiagente de estilo, densidad por pantalla, tipografías, CSS crítico, carga de JavaScript, empaquetado y compresión; propuestas y aceptación pendiente.
+16. **[Entrega y empaquetado del frontend](FRONTEND_DELIVERY.md)**: Build JS/CSS minimizado, compresión gzip previa y presupuesto de CPU en entrega web.
 
 ---
 
@@ -54,9 +54,9 @@ Los ADRs documentan las decisiones arquitectónicas fundamentales tomadas a lo l
 
 ## Auditoría actual
 
-- [MeshCore 1.18: investigación contrastada](../new1.18.md), [actualización por capas](MESHCORE_1_18_UPGRADE_PLAN.md) y [ledger de integración](audits/2026-10-15-meshcore-1.18-integration.md): correcciones iniciales, contratos y capacidades futuras diferenciadas.
+- [MeshCore 1.18: actualización por capas](MESHCORE_1_18_UPGRADE_PLAN.md) y [ledger de integración](audits/2026-10-15-meshcore-1.18-integration.md): correcciones iniciales, contratos y capacidades diferenciadas.
 - [Reunión técnica y auditoría por capas del 2026-10-09](audits/2026-10-09-layer-audit.md): implementación, correcciones y evidencia estática; QA en ejecución pendiente.
-- [Plan y evolución FastAPI](../PROYECTO.md): distingue propuesta histórica de transporte seleccionado.
+- [Plan y evolución FastAPI](fastapi/HISTORICAL_PROPOSAL.md): propuesta histórica y plan condicionado de adopción.
 
 ## 🚀 Migración FastAPI / Uvicorn ASGI
 
