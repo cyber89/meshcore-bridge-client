@@ -1,5 +1,11 @@
 # Pruebas y verificación de MeshCore Bridge
 
+> **AI Context & Machine Contract**:
+> - **Domain**: Test Automation, Fixture Isolation & QA Guardrails
+> - **Authority Level**: Level 4 (Living SSoT for QA & Testing)
+> - **Primary Rule**: Automatic execution of test suites (pytest, Playwright, Bandit, fuzzing) is STRICTLY PROHIBITED unless explicitly requested by the user.
+> - **Isolation Invariant**: Tests MUST use temporary directories, mock hardware/transceivers, and loopback ports. NEVER touch operational databases or transmit over physical radio.
+
 Esta guía describe la suite mantenida y cómo obtener evidencia reproducible. Las
 pruebas se ejecutan bajo petición explícita del usuario, según [AGENTS.md](../AGENTS.md).
 La autorización del 2026-09-29 corresponde a la revisión histórica descrita más abajo;

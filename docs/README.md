@@ -10,6 +10,7 @@ El repositorio organiza su documentación bajo el principio de **separación est
 
 ```text
 docs/
+├── AI_REFERENCE.md                 <- Referencia de alta densidad e inferencia para modelos de IA y agentes
 ├── [Living Documentation]          <- Especificaciones canónicas del sistema en producción (SSoT)
 │   ├── ARCHITECTURE.md             <- Arquitectura general en 5 capas y ciclo asíncrono
 │   ├── PROTOCOL_SPEC.md            <- Protocolo binario LoRa, framing y opcodes oficiales
@@ -49,23 +50,25 @@ docs/
 | **Despliegue y Operación** | [README del Proyecto](../README.md) • [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) • [STORAGE.md](STORAGE.md) • [N8N_WORKFLOW_GUIDE.md](N8N_WORKFLOW_GUIDE.md) |
 | **Frontend Web SPA** | [FRONTEND_DELIVERY.md](FRONTEND_DELIVERY.md) • [plans/FRONTEND_MODERNIZATION_PLAN.md](plans/FRONTEND_MODERNIZATION_PLAN.md) • [ADR 0012](adr/0012-bootstrap-5-frontend-architecture.md) |
 | **QA y Verificación** | [TESTING.md](TESTING.md) • [TEST_INVENTORY.md](TEST_INVENTORY.md) |
+| **Modelos de IA y Agentes** | [AI_REFERENCE.md](AI_REFERENCE.md) • [CONTEXT.md](../CONTEXT.md) • [AGENTS.md](../AGENTS.md) |
 
 ---
 
 ## 📚 1. Especificaciones Canónicas (Living Documentation)
 
-1. **[README del Proyecto](../README.md)**: Visión general, instalación, despliegue como servicio y configuración principal (en inglés).
-2. **[AGENTS.md](../AGENTS.md)**: Protocolo de orquestación multi-agente, gobernanza de cambios, reglas de exclusión y checklist de impacto en la malla LoRa.
-3. **[CONTEXT.md](../CONTEXT.md)**: Lenguaje ubicuo, modelo de dominio canónico, clasificación estricta de roles (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`) e invariantes.
-4. **[ARCHITECTURE.md](ARCHITECTURE.md)**: Arquitectura en 5 capas, servidor FastAPI / Uvicorn ASGI de producción, WebSocket Hub y ciclo de vida asíncrono.
-5. **[PROTOCOL_SPEC.md](PROTOCOL_SPEC.md)**: Especificación formal del protocolo MeshCore, framing Companion oficial, framing raw propio y contratos binarios.
-6. **[SYSTEM_LAYERS_MANUAL.md](SYSTEM_LAYERS_MANUAL.md)** y **[CODE_EXPLANATION.md](CODE_EXPLANATION.md)**: Manual detallado de subsistemas, módulos, estrategias de enrutamiento y persistencia.
-7. **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**: Guía completa de despliegue en Linux (systemd), Raspberry Pi / Orange Pi y Windows.
-8. **[STORAGE.md](STORAGE.md)**: Persistencia transaccional SQLite, fuentes de verdad, importación y copias de seguridad.
-9. **[FRONTEND_DELIVERY.md](FRONTEND_DELIVERY.md)**: Build JS/CSS minimizado, compresión gzip previa y presupuesto de CPU en entrega web.
-10. **[N8N_WORKFLOW_GUIDE.md](N8N_WORKFLOW_GUIDE.md)**: Integración con automatizaciones n8n y esquemas de mensajería MQTT.
-11. **[TESTING.md](TESTING.md)** y **[TEST_INVENTORY.md](TEST_INVENTORY.md)**: Entorno de QA, aislamiento de suites de prueba, fixtures y comandos reproducibles.
-12. **[PROJECT_KNOWLEDGE.md](PROJECT_KNOWLEDGE.md)**: Mapa de conocimiento del proyecto y procedencia de fuentes de referencia.
+1. **[AI_REFERENCE.md](AI_REFERENCE.md)**: **Referencia determinista de navegación, contratos, símbolos e invariantes para modelos de IA y agentes autónomos**.
+2. **[README del Proyecto](../README.md)**: Visión general, instalación, despliegue como servicio y configuración principal (en inglés).
+3. **[AGENTS.md](../AGENTS.md)**: Protocolo de orquestación multi-agente, gobernanza de cambios, reglas de exclusión y checklist de impacto en la malla LoRa.
+4. **[CONTEXT.md](../CONTEXT.md)**: Lenguaje ubicuo, modelo de dominio canónico, clasificación estricta de roles (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`) e invariantes.
+5. **[ARCHITECTURE.md](ARCHITECTURE.md)**: Arquitectura en 5 capas, servidor FastAPI / Uvicorn ASGI de producción, WebSocket Hub y ciclo de vida asíncrono.
+6. **[PROTOCOL_SPEC.md](PROTOCOL_SPEC.md)**: Especificación formal del protocolo MeshCore, framing Companion oficial, framing raw propio y contratos binarios.
+7. **[SYSTEM_LAYERS_MANUAL.md](SYSTEM_LAYERS_MANUAL.md)** y **[CODE_EXPLANATION.md](CODE_EXPLANATION.md)**: Manual detallado de subsistemas, módulos, estrategias de enrutamiento y persistencia.
+8. **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**: Guía completa de despliegue en Linux (systemd), Raspberry Pi / Orange Pi y Windows.
+9. **[STORAGE.md](STORAGE.md)**: Persistencia transaccional SQLite, fuentes de verdad, importación y copias de seguridad.
+10. **[FRONTEND_DELIVERY.md](FRONTEND_DELIVERY.md)**: Build JS/CSS minimizado, compresión gzip previa y presupuesto de CPU en entrega web.
+11. **[N8N_WORKFLOW_GUIDE.md](N8N_WORKFLOW_GUIDE.md)**: Integración con automatizaciones n8n y esquemas de mensajería MQTT.
+12. **[TESTING.md](TESTING.md)** y **[TEST_INVENTORY.md](TEST_INVENTORY.md)**: Entorno de QA, aislamiento de suites de prueba, fixtures y comandos reproducibles.
+13. **[PROJECT_KNOWLEDGE.md](PROJECT_KNOWLEDGE.md)**: Mapa de conocimiento del proyecto y procedencia de fuentes de referencia.
 
 ---
 

@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-20T21:49:33.492266+00:00",
-  "project_head": "84babd9464414b17f41a480a8ef164dbd1868cfd",
+  "generated_at_utc": "2026-10-20T21:54:44.157681+00:00",
+  "project_head": "1c6e876b600a50f756128d960678be08622c1112",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,7 +14,7 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 87,
+    "documents": 88,
     "references": 15,
     "source_files": 149,
     "project_skills": 22,
@@ -130,10 +130,16 @@
       "lines": 35
     },
     {
+      "path": "docs/AI_REFERENCE.md",
+      "category": "maintained-or-decision",
+      "sha256": "cba82e5710654ced046d26b68fea736ea7282b28f090f2a453f57aa8582fd19c",
+      "lines": 162
+    },
+    {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "d4201986f8a8d53de1425abc36df9cce98f5c9239cdf6db0677d9d508064f61d",
-      "lines": 836
+      "sha256": "cbb92082bceccbd16c578700e62cb5562bee3cfdcdd308704ac11c417e57f8e8",
+      "lines": 842
     },
     {
       "path": "docs/audits/2026-10-09-layer-audit.md",
@@ -324,8 +330,8 @@
     {
       "path": "docs/DEPLOYMENT_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "e9fd14bdb05d3b9ede1b6140421e228f764a0bae9549af17c1a0217fdcf23fd1",
-      "lines": 314
+      "sha256": "2afcddb2bd2cf69cfd66109b5dc2b91b10ad6a04f8fa1217a1c7fbeee24648de",
+      "lines": 319
     },
     {
       "path": "docs/fastapi/DEPENDENCY_DECISIONS.md",
@@ -462,8 +468,8 @@
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "83b905dac4112e7de3b71b1e4a8a271624132a9e4778cabe4efa78ad2f3b9b15",
-      "lines": 169
+      "sha256": "c3033d87442002d4de5d399e112e9125566473af4d1414f2ba0d3c4bf6fed57b",
+      "lines": 172
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",
@@ -492,8 +498,8 @@
     {
       "path": "docs/STORAGE.md",
       "category": "maintained-or-decision",
-      "sha256": "fb7d25c3795d335f21ecf612b713514e862b6f36d0730c470f0e0e58aee3b607",
-      "lines": 52
+      "sha256": "641f4b0fca8ef7c13eed2d29b88440f65dab20315dffc4fc8d93d0e4d9ea2e38",
+      "lines": 59
     },
     {
       "path": "docs/SYSTEM_LAYERS_MANUAL.md",
@@ -510,8 +516,8 @@
     {
       "path": "docs/TESTING.md",
       "category": "maintained-or-decision",
-      "sha256": "5c52d872735d20d7189cf0bc5c80114f4b842d158b8bf1487a6d7283619b52b8",
-      "lines": 138
+      "sha256": "761e332e30113ba261472fc520ddbea5bf4461f79b7cccdb5fad71d1317d40fc",
+      "lines": 144
     },
     {
       "path": "README.md",

@@ -1,5 +1,10 @@
 # Guía de Despliegue: MeshCore Universal Bridge <-> MQTT <-> n8n
 
+> **AI Context & Machine Contract**:
+> - **Domain**: Production Deployment, Environment Variables & Systemd Service
+> - **Authority Level**: Level 4 (Living SSoT for Deployment)
+> - **Root Files**: \install.sh\ (Linux), \install.ps1\ (Windows), \meshcore-bridge.service\ (systemd), \.env.example> - **Deployment Invariant**: The repository root \README.md\ and all root install scripts MUST use English exclusively.
+
 Esta guía describe el procedimiento para desplegar el puente **MeshCore Bridge** en **Armbian (Orange Pi 2W)**, **Raspberry Pi**, **Debian** o **Ubuntu** con arranque automático mediante **systemd**, broker **Mosquitto** y conexión a **n8n**.
 
 Guía revisada por lectura de código el 2026-10-09 y actualizada para el baseline del 2026-10-10. Los contratos de instaladores comprobados en temporales y comandos simulados el 2026-10-05 son evidencia anterior; la auditoría inicial no ejecutó instaladores, servicios ni suites. La actualización actual tiene autorización de QA aislado. No acredita una instalación real completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.

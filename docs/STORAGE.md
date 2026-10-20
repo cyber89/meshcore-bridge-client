@@ -1,5 +1,12 @@
 # Station storage and browser cache
 
+> **AI Context & Machine Contract**:
+> - **Domain**: Station State & Chat Persistence ([ADR 0017](adr/0017-sqlite-station-browser-cache.md))
+> - **Authority Level**: Level 4 (Living SSoT for SQLite Storage)
+> - **Core Symbols**: \src/station_database.py\ (\StationDatabase\)
+> - **Primary Invariant**: SQLite mutations \MUST\ execute off the asyncio event loop (\syncio.to_thread\). WAL mode enabled.
+> - **Database File**: \data/meshcore.sqlite3\ (\DATABASE_PATH\)
+
 SQLite is the authoritative store for station state and chat history. Browser storage improves the interface and does not replace the station database.
 
 | Store | Responsibility |

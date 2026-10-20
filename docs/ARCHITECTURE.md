@@ -1,5 +1,11 @@
 # Arquitectura de MeshCore Bridge v3.0
 
+> **AI Context & Machine Contract**:
+> - **Domain**: Core System Architecture & Concurrency Model ([ADR 0003](adr/0003-asyncio-serial-resilience.md), [ADR 0011](adr/0011-staged-asgi-migration.md), [ADR 0016](adr/0016-python-3-12-baseline.md))
+> - **Authority Level**: Level 3 (Living SSoT for System Architecture)
+> - **Core Symbols**: \src/bridge_core.py\ (\BridgeCore\), \src/web/asgi_server.py\ (\create_asgi_app\), \src/rx_router.py\ (\RxRouter\)
+> - **Concurrency Invariant**: Zero blocking calls on the asyncio event loop. Dedicated threadpool for SQLite and synchronous SDK operations.
+
 ## 1. Resumen Ejecutivo
 MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante CPython estable 3.12+ (3.13.5 recomendado, sin máximo) y `asyncio`, conforme a [ADR 0016](adr/0016-python-3-12-baseline.md). El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa una pila de producción basada en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) para REST, WebSocket, teselas MBTiles y SPA.
 
