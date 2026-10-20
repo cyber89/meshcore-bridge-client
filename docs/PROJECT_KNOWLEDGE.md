@@ -66,9 +66,9 @@ posteriores incluyen [capas Companion](adr/0009-official-companion-protocol-laye
 Runtime acordado: CPython estable >=3.12, con 3.13.5 recomendado y sin máximo;
 versión del proyecto 3.0.0. Manifiestos, checker, instaladores y CI deben expresar
 esta política; el cambio de baseline no acredita ejecución por sí solo.
-Dependencias directas fijadas para esta actualización: Paho MQTT 2.1.0, MeshCore SDK 2.3.15,
+Dependencias directas fijadas para esta actualización: Paho MQTT 2.1.0, MeshCore SDK 2.3.17,
 pyserial 3.5 y python-dotenv 1.2.4. La pila web añade FastAPI 0.143.0, Uvicorn 0.54.0,
-Pydantic 2.14.0, websockets 17.2, Starlette 1.7.0 y h11 0.16.0.
+Pydantic 2.14.1, websockets 17.3, Starlette 1.7.0 y h11 0.16.0.
 El checker distingue `web` y `core` (headless). Esto describe dependencias declaradas,
 no acredita paquetes instalados, funcionamiento o recursos medidos.
 

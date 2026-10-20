@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-20T22:05:40.611623+00:00",
-  "project_head": "269c5304458b442d6d2dca2013bc88871e02fc43",
+  "generated_at_utc": "2026-10-20T23:09:19.675869+00:00",
+  "project_head": "fcde957478fb115053fe750f077d635d6d894726",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,7 +14,7 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 88,
+    "documents": 89,
     "references": 15,
     "source_files": 149,
     "project_skills": 22,
@@ -126,8 +126,8 @@
     {
       "path": "docs/adr/0018-personal-station-authentication.md",
       "category": "maintained-or-decision",
-      "sha256": "cfe699800298e9a42b9e0ef8b87c99c92851febf5001ca9a6b8fc0d91b37b91d",
-      "lines": 35
+      "sha256": "ca544e0c2372081191c8df3b50ac2221d049091c649c17eaae526913068eb05a",
+      "lines": 43
     },
     {
       "path": "docs/AI_REFERENCE.md",
@@ -138,8 +138,8 @@
     {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "cbb92082bceccbd16c578700e62cb5562bee3cfdcdd308704ac11c417e57f8e8",
-      "lines": 842
+      "sha256": "929b18178575671681ecc0740e9e333b068f2340d3b3832f1c340104983db150",
+      "lines": 888
     },
     {
       "path": "docs/audits/2026-10-09-layer-audit.md",
@@ -274,6 +274,12 @@
       "lines": 134
     },
     {
+      "path": "docs/audits/2026-10-20-remediation-validation.md",
+      "category": "maintained-or-decision",
+      "sha256": "20f7c806c7818bffe05a3b429d38e426389f7352d841daa46eb21b634e61fb24",
+      "lines": 192
+    },
+    {
       "path": "docs/audits/node-config-2026-10-03/backend/README.md",
       "category": "maintained-or-decision",
       "sha256": "4a30dfbde9651edf3af9576161075c3cf00b428741d67abf146bcc7c1164fa13",
@@ -330,13 +336,13 @@
     {
       "path": "docs/DEPLOYMENT_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "2afcddb2bd2cf69cfd66109b5dc2b91b10ad6a04f8fa1217a1c7fbeee24648de",
-      "lines": 319
+      "sha256": "206f8e876d25f4af90a62e72459641cf2ec5ea0765fc8b2b3e1a086eb07d506c",
+      "lines": 325
     },
     {
       "path": "docs/fastapi/DEPENDENCY_DECISIONS.md",
       "category": "maintained-or-decision",
-      "sha256": "7b89a2458afeb99934f58e5548e33849fc76c11452db6ea63a653f55058cb273",
+      "sha256": "e516c7fe4649c7b4aaea2d10d20435a8585b08589a18284a7ac1e1ed33d7b183",
       "lines": 319
     },
     {
@@ -402,7 +408,7 @@
     {
       "path": "docs/fastapi/REST_CONTRACT_BASELINE.md",
       "category": "maintained-or-decision",
-      "sha256": "a0ce2cd1b4bb55ce4f1168ca1a6fa38d0f9ba7e8a52910f1aa6366cda18621e8",
+      "sha256": "45aeb0dd3cf730819ffe103fed3451f91d2bea597e6711f910e604af0628b019",
       "lines": 333
     },
     {
@@ -414,20 +420,20 @@
     {
       "path": "docs/FRONTEND_DELIVERY.md",
       "category": "maintained-or-decision",
-      "sha256": "daa7f4364c7d4b61dca32317d38e7943dc6617c04a682a41bf4bfe927c6ffcf2",
-      "lines": 237
+      "sha256": "a9fc7ad12a424106cf22b518629be29510316952d4dc3a19cc9800208369c5c8",
+      "lines": 245
     },
     {
       "path": "docs/N8N_WORKFLOW_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "4c5c6def02cf82bb706e59a95ecc4a0be6c2eed30035ef4f8c7af9124c78fd2c",
+      "sha256": "fcc8e611058691ac6039d73c6e3b20fdb5e6816ed2cf4d5cc0ed95b976acd224",
       "lines": 85
     },
     {
       "path": "docs/plans/AUTHENTICATION_PLAN.md",
       "category": "maintained-or-decision",
-      "sha256": "90f2934d54779b716a565d71ba71c38a953fb7626a622185f005c8ad4d0b0e91",
-      "lines": 93
+      "sha256": "bb9a8b140b21b891d526db1d699d78ebfc0d2699e979d208a93df32c4e0aef80",
+      "lines": 99
     },
     {
       "path": "docs/plans/FRONTEND_MODERNIZATION_PLAN.md",
@@ -444,7 +450,7 @@
     {
       "path": "docs/plans/MESHCORE_1_18_UPGRADE_PLAN.md",
       "category": "maintained-or-decision",
-      "sha256": "b73296cdbf11915a5c222245a319e2e89067bf6cec3b30168ebacaf531e7a4f1",
+      "sha256": "d506b51ce32294c4d269ec3d292f4916f849f8bd574c984145a4e6aaaf60a37a",
       "lines": 312
     },
     {
@@ -456,20 +462,20 @@
     {
       "path": "docs/PROJECT_KNOWLEDGE.md",
       "category": "maintained-or-decision",
-      "sha256": "e7b1a224f22b75416fa6dac0b3fa6b0b8bbd5075e9c9d337a46e5289b1f02538",
+      "sha256": "6ba8259f5723d4ab736f492b26989a212d239dd27c297a3545353a740b4f4683",
       "lines": 203
     },
     {
       "path": "docs/PROTOCOL_SPEC.md",
       "category": "maintained-or-decision",
-      "sha256": "a13dc5760effa320f84a03e99465365c19d4b00ad4a9f7dba48b62a0a133559b",
-      "lines": 570
+      "sha256": "b2e83350c761608a3304c12cb68b909d2e64086860b8d730bd3333119e6329eb",
+      "lines": 592
     },
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "c3033d87442002d4de5d399e112e9125566473af4d1414f2ba0d3c4bf6fed57b",
-      "lines": 172
+      "sha256": "ef04597118e32d76a949f29c78127534408b05a6862e3038942cc9a172c77c6c",
+      "lines": 174
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",
@@ -516,13 +522,13 @@
     {
       "path": "docs/TESTING.md",
       "category": "maintained-or-decision",
-      "sha256": "761e332e30113ba261472fc520ddbea5bf4461f79b7cccdb5fad71d1317d40fc",
-      "lines": 144
+      "sha256": "95bc7f61e5762b2aed5bb4100c6c54eea900be214ae79be9b440d09705fdce09",
+      "lines": 172
     },
     {
       "path": "README.md",
       "category": "maintained-or-decision",
-      "sha256": "e477647967135204d137af7b6928d6c173d4a2d69fc06bc5b41fac7192169042",
+      "sha256": "3a547af896e7129d4a1c03cb404b02555a7f179d54faa304cae39bb4d69d122e",
       "lines": 216
     },
     {

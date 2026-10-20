@@ -6,9 +6,9 @@ pytest==9.1.1
 pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 mypy==2.4.0
-ruff==0.17.0
+ruff==0.17.1
 bandit==1.9.4
-playwright==1.63.0
+playwright==1.64.0
 httpx==0.28.1
 # Certificados temporales de las regresiones TLS; no se usa en producción.
 cryptography==50.0.2

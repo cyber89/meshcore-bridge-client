@@ -13,7 +13,7 @@ Guía revisada por lectura de código el 2026-10-09 y actualizada para el baseli
 
 ## 📻 Dispositivos de Radio LoRa Compatibles
 
-El adaptador principal utiliza el SDK `meshcore==2.3.15` con firmware **MeshCore Companion**. El baseline del host es CPython estable 3.12 o superior, con 3.13.5 recomendado y sin máximo, conforme a `AGENTS.md` y [ADR 0016](adr/0016-python-3-12-baseline.md). La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
+El adaptador principal utiliza el SDK `meshcore==2.3.17` con firmware **MeshCore Companion**. El baseline del host es CPython estable 3.12 o superior, con 3.13.5 recomendado y sin máximo, conforme a `AGENTS.md` y [ADR 0016](adr/0016-python-3-12-baseline.md). La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
 
 | Fabricante / Familia | Modelos Soportados | Chipset USB Típico | Puerto Serial Habitual |
 | :--- | :--- | :--- | :--- |
@@ -64,8 +64,8 @@ El archivo [`requirements.txt`](../requirements.txt) y las dependencias principa
 
 | Grupo | Distribuciones y política de versión |
 | --- | --- |
-| Core | `paho-mqtt==2.1.0`, `meshcore==2.3.15`, `pyserial==3.5`, `python-dotenv==1.2.4` |
-| ASGI | `fastapi==0.143.0`, `uvicorn==0.54.0`, `pydantic==2.14.0`, `websockets==17.2`, `starlette==1.7.0`, `h11==0.16.0` |
+| Core | `paho-mqtt==2.1.0`, `meshcore==2.3.17`, `pyserial==3.5`, `python-dotenv==1.2.4` |
+| ASGI | `fastapi==0.143.0`, `uvicorn==0.54.0`, `pydantic==2.14.1`, `websockets==17.3`, `starlette==1.7.0`, `h11==0.16.0` |
 
 Los pins core y ASGI fijan las versiones de esta actualización. La resolución e imports deben comprobarse con el intérprete y plataforma elegidos en un entorno aislado; no se deducen del manifiesto ni se acreditan por el cambio de baseline. El comprobador aplica mínimos a las cuatro dependencias core y versiones exactas a las seis ASGI; para estas últimas rechaza pre-releases, post-releases y builds locales. Las demás transitivas siguen las restricciones de sus paquetes padres; estos manifests no son un lock completo con hashes. `requirements-web.txt` conserva un punto de entrada compatible mediante `-r requirements.txt`, y el extra `web` conserva los mismos seis pins para comandos existentes.
 

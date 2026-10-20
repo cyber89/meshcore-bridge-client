@@ -12,7 +12,7 @@ from collections.abc import Callable
 
 DEPENDENCIES = (
     ("paho-mqtt", "paho.mqtt.client", (2, 1, 0)),
-    ("meshcore", "meshcore", (2, 3, 15)),
+    ("meshcore", "meshcore", (2, 3, 17)),
     ("pyserial", "serial", (3, 5, 0)),
     ("python-dotenv", "dotenv", (1, 2, 4)),
 )
@@ -20,8 +20,8 @@ DEPENDENCIES = (
 WEB_DEPENDENCIES = (
     ("fastapi", "fastapi", (0, 143, 0)),
     ("uvicorn", "uvicorn", (0, 54, 0)),
-    ("pydantic", "pydantic", (2, 14, 0)),
-    ("websockets", "websockets", (17, 2)),
+    ("pydantic", "pydantic", (2, 14, 1)),
+    ("websockets", "websockets", (17, 3)),
     ("starlette", "starlette", (1, 7, 0)),
     ("h11", "h11", (0, 16, 0)),
 )

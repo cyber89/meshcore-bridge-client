@@ -102,7 +102,7 @@ def test_web_profile_rejects_unevaluated_asgi_versions(distribution: str, varian
 
 def test_web_profile_accepts_equivalent_final_release_zero_padding() -> None:
     versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES['web']}
-    versions['websockets'] = '17.2.0'
+    versions['websockets'] = '17.3.0'
     assert dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='web') == []
 
 
