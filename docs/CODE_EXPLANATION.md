@@ -65,7 +65,7 @@ El apagado detiene tareas, servidor Web, conexiones Companion, watchdog, adaptad
 | Chat del navegador | IndexedDB | Persistencia del cliente, independiente de otros navegadores y del servidor. |
 | Logs del servicio | `LOG_DIR` y rutas configuradas | Archivos rotados; distintos del buffer Web de logs en RAM. |
 
-No hay backend SQLite para nodos, mensajes o colas MQTT. `MapTileService` sí usa SQLite para lectura de mapas MBTiles; las referencias a otras bases SQLite en informes antiguos son históricas.
+SQLite (`src/station_database.py`, `data/meshcore.sqlite3`) es el almacén autoritativo de estado de estación, historial de chat, entregas y documentos sincronizados ([ADR 0017](adr/0017-sqlite-station-browser-cache.md), [STORAGE.md](STORAGE.md)). `MapTileService` utiliza SQLite para la cartografía MBTiles. No existe una cola MQTT durable SQLite.
 
 ## 7. Web, MQTT y mantenimiento
 

@@ -23,7 +23,7 @@ sequenceDiagram
     Note over DevOrAgent,HW: Flujo de Recepción (RX)
     HW->>Bridge: Evento Serial RX (Trama LoRa)
     Bridge->>Bridge: Decodificar evento Companion & Deduplicar
-    Bridge->>Bridge: Actualizar NodeRegistry en Memoria / JSON
+    Bridge->>Bridge: Actualizar NodeRegistry en Memoria / SQLite (StationDatabase)
     alt MQTT Online
         Bridge->>MQTT: Publicar en meshcore/rx/all y tópicos específicos
         MQTT->>N8N: Disparar Trigger Webhook/MQTT
@@ -55,7 +55,7 @@ sequenceDiagram
 1. **Regla de Oro**: Ninguna operación I/O puede bloquear el bucle de `asyncio`.
 2. **Procedimiento de Implementación**:
    - Utilizar los adaptadores disponibles según el transporte real. El SDK oficial `meshcore_py` habla Companion; `RawSerialFramingAdapter` utiliza un formato propio del bridge (`0xAA`/`0x55`, escaping y CRC-16) para simulación/enlaces compatibles. No asumir que ausencia del SDK vuelve compatible ese fallback con firmware Companion.
-   - Las operaciones de persistencia en disco deben ser atómicas mediante archivos JSON.
+   - Las operaciones de persistencia de estado y chat residen en SQLite transaccional (`src/station_database.py`, [ADR 0017](../adr/0017-sqlite-station-browser-cache.md), [STORAGE.md](../STORAGE.md)) ejecutadas fuera del bucle `asyncio`. Los JSON existentes se conservan como fuentes de migración única inicial.
    - Asegurar que el espaciado de transmisión LoRa respete el tiempo en el aire calculado por `estimate_lora_airtime_ms()`.
 
 ### 2.3 Para el QA & Fuzzing Agent

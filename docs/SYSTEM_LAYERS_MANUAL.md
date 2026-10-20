@@ -342,13 +342,17 @@ Supervisor de salud y vivacidad local del enlace serie.
 #### `MeshCoreCompanionServer` (`src/tcp_companion_server.py`)
 Servidor socket TCP (puerto 5000 por defecto) que actúa como proxy transparente. Permite que aplicaciones Companion oficiales (MeshCore Mobile App o MeshCore CLI) se conecten al bridge mediante la red IP y compartan el acceso al mismo módem LoRa físico conectado.
 
-#### Persistencia Atómica en Disco
-Todos los módulos que persisten estado utilizan operaciones atómicas seguras contra caídas de tensión:
-1. `data/node_registry.json`: Registro de nodos y métricas.
-2. `data/channels.json`: Configuración y PSK de canales lógicos.
-3. `data/airtime_history.json`: Historial de consumo de radio de las últimas 24 horas.
-- **Mecanismo Atómico**: La escritura se realiza en un archivo temporal con sufijo `.tmp` mediante `json.dump()`, se asegura la escritura física con `flush()` y `os.fsync()`, y finalmente se realiza un `os.replace()` atómico en el sistema de archivos del sistema operativo.
-
+#### Persistencia Autorizativa en SQLite y Migración Atómica ([ADR 0017](adr/0017-sqlite-station-browser-cache.md), [STORAGE.md](STORAGE.md))
+El almacenamiento autoritativo de la estación reside en la base de datos transaccional SQLite (`src/station_database.py`, `data/meshcore.sqlite3`):
+1. **Base de Datos SQLite (`StationDatabase`)**:
+   - Modo WAL activado con `synchronous=FULL`.
+   - Todas las mutaciones corren fuera del event loop principal (`asyncio.to_thread`).
+   - Almacena tablas indexadas de `messages`, `conversations`, `station_auth` y `station_documents`.
+2. **Fuentes de Migración Inicial (JSON)**:
+   - `data/node_registry.json`: Registro de nodos y métricas.
+   - `data/channels.json`: Configuración y PSK de canales lógicos.
+   - `data/airtime_history.json`: Historial de consumo de radio de las últimas 24 horas.
+   - **Mecanismo Atómico de Migración/Fallback**: La escritura en archivos JSON legacy preserva el patrón POSIX de *Write-and-Rename* (`.tmp` -> `os.fsync` -> `os.replace`).
 ---
 
 ## 8. Flujos de Datos Extremo a Extremo (Walkthroughs Técnicos)

@@ -3,7 +3,7 @@
 > **Documento de Referencia para Agentes de Antigravity**  
 > **Repositorio de Origen**: [`/reference/meshcore_cli`](../../reference/meshcore_cli)\
 > **Área de Responsabilidad**: Protocol & Firmware Investigator Agent / QA & Fuzzing Agent  
-> **Estándar**: Python 3.14+ / Prompt-Toolkit / Rich TUI / CLI Automation
+> **Estándar**: CPython 3.12+ (3.13.5 recomendado, conforme a ADR 0016) / Prompt-Toolkit / Rich TUI / CLI Automation
 
 ---
 

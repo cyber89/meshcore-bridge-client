@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-20T21:54:44.157681+00:00",
-  "project_head": "1c6e876b600a50f756128d960678be08622c1112",
+  "generated_at_utc": "2026-10-20T22:05:40.611623+00:00",
+  "project_head": "269c5304458b442d6d2dca2013bc88871e02fc43",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -324,7 +324,7 @@
     {
       "path": "docs/CODE_EXPLANATION.md",
       "category": "maintained-or-decision",
-      "sha256": "a4da4a9b4e18ac5e19aa26db5a7a0ced2fbb05ce95f6995a7676c86399155cdb",
+      "sha256": "984e4e10a97225a13f5440968a2d90b2f029bdd1a9c6f9c97ce510e86712f22d",
       "lines": 90
     },
     {
@@ -486,13 +486,13 @@
     {
       "path": "docs/reference_analysis/03_CLI_AND_REPEATER_MANAGEMENT.md",
       "category": "maintained-or-decision",
-      "sha256": "852691a9091310e01e46a66fd83f312cf3340ca0d00306be97475bb88875a27a",
+      "sha256": "72b31858a715c732b6b2ba7fd68ad4d7582fdcd497cb48645bf9286ba8e68a2e",
       "lines": 113
     },
     {
       "path": "docs/reference_analysis/04_INTEGRATION_GUIDE_FOR_AGENTS.md",
       "category": "maintained-or-decision",
-      "sha256": "cb850dc5f9ab0c0d5346520fa924c7a898340d1a11e08a2e7971739f64e0c3be",
+      "sha256": "f72fef45b3dec6a45a58c0e69206084f64edb5893892daf9393da6b5b90e77e2",
       "lines": 80
     },
     {
@@ -504,8 +504,8 @@
     {
       "path": "docs/SYSTEM_LAYERS_MANUAL.md",
       "category": "maintained-or-decision",
-      "sha256": "d19430a21c4a90d2fc15b7ec5a1af8e590a3ec04ef906b26493df9a3df81a29a",
-      "lines": 485
+      "sha256": "3f15d876043a91c5f3b4b22f46b9f2a6d670654ec5b7cdc07b3298c2fdd4ee5b",
+      "lines": 489
     },
     {
       "path": "docs/TEST_INVENTORY.md",
