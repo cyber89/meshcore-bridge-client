@@ -4,13 +4,13 @@ Fecha inicial: 2026-10-15. Actualización: 2026-10-17. Capas 1, 2, 3, 4 y 5
 implementadas en su totalidad conforme a las decisiones del usuario; Capa 6
 consolidada a nivel documental y de verificación estática (ejecución de suites
 de pruebas y ensayo físico pendientes de orden explícita).
-Investigación e integración: [ledger de la entrega](audits/2026-10-15-meshcore-1.18-integration.md).
-Evolución: [capas 2/3 y verificación](audits/2026-10-16-meshcore-1.18-layers-2-3.md),
-[selector de transporte](audits/2026-10-17-companion-connection.md),
-[preferencias locales](audits/2026-10-17-firmware-preferences.md),
-[preferencias remotas](audits/2026-10-17-remote-firmware-preferences.md),
-[WiFi Companion](audits/2026-10-17-firmware-wifi.md) y
-[suscripciones de sensores](audits/2026-10-17-sensor-subscriptions.md).
+Investigación e integración: [ledger de la entrega](../audits/2026-10-15-meshcore-1.18-integration.md).
+Evolución: [capas 2/3 y verificación](../audits/2026-10-16-meshcore-1.18-layers-2-3.md),
+[selector de transporte](../audits/2026-10-17-companion-connection.md),
+[preferencias locales](../audits/2026-10-17-firmware-preferences.md),
+[preferencias remotas](../audits/2026-10-17-remote-firmware-preferences.md),
+[WiFi Companion](../audits/2026-10-17-firmware-wifi.md) y
+[suscripciones de sensores](../audits/2026-10-17-sensor-subscriptions.md).
 
 ## Objetivo y alcance verificable
 
@@ -170,7 +170,7 @@ La respuesta distingue destino de próximo arranque y puerto activo; el operador
 reinicia manualmente el proceso para aplicarlo. No se cambian transportes al
 guardar ni se consulta conectividad. IPv6 queda pendiente porque el adaptador
 actual divide la autoridad TCP por el primer `:`. No se admiten credenciales en
-URI. Contrato y evidencia: [selector de conexión](audits/2026-10-17-companion-connection.md).
+URI. Contrato y evidencia: [selector de conexión](../audits/2026-10-17-companion-connection.md).
 
 Aceptación: sesión/CSRF, lectura privada, firmware antiguo/desconectado,
 preservación de formularios editados, errores y respuesta WS; desktop1920x1080
@@ -194,7 +194,7 @@ sin timer ni reinicio añadido por el bridge. Hash conserva su editor binario0/1
 Se descarta el setter RX en esta entrega porque el firmware puede persistir el
 valor incluso respondiendo `Error: unsupported`. El snapshot informa permiso de
 escritura de preferencia, nunca capacidad CAD física. Evidencia y aceptación
-pendiente: [preferencias locales](audits/2026-10-17-firmware-preferences.md).
+pendiente: [preferencias locales](../audits/2026-10-17-firmware-preferences.md).
 
 Extensión remota2026-10-17: acciones unitarias `get_cad`, `get_rx_gain` y
 `set_cad` para infraestructura REPEATER/ROOM inequívoca, con validación anterior
@@ -203,7 +203,7 @@ ya acordada; no se amplían lotes ni se crean lecturas, topics o reintentos
 automáticos. Respuestas `preferences`/`saved_preferences` separadas de telemetría
 y `applied`, siempre `hardware_verified:false`. La web exige lectura CAD previa
 y posterior manual, descarta respuestas de otro modal/destino y no guarda las
-preferencias en el registro como estado RF activo. [Plan y entrega remota](audits/2026-10-17-remote-firmware-preferences.md).
+preferencias en el registro como estado RF activo. [Plan y entrega remota](../audits/2026-10-17-remote-firmware-preferences.md).
 
 Archivos previstos: builders en `src/repeater_manager.py`, ejecutores
 `src/admin/repeater_executor.py`, ejecutor local y controladores/SPA. Los controles
@@ -212,7 +212,7 @@ La primera entrega bloquea `set repeat on` para todos los ROOM, también con
 prefijo y en lotes completos antes de efectos secundarios. Es la política
 explícita elegida por el usuario para versiones antiguas/desconocidas y1.18.
 Conserva repeat off y repeat on para REPEATER; no consulta versiones por RF.
-Evidencia y diseño restante: [administración remota](audits/2026-10-16-meshcore-1.18-remote-plan.md).
+Evidencia y diseño restante: [administración remota](../audits/2026-10-16-meshcore-1.18-remote-plan.md).
 
 Desde2026-10-17, la administración HTTP de infraestructura inequívoca usa cero
 pausa mínima entre órdenes, según decisión explícita del usuario. El keyword
@@ -220,7 +220,7 @@ manual se origina en el controlador autenticado; JSON no concede la excepción.
 Los flujos MQTT/internos conservan su default y los timestamps siguen guardándose.
 Se conservan gateway SDK, locks y delays de protocolo; no atribuir a todos los
 comandos admin la cola TxRateLimiter de chat. Otro cliente autenticado de esas
-rutas HTTP comparte la política. [Implementación y gate](audits/2026-10-17-meshcore-1.18-manual-admin.md).
+rutas HTTP comparte la política. [Implementación y gate](../audits/2026-10-17-meshcore-1.18-manual-admin.md).
 Nunca convertir esa guarda en permiso de chat a REPEATER o LOCAL.
 
 `set radio` informa reinicio requerido. Conservar el valor anterior observado
@@ -230,7 +230,7 @@ privada, con getters seguros (`get wifi.ssid`, `get wifi.enabled`,
 `get wifi.status`, `get wifi.ip`), sin lectura de password (`get wifi.pwd`
 bloqueado), limpiando el campo en DOM al enviar y redactando trazas DEBUG del
 SDK (`_MeshcoreLogRedactionFilter` y `SystemLogHandler`). Informa
-`reboot_required:true` y `hardware_verified:false`. [Evidencia WiFi](audits/2026-10-17-firmware-wifi.md).
+`reboot_required:true` y `hardware_verified:false`. [Evidencia WiFi](../audits/2026-10-17-firmware-wifi.md).
 
 No migrar el presupuesto del bridge al dutycycle de firmware: son controles
 distintos. No cambiar defaults operativos, frecuencia, potencia, af, multi-ACK o
@@ -251,7 +251,7 @@ Archivos implementados: `src/protocol_types.py`, `src/station_database.py` (tabl
 `src/web/controllers/nodes_controller.py`, `src/web/static/js/modules/nodes.js` y
 `src/web/static/js/i18n.js`. Regresiones escritas en `tests/test_sensor_subscriptions.py`
 y `tests/test_sensor_subscriptions_browser.py`. Evidencia y contratos:
-[suscripciones de sensores](audits/2026-10-17-sensor-subscriptions.md).
+[suscripciones de sensores](../audits/2026-10-17-sensor-subscriptions.md).
 
 `RxEventRouter._extract_normalized_meta` conserva `BINARY_RESPONSE` opaco sin
 identidad inventada (`sender=None`, `sender_known=False`). `SystemHandler`

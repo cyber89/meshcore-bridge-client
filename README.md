@@ -23,7 +23,7 @@ Run it on a Linux gateway or a Windows computer, open the dashboard from your br
 
 The radio remains the source of MeshCore protocol behavior. Available commands depend on its firmware and capabilities. Repeater devices belong to the node and administration views; they never appear as chat contacts or receive chat/DM requests. The local station cannot be a message destination.
 
-Desktop controls use compact spacing; touch screens retain larger action targets and form text. Card grids and action rows adapt to available width, while long names and technical values can wrap. Node cards keep essential metrics visible and offer expandable route details. The [frontend modernization plan](docs/FRONTEND_MODERNIZATION_PLAN.md) records the implementation and remaining acceptance work. Current verification covers source syntax, references and generated assets; browser layout and interaction acceptance remain pending.
+Desktop controls use compact spacing; touch screens retain larger action targets and form text. Card grids and action rows adapt to available width, while long names and technical values can wrap. Node cards keep essential metrics visible and offer expandable route details. The [frontend modernization plan](docs/plans/FRONTEND_MODERNIZATION_PLAN.md) records the implementation and remaining acceptance work. Current verification covers source syntax, references and generated assets; browser layout and interaction acceptance remain pending.
 
 ### Efficient delivery and mesh operation
 
@@ -181,7 +181,7 @@ Sign in before accessing station data, API documentation, local tiles or live ev
 
 REST integrations send the generated token in `Authorization: Bearer <token>`. An explicitly configured `BRIDGE_API_KEY` remains available through `X-Api-Key` or Bearer and must be rotated separately. Credentials in URL query strings are not accepted. The documentation viewer displays the contract and does not execute API operations. MQTT and Companion TCP retain their separate authentication controls.
 
-Passwords are hashed with a random salt using scrypt and stored in SQLite alongside session and token digests. Use HTTPS for remote browser access so passwords and cookies are encrypted in transit. For a reverse proxy on the same host, set `BRIDGE_TRUSTED_PROXY_IPS=127.0.0.1,::1`, preserve the public `Host`, and have the proxy overwrite `X-Forwarded-Proto` and `X-Forwarded-For`. Restrict direct access to the bridge listener; only the explicitly configured proxy addresses may supply trusted forwarded headers. Plain HTTP remains supported for a local station. See the [authentication plan](docs/AUTHENTICATION_PLAN.md) for the contract, fallback behavior and verification limits.
+Passwords are hashed with a random salt using scrypt and stored in SQLite alongside session and token digests. Use HTTPS for remote browser access so passwords and cookies are encrypted in transit. For a reverse proxy on the same host, set `BRIDGE_TRUSTED_PROXY_IPS=127.0.0.1,::1`, preserve the public `Host`, and have the proxy overwrite `X-Forwarded-Proto` and `X-Forwarded-For`. Restrict direct access to the bridge listener; only the explicitly configured proxy addresses may supply trusted forwarded headers. Plain HTTP remains supported for a local station. See the [authentication plan](docs/plans/AUTHENTICATION_PLAN.md) for the contract, fallback behavior and verification limits.
 
 ## Documentation
 

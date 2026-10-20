@@ -29,7 +29,7 @@ The dialog controller should own the active stack, opening/closing transitions, 
 
 ## System-wide layout and component audit — 2026-10-10
 
-The follow-up requested three specialized agents: **layout/UI/UX**, **components/accessibility**, and **CSS/DOM architecture**. They applied [web-ui-design-system](../.agents/skills/web-ui-design-system/SKILL.md), [html-css-modern-js](../.agents/skills/html-css-modern-js/SKILL.md), and [clean-code-solid](../.agents/skills/clean-code-solid/SKILL.md). The lead checked the reported selectors, markup, generated table cells and terminal color pair against the source. This expands Phase 2; it does not implement it.
+The follow-up requested three specialized agents: **layout/UI/UX**, **components/accessibility**, and **CSS/DOM architecture**. They applied [web-ui-design-system](../../.agents/skills/web-ui-design-system/SKILL.md), [html-css-modern-js](../../.agents/skills/html-css-modern-js/SKILL.md), and [clean-code-solid](../../.agents/skills/clean-code-solid/SKILL.md). The lead checked the reported selectors, markup, generated table cells and terminal color pair against the source. This expands Phase 2; it does not implement it.
 
 Scope is every user-facing web surface in this checkout, including generated module content and the separate OpenAPI viewer. Backend/API, storage and radio behavior remain compatibility constraints. Source evidence below is relative to `src/web/` unless another path is stated; line references describe source baseline `eb99232`, inspected while the original plan was at `650a103`.
 

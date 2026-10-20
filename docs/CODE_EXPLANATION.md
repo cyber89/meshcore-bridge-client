@@ -73,7 +73,7 @@ No hay backend SQLite para nodos, mensajes o colas MQTT. `MapTileService` sí us
 
 El core selecciona ASGI y el servidor HTTP nativo está retirado; no hay selector de backend ni fallback automático. `asgi_routes.py` registra rutas con entrada `Request`, conserva el mapping JSON y llama una vez al dispatcher. Los controladores reciben datos de negocio y devuelven `tuple[int, dict[str, Any]]`; los DTO Pydantic son metadatos OpenAPI abiertos, sin validación de solicitudes en ejecución.
 
-`asgi_docs.py` publica un visor propio offline en `/docs` y su alias `/redoc`, además de `/openapi.json`. No incorpora Swagger UI/ReDoc ni ejecuta acciones del catálogo. Visor y esquema requieren sesión personal o token de integración. La autenticación de navegador comprueba mismo origen de forma exacta y CSRF en mutaciones; no usa la excepción general de LAN para autorizar cookies. Véase [autenticación](AUTHENTICATION_PLAN.md).
+`asgi_docs.py` publica un visor propio offline en `/docs` y su alias `/redoc`, además de `/openapi.json`. No incorpora Swagger UI/ReDoc ni ejecuta acciones del catálogo. Visor y esquema requieren sesión personal o token de integración. La autenticación de navegador comprueba mismo origen de forma exacta y CSRF en mutaciones; no usa la excepción general de LAN para autorizar cookies. Véase [autenticación](plans/AUTHENTICATION_PLAN.md).
 
 Las proyecciones REST de configuración de servicios enmascaran password/token en ambas listas de presets. Los logs y errores de los controladores revisados evitan valores de excepciones; el mapa escapa SNR/RSSI/RTT antes de insertar HTML. Son correcciones acotadas, no una certificación global de seguridad.
 

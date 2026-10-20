@@ -18,7 +18,7 @@ Estas regresiones se prepararon sin ejecutar pytest ni navegador; los checks
 estáticos no acreditan migración real, concurrencia bajo carga ni UI en ejecución.
 
 Las afirmaciones de la revisión anterior y sus límites por plataforma se conservan
-en el [informe histórico Python 3.14.8](PYTHON_314_MODERNIZATION_REPORT.md).
+en el [informe histórico Python 3.14.8](audits/2026-10-10-python-314-modernization-report.md).
 
 El baseline vigente es CPython estable 3.12 o superior, con 3.13.5 recomendado y
 sin máximo, según [ADR 0016](adr/0016-python-3-12-baseline.md).

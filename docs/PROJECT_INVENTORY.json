@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-20T21:38:36.231574+00:00",
-  "project_head": "2b796a76aef51166ef45d0f08e376b2c245c48b0",
+  "generated_at_utc": "2026-10-20T21:49:33.492266+00:00",
+  "project_head": "84babd9464414b17f41a480a8ef164dbd1868cfd",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -24,61 +24,61 @@
     {
       "path": "docs/adr/0001-strict-repeater-contact-exclusion.md",
       "category": "maintained-or-decision",
-      "sha256": "54c6628ba651c413ef0d8b252ced37cbab31704d50749eb7b2dae6c51bea338c",
+      "sha256": "3b3a519d446358e7f9e551776f41a4492bfe77801893fe25f50034c6cdf105b5",
       "lines": 39
     },
     {
       "path": "docs/adr/0002-lora-airtime-guardrails.md",
       "category": "maintained-or-decision",
-      "sha256": "69225cf3ea54e0921b5ffd9695b37763a5739a7f4137f3d4666fed9bb89b6a2d",
+      "sha256": "82864b5e7a48cf375fa3af502a8de890333c732d333c5cc4fc258e1e04012573",
       "lines": 48
     },
     {
       "path": "docs/adr/0003-asyncio-serial-resilience.md",
       "category": "maintained-or-decision",
-      "sha256": "dec4645424bd0bc5b1aa9f6e3a2d290ecb23ce94a7678b0b33a4afa18ae88383",
+      "sha256": "cb3b12994265079ce0ac384ac43021909d2d754098bdaaca73c2aecbeef6779c",
       "lines": 46
     },
     {
       "path": "docs/adr/0004-airtime-duty-cycle-alerting-and-persistence.md",
       "category": "maintained-or-decision",
-      "sha256": "0b11ba877d4f272880da830c9a77e56eb6975e6770fee736eebd36b701a3cab2",
+      "sha256": "cefec564588f7db2dfa3dec86ce5ba36ba393e55774239763648d397dd1fa75e",
       "lines": 79
     },
     {
       "path": "docs/adr/0005-json-atomic-persistence-over-sqlite.md",
       "category": "maintained-or-decision",
-      "sha256": "9a82687c527a57de279bd9a7be582b0ac41fabd8d5430d696c8eb5f6bd4f963f",
+      "sha256": "d564a382e5732bceadaf9257f40a3a375ce701df946f768505e14bc54d04b05a",
       "lines": 52
     },
     {
       "path": "docs/adr/0006-tcp-companion-server-proxy.md",
       "category": "maintained-or-decision",
-      "sha256": "99ec24327eef583cdd9b8f0f1dc3fa4e34bdcf0e984acc26f9627f5d3affede8",
+      "sha256": "e7d71b8aff596c0c05a3388f36c581ac9be64bf3ec8e0d4d9e2a83a85ae6c7c1",
       "lines": 50
     },
     {
       "path": "docs/adr/0007-decoupling-local-beacon-telemetry.md",
       "category": "maintained-or-decision",
-      "sha256": "30e8a7cc460dd0edd91a0f2f21e0c250de8564ff3648d1f47e458126f9b6a90b",
+      "sha256": "dbde8ca3314c8327f8db886209660172c8b03fe2426ee5ee92d81668870734ac",
       "lines": 47
     },
     {
       "path": "docs/adr/0008-automatic-rtc-clock-synchronization.md",
       "category": "maintained-or-decision",
-      "sha256": "1d69a897948009630d4aead68f0f721dfe744306f5dad107cfd5700c54b9712b",
+      "sha256": "33b51c8666e9171eece04872ec04336a31b29dea3c45f53c600874721dc2bd8f",
       "lines": 55
     },
     {
       "path": "docs/adr/0009-official-companion-protocol-layers.md",
       "category": "maintained-or-decision",
-      "sha256": "8ed159acd65ef61f0dbf78f2eeaf58c5b16f742ab7b82fe565ae303a386dbe0e",
+      "sha256": "74863c9661b70161247551a1987f5428a7a33b2ba8877a11242ef01bbac20dee",
       "lines": 51
     },
     {
       "path": "docs/adr/0010-duty-cycle-configurable-budget.md",
       "category": "maintained-or-decision",
-      "sha256": "ec4648ccd5bd10da073b02c6c0e0ef95801c8c59c87b8710511f185231ea8a1f",
+      "sha256": "9849bbadd63e4a4376d5edb65477432d715df2a452eceac05b9f3125ace7b714",
       "lines": 45
     },
     {
@@ -90,49 +90,49 @@
     {
       "path": "docs/adr/0012-bootstrap-5-frontend-architecture.md",
       "category": "maintained-or-decision",
-      "sha256": "0481b011f7ae5fb389be14311439a2e55d0399840e5c891085fa3cb0c3e1dfa7",
+      "sha256": "b9b5934cb376dae0a1256c0755545d93a1a83e4af5f5f468ebe3259d8922f1cb",
       "lines": 48
     },
     {
       "path": "docs/adr/0013-python-3-14-modernization.md",
       "category": "maintained-or-decision",
-      "sha256": "4ab261f34a9c37c94e6dbefff48e3152f7d1b4f28725d35956c2b3e7ac4032c2",
+      "sha256": "c060d9d40f06862b3864281e84be5c46b024c0bdae2a4e2aa1ef3920c414bd7e",
       "lines": 62
     },
     {
       "path": "docs/adr/0014-python-3-15-baseline.md",
       "category": "maintained-or-decision",
-      "sha256": "28eeb2e6a0d7719f7109230562c174351c7972a9128a68420ffcba2aa9774eba",
+      "sha256": "2740c63be6a328359b93a48486eef1b3837936d242c05e501209b3000d2a0551",
       "lines": 60
     },
     {
       "path": "docs/adr/0015-python-3-14-8-baseline.md",
       "category": "maintained-or-decision",
-      "sha256": "3d67b713279dc51caa2e61710aebd6005fdcc37f4fa5c1f80e1c9f6697fd4129",
+      "sha256": "6bbda62cfbd2eef1845392d3a547b356b57596d8fe9dc5da88911f5d12e99884",
       "lines": 62
     },
     {
       "path": "docs/adr/0016-python-3-12-baseline.md",
       "category": "maintained-or-decision",
-      "sha256": "7f1023006d08bf82de0cd9e6d77d824395797a09062901708d33050da06a3ac3",
+      "sha256": "3d43ae9ca985de0db3eb57ff6b33a38727ecc08c080d916ce9b591a971ea5637",
       "lines": 66
     },
     {
       "path": "docs/adr/0017-sqlite-station-browser-cache.md",
       "category": "maintained-or-decision",
-      "sha256": "3209b52f82e0e7e95379ea86ce4e92c4a5d53c7dd4a56667a6dfe3679f802870",
+      "sha256": "0c7082f1693ffc62f2b2d26a73c6de83b475a9d6f2041b92e0b8e8f1844a78a0",
       "lines": 25
     },
     {
       "path": "docs/adr/0018-personal-station-authentication.md",
       "category": "maintained-or-decision",
-      "sha256": "caeabcc390b99a1eb4cea266f450c86c35eefa4cc6b098a981eadc9a221915ae",
+      "sha256": "cfe699800298e9a42b9e0ef8b87c99c92851febf5001ca9a6b8fc0d91b37b91d",
       "lines": 35
     },
     {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "bd725d1e072e74ba9266a9f9ae09896f5b579cf3973cd154f76aad4537c0cddb",
+      "sha256": "d4201986f8a8d53de1425abc36df9cce98f5c9239cdf6db0677d9d508064f61d",
       "lines": 836
     },
     {
@@ -142,82 +142,130 @@
       "lines": 105
     },
     {
+      "path": "docs/audits/2026-10-10-python-314-modernization-report.md",
+      "category": "maintained-or-decision",
+      "sha256": "8bc608d63b6682c64a42f62f16180288d1b8e3761551cb39b63a71b91e5dd682",
+      "lines": 52
+    },
+    {
+      "path": "docs/audits/2026-10-12-login-browser-audit.md",
+      "category": "maintained-or-decision",
+      "sha256": "8a4ebc8fec917532b9f2bdcac53976243b1510436c4087c10336cbe83438bedb",
+      "lines": 36
+    },
+    {
       "path": "docs/audits/2026-10-15-meshcore-1.18-backend.md",
       "category": "maintained-or-decision",
-      "sha256": "50563339c86c3ef9373cd44c330388f520366f5ac2ec9b16302f169b5877c77f",
+      "sha256": "2bc473855b62c449978b6e098315023648f45916f819bddf1cac826ce6eec661",
       "lines": 156
     },
     {
       "path": "docs/audits/2026-10-15-meshcore-1.18-integration.md",
       "category": "maintained-or-decision",
-      "sha256": "335f7bc2b09fcff12dc5638ae353e0284abe18303c20ce82213dc1ac0258eccf",
+      "sha256": "f441b1598a0d6a2b1f87894f91728497152eef2a0a1e5a012eb4433634675480",
       "lines": 214
     },
     {
       "path": "docs/audits/2026-10-15-meshcore-1.18-protocol.md",
       "category": "maintained-or-decision",
-      "sha256": "068fc73b25139b31427f1ba872212335d9b2ccbcb9fee442593fdce88495c3e5",
+      "sha256": "160dfdf555e106e3ab24a4bcfa047291f336c0d19308e924180d88c204b19c16",
       "lines": 116
     },
     {
       "path": "docs/audits/2026-10-15-meshcore-1.18-web.md",
       "category": "maintained-or-decision",
-      "sha256": "4674ae702db26fa97a3afe1664e1b9cc12d8b3b20acd2c7eb5a963468050f993",
+      "sha256": "fe73f076a18bd3cdbb7bea9ec657df982602edf9100cff834273055a7162bc0c",
       "lines": 283
     },
     {
       "path": "docs/audits/2026-10-16-meshcore-1.18-layer2-protocol.md",
       "category": "maintained-or-decision",
-      "sha256": "44367a9418d0373b6ae30bc74035d5448a94b573dc52a555bc015d8eeb151fcf",
+      "sha256": "191ab4161d68d416077afa134c63d62baea45a0a7544c09ec2fe2d49a041e62e",
       "lines": 58
     },
     {
       "path": "docs/audits/2026-10-16-meshcore-1.18-layers-2-3.md",
       "category": "maintained-or-decision",
-      "sha256": "8f405fce84dd2f1d9cd0fbf7eedc7fc740e20498337d0f6b2c83911b85e0d201",
+      "sha256": "817ea6a50bbe79badc66e551d4c64125658eeb215ad85c26c1e400972e052360",
       "lines": 173
     },
     {
       "path": "docs/audits/2026-10-16-meshcore-1.18-remote-plan.md",
       "category": "maintained-or-decision",
-      "sha256": "adf17d9b04a0ee3e935e017d13028fa9a549af700cae67426c0eae101d8aaee6",
+      "sha256": "5bb4b8b8e684e9e619f20f3ec80028d5520f1737a609421420acee432f17be7c",
       "lines": 53
     },
     {
       "path": "docs/audits/2026-10-17-companion-connection.md",
       "category": "maintained-or-decision",
-      "sha256": "ae07b68999d1d3c6e8e7c17b544bf8b4d111894c2933008659e897ca762f7366",
+      "sha256": "f0e288c70cc9e24efbd0a705664e18be0cd6a0cafd7ca570f661620e9c48c3d6",
       "lines": 89
+    },
+    {
+      "path": "docs/audits/2026-10-17-dialog-toast-refinement.md",
+      "category": "maintained-or-decision",
+      "sha256": "a9b1053e69777f21a3107f537b7489b3c3b57965052287e005645aa1e96092bb",
+      "lines": 68
     },
     {
       "path": "docs/audits/2026-10-17-firmware-preferences.md",
       "category": "maintained-or-decision",
-      "sha256": "e9aaf1825e7ef61dcc404e80be51676caafed9020c1f1d175d16e29965f5a530",
+      "sha256": "d790b27d8d3689f05c11ad8e985b5b9b2f0426bdc2b6023f2549c67b3745402e",
       "lines": 107
     },
     {
       "path": "docs/audits/2026-10-17-firmware-wifi.md",
       "category": "maintained-or-decision",
-      "sha256": "aff433e8cca109abe41a228a67b412f0c83d48250941d574e13fe71a863f0bd5",
+      "sha256": "12e453cd4736cfff1d7fdfeb86c6f103b1d4cd6616cf5fc2664f32b3b17223b1",
       "lines": 66
     },
     {
       "path": "docs/audits/2026-10-17-meshcore-1.18-manual-admin.md",
       "category": "maintained-or-decision",
-      "sha256": "ef978485ccd8c377657c5e542ee572b644ddae2e50320ab5d234566303f1d535",
+      "sha256": "db5684784ef2477c0cbb3de748298da37fb07d2c0fe5110d52de5f8098b20972",
       "lines": 77
     },
     {
       "path": "docs/audits/2026-10-17-remote-firmware-preferences.md",
       "category": "maintained-or-decision",
-      "sha256": "36bdb5726c603c45a876b5edb3de546acd5a08780271e3fc77d440b24a067242",
+      "sha256": "9bdb31adde2976dcd447562ab78403d104fac5ad88bcfcea37b933a63107efdf",
       "lines": 121
     },
     {
       "path": "docs/audits/2026-10-17-sensor-subscriptions.md",
       "category": "maintained-or-decision",
-      "sha256": "7d5855cf60835da74141cf351107c7cb974649cd8df9e4ba6bffef26253f4149",
+      "sha256": "425da8403c51f3cfa5cfb4a458df41619248beeae37e9c61eec7c3f6eb999b30",
       "lines": 28
+    },
+    {
+      "path": "docs/audits/2026-10-17-web-visual-refinement.md",
+      "category": "maintained-or-decision",
+      "sha256": "6684ff0b3fdd3a5d0a27ba635d90fbe10b7008c982b94e4af719a00d78ef8a2e",
+      "lines": 118
+    },
+    {
+      "path": "docs/audits/2026-10-18-auth-startup-fix.md",
+      "category": "maintained-or-decision",
+      "sha256": "1b4b52e6936d998182fb200b641d573465ad3243dfd87aa38c167a01ce718bf2",
+      "lines": 57
+    },
+    {
+      "path": "docs/audits/2026-10-18-chat-reading-improvements.md",
+      "category": "maintained-or-decision",
+      "sha256": "73f55238abcf2c364935572754ce53fc49ed5a27875e48c118337958e9354c12",
+      "lines": 81
+    },
+    {
+      "path": "docs/audits/2026-10-18-css-visual-review.md",
+      "category": "maintained-or-decision",
+      "sha256": "98175651576a4028e4fce4c5a6003d183a03042c4a04d1e3444e976bcc3bcb15",
+      "lines": 77
+    },
+    {
+      "path": "docs/audits/2026-10-18-js-frontend-audit.md",
+      "category": "maintained-or-decision",
+      "sha256": "93c989b1ab4c44b9bcdb194254de354c253cc86760f38e0f14926ea900923aaa",
+      "lines": 134
     },
     {
       "path": "docs/audits/node-config-2026-10-03/backend/README.md",
@@ -268,46 +316,16 @@
       "lines": 131
     },
     {
-      "path": "docs/AUTH_STARTUP_FIX_2026-10-18.md",
-      "category": "maintained-or-decision",
-      "sha256": "1e4371567f332a5e00f797594058d8606d5012e478d1ce4928cf5d39fb4e473e",
-      "lines": 57
-    },
-    {
-      "path": "docs/AUTHENTICATION_PLAN.md",
-      "category": "maintained-or-decision",
-      "sha256": "98bc332b8416b4bd873c8da35557f041d4f983092c61d3848e04aeb62bb25e90",
-      "lines": 93
-    },
-    {
-      "path": "docs/CHAT_READING_IMPROVEMENTS_2026-10-18.md",
-      "category": "maintained-or-decision",
-      "sha256": "73f55238abcf2c364935572754ce53fc49ed5a27875e48c118337958e9354c12",
-      "lines": 81
-    },
-    {
       "path": "docs/CODE_EXPLANATION.md",
       "category": "maintained-or-decision",
-      "sha256": "74d48ce0baa3d5648882a959f7f0d3e0c2f82609ff28e8d82b7490b23e691f77",
+      "sha256": "a4da4a9b4e18ac5e19aa26db5a7a0ced2fbb05ce95f6995a7676c86399155cdb",
       "lines": 90
-    },
-    {
-      "path": "docs/CSS_VISUAL_REVIEW_2026-10-18.md",
-      "category": "maintained-or-decision",
-      "sha256": "9c4f23dbaf644e82ebcfe652ecaeed13a6b6c469867c0c39b70add79b036b91a",
-      "lines": 77
     },
     {
       "path": "docs/DEPLOYMENT_GUIDE.md",
       "category": "maintained-or-decision",
       "sha256": "e9fd14bdb05d3b9ede1b6140421e228f764a0bae9549af17c1a0217fdcf23fd1",
       "lines": 314
-    },
-    {
-      "path": "docs/DIALOG_TOAST_REFINEMENT_2026-10-17.md",
-      "category": "maintained-or-decision",
-      "sha256": "33c3af297ae246c4a9eff5deead142c7965cd14e82a397aa23466297353a4157",
-      "lines": 68
     },
     {
       "path": "docs/fastapi/DEPENDENCY_DECISIONS.md",
@@ -390,44 +408,44 @@
     {
       "path": "docs/FRONTEND_DELIVERY.md",
       "category": "maintained-or-decision",
-      "sha256": "f17ba9923cae661692e102bfc22199dc2e5a61b328448d59babfce398f7bb303",
+      "sha256": "daa7f4364c7d4b61dca32317d38e7943dc6617c04a682a41bf4bfe927c6ffcf2",
       "lines": 237
-    },
-    {
-      "path": "docs/FRONTEND_MODERNIZATION_PLAN.md",
-      "category": "maintained-or-decision",
-      "sha256": "94431bc3fe2470e74387cc15f734936afb608ac1274d296326d21cb7a2aca063",
-      "lines": 238
-    },
-    {
-      "path": "docs/JS_FRONTEND_AUDIT_2026-10-18.md",
-      "category": "maintained-or-decision",
-      "sha256": "93c989b1ab4c44b9bcdb194254de354c253cc86760f38e0f14926ea900923aaa",
-      "lines": 134
-    },
-    {
-      "path": "docs/LOGIN_AUDIT_2026-10-12.md",
-      "category": "maintained-or-decision",
-      "sha256": "3bc4abdd6cda05ac8185119cb7541fdfd7e126d260dac73c62c304c36f3b94c6",
-      "lines": 36
-    },
-    {
-      "path": "docs/LOGIN_DESIGN_AND_RECOVERY.md",
-      "category": "maintained-or-decision",
-      "sha256": "072bdb8080a6debad841e05723ce365cc17e5b7f20efbc2e87e338507ebbb6a5",
-      "lines": 64
-    },
-    {
-      "path": "docs/MESHCORE_1_18_UPGRADE_PLAN.md",
-      "category": "maintained-or-decision",
-      "sha256": "515cf9b182365b898f756f832c4c2dd5759c29002c2cea28cca9063dda46ec9a",
-      "lines": 312
     },
     {
       "path": "docs/N8N_WORKFLOW_GUIDE.md",
       "category": "maintained-or-decision",
       "sha256": "4c5c6def02cf82bb706e59a95ecc4a0be6c2eed30035ef4f8c7af9124c78fd2c",
       "lines": 85
+    },
+    {
+      "path": "docs/plans/AUTHENTICATION_PLAN.md",
+      "category": "maintained-or-decision",
+      "sha256": "90f2934d54779b716a565d71ba71c38a953fb7626a622185f005c8ad4d0b0e91",
+      "lines": 93
+    },
+    {
+      "path": "docs/plans/FRONTEND_MODERNIZATION_PLAN.md",
+      "category": "maintained-or-decision",
+      "sha256": "c6c927403121dd05296cbcbc972a28c9d41367171e8daa853e974d30a3bdc3da",
+      "lines": 238
+    },
+    {
+      "path": "docs/plans/LOGIN_DESIGN_AND_RECOVERY.md",
+      "category": "maintained-or-decision",
+      "sha256": "604368f38d74e3cbe3444b727b4775f4e283e41d26db402cd39175aba5801a26",
+      "lines": 64
+    },
+    {
+      "path": "docs/plans/MESHCORE_1_18_UPGRADE_PLAN.md",
+      "category": "maintained-or-decision",
+      "sha256": "b73296cdbf11915a5c222245a319e2e89067bf6cec3b30168ebacaf531e7a4f1",
+      "lines": 312
+    },
+    {
+      "path": "docs/plans/STORAGE_INTEGRATION_PLAN.md",
+      "category": "maintained-or-decision",
+      "sha256": "138a06268644b2fe6072bbe4a26a40d62714370c27bd1630c0b3835b2aff8b26",
+      "lines": 84
     },
     {
       "path": "docs/PROJECT_KNOWLEDGE.md",
@@ -438,20 +456,14 @@
     {
       "path": "docs/PROTOCOL_SPEC.md",
       "category": "maintained-or-decision",
-      "sha256": "0b6bb21636a9513335598f7aaf698a147ea53d223872a9f213485e87b673494a",
+      "sha256": "a13dc5760effa320f84a03e99465365c19d4b00ad4a9f7dba48b62a0a133559b",
       "lines": 570
-    },
-    {
-      "path": "docs/PYTHON_314_MODERNIZATION_REPORT.md",
-      "category": "maintained-or-decision",
-      "sha256": "2e218bebccb3f4d2b2c432ea4266cc53a04b9e2b4b16094dbe85be3c97f14f04",
-      "lines": 52
     },
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "0e85877358137f2a5f5cc63677471276eff43b1f557f9145971e22903b0aaf85",
-      "lines": 89
+      "sha256": "83b905dac4112e7de3b71b1e4a8a271624132a9e4778cabe4efa78ad2f3b9b15",
+      "lines": 169
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",
@@ -480,19 +492,13 @@
     {
       "path": "docs/STORAGE.md",
       "category": "maintained-or-decision",
-      "sha256": "8b7aeff1bcaf04a94d4ae6963b89cf31b6a149358f2e6782610d00369ca38b42",
+      "sha256": "fb7d25c3795d335f21ecf612b713514e862b6f36d0730c470f0e0e58aee3b607",
       "lines": 52
-    },
-    {
-      "path": "docs/STORAGE_INTEGRATION_PLAN.md",
-      "category": "maintained-or-decision",
-      "sha256": "1d9b28db01a2e41722aba8173fcd451632bae275f80ae63b89c5c15214f6f2b5",
-      "lines": 84
     },
     {
       "path": "docs/SYSTEM_LAYERS_MANUAL.md",
       "category": "maintained-or-decision",
-      "sha256": "952669f82b2b25a995bcb18cd1d412584ca09f656b245978ef3d9387ab6e43f7",
+      "sha256": "d19430a21c4a90d2fc15b7ec5a1af8e590a3ec04ef906b26493df9a3df81a29a",
       "lines": 485
     },
     {
@@ -504,19 +510,13 @@
     {
       "path": "docs/TESTING.md",
       "category": "maintained-or-decision",
-      "sha256": "9b915149b52cfff868f43899c400996631394e0b7f6dce1516daf9e83dd38775",
+      "sha256": "5c52d872735d20d7189cf0bc5c80114f4b842d158b8bf1487a6d7283619b52b8",
       "lines": 138
-    },
-    {
-      "path": "docs/WEB_VISUAL_REFINEMENT_2026-10-17.md",
-      "category": "maintained-or-decision",
-      "sha256": "f74277847215c38996790c96980987fa4eafa20003e86128f08074a51e614fce",
-      "lines": 118
     },
     {
       "path": "README.md",
       "category": "maintained-or-decision",
-      "sha256": "cf548dbf778cc7243c924f69f9b0b70c49436f719d608eb8ebd875b4c640aac9",
+      "sha256": "e477647967135204d137af7b6928d6c173d4a2d69fc06bc5b41fac7192169042",
       "lines": 216
     },
     {

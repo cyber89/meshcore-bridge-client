@@ -49,7 +49,7 @@ completa. Esta decisión no introduce transmisiones RF, reintentos ni timers nue
 ## Evidencia y pendientes
 
 La integración y los resultados por plataforma se registran en el
-[informe de modernización](../PYTHON_314_MODERNIZATION_REPORT.md). La ausencia de wheels
+[informe de modernización](../audits/2026-10-10-python-314-modernization-report.md). La ausencia de wheels
 WinRT para CPython 3.15 impidió instalar el SDK completo en este Windows; la prueba
 ASGI aislada no elimina ese límite. Linux permitió resolver e importar el SDK.
 

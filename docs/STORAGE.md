@@ -26,7 +26,7 @@ The interface fetches authoritative history and caches it per station UUID. Olde
 
 Settings provides an explicit import of old browser history in batches. Import is idempotent, requires a stable timestamp, validates messages, removes credential fields and does not transmit them. Imported records carry `source=browser_import`; old delivery claims become unverified sent states and ACK tracking is not activated. Existing server records are never overwritten by an import. Clearing the browser cache removes cached messages only; it does not erase SQLite history. There is no automatic history retention deadline or history deletion endpoint.
 
-History reads, imports and WebSocket access always require an authenticated session or integration credential. The personal account, password hash and session/token digests share the station SQLite database. The app has station-level authorization; the authorized operator can access stored DMs. It does not provide separate private accounts per operator. See [authentication](AUTHENTICATION_PLAN.md). Database backups include authentication state and must be protected; restoring a backup can restore sessions and tokens saved at that time.
+History reads, imports and WebSocket access always require an authenticated session or integration credential. The personal account, password hash and session/token digests share the station SQLite database. The app has station-level authorization; the authorized operator can access stored DMs. It does not provide separate private accounts per operator. See [authentication](plans/AUTHENTICATION_PLAN.md). Database backups include authentication state and must be protected; restoring a backup can restore sessions and tokens saved at that time.
 
 ## API
 

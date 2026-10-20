@@ -607,7 +607,7 @@ sequenceDiagram
 
 ## 11. Seguridad y Resiliencia Perimetral
 
-- **Autenticación de estación personal**: Cuenta única persistida en SQLite, hash scrypt con sal, sesiones opacas mediante cookie HttpOnly/SameSite=Strict y CSRF en mutaciones. Se autentican todas las rutas `/api/`, teselas, documentación y WebSockets; login y estado de sesión son públicos sin exponer datos. La instalación crea `admin:admin` automáticamente, sin preguntas ni espera, y exige cambio inmediato de contraseña antes de acceso. El botón Perfil, en la esquina superior derecha, abre el cambio de credenciales y cierre de sesión. Las integraciones utilizan token Bearer generado, o la clave externa `BRIDGE_API_KEY` explícita por cabecera. No se aceptan credenciales en query y una clave vacía ya no habilita acceso público. Véanse [ADR 0018](adr/0018-personal-station-authentication.md) y [plan/contrato](AUTHENTICATION_PLAN.md).
+- **Autenticación de estación personal**: Cuenta única persistida en SQLite, hash scrypt con sal, sesiones opacas mediante cookie HttpOnly/SameSite=Strict y CSRF en mutaciones. Se autentican todas las rutas `/api/`, teselas, documentación y WebSockets; login y estado de sesión son públicos sin exponer datos. La instalación crea `admin:admin` automáticamente, sin preguntas ni espera, y exige cambio inmediato de contraseña antes de acceso. El botón Perfil, en la esquina superior derecha, abre el cambio de credenciales y cierre de sesión. Las integraciones utilizan token Bearer generado, o la clave externa `BRIDGE_API_KEY` explícita por cabecera. No se aceptan credenciales en query y una clave vacía ya no habilita acceso público. Véanse [ADR 0018](adr/0018-personal-station-authentication.md) y [plan/contrato](plans/AUTHENTICATION_PLAN.md).
 - **Límite de Conexiones WebSocket**: Reserva perimetral de hasta 32 sesiones. Este límite no acredita un techo global de memoria del proceso o de las colas del backend.
 - **Origin y documentación**: Login, cookies de navegador y WebSockets usan comprobación exacta de mismo origen; las cookies no confían en la excepción general de LAN de la política CORS anterior. Las integraciones por cabecera no necesitan una cookie ni CSRF. La documentación y el esquema requieren una sesión o token válido. Los recursos estáticos de login no contienen datos de estación.
 - **Proyección pública**: La configuración de servicios enmascara password/token en `custom_presets` y `all_presets`. Los errores revisados evitan reflejar valores de excepciones; esto no acredita que cualquier texto de un SDK o respuesta exitosa sea seguro. Las exportaciones autenticadas de canales conservan el secreto requerido por su función.
@@ -739,7 +739,7 @@ ausencia de regresiones se valida mediante la suite automatizada de pruebas unit
 
 ## Preparación de MeshCore 1.18 (2026-10-15)
 
-El [plan por capas](MESHCORE_1_18_UPGRADE_PLAN.md) y el [informe de integración](audits/2026-10-15-meshcore-1.18-integration.md) distinguen cambios implementados y propuestas. El SDK de producción permanece fijado en2.3.15; no se actualizó el checkout de referencias ni se añadió un transporte nuevo. El adapter ya soportaba TCP Companion remoto.
+El [plan por capas](plans/MESHCORE_1_18_UPGRADE_PLAN.md) y el [informe de integración](audits/2026-10-15-meshcore-1.18-integration.md) distinguen cambios implementados y propuestas. El SDK de producción permanece fijado en2.3.15; no se actualizó el checkout de referencias ni se añadió un transporte nuevo. El adapter ya soportaba TCP Companion remoto.
 
 La primera entrega incorpora enum66, respuesta terminal29 en el proxy raw, lectura de frecuencias de cuatro dígitos y ocultación de claves WiFi en backend/terminal web. No modifica endpoints REST, eventos WS, esquemas MQTT/SQLite, colas TX, parámetros RF ni timers. Se conserva la serialización de respuestas con el lock existente y los timeouts no añaden retransmisiones.
 
@@ -833,4 +833,4 @@ cambio de contraseña en el diálogo existente antes de arrancarla.
 La decisión de acceso permanece en el servidor y usa la cookie HttpOnly y CSRF
 existentes. No se guardan secretos ni indicadores locales de autenticación. La
 opción de recordar sesión conserva sus 30 días; una contraseña guardada por el
-navegador no sustituye una cookie válida. [Evidencia y límites](AUTH_STARTUP_FIX_2026-10-18.md).
+navegador no sustituye una cookie válida. [Evidencia y límites](audits/2026-10-18-auth-startup-fix.md).

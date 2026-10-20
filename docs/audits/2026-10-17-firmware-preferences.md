@@ -1,7 +1,7 @@
 # Preferencias locales CAD y diagnóstico RX/hash
 
 Fecha: 2026-10-17. Base: `0a79b7b`. Entrega de capa4 del
-[plan MeshCore1.18](../MESHCORE_1_18_UPGRADE_PLAN.md).
+[plan MeshCore1.18](../plans/MESHCORE_1_18_UPGRADE_PLAN.md).
 
 ## Decisión del usuario y alcance
 

@@ -1,7 +1,7 @@
 # Preferencias remotas CAD y RX gain
 
 Fecha: 2026-10-17. Base: `9e40b4e`. Siguiente paso de capa4 del
-[plan MeshCore1.18](../MESHCORE_1_18_UPGRADE_PLAN.md).
+[plan MeshCore1.18](../plans/MESHCORE_1_18_UPGRADE_PLAN.md).
 
 ## Plan de implementación y alcance acordado
 

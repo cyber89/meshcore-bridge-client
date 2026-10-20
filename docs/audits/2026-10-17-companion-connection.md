@@ -1,7 +1,7 @@
 # Selector web de conexión Companion
 
 Fecha: 2026-10-17. Base: `0968eef`. Siguiente entrega de
-[MeshCore1.18](../MESHCORE_1_18_UPGRADE_PLAN.md), capa3.
+[MeshCore1.18](../plans/MESHCORE_1_18_UPGRADE_PLAN.md), capa3.
 
 ## Implementación
 
