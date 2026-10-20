@@ -12,7 +12,29 @@
   <script async src="/js/session_startup.js"></script>
 
   <!-- Bootswatch 5.3 Themes Locales Offline: Slate (Oscuro) y Zephyr (Claro) -->
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem("meshcore_theme");
+        if (t === "light") {
+          document.documentElement.setAttribute("data-bs-theme", "light");
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute("content", "#eef3f9");
+        }
+      } catch (_) {}
+    })();
+  </script>
   <link id="themeStylesheet" rel="stylesheet" href="/css/bootstrap-slate.min.css">
+  <script>
+    (function() {
+      try {
+        if (localStorage.getItem("meshcore_theme") === "light") {
+          var l = document.getElementById("themeStylesheet");
+          if (l) l.href = "/css/bootstrap-zephyr.local.min.css";
+        }
+      } catch (_) {}
+    })();
+  </script>
   <link rel="stylesheet" href="/css/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/app.css">
 
@@ -21,6 +43,7 @@
   <script defer src="/js/leaflet.min.js"></script>
 </head>
 <body class="bg-body text-body d-flex flex-column overflow-hidden auth-pending">
+  <a href="#tab-chat" class="skip-link" data-i18n="ui.skip_to_content">Saltar al contenido</a>
   <div id="authStartup" class="auth-startup" role="status">
     <img src="/brand.svg" alt="" width="48" height="48">
     <strong>Meshcore-Bridge</strong>
@@ -178,7 +201,7 @@
         </div>
       </div>
     </aside>
-
+            
     <!-- Área de Contenido Principal -->
     <main class="app-main tab-content flex-grow-1 overflow-auto p-3" role="main">
         <section id="tab-chat" class="tab-pane active" role="tabpanel" aria-labelledby="navTabChat">
@@ -188,6 +211,7 @@
               <div class="chat-channels-header">
                 <span class="panel-title" data-i18n="chat.channels">Canales</span>
                 <div class="panel-btn-group">
+                  <button type="button" class="btn btn-sm btn-icon btn-close-channels-drawer d-lg-none" id="btnCloseChannelsDrawer" title="Cerrar canales" aria-label="Cerrar lista de canales" data-i18n-title="chat.close_drawer" data-i18n-aria-label="chat.close_drawer"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                   <button type="button" class="btn btn-sm btn-outline-secondary" id="btnImportData" title="Importar canal o contacto" aria-label="Importar canal o contacto" data-i18n-title="chat.import_channel_title" data-i18n-aria-label="chat.import_channel_title"><i class="bi bi-download" aria-hidden="true"></i></button>
                   <button type="button" class="btn btn-sm btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal" data-i18n-title="chat.add_channel_title" data-i18n-aria-label="ui.static_019"><i class="bi bi-plus-circle" aria-hidden="true"></i></button>
                 </div>
@@ -212,6 +236,7 @@
                 <li class="empty-hint" data-i18n="chat.no_conversations">Sin conversaciones activas</li>
               </ul>
             </aside>
+            <div class="chat-channels-backdrop d-lg-none" id="chatChannelsBackdrop" aria-hidden="true"></div>
 
             <!-- Panel Derecho de Mensajería: Conversación Activa y Composición -->
             <div class="chat-conversation-panel">
@@ -3097,7 +3122,6 @@
   <div id="toastContainer" class="toast-container app-toast-container" role="region" aria-label="Notificaciones" data-i18n-aria-label="app.notifications"></div>
 
   <script defer src="/js/bootstrap.bundle.min.js"></script>
-  <script defer src="/js/qrcode.js"></script>
   <script defer src="/js/i18n.js"></script>
   <script type="module" src="/js/app.js"></script>
 </body>

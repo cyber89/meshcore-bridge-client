@@ -731,7 +731,7 @@ export class NodesModule {
       card.innerHTML = `
         <div class="node-card-header directory-card-header">
           <div class="node-card-avatar-wrapper">
-            <div class="node-card-avatar avatar-${roleClass === "role-local" ? "local" : (roleClass === "role-repeater" ? "repeater" : (roleClass === "role-sensor" ? "sensor" : "client"))}">
+            <div class="node-card-avatar avatar-${roleClass === "role-local" ? "local" : (roleClass === "role-repeater" ? "repeater" : (roleClass === "role-sensor" ? "sensor" : (roleClass === "role-room" ? "room" : "client")))}">
               <i class="bi ${avatarIcon}" aria-hidden="true"></i>
             </div>
             <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>

@@ -756,7 +756,7 @@ class MeshCoreApp {
       : I18n.t("app.radio_offline_title");
   }
 
-  showToast(message, type = "info", durationMs = 3500) {
+  showToast(message, type = "info", durationMs = null) {
     let container = document.getElementById("toastContainer");
     if (!container) {
       container = document.createElement("div");
@@ -776,6 +776,9 @@ class MeshCoreApp {
     };
     type = type === "danger" ? "error" : Object.hasOwn(typeConfig, type) ? type : "info";
     const cfg = typeConfig[type];
+    if (durationMs === null || durationMs === undefined) {
+      durationMs = type === "error" ? 7500 : 3500;
+    }
 
     const toast = document.createElement("div");
     toast.className = `toast app-toast toast-type-${type} fade`;

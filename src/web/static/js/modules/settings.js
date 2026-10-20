@@ -1420,9 +1420,9 @@ export class SettingsModule {
       const chDisplayName = ch.name || (ch.index === 0 ? I18n.t('chat.ch_0_default') : I18n.t("settings.channel_label", { p0: ch.index }));
 
       li.innerHTML = `
-        <button type="button" class="channel-select" aria-pressed="${isActive}">
+        <button type="button" class="channel-select" aria-pressed="${isActive}" title="${escapeHtml(chDisplayName)}" aria-label="${escapeHtml(chDisplayName)}">
         <span class="ch-badge font-mono">Ch ${ch.index}</span>
-        <span class="ch-name">${escapeHtml(chDisplayName)}</span>
+        <span class="ch-name" title="${escapeHtml(chDisplayName)}">${escapeHtml(chDisplayName)}</span>
           <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${escapeHtml(lockTitle)}">
             <i class="bi ${ch.index === 0 ? 'bi-globe2' : (isEnc ? 'bi-lock' : 'bi-unlock')}" aria-hidden="true"></i>
           </span>
@@ -2526,8 +2526,21 @@ export class SettingsModule {
     }
   }
 
-  showQrModal(title, uri, rawJson = "", label = null) {
+  async showQrModal(title, uri, rawJson = "", label = null) {
     if (!this.dom.qrShareModal) return;
+    if (!(window.QRCodeGenerator || window.QRCode)) {
+      try {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "/js/qrcode.js";
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      } catch (err) {
+        console.warn("Error cargando qrcode.js:", err);
+      }
+    }
     if (this.dom.qrModalTitle) {
       if (label) I18n.setText(this.dom.qrModalTitle, label.key, label.params || {});
       else if (!title) I18n.setText(this.dom.qrModalTitle, 'settings.qr_share');

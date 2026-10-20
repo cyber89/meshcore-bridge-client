@@ -132,7 +132,43 @@ export class ChatModule {
     this.updateCharCounter();
     this._updateActiveChatHeader();
     if (window.matchMedia("(max-width: 991.98px)").matches && this.dom.sidebarChannelList) {
-      this.dom.sidebarChannelList.classList.add("mobile-open");
+      this.openChannelsDrawer();
+    }
+  }
+
+  openChannelsDrawer(triggerEl = null) {
+    const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
+    if (!panel) return;
+    this._drawerTrigger = triggerEl || this.dom.btnBackToChannelsMobile || document.activeElement;
+    panel.classList.add("mobile-open");
+    if (this.dom.chatChannelsBackdrop) {
+      this.dom.chatChannelsBackdrop.classList.add("visible");
+    }
+    if (this.dom.btnCloseChannelsDrawer) {
+      this.dom.btnCloseChannelsDrawer.focus();
+    }
+  }
+
+  closeChannelsDrawer() {
+    const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
+    if (!panel) return;
+    panel.classList.remove("mobile-open");
+    if (this.dom.chatChannelsBackdrop) {
+      this.dom.chatChannelsBackdrop.classList.remove("visible");
+    }
+    if (this._drawerTrigger && typeof this._drawerTrigger.focus === "function") {
+      this._drawerTrigger.focus();
+      this._drawerTrigger = null;
+    }
+  }
+
+  toggleChannelsDrawer(triggerEl = null) {
+    const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
+    if (!panel) return;
+    if (panel.classList.contains("mobile-open")) {
+      this.closeChannelsDrawer();
+    } else {
+      this.openChannelsDrawer(triggerEl);
     }
   }
 
@@ -170,6 +206,8 @@ export class ChatModule {
       clearChatBtn: document.getElementById("clearChatBtn"),
       dmCountBadge: document.getElementById("dmCountBadge"),
       sidebarChannelList: document.getElementById("sidebarChannelList"),
+      btnCloseChannelsDrawer: document.getElementById("btnCloseChannelsDrawer"),
+      chatChannelsBackdrop: document.getElementById("chatChannelsBackdrop"),
       globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       chkChatSoundAlerts: document.getElementById("chkChatSoundAlerts"),
 
@@ -213,16 +251,31 @@ export class ChatModule {
       this.dom.chatMessageFeed?.focus({ preventScroll: true });
     });
 
-    // Botón de retorno a canales en móvil (estilo WhatsApp)
-    const handleMobileBack = () => {
-      const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
-      if (panel) {
-        panel.classList.toggle("mobile-open");
-      }
-    };
+    // Cajón móvil de canales (V-01)
     if (this.dom.btnBackToChannelsMobile) {
-      this.dom.btnBackToChannelsMobile.addEventListener("click", handleMobileBack);
+      this.dom.btnBackToChannelsMobile.addEventListener("click", (e) => {
+        this.toggleChannelsDrawer(e.currentTarget);
+      });
     }
+    if (this.dom.btnCloseChannelsDrawer) {
+      this.dom.btnCloseChannelsDrawer.addEventListener("click", () => {
+        this.closeChannelsDrawer();
+      });
+    }
+    if (this.dom.chatChannelsBackdrop) {
+      this.dom.chatChannelsBackdrop.addEventListener("click", () => {
+        this.closeChannelsDrawer();
+      });
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
+        if (panel && panel.classList.contains("mobile-open")) {
+          e.preventDefault();
+          this.closeChannelsDrawer();
+        }
+      }
+    });
 
     // Contador de caracteres/bytes en tiempo real
     if (this.dom.chatInputText) {
@@ -955,9 +1008,8 @@ export class ChatModule {
 
     this._syncConversationSelection();
 
-    const panel = document.querySelector(".chat-channels-panel");
-    if (panel && window.matchMedia("(max-width: 991.98px)").matches) {
-      panel.classList.remove("mobile-open");
+    if (window.matchMedia("(max-width: 991.98px)").matches) {
+      this.closeChannelsDrawer();
     }
 
     this.renderCurrentConversation();
@@ -1011,9 +1063,8 @@ export class ChatModule {
     const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
     if (navBtn) navBtn.click();
 
-    const panel = document.querySelector(".chat-channels-panel");
-    if (panel && window.matchMedia("(max-width: 991.98px)").matches) {
-      panel.classList.remove("mobile-open");
+    if (window.matchMedia("(max-width: 991.98px)").matches) {
+      this.closeChannelsDrawer();
     }
 
     this.renderCurrentConversation();
@@ -1378,9 +1429,20 @@ export class ChatModule {
     if (msgs.length === 0 && state === "ready") {
       const empty = document.createElement("div");
       empty.className = "chat-empty-state";
-      const help = document.createElement("p");
-      help.textContent = I18n.t("chat.write_below");
-      empty.appendChild(help);
+      empty.innerHTML = `
+        <div class="chat-empty-icon" aria-hidden="true"><i class="bi bi-chat-dots"></i></div>
+        <h4 class="chat-empty-title">${escapeHtml(I18n.t("chat.empty_state_title"))}</h4>
+        <p class="chat-empty-desc">${escapeHtml(I18n.t("chat.empty_state_desc"))}</p>
+        <button type="button" class="btn btn-sm btn-outline-primary chat-empty-cta">
+          <i class="bi bi-pencil-square button-icon" aria-hidden="true"></i> ${escapeHtml(I18n.t("chat.empty_state_action"))}
+        </button>
+      `;
+      const ctaBtn = empty.querySelector(".chat-empty-cta");
+      if (ctaBtn) {
+        ctaBtn.addEventListener("click", () => {
+          this.dom.chatInputText?.focus();
+        });
+      }
       frag.appendChild(empty);
     }
 

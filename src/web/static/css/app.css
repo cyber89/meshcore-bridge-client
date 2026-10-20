@@ -1,3 +1,26 @@
+/* Enlace de Salto Accesible (WCAG 2.4.1 Bypass Blocks - A-02) */
+.skip-link {
+  position: absolute;
+  top: -120px;
+  left: 1rem;
+  z-index: 1050;
+  padding: 0.5rem 1rem;
+  background: var(--primary-fill);
+  color: var(--primary-action-text);
+  font-weight: 600;
+  font-size: var(--font-body);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  box-shadow: var(--card-shadow);
+  transition: top var(--motion-normal) ease;
+}
+.skip-link:focus-visible,
+.skip-link:focus {
+  top: 1rem;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 /* Hide station data until the server authenticates and accepts the credentials. */
 body.auth-pending > .app-header,
 body.auth-pending > #app { display: none !important; }
@@ -224,7 +247,11 @@ body.auth-pending > #app { display: none !important; }
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 32px;
-  --control-transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-slow: 260ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --control-transition: background-color var(--motion-normal) ease, color var(--motion-normal) ease, border-color var(--motion-normal) ease;
   --chat-divider: #7c8aa0;
   --chat-time-outgoing: #eaf2ff;
   /* Consoles keep a dark surface in both application themes. */
@@ -254,6 +281,16 @@ html.density-compact {
 @media (pointer: coarse) {
   html.density-compact :is(.btn:not(.btn-header-action), .form-control, .channel-item, .local-subtab-btn, .nav-btn) {
     min-height: 44px;
+  }
+}
+
+/* Preferencia de Movimiento Reducido (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-normal: 0ms;
+    --motion-slow: 0ms;
+    --control-transition: none;
   }
 }
 
@@ -1571,17 +1608,42 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 .chat-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  max-width: 32rem;
-  padding: var(--space-md);
+  max-width: 28rem;
+  margin: auto;
+  padding: var(--space-xl) var(--space-md);
   text-align: center;
-  color: var(--text-muted);
-  font-size: var(--font-body);
-  line-height: 1.6;
-  overflow-wrap: anywhere;
 }
 
-.chat-empty-state p { margin: 0; }
+.chat-empty-icon {
+  font-size: 2.25rem;
+  color: var(--bs-primary);
+  opacity: 0.85;
+  margin-bottom: var(--space-sm);
+}
+
+.chat-empty-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 var(--space-xs);
+}
+
+.chat-empty-desc {
+  font-size: var(--font-body);
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 var(--space-md);
+}
+
+.chat-empty-cta {
+  min-height: var(--control-height-sm, 32px);
+  padding: 0 14px;
+}
 
 .chat-date-separator {
   display: flex;
@@ -2352,10 +2414,12 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   color: var(--text-muted);
 }
 
+.search-input:focus-visible,
 .search-input:focus {
   border-color: var(--bs-primary);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
   box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.2);
-  outline: none;
 }
 
 .nodes-filter-pills,
@@ -2990,7 +3054,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 
 .code-textarea:focus-visible {
   border-color: var(--accent-primary, #6366f1);
-  outline: none;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
 }
 
@@ -6623,3 +6688,138 @@ details.settings-disclosure > .disclosure-content {
 }
 
 
+
+/* Cajón Móvil de Canales y Fondo de Superposición (V-01) */
+.chat-channels-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 45;
+  opacity: 0;
+  transition: opacity var(--motion-normal, 180ms) ease;
+  pointer-events: none;
+}
+.chat-channels-backdrop.visible {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.btn-close-channels-drawer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-sm, 32px);
+  height: var(--control-height-sm, 32px);
+  padding: 0;
+  border-radius: var(--bs-border-radius-sm, 6px);
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+}
+.btn-close-channels-drawer:hover {
+  background: var(--bs-secondary-bg);
+  color: var(--bs-primary);
+}
+
+/* Identidad Semántica de Roles en Avatares de Nodos (V-06) */
+.node-card-avatar.avatar-local {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #34d399;
+}
+.node-card-avatar.avatar-repeater {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fbbf24;
+}
+.node-card-avatar.avatar-sensor {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: rgba(6, 182, 212, 0.45);
+  color: #22d3ee;
+}
+.node-card-avatar.avatar-room {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #c084fc;
+}
+.node-card-avatar.avatar-client {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.45);
+  color: #60a5fa;
+}
+
+[data-bs-theme="light"] .node-card-avatar.avatar-local,
+body.light-theme .node-card-avatar.avatar-local {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+[data-bs-theme="light"] .node-card-avatar.avatar-repeater,
+body.light-theme .node-card-avatar.avatar-repeater {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+[data-bs-theme="light"] .node-card-avatar.avatar-sensor,
+body.light-theme .node-card-avatar.avatar-sensor {
+  background: #cffafe;
+  border-color: #67e8f9;
+  color: #155e75;
+}
+[data-bs-theme="light"] .node-card-avatar.avatar-room,
+body.light-theme .node-card-avatar.avatar-room {
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+  color: #6b21a8;
+}
+[data-bs-theme="light"] .node-card-avatar.avatar-client,
+body.light-theme .node-card-avatar.avatar-client {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+/* Tablas de Datos Unificadas con Sticky Headers y Tabular-Nums (Analítica y Sniffer - V-07) */
+.analytics-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+}
+
+.analytics-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bs-tertiary-bg);
+  border-bottom: 2px solid var(--bs-border-color);
+  font-weight: 600;
+  padding: 6px 10px;
+}
+
+.analytics-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--bs-border-color-subtle, var(--bs-border-color));
+  vertical-align: middle;
+}
+
+.analytics-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.analytics-table tbody tr:hover {
+  background: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.08);
+}
+
+.analytics-table td:nth-child(3),
+.analytics-table td:nth-child(4),
+.analytics-table td:nth-child(5),
+.analytics-table th:nth-child(3),
+.analytics-table th:nth-child(4),
+.analytics-table th:nth-child(5) {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  text-align: right;
+}

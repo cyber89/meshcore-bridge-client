@@ -1136,6 +1136,11 @@
       'header.tx_queue':           'Cola TX / Buffer',
 
       // Chat section
+      'chat.close_drawer':         'Cerrar lista de canales',
+      'chat.empty_state_title':    'No hay mensajes en esta conversación',
+      'chat.empty_state_desc':     'Envía el primer mensaje para transmitir en la malla LoRa.',
+      'chat.empty_state_action':   'Escribir mensaje',
+      'ui.skip_to_content':        'Saltar al contenido',
       'chat.channels':             'Canales',
       'chat.direct_messages':      'Mensajes Directos',
       'chat.no_conversations':     'Sin conversaciones activas',
@@ -2860,6 +2865,11 @@
       'header.tx_queue':           'TX Queue / Buffer',
 
       // Chat section
+      'chat.close_drawer':         'Close channels drawer',
+      'chat.empty_state_title':    'No messages in this conversation',
+      'chat.empty_state_desc':     'Send the first message to transmit over the LoRa mesh.',
+      'chat.empty_state_action':   'Write message',
+      'ui.skip_to_content':        'Skip to content',
       'chat.channels':             'Channels',
       'chat.direct_messages':      'Direct Messages',
       'chat.no_conversations':     'No active conversations',
