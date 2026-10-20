@@ -37,6 +37,7 @@ class MqttPreset:
     transport: str = "tcp"  # "tcp" o "websockets"
     tls_enabled: bool = False
     tls_verify: bool = True
+    tls_ca_file: str | None = None
     auth_type: str = "anonymous"  # "anonymous", "user_pass", "token"
     username: str = ""
     password: str = ""
@@ -186,6 +187,7 @@ class ExternalMqttConfig:
     transport: str = "tcp"
     tls_enabled: bool = False
     tls_verify: bool = True
+    tls_ca_file: str | None = None
     auth_type: str = "anonymous"
     username: str = ""
     password: str = ""
@@ -229,7 +231,7 @@ class LocalMqttConfig:
 class TcpServerConfig:
     """Configuración del Servidor TCP Companion (App Móvil Oficial MeshCore & CLI)."""
     enabled: bool = True
-    host: str = "0.0.0.0"  # nosec B104
+    host: str = "127.0.0.1"
     port: int = 5000
     max_clients: int = 8
     allowed_ips: str = ""
@@ -265,7 +267,7 @@ def _bootstrap_from_env() -> ServicesConfig:
 
     tcp_cfg = TcpServerConfig(
         enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
-        host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),  # nosec B104
+        host=str(getattr(config, "TCP_SERVER_HOST", "127.0.0.1")),
         port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
         max_clients=int(getattr(config, "MAX_COMPANION_CLIENTS", 8)),
         allowed_ips=str(getattr(config, "COMPANION_ALLOWED_IPS", "") or ""),
@@ -305,7 +307,7 @@ def _atomic_write_json(file_path: Path, data: dict[str, Any]) -> None:
 
 def load_services_config(file_path: Path | None = None, *, database: StationDatabase | None = None) -> ServicesConfig:
     """Carga la configuración desde JSON con migración automática y fallback a .env."""
-    path = file_path or DEFAULT_CONFIG_PATH
+    path = file_path or Path(getattr(config, "DATA_DIR", "data")) / "services_config.json"
     if database is not None:
         raw = database.read_document("services", path, validator=_validate_services_document)
         if raw is None:
@@ -325,10 +327,10 @@ def load_services_config(file_path: Path | None = None, *, database: StationData
     try:
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
+        _validate_services_document(raw)
         return _services_from_document(raw)
     except Exception as e:
-        logger.error(f"Error cargando {path}: {e}. Usando valores de arranque desde .env...")
-        return _bootstrap_from_env()
+        raise ValueError("Invalid services configuration; the original file was preserved") from e
 
 
 def _validate_services_document(raw: Any) -> None:
@@ -352,6 +354,41 @@ def _validate_service_fields(data: dict[str, Any], section_type: type[Any]) -> N
     for key, expected_type in get_type_hints(section_type).items():
         if key in data and (not isinstance(data[key], expected_type) or (expected_type is int and isinstance(data[key], bool))):
             raise ValueError("Services configuration field invalid")
+    for flag in ("clear_password", "clear_token"):
+        if flag in data and not isinstance(data[flag], bool):
+            raise ValueError("Credential clearing flags must be boolean")
+    for name in ("port", "keepalive", "qos", "max_clients"):
+        if name not in data:
+            continue
+        value = data[name]
+        if name == "port" and not 1 <= value <= 65535:
+            raise ValueError("Service port must be between 1 and 65535")
+        if name == "keepalive" and not 0 <= value <= 65535:
+            raise ValueError("MQTT keepalive must be between 0 and 65535")
+        if name == "qos" and value not in (0, 1, 2):
+            raise ValueError("MQTT QoS must be 0, 1 or 2")
+        if name == "max_clients" and value < 1:
+            raise ValueError("Companion max_clients must be positive")
+    choices = {
+        "transport": ("tcp", "websockets"),
+        "auth_type": ("anonymous", "user_pass", "token"),
+        "location_privacy": ("exact", "fuzzed", "hidden"),
+        "topic_mode": ("standard", "hierarchical", "custom"),
+        "payload_format": ("json_canonical", "analyzer_packet"),
+    }
+    for name, allowed in choices.items():
+        if name in data and data[name] not in allowed:
+            raise ValueError(f"Invalid services configuration {name}")
+
+
+def validate_services_config(cfg: ServicesConfig) -> None:
+    """Validate protocol domains before opening sockets or saving settings."""
+    _validate_services_document(asdict(cfg))
+
+
+def validate_external_mqtt_config(cfg: ExternalMqttConfig) -> None:
+    """Apply the same MQTT protocol domains to construction and connection probes."""
+    _validate_service_fields(asdict(cfg), ExternalMqttConfig)
 
 
 def _services_from_document(raw: Any) -> ServicesConfig:
@@ -393,7 +430,8 @@ def _services_from_document(raw: Any) -> ServicesConfig:
 
 def save_services_config(cfg: ServicesConfig, file_path: Path | None = None, *, database: StationDatabase | None = None) -> None:
     """Persist a state snapshot in SQLite, or the explicit legacy JSON adapter."""
-    path = file_path or DEFAULT_CONFIG_PATH
+    path = file_path or Path(getattr(config, "DATA_DIR", "data")) / "services_config.json"
+    validate_services_config(cfg)
     data = asdict(cfg)
     if database is not None:
         database.write_document("services", data)
@@ -404,7 +442,7 @@ def save_services_config(cfg: ServicesConfig, file_path: Path | None = None, *, 
 
 async def save_services_config_async(cfg: ServicesConfig, file_path: Path | None = None, *, database: StationDatabase | None = None) -> None:
     """Versión asíncrona no bloqueante de guardado atómico usando asyncio.to_thread."""
-    path = file_path or DEFAULT_CONFIG_PATH
+    path = file_path or Path(getattr(config, "DATA_DIR", "data")) / "services_config.json"
     await asyncio.to_thread(save_services_config, cfg, path, database=database)
 
 
@@ -450,11 +488,15 @@ def update_services_config(
 ) -> ServicesConfig:
     """Aplica mutaciones validadas preservando contraseñas existentes si se reciben enmascaradas."""
     new_cfg = copy.deepcopy(current)
+    for section in ("external_mqtt", "local_mqtt", "tcp_server"):
+        if section in updates and not isinstance(updates[section], dict):
+            raise ValueError("Services configuration section must be an object")
     if "companion_port" in updates:
         new_cfg.companion_port = normalize_companion_port(updates["companion_port"])
 
     if "external_mqtt" in updates and isinstance(updates["external_mqtt"], dict):
         ext_in = updates["external_mqtt"]
+        _validate_service_fields(ext_in, ExternalMqttConfig)
         cur_ext = new_cfg.external_mqtt
         for k, v in ext_in.items():
             if not hasattr(cur_ext, k):
@@ -477,11 +519,18 @@ def update_services_config(
                 "filter_direct", "filter_telemetry", "filter_nodes", "filter_raw",
             ):
                 setattr(cur_ext, k, bool(v))
+            elif k == "tls_ca_file":
+                cur_ext.tls_ca_file = v or None
             else:
                 setattr(cur_ext, k, str(v) if v is not None else "")
+        if ext_in.get("clear_password") is True:
+            cur_ext.password = ""
+        if ext_in.get("clear_token") is True:
+            cur_ext.token = ""
 
     if "local_mqtt" in updates and isinstance(updates["local_mqtt"], dict):
         loc_in = updates["local_mqtt"]
+        _validate_service_fields(loc_in, LocalMqttConfig)
         cur_loc = new_cfg.local_mqtt
         for k, v in loc_in.items():
             if not hasattr(cur_loc, k):
@@ -496,11 +545,16 @@ def update_services_config(
                     pass
             elif k in ("enabled", "auth_enabled", "tls_enabled"):
                 setattr(cur_loc, k, bool(v))
+            elif k in ("tls_ca_file", "tls_cert_file", "tls_key_file"):
+                setattr(cur_loc, k, v or None)
             else:
                 setattr(cur_loc, k, str(v) if v is not None else "")
+        if loc_in.get("clear_password") is True:
+            cur_loc.password = ""
 
     if "tcp_server" in updates and isinstance(updates["tcp_server"], dict):
         tcp_in = updates["tcp_server"]
+        _validate_service_fields(tcp_in, TcpServerConfig)
         cur_tcp = new_cfg.tcp_server
         for k, v in tcp_in.items():
             if not hasattr(cur_tcp, k):
@@ -515,4 +569,5 @@ def update_services_config(
             else:
                 setattr(cur_tcp, k, str(v) if v is not None else "")
 
+    validate_services_config(new_cfg)
     return new_cfg

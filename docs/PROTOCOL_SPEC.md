@@ -568,3 +568,25 @@ Fuente en firmware 1.18: `examples/simple_sensor/SensorMesh.cpp` (`REQ_TYPE_SUBS
     - Si el `push_tag` es desconocido o su suscripción ha expirado, el paquete permanece opaco (`event_type = "binary_response"`, `sender = None`, `sender_known = False`) sin inventar identidad ni decodificar LPP.
   - **Sin renovación automática y secreto de `push_tag`**: Las suscripciones son 100 % manuales (`subscribe_sensor` / `unsubscribe_sensor` exclusivamente para nodos `SENSOR` con `adv_type == 4`) y transicionan a `expired` al vencer `expires_at` sin timers de auto-renovación. El token `push_tag` se almacena en SQLite pero se excluye de todas las vistas públicas REST/WebSocket (`get_sensor_subscription_public_view`). Auditoría detallada: [suscripciones de sensores](audits/2026-10-17-sensor-subscriptions.md).
 
+### 15.3 Admisión del proxy Companion (2026-10-20)
+
+El proxy conserva `<`/`>` y longitud uint16 little-endian del transporte oficial;
+no introduce structs C empaquetados, padding ni CRC adicional. Los payloads son
+secuencias de bytes definidas por cada rama de `MyMesh.cpp`, no serialización de
+memoria nativa. La admisión valida longitud necesaria antes de reenviar; un
+helper SDK que genere un comando truncado no sustituye la especificación del
+firmware. No se modifica ninguna referencia oficial.
+
+`companion_command_kind()` en `src/serial/sdk_adapter.py` clasifica explícitamente
+los opcodes conocidos en locales o RF. Los RF pasan por la cola y el presupuesto
+existentes; `SEND_TELEMETRY_REQ` (39) con 4 bytes es local y su variante remota
+incluye la clave de 32 bytes tras la cabecera. CLI (66) se admite por el proxy
+solo para getters locales verificados; el bridge mantiene sus otros ejecutores
+administrativos separados. Desconocidos o payloads incompletos se rechazan sin
+transmitir; no se inventa una respuesta de éxito por haber encolado trabajo.
+
+La app oficial puede usar el protocolo binario sobre una conexión admitida por
+IP. El handshake `TOKEN` es una extensión propia opcional para clientes que lo
+implementen y no forma parte de la compatibilidad oficial. El listener remoto
+sin IPs explícitas ni token falla cerrado; el default es loopback.
+

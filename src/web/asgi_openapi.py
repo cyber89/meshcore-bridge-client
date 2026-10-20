@@ -246,7 +246,7 @@ def _tile_operation() -> dict[str, Any]:
         "responses": {
             "401": {"description": "Missing, expired or invalid session/API token."},
             "200": {
-                "description": "Bytes de tesela autenticada; Cache-Control no-store.",
+                "description": "Bytes de tesela autenticada; Cache-Control private, max-age=86400.",
                 "headers": {"Cache-Control": {"schema": {"type": "string"}}},
                 "content": {
                     mime: dict(binary)
@@ -344,7 +344,7 @@ def build_openapi_schema() -> dict[str, Any]:
         "properties": {"authenticated": {"type": "boolean"}, "username": {"type": ["string", "null"]},
                        "csrf_token": {"type": ["string", "null"]}, "must_change_credentials": {"type": "boolean"},
                        "api_key_configured": {"type": "boolean"},
-                       "requires_initial_setup": {"type": "boolean", "description": "The station still requires its initial password change, independent of a browser session."}},
+                       "requires_initial_setup": {"type": "boolean", "description": "True only for an authenticated local bootstrap session; anonymous responses always return false."}},
     }
     username = {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_.-]+$"}
     password = {"type": "string", "minLength": 1, "maxLength": 128, "writeOnly": True}
@@ -357,7 +357,7 @@ def build_openapi_schema() -> dict[str, Any]:
          [{"CookieAuth": [], "CsrfToken": []}], None),
         ("/api/auth/credentials", "put", "Change owner credentials and revoke all sessions/API tokens",
          {"current_password": password, "username": username, "password": {**password, "minLength": 8, "maxLength": 64, "description": "8-64 Unicode characters; no complexity requirement. Existing credentials remain accepted up to 128 characters for login and confirmation."}},
-         ["username", "password"], [{"CookieAuth": [], "CsrfToken": []}], "AuthSession"),
+         ["current_password", "username", "password"], [{"CookieAuth": [], "CsrfToken": []}], "AuthSession"),
         ("/api/auth/api-token", "post", "Rotate the API token and reveal it once",
          {"current_password": password}, ["current_password"], [{"CookieAuth": [], "CsrfToken": []}], None),
     )
@@ -370,12 +370,12 @@ def build_openapi_schema() -> dict[str, Any]:
         operation: dict[str, Any] = {
             "operationId": method + re.sub(r"\W+", "_", path), "summary": summary,
             "tags": ["authentication"], "security": security,
-            "description": "Same-origin browser account endpoint. Login requires application/json and Origin. Cookie mutations require X-CSRF-Token; account changes require the current password. Default admin:admin must be replaced before accessing data.",
+            "description": "Same-origin browser account endpoint. Login requires application/json and Origin. Cookie mutations require X-CSRF-Token; account changes always require the current password. Default admin:admin is accepted only through direct loopback during setup and must be replaced before accessing data. Anonymous session responses do not disclose setup state.",
             "responses": {"200": {"description": "Success; Cache-Control no-store.",
                                   "content": {"application/json": {"schema": success_schema}}},
                           **{str(status): {"description": description} for status, description in (
                               (401, "Missing session or incorrect credentials"), (403, "Origin, CSRF or required password change rejected"),
-                              (415, "Login requires application/json"), (422, "Invalid input"), (429, "Persistent attempt budget exhausted or password worker busy"))}},
+                              (415, "Login requires application/json"), (422, "Invalid input"), (429, "Persistent attempt budget exhausted or password worker busy"), (503, "Authentication storage/service unavailable"))}},
         }
         if properties is not None:
             operation["requestBody"] = {"required": True, "content": {"application/json": {"schema": {
@@ -391,7 +391,7 @@ def build_openapi_schema() -> dict[str, Any]:
                 "Contratos del transporte FastAPI seleccionado en el código. "
                 "La revisión estática no acredita suites, interoperabilidad, seguridad completa "
                 "o rendimiento. No ejecutar operaciones desde la documentación. "
-                "GET refresh/preflight y otros endpoints pueden tener efectos."
+                "POST refresh/preflight ejecutan comprobaciones locales y de hardware."
             ),
         },
         "tags": [{"name": batch} for batch in (*ROUTE_BATCHES, "tiles", "authentication")],

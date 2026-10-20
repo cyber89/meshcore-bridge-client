@@ -231,6 +231,9 @@ class MqttConnectionBodyDTO(CompatibilityBodyDTO):
     transport: Any = None
     tls_enabled: Any = None
     tls_verify: Any = None
+    tls_ca_file: Any = None
+    clear_password: Any = None
+    clear_token: Any = None
     auth_type: Any = None
     username: Any = None
     password: Any = None

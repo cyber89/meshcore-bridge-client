@@ -276,16 +276,15 @@ class AuthStore:
             return connection.execute("SELECT 1 FROM auth_api_tokens").fetchone() is not None
 
     def _authorize_password(
-        self, token: str, password: str | None, *, optional: bool = False
+        self, token: str, password: str | None
     ) -> tuple[AuthSession, sqlite3.Row]:
         self._reserve_login("account:" + _digest(token))
         session = self.session(token)
         account = self._account()
         if session is None:
             raise ValueError("session_revoked")
-        if not optional or password:
-            if not password or not self._matches_password(account, password):
-                raise ValueError("invalid_current_password")
+        if not password or not self._matches_password(account, password):
+            raise ValueError("invalid_current_password")
         return session, account
 
     def change_credentials(
@@ -295,8 +294,7 @@ class AuthStore:
         session = self.session(token)
         if session is None:
             raise ValueError("session_revoked")
-        optional = bool(session.must_change_credentials)
-        session, account = self._authorize_password(token, current_password, optional=optional)
+        session, account = self._authorize_password(token, current_password)
         salt = secrets.token_bytes(16)
         with self._hash_lock:
             password_hash = _hash(password, salt)

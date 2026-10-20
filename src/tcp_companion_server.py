@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import ipaddress
 import logging
+import os
 from typing import Any
 
 from src.web.security_inspector import (
@@ -37,16 +39,26 @@ class MeshCoreCompanionServer:
     def __init__(
         self,
         bridge: Any,
-        host: str = "0.0.0.0",  # nosec B104
+        host: str = "127.0.0.1",
         port: int = 5000,
+        *,
+        max_clients: int | None = None,
+        allowed_ips: str | None = None,
     ) -> None:
         self.bridge = bridge
         self.host = host
         self.port = port
+        self.max_clients = int(os.getenv("MAX_COMPANION_CLIENTS", "8")) if max_clients is None else max_clients
+        if isinstance(self.max_clients, bool) or not isinstance(self.max_clients, int) or self.max_clients < 1:
+            raise ValueError("max_clients must be a positive integer")
+        configured_ips = os.getenv("COMPANION_ALLOWED_IPS", "") if allowed_ips is None else allowed_ips
+        self.allowed_ips = frozenset(ip.strip() for ip in configured_ips.split(",") if ip.strip())
         self.server: asyncio.Server | None = None
         self.active_clients: set[asyncio.StreamWriter] = set()
         self._pending_clients: set[asyncio.StreamWriter] = set()
         self._client_tasks: set[asyncio.Task[Any]] = set()
+        self._writer_tasks: dict[asyncio.StreamWriter, asyncio.Task[None]] = {}
+        self.slow_client_disconnects = 0
         self.running = False
         self._transaction_lock = asyncio.Lock()
         self._active_transaction_writer: asyncio.StreamWriter | None = None
@@ -54,8 +66,14 @@ class MeshCoreCompanionServer:
 
     async def start(self) -> None:
         """Inicia el servidor TCP y escucha conexiones entrantes."""
-        self.running = True
         try:
+            try:
+                loopback = ipaddress.ip_address(self.host).is_loopback
+            except ValueError:
+                loopback = self.host.lower() == "localhost"
+            if not loopback and not self.allowed_ips and not os.getenv("COMPANION_TOKEN", ""):
+                raise ValueError("Remote TCP Companion access requires an explicit allowed_ips list; use 127.0.0.1 for local access")
+            self.running = True
             self.server = await asyncio.start_server(
                 self._handle_client,
                 self.host,
@@ -101,6 +119,7 @@ class MeshCoreCompanionServer:
             except (TimeoutError, Exception):
                 pass
             self._client_tasks.clear()
+        self._writer_tasks.clear()
 
         # 3. Drenar wait_closed con timeout breve de protección
         for writer in list(self.active_clients):
@@ -146,28 +165,46 @@ class MeshCoreCompanionServer:
         header = bytearray([FRAME_RADIO_TO_APP, frame_len & 0xFF, (frame_len >> 8) & 0xFF])
         pkt = bytes(header) + payload
 
-        dead_writers: list[asyncio.StreamWriter] = []
         for writer in list(self.active_clients):
-            try:
-                if writer.transport.get_write_buffer_size() > 65536:
-                    dead_writers.append(writer)
-                    continue
-                writer.write(pkt)
-                async with asyncio.timeout(2.0):
-                    await writer.drain()
-            except TimeoutError:
-                dead_writers.append(writer)
-                continue
-            except Exception as e:
-                logging.debug(f"Error escribiendo a cliente TCP Companion: {e}")
-                dead_writers.append(writer)
+            self._queue_client_frame(writer, pkt)
 
-        for writer in dead_writers:
-            self.active_clients.discard(writer)
-            try:
+    def _queue_client_frame(self, writer: asyncio.StreamWriter, packet: bytes) -> None:
+        """Write in order; at most one owned drain task can wait per client.
+
+        Reuse the existing 64 KiB transport budget and two-second drain timeout.
+        Radio/RX workers never wait for an IP client to read its socket.
+        """
+        try:
+            if writer.transport.get_write_buffer_size() + len(packet) > 65536:
+                self.slow_client_disconnects += 1
+                self.active_clients.discard(writer)
                 writer.close()
-            except Exception:
-                pass
+                return
+            writer.write(packet)
+            pending = self._writer_tasks.get(writer)
+            if pending is None or pending.done():
+                task = asyncio.create_task(self._drain_client_writer(writer), name="CompanionClientWriter")
+                self._writer_tasks[writer] = task
+                self._client_tasks.add(task)
+                task.add_done_callback(self._client_tasks.discard)
+        except Exception as error:
+            logging.debug("Error encolando trama TCP Companion: %s", type(error).__name__)
+            self.active_clients.discard(writer)
+            writer.close()
+
+    async def _drain_client_writer(self, writer: asyncio.StreamWriter) -> None:
+        try:
+            async with asyncio.timeout(2.0):
+                await writer.drain()
+        except Exception as error:
+            if isinstance(error, TimeoutError):
+                self.slow_client_disconnects += 1
+            logging.debug("Error drenando cliente TCP Companion: %s", type(error).__name__)
+            self.active_clients.discard(writer)
+            await self._safe_close_writer(writer)
+        finally:
+            if self._writer_tasks.get(writer) is asyncio.current_task():
+                self._writer_tasks.pop(writer, None)
 
     async def send_frame_to_client(self, writer: asyncio.StreamWriter, payload: bytes) -> None:
         """Envía una trama específica a un único cliente StreamWriter."""
@@ -180,16 +217,7 @@ class MeshCoreCompanionServer:
 
         header = bytearray([FRAME_RADIO_TO_APP, frame_len & 0xFF, (frame_len >> 8) & 0xFF])
         pkt = bytes(header) + payload
-        try:
-            if writer.transport.get_write_buffer_size() > 65536:
-                raise Exception("Write buffer exceeded")
-            writer.write(pkt)
-            async with asyncio.timeout(2.0):
-                await writer.drain()
-        except Exception as e:
-            logging.debug(f"Error enviando trama a cliente TCP: {e}")
-            self.active_clients.discard(writer)
-            await self._safe_close_writer(writer)
+        self._queue_client_frame(writer, pkt)
 
     @staticmethod
     async def _safe_close_writer(writer: asyncio.StreamWriter) -> None:
@@ -217,16 +245,14 @@ class MeshCoreCompanionServer:
         peer_str = f"{peer_ip}:{peer_port}"
 
         try:
-            import os
-            max_clients = int(os.getenv("MAX_COMPANION_CLIENTS", "8"))
+            max_clients = self.max_clients
             if len(self.active_clients) + len(self._pending_clients) >= max_clients:
                 await self._safe_close_writer(writer)
                 return
 
             self._pending_clients.add(writer)
 
-            allowed_ips = [ip.strip() for ip in os.getenv("COMPANION_ALLOWED_IPS", "").split(",") if ip.strip()]
-            if allowed_ips and peer and peer_ip not in allowed_ips:
+            if self.allowed_ips and peer_ip not in self.allowed_ips:
                 SecurityTrafficInspector.log_suspicious_traffic(
                     SuspiciousTrafficEvent(
                         client_ip=peer_ip,
@@ -405,8 +431,6 @@ class MeshCoreCompanionServer:
             try:
                 if hasattr(self.bridge, "handle_tcp_companion_command"):
                     sent = await self.bridge.handle_tcp_companion_command(payload, client_writer)
-                elif hasattr(self.bridge, "serial_adapter") and hasattr(self.bridge.serial_adapter, "send_raw_companion_frame"):
-                    sent = await self.bridge.serial_adapter.send_raw_companion_frame(payload)
                 else:
                     sent = False
                 if sent is False and not self._response_received:

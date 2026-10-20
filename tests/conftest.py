@@ -28,6 +28,7 @@ except ImportError:
 
 with patch("dotenv.load_dotenv", return_value=False):
     import config
+from src import services_config
 from src.bridge_core import MeshCoreBridge
 from src.contact_manager import NodeContactUpdate
 from src.virtual_mesh_adapter import VirtualMeshAdapter
@@ -61,6 +62,7 @@ def isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
     for name, value in paths.items():
         monkeypatch.setenv(name, value)
         monkeypatch.setattr(config, name, value)
+    monkeypatch.setattr(services_config, "DEFAULT_CONFIG_PATH", tmp_path / "services_config.json")
     monkeypatch.setenv("CHANNELS_STORAGE_PATH", paths["CHANNELS_JSON_PATH"])
     monkeypatch.setattr(config, "WEB_HOST", "127.0.0.1")
     monkeypatch.setattr(config, "TCP_SERVER_HOST", "127.0.0.1")

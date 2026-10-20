@@ -1,8 +1,7 @@
-"""Transport-neutral access policy copied from the current native web server.
+"""Transport-neutral ingress access policy used by the production ASGI server.
 
-This module imports neither the application nor a web framework. It deliberately
-retains legacy credential precedence, broad Origin matching and response headers;
-extracting those rules does not harden them or prove ASGI transport equivalence.
+This module imports neither the application nor a web framework. External origins
+require an explicit exact allowlist; private network location is not authority.
 Environment settings are read for each access decision, never cached at import.
 """
 
@@ -14,7 +13,7 @@ import os
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 
 HTTP_MAX_HEADER_BYTES = 65536
 HTTP_MAX_BODY_BYTES = 1024 * 1024
@@ -22,7 +21,7 @@ HTTP_READ_TIMEOUT_S = 10.0
 WS_MAX_CONNECTIONS = 32
 WS_MAX_PAYLOAD_BYTES = 1024 * 1024
 
-DEFAULT_ALLOWED_ORIGINS = "http://localhost:8080,http://127.0.0.1:8080"
+DEFAULT_ALLOWED_ORIGINS = ""
 MAP_TILE_PREFIX = "/api/map/tiles/"
 PROTECTED_PREFIXES = (
     "/api/node/reboot",
@@ -134,32 +133,33 @@ def requires_api_auth(method: str, raw_path: str) -> bool:
             and clean_path not in ("/api/auth/login", "/api/auth/session"))
 
 
-def is_origin_allowed(req_origin: str, host_header: str, allowed_origins: Sequence[str]) -> bool:
-    """Preserve broad legacy matching, including its private-IP and IPv6 parser limits."""
-    if not req_origin or "*" in allowed_origins or req_origin in allowed_origins:
+def is_origin_allowed(req_origin: str, host_header: str, allowed_origins: Sequence[str], *,
+                      scheme: str = "http") -> bool:
+    """Allow same-origin traffic or exact, explicitly configured external origins."""
+    if not req_origin:
         return True
-    if host_header:
-        origin_clean = req_origin.replace("http://", "").replace("https://", "").rstrip("/")
-        if origin_clean.lower() == host_header.lower():
+    expected_scheme = {"ws": "http", "wss": "https"}.get(scheme, scheme)
+    try:
+        origin = urlsplit(req_origin)
+        if (origin.scheme not in ("http", "https") or not origin.hostname
+                or origin.username is not None or origin.password is not None
+                or origin.path or origin.query or origin.fragment):
+            return False
+        # Validate malformed ports even for allowlisted values.
+        origin_port = origin.port or (443 if origin.scheme == "https" else 80)
+        if req_origin in allowed_origins:
             return True
-    origin_host = req_origin.split("://")[-1].split(":")[0].split("/")[0].rstrip(".").lower()
-    # This tuple is retained exactly. The parser above cannot recognize IPv6
-    # ::1; an exact allowlist or Host match can still admit that Origin.
-    if origin_host in ("localhost", "127.0.0.1", "::1"):
-        return True
-    if origin_host.startswith(("192.168.", "10.", "127.")):
-        parts = origin_host.split(".")
-        if all(part.isdigit() for part in parts) and len(parts) == 4:
-            return True
-    if origin_host.startswith("172."):
-        parts = origin_host.split(".")
-        if len(parts) == 4 and all(part.isdigit() for part in parts):
-            if 16 <= int(parts[1]) <= 31:
-                return True
-    return False
+        host = urlsplit(expected_scheme + "://" + host_header)
+        return bool(host.hostname and not host.username and not host.password
+                    and not host.path and not host.query and not host.fragment
+                    and origin.scheme == expected_scheme
+                    and origin.hostname.lower() == host.hostname.lower()
+                    and origin_port == (host.port or (443 if expected_scheme == "https" else 80)))
+    except ValueError:
+        return False
 
 
-def calculate_cors_origin(headers: Mapping[str, str]) -> str:
+def calculate_cors_origin(headers: Mapping[str, str], *, scheme: str = "http") -> str:
     """Return accepted Origin verbatim, otherwise omit REST ACAO without denying REST."""
     allowed_origins = [
         origin.strip()
@@ -167,20 +167,20 @@ def calculate_cors_origin(headers: Mapping[str, str]) -> str:
         if origin.strip()
     ]
     req_origin = headers.get("origin", "")
-    if is_origin_allowed(req_origin, headers.get("host", ""), allowed_origins):
+    if is_origin_allowed(req_origin, headers.get("host", ""), allowed_origins, scheme=scheme):
         return req_origin
     return ""
 
 
 def evaluate_http_access(method: str, raw_path: str, headers: Mapping[str, str], *,
-                         auth_managed: bool = False) -> AccessDecision:
+                         auth_managed: bool = False, scheme: str = "http") -> AccessDecision:
     """Apply normal HTTP dispatch ordering after the caller's parsing/perimeter checks.
 
     A WebSocket upgrade must use evaluate_websocket_access before this function;
     in the native dispatcher upgrade precedes even OPTIONS. Methods must already
     be uppercase, as supplied by the native request parser.
     """
-    cors_origin = calculate_cors_origin(headers)
+    cors_origin = calculate_cors_origin(headers, scheme=scheme)
     log_path = safe_log_path(raw_path)
     if method == "OPTIONS":
         return AccessDecision("preflight", cors_origin, False, True, None, log_path)
@@ -206,14 +206,14 @@ def evaluate_http_access(method: str, raw_path: str, headers: Mapping[str, str],
 
 def evaluate_websocket_access(
     raw_path: str, headers: Mapping[str, str], active_connections: int, *,
-    auth_managed: bool = False,
+    auth_managed: bool = False, scheme: str = "ws",
 ) -> AccessDecision:
     """Preserve Origin -> capacity -> key denial order without accepting a socket.
 
     This check does not reserve capacity. The transport must prevent concurrent
     handshakes from bypassing its reservation if atomic admission is introduced.
     """
-    cors_origin = calculate_cors_origin(headers)
+    cors_origin = calculate_cors_origin(headers, scheme=scheme)
     log_path = safe_log_path(raw_path)
     if headers.get("origin", "") and not cors_origin:
         return AccessDecision("websocket", cors_origin, False, True, 403, log_path)
@@ -261,6 +261,7 @@ def response_headers(
         headers.extend(
             (
                 (b"access-control-allow-origin", cors_origin.encode("utf-8")),
+                (b"vary", b"Origin"),
                 (b"access-control-allow-methods", b"GET, HEAD, POST, PUT, PATCH, OPTIONS, DELETE"),
                 (b"access-control-allow-headers", b"Content-Type, Authorization, X-Api-Key, X-CSRF-Token"),
             )
@@ -273,6 +274,7 @@ def preflight_headers(cors_origin: str) -> list[RawHeader]:
     headers: list[RawHeader] = []
     if cors_origin:
         headers.append((b"access-control-allow-origin", cors_origin.encode("utf-8")))
+        headers.append((b"vary", b"Origin"))
     headers.extend(
         (
             (b"access-control-allow-methods", b"GET, HEAD, POST, PUT, PATCH, OPTIONS, DELETE"),

@@ -1241,6 +1241,15 @@ class NodeRegistry:
         event: NodeDiscoveryEvent | str,
         **kwargs: Any,
     ) -> tuple[bool, NodeContactInfo]:
+        """Resolve identity and update atomically against concurrent cleanup."""
+        with self._lock:
+            return self._discover_node_locked(event, **kwargs)
+
+    def _discover_node_locked(
+        self,
+        event: NodeDiscoveryEvent | str,
+        **kwargs: Any,
+    ) -> tuple[bool, NodeContactInfo]:
         """
         Descubre un nuevo nodo en el aire si no existía previamente.
         Acepta un objeto estructurado NodeDiscoveryEvent o parámetros legacy en kwargs.

@@ -56,6 +56,14 @@ ejecutaron suites ni inspección de navegador durante este retoque.
 
 ## Selección y caché
 
+Contrato vigente revisado el 2026-10-20: el HTML usa `no-store`; las respuestas
+autenticadas de teselas conservan su caché privada. El manifest
+[`asset-manifest.json`](../src/web/static/asset-manifest.json) determina el
+inventario actual. Las cantidades y tamaños con fecha que siguen son evidencia
+histórica de cada entrega. CI comprueba build y sintaxis JavaScript mediante las
+mismas herramientas locales, sin convertir esas comprobaciones en aceptación de
+accesibilidad o rendimiento.
+
 ### First modernization delivery — 2026-10-11
 
 The first implementation block of [the modernization plan](plans/FRONTEND_MODERNIZATION_PLAN.md)

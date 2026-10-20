@@ -250,7 +250,7 @@ Archivos implementados: `src/protocol_types.py`, `src/station_database.py` (tabl
 `src/admin_handler.py`, `src/admin/repeater_executor.py`, `src/contact_manager.py`,
 `src/web/controllers/nodes_controller.py`, `src/web/static/js/modules/nodes.js` y
 `src/web/static/js/i18n.js`. Regresiones escritas en `tests/test_sensor_subscriptions.py`
-y `tests/test_sensor_subscriptions_browser.py`. Evidencia y contratos:
+y `tests/test_sensor_subscriptions_static_contract.py` (contrato estático, sin navegador). Evidencia y contratos:
 [suscripciones de sensores](../audits/2026-10-17-sensor-subscriptions.md).
 
 `RxEventRouter._extract_normalized_meta` conserva `BINARY_RESPONSE` opaco sin

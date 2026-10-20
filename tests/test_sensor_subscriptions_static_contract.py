@@ -1,4 +1,4 @@
-"""Browser regression tests for manual SENSOR subscription controls in the unified Nodes view."""
+"""Static source contracts for manual SENSOR controls; these do not exercise a browser."""
 
 from __future__ import annotations
 

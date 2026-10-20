@@ -336,7 +336,10 @@ class DiagnosticManager:
         lines.append("|---|---|---|")
         lines.append(f"| **Radio Serial Companion** | {ser_icon} `{'Conectado' if ser.get('connected') else 'Desconectado'}` | Puerto: `{ser.get('port')}` @ `{ser.get('baudrate')}` bps |")
         lines.append(f"| **Broker MQTT** | {mqtt_icon} `{'Online' if mqtt.get('connected') else 'Offline'}` | Host: `{mqtt.get('broker')}:{mqtt.get('port')}` (Reconexiones: {mqtt.get('reconnect_count', 0)}) |")
-        lines.append("| **Persistencia Local JSON** | 💽 `Operativo` | Canales y nodos en almacenamiento atómico |")
+        if getattr(self.bridge, "database", None) is not None:
+            lines.append("| **Persistencia Local SQLite** | 💽 `Configurada` | Estado de estación e historial transaccionales |")
+        else:
+            lines.append("| **Persistencia Local** | 💽 `Sin base de datos inyectada` | Consultar adaptadores de almacenamiento configurados |")
         lines.append(f"| **Rate Limiter (Cola TX)** | ⏱️ `Activo` | Profundidad de cola: `{rl.get('queue_depth', 0)}` paquetes |")
         lines.append(f"| **Directorio de Nodos LoRa** | 📡 `Activo` | `{nodes.get('known_count', 0)}` nodos descubiertos en malla |\n")
 

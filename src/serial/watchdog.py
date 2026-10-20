@@ -123,9 +123,9 @@ class SerialWatchdog:
                         self.adapter.heartbeat()
                     continue
 
-                # 2. CASO CONECTADO: Si no ha habido tráfico RF reciente, verificar vivacidad mediante ping suave
+                # A local Companion query checks the transport, without RF TX.
                 if idle_sec > self.timeout_sec:
-                    logging.debug(f"Watchdog Serial: Sin tráfico RF en {idle_sec:.1f}s. Comprobando respuesta del transceptor...")
+                    logging.debug(f"Watchdog Serial: Sin actividad Companion en {idle_sec:.1f}s. Comprobando respuesta local del transceptor...")
                     try:
                         async with asyncio.timeout(10.0):
                             is_alive = bool(await self.adapter.ping_or_check_alive())

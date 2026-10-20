@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 # Asegurar que el directorio raíz esté en sys.path para importar src
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -33,12 +35,24 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 
+class _NoDiagnosticRedirects(urllib.request.HTTPRedirectHandler):
+    """Do not forward a diagnostic Bearer token to a redirected origin."""
+
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
+        return None
+
+
 def fetch_from_api(url: str, endpoint: str) -> dict[str, object] | str | None:
     """Intenta consultar el endpoint REST del bridge en vivo."""
     full_url = f"{url.rstrip('/')}/{endpoint.lstrip('/')}"
     try:
-        req = urllib.request.Request(full_url, headers={"User-Agent": "MeshCore-CLI-Exporter/3.0"})
-        with urllib.request.urlopen(req, timeout=3.0) as resp:
+        headers = {"User-Agent": "MeshCore-CLI-Exporter/3.0"}
+        token = os.environ.get("MESHCORE_API_TOKEN") or os.environ.get("BRIDGE_API_KEY", "")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(full_url, headers=headers)
+        opener = urllib.request.build_opener(_NoDiagnosticRedirects())
+        with opener.open(req, timeout=3.0) as resp:
             data = resp.read().decode("utf-8")
             try:
                 parsed = json.loads(data)
@@ -52,17 +66,7 @@ def fetch_from_api(url: str, endpoint: str) -> dict[str, object] | str | None:
 
 
 def generate_local_report() -> str:
-    """Genera el reporte utilizando directamente los módulos del bridge local."""
-    try:
-        from src.bridge_core import MeshCoreBridge
-        bridge = MeshCoreBridge()
-        diag = getattr(bridge, "diagnostics", None)
-        if diag and hasattr(diag, "generate_markdown_report"):
-            return str(diag.generate_markdown_report())
-    except Exception:
-        pass
-
-    # Fallback básico si hay error al instanciar el bridge
+    """Read existing logs without constructing a bridge or opening its database."""
     import config
     log_file = getattr(config, "LOG_FILE_PATH", "logs/meshcore-bridge.log")
     p = Path(log_file)
@@ -111,14 +115,7 @@ def main() -> None:
         if api_data and isinstance(api_data, dict):
             out = json.dumps(api_data, indent=2)
         else:
-            try:
-                from src.bridge_core import MeshCoreBridge
-                bridge = MeshCoreBridge()
-                diag = getattr(bridge, "diagnostics", None)
-                bundle = diag.generate_full_diagnostic_bundle() if diag else {}
-                out = json.dumps(bundle, indent=2)
-            except Exception as e:
-                out = json.dumps({"error": str(e)}, indent=2)
+            out = json.dumps({"error": "Live diagnostics unavailable; set MESHCORE_API_TOKEN for authenticated access."}, indent=2)
 
         if args.output:
             Path(args.output).write_text(out, encoding="utf-8")
@@ -131,6 +128,8 @@ def main() -> None:
     api_md = fetch_from_api(args.live_url, "/api/diagnostics/report.md")
     if api_md and isinstance(api_md, dict) and "markdown" in api_md:
         report_text = str(api_md["markdown"])
+    elif isinstance(api_md, str) and api_md:
+        report_text = api_md
     else:
         report_text = generate_local_report()
 

@@ -148,6 +148,7 @@ class AsyncBridgeMQTTClient:
         except Exception as e:
             self.is_connected = False
             logging.error(f"Error iniciando conexión asíncrona MQTT a {self.broker}:{self.port}: {e}")
+            raise
 
     def stop(self) -> None:
         """Detiene el cliente MQTT y emite estado offline ordenado."""

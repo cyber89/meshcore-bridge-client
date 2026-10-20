@@ -54,7 +54,7 @@ cd "$HOME/meshcore-bridge-client"
 sudo bash install.sh
 ```
 
-The installer deploys to `/opt/meshcore-bridge`, creates a Python virtual environment, configures serial access, and registers and starts `meshcore-bridge.service`. It creates `.env` from the template when absent and preserves an existing configuration. A new installation creates the web account `admin:admin` automatically, without credential prompts or a waiting period. Sign in and immediately change the default password before accessing the station. Updates preserve the existing account.
+The installer deploys to `/opt/meshcore-bridge`, creates a Python virtual environment, configures serial access, and registers and starts `meshcore-bridge.service`. It creates `.env` from the template when absent and preserves an existing configuration. A new installation creates the web account `admin:admin` automatically, without credential prompts or a waiting period. Complete the initial sign-in and password change through direct loopback access before accessing the station remotely. An SSH local port forward can provide this access. Updates preserve the existing account.
 
 The initial installation also configures and starts Mosquitto with an anonymous listener on `0.0.0.0:1883`. Choose the broker's bind address, authentication, and firewall rules for your deployment. To configure the bridge before its first connection, use the manual setup below.
 
@@ -128,8 +128,8 @@ Configuration loads from `.env` in the repository or installation root; existing
 | `MQTT_USER` / `MQTT_PASSWORD` | Empty | MQTT authentication when required by your broker. |
 | `MQTT_TLS` | `false` | Enable TLS; configure the broker, port, and optional CA/client certificate paths for that listener, then restart. |
 | `TOPIC_PREFIX` | `meshcore` | Root for local MQTT topics. |
-| `TCP_SERVER_ENABLED` / `TCP_SERVER_PORT` | `true` / `5000` | Companion TCP endpoint; its initial bind address is `0.0.0.0`. |
-| `COMPANION_ALLOWED_IPS` / `COMPANION_TOKEN` | Empty | Optional TCP client restrictions and authentication. |
+| `TCP_SERVER_ENABLED` / `TCP_SERVER_PORT` | `true` / `5000` | Companion TCP endpoint; its initial bind address is `127.0.0.1`. |
+| `COMPANION_ALLOWED_IPS` / `COMPANION_TOKEN` | Empty | Remote listeners require an explicit IP allowlist or token. Official apps use the IP allowlist without a token handshake. |
 | `DATA_DIR` / `LOG_DIR` | `data` / `logs` | Persistent data and rotating log directories. |
 | `LOG_LEVEL` | `INFO` | Logging detail. |
 
@@ -177,7 +177,7 @@ The web server uses FastAPI/Uvicorn and shares state with the radio and MQTT pip
 | Repeater administration | `POST /api/admin/repeater` | Remote administrative operations. |
 | Companion TCP | `tcp://<host-ip>:5000` | Shared-radio access for compatible Companion clients. |
 
-Sign in before accessing station data, API documentation, local tiles or live events. New installations use `admin:admin` and immediately require a new password. Select **Remember me** to keep a session for 30 days; without it the browser receives a session cookie and the server expires the session after 12 hours. The **Profile** button in the top-right corner opens the account view, where you can change the username and password, sign out, or generate an integration token. New passwords need 8–64 characters, with no complexity requirements. Changing credentials revokes previous sessions and generated tokens. Existing credentials remain accepted at login so an upgrade does not lock out an account created under the previous policy.
+Sign in before accessing station data, API documentation, local tiles or live events. New installations use `admin:admin` and immediately require a new password. Bootstrap access requires a direct loopback connection and a local Host header; forwarded proxy requests are rejected. The current password is required for every credential change, including the first one. Select **Remember me** to keep a session for 30 days; without it the browser receives a session cookie and the server expires the session after 12 hours. The **Profile** button in the top-right corner opens the account view, where you can change the username and password, sign out, or generate an integration token. New passwords need 8–64 characters, with no complexity requirements. Changing credentials revokes previous sessions and generated tokens. Existing credentials remain accepted at login so an upgrade does not lock out an account created under the previous policy.
 
 REST integrations send the generated token in `Authorization: Bearer <token>`. An explicitly configured `BRIDGE_API_KEY` remains available through `X-Api-Key` or Bearer and must be rotated separately. Credentials in URL query strings are not accepted. The documentation viewer displays the contract and does not execute API operations. MQTT and Companion TCP retain their separate authentication controls.
 

@@ -8,7 +8,9 @@ import asyncio
 import hashlib
 import logging
 import re
+import threading
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from importlib.metadata import PackageNotFoundError, version
@@ -48,6 +50,99 @@ _FIRMWARE_READ_COMMANDS = (
     "get wifi.status",
     "get wifi.ip",
 )
+
+# Companion MyMesh.cpp command branches, not a numeric range: new firmware
+# opcodes require classification before the TCP proxy can forward them.
+_COMPANION_RF_COMMANDS = frozenset({2, 3, 7, 16, 25, 26, 27, 36, 50, 52, 55, 57, 62, 65})
+_COMPANION_LOCAL_COMMANDS = frozenset({
+    1, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21,
+    22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 35, 37, 38, 40, 41,
+    42, 43, 51, 54, 56, 58, 59, 60, 61, 63, 64,
+})
+# Mandatory bytes read by Companion MyMesh.cpp::handleCmdFrame and
+# updateContactFromFrame, cross-checked with meshcore_py/commands encoders.
+# Optional trailing fields remain optional. The contact path slot is 64 bytes.
+_COMPANION_MIN_LENGTHS = {
+    1: 8, 2: 14, 3: 7, 4: 1, 5: 1, 6: 5, 7: 1, 8: 2, 9: 136,
+    10: 1, 11: 11, 12: 2, 13: 33, 14: 9, 15: 33, 16: 33, 17: 1,
+    18: 99, 19: 7, 20: 1, 21: 9, 22: 2, 23: 1, 24: 65, 25: 6,
+    26: 33, 27: 33, 28: 33, 29: 33, 30: 33, 31: 2, 32: 50, 33: 1,
+    34: 2, 35: 1, 36: 11, 37: 5, 38: 2, 39: 4, 40: 1, 41: 4,
+    42: 34, 43: 1, 50: 34, 51: 6, 52: 34, 54: 2, 55: 2, 56: 2,
+    57: 34, 58: 2, 59: 1, 60: 1, 61: 3, 62: 5, 63: 1, 64: 1,
+    65: 4, 66: 2,
+}
+
+
+def _companion_path_size(encoded: int) -> int | None:
+    """MeshCore Packet::isValidPathLen/writePath: 1/2/3-byte hashes, 64-byte slot."""
+    width = (encoded >> 6) + 1
+    size = (encoded & 0x3F) * width
+    return size if width != 4 and size <= 64 else None
+
+
+def _complete_companion_rf_packet(payload: bytes, offset: int, *, allow_empty: bool = False) -> bool:
+    """Check Packet::readFrom's declared path before firmware memcpy reads it."""
+    if len(payload) <= offset:
+        return False
+    # Transport flood/direct carry two uint16 transport codes before path_len.
+    path_offset = offset + (5 if (payload[offset] & 0x03) in (0, 3) else 1)
+    if len(payload) <= path_offset:
+        return False
+    path_size = _companion_path_size(payload[path_offset])
+    if path_size is None:
+        return False
+    body_offset = path_offset + 1 + path_size
+    # Dispatcher::tryParsePacket accepts an empty payload; Packet::readFrom
+    # used for imported adverts requires at least one payload byte.
+    return len(payload) >= body_offset if allow_empty else len(payload) > body_offset
+
+
+def _companion_layout_complete(payload: bytes) -> bool:
+    opcode = payload[0]
+    minimum = _COMPANION_MIN_LENGTHS.get(opcode)
+    if minimum is None or len(payload) < minimum:
+        return False
+    if opcode == 19:
+        return payload[1:7] == b"reboot"
+    if opcode == 51:
+        return payload[1:6] == b"reset"
+    if opcode == 25:
+        # Raw-data command stores an int8 byte count, not an encoded hash count.
+        return payload[1] < 0x80 and len(payload) >= 2 + payload[1] + 4
+    if opcode == 62:
+        path_size = 0 if payload[2] == 0xFF else _companion_path_size(payload[2])
+        return path_size is not None and len(payload) >= 3 + path_size + 2
+    if opcode in (18, 65):
+        return _complete_companion_rf_packet(payload, 1 if opcode == 18 else 2, allow_empty=opcode == 65)
+    if opcode == 63 and len(payload) >= 48:
+        # Firmware strlen() scans the fixed 31-byte name before its 16-byte key.
+        return b"\x00" in payload[1:32]
+    return True
+
+
+def companion_command_kind(payload: bytes) -> str | None:
+    """Classify supported Companion commands by RF side effects.
+
+    Local queries/setters do not consume LoRa airtime. Opcode 39 has distinct
+    self/remote layouts; raw firmware CLI is restricted to verified getters.
+    """
+    if not payload or not _companion_layout_complete(payload):
+        return None
+    opcode = payload[0]
+    if opcode in _COMPANION_RF_COMMANDS:
+        return "rf"
+    if opcode in _COMPANION_LOCAL_COMMANDS:
+        return "local"
+    if opcode == 39:
+        return "local" if len(payload) == 4 else ("rf" if len(payload) >= 36 else None)
+    if opcode == 66:
+        try:
+            command = payload[1:].decode("ascii")
+        except UnicodeDecodeError:
+            return None
+        return "local" if command in _FIRMWARE_READ_COMMANDS else None
+    return None
 
 
 class _MeshcoreLogRedactionFilter(logging.Filter):
@@ -210,11 +305,22 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self._sdk_dispatch_cache: dict[Any, Callable[[Any], Any]] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
+        # Reuse the 256-job RX capacity approved on 2026-10-05. Only advert
+        # snapshots are replaceable; messages and requested replies are not.
+        self._sdk_event_capacity = 256
+        self._pending_sdk_events: deque[tuple[Any, Any, Any, str | None]] = deque()
+        self._sdk_event_worker: asyncio.Task[None] | None = None
+        self.sdk_event_overflow_count = 0
+        # Cross-thread producers also reserve a bounded handoff slot before
+        # adding a loop callback: at most 256 handles plus 256 queued events.
+        self._sdk_schedule_lock = threading.Lock()
+        self._sdk_scheduled_callbacks = 0
         self._is_syncing_hardware: bool = False
         self._command_lock = asyncio.Lock()
         self._serialized_commands: Any = None
         self._raw_command_future: asyncio.Future[bool] | None = None
         self._raw_command_opcode: int | None = None
+        self._raw_command_self_telemetry = False
         self._firmware_device_info: dict[str, Any] = {}
         self._firmware_mc: Any = None
         self._firmware_identity: str | None = None
@@ -466,7 +572,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         terminal = _RAW_REPLY_TYPES.get(self._raw_command_opcode or 0, frozenset())
         failed = response_type in (1, 15)  # ERR / DISABLED
         stream_item = self._raw_command_opcode == 4 and response_type in (2, 3)
-        matches_raw = raw_active and (failed or stream_item or response_type in terminal)
+        local_telemetry = self._raw_command_opcode == 39 and self._raw_command_self_telemetry and response_type == 0x8B
+        matches_raw = raw_active and (failed or stream_item or response_type in terminal or local_telemetry)
         if (response_type >= 0x80 or matches_raw) and self.companion_rx_callback:
             try:
                 self.companion_rx_callback(data)
@@ -701,6 +808,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def disconnect(self) -> None:
         self.is_connected = False
+        self._pending_sdk_events.clear()
         self._reset_firmware_observations(new_session=True)
         if self._raw_command_future and not self._raw_command_future.done():
             self._raw_command_future.set_result(False)
@@ -723,6 +831,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             except Exception:
                 pass
             self._background_tasks.clear()
+        self._sdk_event_worker = None
 
         if self.mc:
             try:
@@ -799,6 +908,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             self.is_connected = False
             return False
 
+        if self._command_lock.locked():
+            # A serialized command already owns the healthy transport. Defer
+            # this local check instead of treating lock contention as timeout.
+            logging.debug("Comprobación local de vivacidad aplazada: comando Companion en curso")
+            return bool(self.is_connected)
+
         # Si hay comandos disponibles, verificar vivacidad mediante comando canónico ligero (get_time / get_bat)
         if self.mc and hasattr(self.mc, "commands"):
             try:
@@ -865,21 +980,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                             if not self.is_connected or self.mc is not owning_mc or loop is None or loop.is_closed():
                                 return
 
-                            async def dispatch_if_current() -> None:
-                                # A replacement can happen after scheduling but
-                                # before the coroutine gets its first loop turn.
-                                if self.is_connected and self.mc is owning_mc:
-                                    await self._on_sdk_event(et, event)
-
-                            task = loop.create_task(dispatch_if_current())
-                            self._background_tasks.add(task)
-                            def completed(done: asyncio.Task[Any]) -> None:
-                                self._background_tasks.discard(done)
-                                if not done.cancelled():
-                                    error = done.exception()
-                                    if error:
-                                        logging.debug("Evento SDK falló: %s", type(error).__name__)
-                            task.add_done_callback(completed)
+                            self._enqueue_sdk_event(owning_mc, et, event)
                         try:
                             running = asyncio.get_running_loop()
                             if running is loop:
@@ -887,7 +988,29 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                                 return
                         except RuntimeError:
                             pass
-                        loop.call_soon_threadsafe(schedule)
+                        rejected = False
+                        with self._sdk_schedule_lock:
+                            if self._sdk_scheduled_callbacks >= self._sdk_event_capacity:
+                                self.sdk_event_overflow_count += 1
+                                rejected = True
+                            else:
+                                self._sdk_scheduled_callbacks += 1
+                        if rejected:
+                            logging.error("[SDK-RX-OVERFLOW] cross-thread handoff full; event rejected", extra={"skip_broadcast": True})
+                            return
+
+                        def scheduled() -> None:
+                            try:
+                                schedule()
+                            finally:
+                                with self._sdk_schedule_lock:
+                                    self._sdk_scheduled_callbacks -= 1
+
+                        try:
+                            loop.call_soon_threadsafe(scheduled)
+                        except RuntimeError:
+                            with self._sdk_schedule_lock:
+                                self._sdk_scheduled_callbacks -= 1
                 except Exception as ex:
                     logging.debug(f"Error despachando evento SDK {et}: {ex}")
             return _handler
@@ -898,6 +1021,62 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     self.mc.subscribe(ev_type, _make_handler(ev_type))
                 except Exception as e:
                     logging.debug(f"Suscripción a evento {ev_type}: {e}")
+
+    def _enqueue_sdk_event(self, owning_mc: Any, event_type: Any, event: Any) -> None:
+        """Bound retained public notifications independently of SDK waiters."""
+        key: str | None = None
+        if str(getattr(event_type, "name", event_type)).upper() == "ADVERTISEMENT":
+            payload = getattr(event, "payload", event)
+            if isinstance(payload, dict):
+                identity = payload.get("public_key", payload.get("key"))
+                if identity:
+                    key = f"advert:{identity}"
+        if key is not None:
+            for index, (_, _, _, old_key) in enumerate(self._pending_sdk_events):
+                if old_key == key:
+                    self._pending_sdk_events[index] = (owning_mc, event_type, event, key)
+                    return
+        if len(self._pending_sdk_events) >= self._sdk_event_capacity:
+            observation = next((index for index, (_, _, _, old_key) in enumerate(self._pending_sdk_events) if old_key is not None), None)
+            with self._sdk_schedule_lock:
+                self.sdk_event_overflow_count += 1
+            logging.error("[SDK-RX-OVERFLOW] capacity=%d count=%d critical=%s", self._sdk_event_capacity,
+                          self.sdk_event_overflow_count, key is None and observation is None,
+                          extra={"skip_broadcast": True})
+            if key is not None or observation is None:
+                return
+            del self._pending_sdk_events[observation]
+        self._pending_sdk_events.append((owning_mc, event_type, event, key))
+        self._ensure_sdk_event_worker()
+
+    def _ensure_sdk_event_worker(self) -> None:
+        if not self._pending_sdk_events or (self._sdk_event_worker is not None and not self._sdk_event_worker.done()):
+            return
+        task = asyncio.create_task(self._drain_sdk_events(), name="CompanionSdkEvents")
+        self._sdk_event_worker = task
+        self._background_tasks.add(task)
+        task.add_done_callback(self._sdk_event_worker_done)
+
+    def _sdk_event_worker_done(self, task: asyncio.Task[None]) -> None:
+        self._background_tasks.discard(task)
+        if self._sdk_event_worker is task:
+            self._sdk_event_worker = None
+        if not task.cancelled():
+            error = task.exception()
+            if error:
+                logging.debug("Evento SDK falló: %s", type(error).__name__)
+            if self.is_connected:
+                self._ensure_sdk_event_worker()
+
+    async def _drain_sdk_events(self) -> None:
+        while self._pending_sdk_events:
+            owning_mc, event_type, event, _ = self._pending_sdk_events.popleft()
+            if self.is_connected and self.mc is owning_mc:
+                try:
+                    await self._on_sdk_event(event_type, event)
+                except Exception as error:
+                    logging.debug("Evento SDK falló: %s", type(error).__name__)
+
 
     def _get_sdk_dispatch_map(self) -> dict[Any, Callable[[Any], Any]]:
         """Construye o retorna la tabla de despacho determinista para eventos del SDK."""
@@ -971,6 +1150,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             if asyncio.iscoroutine(res):
                 await res
             return
+
 
         if EventType is not None:
             if event_type == getattr(EventType, "ADVERTISEMENT", None):
@@ -1324,6 +1504,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 if connection is None or not hasattr(connection, "send"):
                     return False
                 self._raw_command_opcode = data[0]
+                self._raw_command_self_telemetry = data[0] == 39 and len(data) == 4
                 pending = asyncio.get_running_loop().create_future()
                 self._raw_command_future = pending
                 try:
@@ -1343,6 +1524,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         pending.cancel()
                     self._raw_command_future = None
                     self._raw_command_opcode = None
+                    self._raw_command_self_telemetry = False
         except TimeoutError:
             logging.warning("Timeout de respuesta Companion raw (opcode=%s)", data[0])
             return False

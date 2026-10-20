@@ -460,17 +460,21 @@ class StationDatabase:
             raise ValueError("History limit must be between 1 and 1000")
         if before is not None and (isinstance(before, bool) or not isinstance(before, int) or before < 1):
             raise ValueError("Invalid history cursor")
-        clauses = []
-        values: list[Any] = []
-        if feed_key is not None:
-            clauses.append("feed_key=?")
-            values.append(feed_key)
-        if before is not None:
-            clauses.append("seq<?")
-            values.append(before)
-        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        # Keep SQL syntax constant; every external value is a bound parameter.
+        if feed_key is not None and before is not None:
+            query = "SELECT * FROM messages WHERE feed_key=? AND seq<? ORDER BY seq DESC LIMIT ?"
+            values: tuple[Any, ...] = (feed_key, before, limit + 1)
+        elif feed_key is not None:
+            query = "SELECT * FROM messages WHERE feed_key=? ORDER BY seq DESC LIMIT ?"
+            values = (feed_key, limit + 1)
+        elif before is not None:
+            query = "SELECT * FROM messages WHERE seq<? ORDER BY seq DESC LIMIT ?"
+            values = (before, limit + 1)
+        else:
+            query = "SELECT * FROM messages ORDER BY seq DESC LIMIT ?"
+            values = (limit + 1,)
         with self._connection() as connection:
-            rows = connection.execute(f"SELECT * FROM messages{where} ORDER BY seq DESC LIMIT ?", (*values, limit + 1)).fetchall()
+            rows = connection.execute(query, values).fetchall()
             has_more = len(rows) > limit
             rows = rows[:limit]
             messages = [self._result(connection, row) for row in reversed(rows)]

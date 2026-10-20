@@ -25,6 +25,9 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
+      - name: Verify installed dependency compatibility
+        run: python -m pip check
+
       - name: Lint and code style (Ruff)
         run: |
           ruff check src tests scripts
@@ -32,6 +35,9 @@ jobs:
       - name: Type checking (Mypy strict)
         run: |
           mypy --strict src
+
+      - name: Verify declared static import contracts
+        run: python scripts/check_layer_contracts.py
 
       - name: Validate documentation structure and local links
         run: python scripts/validate_project_docs.py
@@ -52,6 +58,22 @@ jobs:
         run: |
           python .agents/skills/async-concurrency-engineering/scripts/audit_async_concurrency.py
 
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/frontend/package-lock.json
+      - name: Install locked build tools
+        run: npm ci --prefix tools/frontend
+      - name: Verify generated frontend assets
+        run: node scripts/build_frontend.cjs --check
+      - name: Check JavaScript syntax
+        run: node scripts/check_frontend_syntax.cjs
+
   tests:
     runs-on: ubuntu-latest
     strategy:
@@ -66,8 +88,12 @@ jobs:
           cache: pip
       - name: Install runtime and QA dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Verify installed dependency compatibility
+        run: python -m pip check
       - name: Install Chromium for isolated browser tests
         run: python -m playwright install --with-deps chromium
+      - name: Prepare required pinned map fixtures
+        run: python scripts/prepare_browser_assets.py
       - name: Run maintained tests and coverage
         run: python -m pytest tests --junitxml=tests/artifacts/junit.xml --cov-report=xml:tests/artifacts/coverage.xml
       - name: Upload test evidence

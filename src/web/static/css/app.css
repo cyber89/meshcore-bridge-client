@@ -23,6 +23,7 @@
 
 /* Hide station data until the server authenticates and accepts the credentials. */
 body.auth-pending > .app-header,
+body.auth-pending > .skip-link,
 body.auth-pending > #app { display: none !important; }
 .auth-startup {
   min-height: 100dvh;
@@ -216,6 +217,21 @@ body.auth-pending > #app { display: none !important; }
   --accent-warning: var(--bs-warning, #ffc107);
   --accent-danger: var(--bs-danger, #dc3545);
   --accent-info: var(--bs-info, #0dcaf0);
+  --role-local-bg: rgba(16, 185, 129, 0.15);
+  --role-local-border: rgba(16, 185, 129, 0.45);
+  --role-local-text: #34d399;
+  --role-repeater-bg: rgba(245, 158, 11, 0.15);
+  --role-repeater-border: rgba(245, 158, 11, 0.45);
+  --role-repeater-text: #fbbf24;
+  --role-sensor-bg: rgba(6, 182, 212, 0.15);
+  --role-sensor-border: rgba(6, 182, 212, 0.45);
+  --role-sensor-text: #22d3ee;
+  --role-room-bg: rgba(168, 85, 247, 0.15);
+  --role-room-border: rgba(168, 85, 247, 0.45);
+  --role-room-text: #c084fc;
+  --role-client-bg: rgba(59, 130, 246, 0.15);
+  --role-client-border: rgba(59, 130, 246, 0.45);
+  --role-client-text: #60a5fa;
 
   /* Radios de borde */
   --radius-sm: 8px;
@@ -6344,14 +6360,16 @@ details.settings-disclosure > .disclosure-content {
   font-variant-numeric: tabular-nums;
 }
 
-.sniffer-table {
+.sniffer-table,
+.analytics-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8125rem;
 }
 
-.sniffer-table th {
+.sniffer-table th,
+.analytics-table th {
   position: sticky;
   top: 0;
   background: var(--bs-tertiary-bg);
@@ -6691,17 +6709,19 @@ details.settings-disclosure > .disclosure-content {
 
 /* Cajón Móvil de Canales y Fondo de Superposición (V-01) */
 .chat-channels-backdrop {
-  display: none;
+  display: block;
+  visibility: hidden;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
   z-index: 45;
   opacity: 0;
-  transition: opacity var(--motion-normal, 180ms) ease;
+  transition: opacity var(--motion-normal, 180ms) ease, visibility 0s var(--motion-normal, 180ms);
   pointer-events: none;
 }
 .chat-channels-backdrop.visible {
-  display: block;
+  visibility: visible;
+  transition-delay: 0s;
   opacity: 1;
   pointer-events: auto;
 }
@@ -6725,78 +6745,53 @@ details.settings-disclosure > .disclosure-content {
 
 /* Identidad Semántica de Roles en Avatares de Nodos (V-06) */
 .node-card-avatar.avatar-local {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.45);
-  color: #34d399;
+  background: var(--role-local-bg);
+  border-color: var(--role-local-border);
+  color: var(--role-local-text);
 }
 .node-card-avatar.avatar-repeater {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: rgba(245, 158, 11, 0.45);
-  color: #fbbf24;
+  background: var(--role-repeater-bg);
+  border-color: var(--role-repeater-border);
+  color: var(--role-repeater-text);
 }
 .node-card-avatar.avatar-sensor {
-  background: rgba(6, 182, 212, 0.15);
-  border-color: rgba(6, 182, 212, 0.45);
-  color: #22d3ee;
+  background: var(--role-sensor-bg);
+  border-color: var(--role-sensor-border);
+  color: var(--role-sensor-text);
 }
 .node-card-avatar.avatar-room {
-  background: rgba(168, 85, 247, 0.15);
-  border-color: rgba(168, 85, 247, 0.45);
-  color: #c084fc;
+  background: var(--role-room-bg);
+  border-color: var(--role-room-border);
+  color: var(--role-room-text);
 }
 .node-card-avatar.avatar-client {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.45);
-  color: #60a5fa;
+  background: var(--role-client-bg);
+  border-color: var(--role-client-border);
+  color: var(--role-client-text);
 }
 
-[data-bs-theme="light"] .node-card-avatar.avatar-local,
-body.light-theme .node-card-avatar.avatar-local {
-  background: #d1fae5;
-  border-color: #6ee7b7;
-  color: #065f46;
-}
-[data-bs-theme="light"] .node-card-avatar.avatar-repeater,
-body.light-theme .node-card-avatar.avatar-repeater {
-  background: #fef3c7;
-  border-color: #fcd34d;
-  color: #92400e;
-}
-[data-bs-theme="light"] .node-card-avatar.avatar-sensor,
-body.light-theme .node-card-avatar.avatar-sensor {
-  background: #cffafe;
-  border-color: #67e8f9;
-  color: #155e75;
-}
-[data-bs-theme="light"] .node-card-avatar.avatar-room,
-body.light-theme .node-card-avatar.avatar-room {
-  background: #f3e8ff;
-  border-color: #d8b4fe;
-  color: #6b21a8;
-}
-[data-bs-theme="light"] .node-card-avatar.avatar-client,
-body.light-theme .node-card-avatar.avatar-client {
-  background: #dbeafe;
-  border-color: #93c5fd;
-  color: #1e40af;
+[data-bs-theme="light"] {
+  --role-local-bg: #d1fae5;
+  --role-local-border: #6ee7b7;
+  --role-local-text: #065f46;
+  --role-repeater-bg: #fef3c7;
+  --role-repeater-border: #fcd34d;
+  --role-repeater-text: #92400e;
+  --role-sensor-bg: #cffafe;
+  --role-sensor-border: #67e8f9;
+  --role-sensor-text: #155e75;
+  --role-room-bg: #f3e8ff;
+  --role-room-border: #d8b4fe;
+  --role-room-text: #6b21a8;
+  --role-client-bg: #dbeafe;
+  --role-client-border: #93c5fd;
+  --role-client-text: #1e40af;
 }
 
 /* Tablas de Datos Unificadas con Sticky Headers y Tabular-Nums (Analítica y Sniffer - V-07) */
-.analytics-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 0.8125rem;
-}
-
-.analytics-table th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--bs-tertiary-bg);
-  border-bottom: 2px solid var(--bs-border-color);
-  font-weight: 600;
-  padding: 6px 10px;
+.data-table-scroll {
+  max-height: 550px;
+  overflow-y: auto;
 }
 
 .analytics-table td {
@@ -6805,12 +6800,12 @@ body.light-theme .node-card-avatar.avatar-client {
   vertical-align: middle;
 }
 
-.analytics-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.015);
+.analytics-table tbody tr:nth-child(even) > td {
+  --bs-table-bg-type: var(--bs-tertiary-bg);
 }
 
-.analytics-table tbody tr:hover {
-  background: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.08);
+.analytics-table tbody tr:hover > td {
+  --bs-table-bg-state: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.08);
 }
 
 .analytics-table td:nth-child(3),

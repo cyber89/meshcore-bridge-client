@@ -116,6 +116,34 @@ pytest por unittest. El informe JSON conserva comando, salida, errores y duraci�
 
 ## Scripts auxiliares e históricos
 
+Los scripts `inspect_all_views.py` y `check_frontend_health.py` comparten
+`scripts/isolated_frontend_station.py`: bloquea la carga de `.env`, crea cuenta,
+SQLite, mapas y logs temporales, usa radio virtual y loopback con puerto cero,
+autentica el navegador y cierra recursos incluso ante fallos. Ejecutarlos sigue
+requiriendo autorización de navegador. El contrato SENSOR de fuente se llama
+`test_sensor_subscriptions_static_contract.py`; no acredita ejecución de UI.
+
+CI prepara Leaflet 1.9.4 con hashes SHA-256 fijados antes de las pruebas de mapa;
+su ausencia falla en CI y solo permite skip local explícito. El runner de
+categorías rechaza rutas ausentes y calcula el porcentaje real. Los nombres de
+sus categorías agrupan regresiones; no certifican por sí solos que se ejecutó
+una herramienta de mutación, un benchmark o una prueba con hardware.
+
+Comprobaciones estáticas independientes de pytest:
+
+```bash
+python scripts/check_layer_contracts.py
+node scripts/check_frontend_syntax.cjs
+node scripts/build_frontend.cjs --check
+python -m pip check
+```
+
+El comprobador de imports recorre ASTs e imports locales transitivos para los
+contratos `forbidden` declarados en `pyproject.toml`, sin importar la aplicación.
+No sustituye una verificación completa de cinco capas ni detecta imports
+dinámicos. El diagrama vigente permite que L3 use persistencia L5; ese import
+por sí solo no es una infracción.
+
 Los scripts de `scripts/` y `scratch/` no entran automáticamente en pytest. Antes
 de ejecutarlos, comprobar si crean procesos, usan datos del operador, requieren
 MQTT externo o consultan servicios existentes. Los simuladores no acreditan RF

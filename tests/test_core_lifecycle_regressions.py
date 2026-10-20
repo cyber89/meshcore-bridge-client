@@ -25,7 +25,7 @@ def bridge() -> MeshCoreBridge:
     obj._cleanup_task = None
     obj._health_task = None
     obj._tasks_lock = asyncio.Lock()
-    obj.rate_limiter = SimpleNamespace(start=MagicMock(), stop=AsyncMock())
+    obj.rate_limiter = SimpleNamespace(start=MagicMock(), stop=AsyncMock(), is_cutoff_active=lambda: False)
     obj.mqtt = SimpleNamespace(start=MagicMock(), stop=MagicMock())
     obj.mqtt.publish_safe = MagicMock()
     obj.serial_adapter = SimpleNamespace(connect=AsyncMock(return_value=True), disconnect=AsyncMock(), port="mock")
@@ -34,6 +34,7 @@ def bridge() -> MeshCoreBridge:
     obj.tcp_server = SimpleNamespace(start=AsyncMock(), stop=AsyncMock())
     obj.node_registry = SimpleNamespace(
         save_to_file=MagicMock(), get_local_pubkey=MagicMock(return_value="ab" * 32),
+        is_local_key=lambda key: str(key) == "ab" * 32,
     )
     obj.preflight = SimpleNamespace(run_all=MagicMock(return_value={"status": "OK", "checks": []}))
     obj.health_reporter = SimpleNamespace(start=MagicMock(side_effect=lambda: asyncio.create_task(asyncio.Event().wait())), stop=AsyncMock())
@@ -306,16 +307,22 @@ async def test_raw_queued_chat_is_sent_as_bytes_and_accounts_confirmed_airtime(s
         await obj.rate_limiter.stop()
 
 
-async def test_raw_cli_and_local_commands_keep_the_serial_gateway() -> None:
+async def test_local_commands_keep_serial_gateway_and_remote_cli_uses_queue() -> None:
     obj = bridge()
     obj.serial_adapter.send_raw_companion_frame = AsyncMock(return_value=True)
-    obj.rate_limiter.submit = AsyncMock()
-    for payload in (b"\x03", b"\x02\x01\x00" + bytes(4) + bytes.fromhex("cd" * 6) + b"reboot", b"\x16"):
+    future = asyncio.get_running_loop().create_future()
+    future.set_result({"status": "sent"})
+    obj.rate_limiter.submit = AsyncMock(return_value=future)
+    for payload in (b"\x03", b"\x16\x03"):
         if payload == b"\x03":
             assert await obj.handle_tcp_companion_command(payload, None) is False
         else:
             assert await obj.handle_tcp_companion_command(payload, None) is True
     obj.rate_limiter.submit.assert_not_awaited()
+    remote_cli = b"\x02\x01\x00" + bytes(4) + bytes.fromhex("cd" * 6) + b"reboot"
+    assert await obj.handle_tcp_companion_command(remote_cli, None) is True
+    obj.rate_limiter.submit.assert_awaited_once_with(payload=remote_cli, priority=TxPriority.NORMAL,
+                                                  target="cd" * 6, channel_idx=0)
 
 
 async def test_cancelled_queued_tcp_chat_is_never_transmitted_later() -> None:

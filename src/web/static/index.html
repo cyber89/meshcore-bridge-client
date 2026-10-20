@@ -43,7 +43,7 @@
   <script defer src="/js/leaflet.min.js"></script>
 </head>
 <body class="bg-body text-body d-flex flex-column overflow-hidden auth-pending">
-  <a href="#tab-chat" class="skip-link" data-i18n="ui.skip_to_content">Saltar al contenido</a>
+  <a href="#appMain" class="skip-link" data-i18n="ui.skip_to_content">Saltar al contenido</a>
   <div id="authStartup" class="auth-startup" role="status">
     <img src="/brand.svg" alt="" width="48" height="48">
     <strong>Meshcore-Bridge</strong>
@@ -86,7 +86,7 @@
           <div class="auth-remember"><input id="loginRemember" class="form-check-input" type="checkbox" name="remember" checked aria-describedby="loginRememberHint"><div><label for="loginRemember" data-i18n="auth.remember">Recordar mi sesión en este navegador</label><p id="loginRememberHint" class="field-hint text-body-secondary" data-i18n="auth.remember_hint">Durante 30 días. Úsalo sólo en un dispositivo personal.</p></div></div>
           <button class="btn btn-primary auth-submit" type="submit"><span class="auth-submit-label" data-i18n="auth.sign_in">Iniciar sesión</span><span class="auth-submit-busy" data-i18n="auth.signing_in">Iniciando sesión…</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
         </form>
-        <details id="authFirstLogin" class="auth-first-login" hidden><summary><i class="bi bi-info-circle" aria-hidden="true"></i><span data-i18n="auth.first_login_title">¿Es tu primer acceso?</span></summary><p data-i18n="auth.first_login">En una instalación nueva, inicia sesión con usuario admin y contraseña admin. Deberás cambiar la contraseña inmediatamente para acceder a la estación.</p></details>
+        <details id="authFirstLogin" class="auth-first-login" hidden><summary><i class="bi bi-info-circle" aria-hidden="true"></i><span data-i18n="auth.first_login_title">¿Es tu primer acceso?</span></summary><p data-i18n="auth.first_login">Desde este equipo (localhost), usa admin / admin y cambia enseguida la contraseña para acceder.</p></details>
       </div>
     </div>
   </section>
@@ -203,7 +203,7 @@
     </aside>
             
     <!-- Área de Contenido Principal -->
-    <main class="app-main tab-content flex-grow-1 overflow-auto p-3" role="main">
+    <main id="appMain" tabindex="-1" class="app-main tab-content flex-grow-1 overflow-auto p-3" role="main">
         <section id="tab-chat" class="tab-pane active" role="tabpanel" aria-labelledby="navTabChat">
           <div class="chat-layout">
             <!-- Panel Izquierdo de Mensajería: Canales y Conversaciones Directas -->
@@ -243,7 +243,7 @@
               <div class="chat-header">
                 <div class="header-title-group active-target-info">
                   <div class="target-title-row">
-                    <button type="button" class="btn-icon btn-back-channels-mobile" id="btnBackToChannelsMobile" title="Volver a canales" aria-label="Volver a la lista de canales" data-i18n-title="ui.static_023" data-i18n-aria-label="ui.static_024">
+                    <button type="button" class="btn-icon btn-back-channels-mobile" id="btnBackToChannelsMobile" aria-controls="sidebarChannelList" aria-expanded="false" title="Volver a canales" aria-label="Volver a la lista de canales" data-i18n-title="ui.static_023" data-i18n-aria-label="ui.static_024">
                       <i class="bi bi-arrow-left" aria-hidden="true"></i>
                     </button>
                     <div class="chat-target-avatar" id="chatTargetAvatar"><i class="bi bi-globe2" aria-hidden="true"></i></div>
@@ -596,7 +596,7 @@
                     <p data-i18n="analytics.top_active_sub">Nodos con mayor volumen de paquetes y calidad de enlace LQI</p>
                   </div>
                 </div>
-                <div class="table-responsive">
+                <div class="table-responsive data-table-scroll">
                   <table class="table table-hover table-striped table-sm align-middle data-table analytics-table">
                     <thead>
                       <tr>
@@ -1801,6 +1801,8 @@
                               <span data-i18n="services.verify_cert">Verificar CA</span>
                             </label>
                           </div>
+                          <label for="inputExtMqttCaFile" class="mt-2" data-i18n="services.tls_ca_file">Archivo CA en el servidor (opcional):</label>
+                          <input type="text" id="inputExtMqttCaFile" class="form-control font-mono" autocomplete="off" spellcheck="false" />
                         </div>
                       </div>
 
@@ -1832,12 +1834,14 @@
                         <div class="form-group">
                           <label for="inputExtMqttPass" data-i18n="services.password">Contraseña:</label>
                           <input type="password" id="inputExtMqttPass" class="form-control" autocomplete="new-password" placeholder="••••••••" />
+                          <label for="chkClearExtMqttPass" class="settings-choice-row mt-1"><input type="checkbox" id="chkClearExtMqttPass" /><span data-i18n="services.clear_password">Borrar contraseña guardada al guardar</span></label>
                         </div>
                       </div>
 
                       <div id="extMqttTokenField" class="form-group hidden">
                         <label for="inputExtMqttToken" data-i18n="services.token">Token de Acceso (JWT / Clave API):</label>
                         <input type="password" id="inputExtMqttToken" class="form-control font-mono" autocomplete="new-password" placeholder="••••••••" />
+                        <label for="chkClearExtMqttToken" class="settings-choice-row mt-1"><input type="checkbox" id="chkClearExtMqttToken" /><span data-i18n="services.clear_token">Borrar token guardado al guardar</span></label>
                       </div>
 
                       <!-- Configuración de Tópicos y Región -->
@@ -1981,6 +1985,7 @@
                         <div class="form-group">
                           <label for="inputLocalMqttPass" data-i18n="services.local_pass">Contraseña Local:</label>
                           <input type="password" id="inputLocalMqttPass" class="form-control" autocomplete="new-password" placeholder="••••••••" />
+                          <label for="chkClearLocalMqttPass" class="settings-choice-row mt-1"><input type="checkbox" id="chkClearLocalMqttPass" /><span data-i18n="services.clear_password">Borrar contraseña guardada al guardar</span></label>
                         </div>
                       </div>
                     </form>

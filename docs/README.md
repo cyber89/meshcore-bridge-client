@@ -112,6 +112,8 @@ Documentos de planificación paso a paso para la adopción de nuevas capacidades
 
 ## 🛡️ 4. Historial de Auditorías y Revisiones (`docs/audits/`)
 
+- [Validación y remediación de auditoría 2026-10-20](audits/2026-10-20-remediation-validation.md): matriz de 69 hallazgos, decisiones del usuario, cambios y límites de verificación estática.
+
 Informes técnicos fechados que documentan la verificación estática, hallazgos de seguridad y evolución del código:
 
 - 🛡️ **[Auditoría por capas 2026-10-09](audits/2026-10-09-layer-audit.md)** (y [JSON complementario](audits/2026-10-09-layer-audit.json)).

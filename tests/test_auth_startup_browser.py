@@ -63,7 +63,7 @@ async def test_configured_station_login_hides_first_access_help(virtual_bridge: 
             login = await context.request.post(origin + "/api/auth/login", data={"username": "admin", "password": "admin"},
                                                headers={"Origin": origin})
             changed = await context.request.put(origin + "/api/auth/credentials",
-                data={"username": "owner", "password": "qa-owner-password"},
+                data={"username": "owner", "password": "qa-owner-password", "current_password": "admin"},
                 headers={"Origin": origin, "X-CSRF-Token": (await login.json())["csrf_token"]})
             assert changed.status == 200
             await context.clear_cookies()
@@ -112,11 +112,12 @@ async def test_first_access_help_disappears_after_setup_and_logout(virtual_bridg
         try:
             page = await browser.new_page()
             await page.goto(origin)
-            await expect(page.locator(".auth-first-login")).to_be_visible()
+            await expect(page.locator(".auth-first-login")).not_to_be_visible()
             await page.locator("#loginUsername").fill("admin")
             await page.locator("#loginPassword").fill("admin")
             await page.locator('#loginForm button[type="submit"]').click()
             await expect(page.locator("#accountRequiredNotice")).to_be_visible()
+            await page.locator("#accountCurrentPassword").fill("admin")
             await expect(page.locator("#app")).not_to_be_visible()
             await page.locator("#accountNewPassword").fill("qa-owner-password")
             await page.locator("#accountConfirmPassword").fill("qa-owner-password")

@@ -142,7 +142,7 @@ class MetricsAggregator:
         target_str = str(target or "").lower().strip()
         is_flood = (
             not target_str
-            or target_str in ("broadcast", "*", "ffffffffffff")
+            or target_str in ("broadcast", "*", "ffffffffffff", "0xffff")
             or target_str.startswith("broadcast")
         )
 

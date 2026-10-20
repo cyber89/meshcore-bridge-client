@@ -28,6 +28,14 @@ La decisión inicial implementó entrada de usuario y contraseña durante instal
 
 ## Consecuencias
 
+Evolución autorizada el 2026-10-20: se conserva `admin:admin`, pero el acceso
+inicial y las sesiones pendientes de cambio requieren loopback directo, Host
+local y ausencia de cabeceras de proxy. El cambio inicial también exige la
+contraseña actual. El estado de sesión anónimo no revela si falta configurar la
+cuenta. Completar el alta desde el host o mediante un túnel SSH local antes de
+usar la cuenta por LAN; las cuentas ya configuradas conservan acceso remoto.
+Esta evolución sustituye la exposición inicial descrita históricamente abajo.
+
 Evolución de política durante la auditoría de login del 2026-10-12: el usuario establece contraseñas nuevas de 8–64 caracteres Unicode, sin complejidad. Login y contraseña actual conservan compatibilidad con contraseñas anteriores de hasta 128 caracteres y con el default inicial restringido. Los límites de frontend, backend y OpenAPI deben describir esta distinción.
 
 La API deja de ser pública; clientes deben suministrar sesión o token. Los secretos y respaldos SQLite requieren permisos protegidos. HTTP local permite compatibilidad, pero el transporte remoto requiere HTTPS. Cambiar credenciales cierra sesiones previas y revoca tokens generados; la clave de `.env` se administra independientemente. El valor público de arranque permite que quien acceda primero establezca la cuenta: la aplicación obliga a sustituirlo en el primer login antes de mostrar datos o ejecutar acciones de la estación.

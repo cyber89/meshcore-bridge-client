@@ -27,6 +27,25 @@ const FIRMWARE_READ_COMMANDS = [
   "get wifi.ip",
 ];
 
+let qrLibraryPromise = null;
+
+function loadQrLibrary() {
+  if (window.QRCodeGenerator || window.QRCode) return Promise.resolve();
+  if (!qrLibraryPromise) {
+    qrLibraryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "/js/qrcode.js";
+      script.onload = () => {
+        if (window.QRCodeGenerator || window.QRCode) resolve();
+        else { script.remove(); reject(new Error("QR library unavailable")); }
+      };
+      script.onerror = () => { script.remove(); reject(new Error("QR library unavailable")); };
+      document.head.appendChild(script);
+    }).catch((error) => { qrLibraryPromise = null; throw error; });
+  }
+  return qrLibraryPromise;
+}
+
 export class SettingsModule {
   constructor(context) {
     this.ctx = context;
@@ -206,6 +225,9 @@ export class SettingsModule {
       selExtMqttTransport: document.getElementById("selExtMqttTransport"),
       chkExtMqttTls: document.getElementById("chkExtMqttTls"),
       chkExtMqttTlsVerify: document.getElementById("chkExtMqttTlsVerify"),
+      inputExtMqttCaFile: document.getElementById("inputExtMqttCaFile"),
+      chkClearExtMqttPass: document.getElementById("chkClearExtMqttPass"),
+      chkClearExtMqttToken: document.getElementById("chkClearExtMqttToken"),
       selExtMqttAuthType: document.getElementById("selExtMqttAuthType"),
       selExtMqttPrivacy: document.getElementById("selExtMqttPrivacy"),
       extMqttUserPassFields: document.getElementById("extMqttUserPassFields"),
@@ -238,6 +260,7 @@ export class SettingsModule {
       localMqttCredsRow: document.getElementById("localMqttCredsRow"),
       inputLocalMqttUser: document.getElementById("inputLocalMqttUser"),
       inputLocalMqttPass: document.getElementById("inputLocalMqttPass"),
+      chkClearLocalMqttPass: document.getElementById("chkClearLocalMqttPass"),
 
       // Servidor TCP Companion
       chkTcpServerEnabled: document.getElementById("chkTcpServerEnabled"),
@@ -1420,7 +1443,7 @@ export class SettingsModule {
       const chDisplayName = ch.name || (ch.index === 0 ? I18n.t('chat.ch_0_default') : I18n.t("settings.channel_label", { p0: ch.index }));
 
       li.innerHTML = `
-        <button type="button" class="channel-select" aria-pressed="${isActive}" title="${escapeHtml(chDisplayName)}" aria-label="${escapeHtml(chDisplayName)}">
+        <button type="button" class="channel-select" aria-pressed="${isActive}" title="${escapeHtml(chDisplayName)}" aria-label="${escapeHtml(`Ch ${ch.index}: ${chDisplayName}. ${lockTitle}`)}">
         <span class="ch-badge font-mono">Ch ${ch.index}</span>
         <span class="ch-name" title="${escapeHtml(chDisplayName)}">${escapeHtml(chDisplayName)}</span>
           <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${escapeHtml(lockTitle)}">
@@ -1626,8 +1649,9 @@ export class SettingsModule {
     const revision = this._configRevision;
     const readSequence = ++this._configReadSequence;
     try {
-      const url = force ? "/api/config?refresh=true" : "/api/config";
+      const url = force ? "/api/config/refresh" : "/api/config";
       const res = await fetch(url, {
+        method: force ? "POST" : "GET",
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
@@ -2528,19 +2552,14 @@ export class SettingsModule {
 
   async showQrModal(title, uri, rawJson = "", label = null) {
     if (!this.dom.qrShareModal) return;
-    if (!(window.QRCodeGenerator || window.QRCode)) {
-      try {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement("script");
-          s.src = "/js/qrcode.js";
-          s.onload = resolve;
-          s.onerror = reject;
-          document.head.appendChild(s);
-        });
-      } catch (err) {
-        console.warn("Error cargando qrcode.js:", err);
-      }
+    const request = this._qrRequest = (this._qrRequest || 0) + 1;
+    try {
+      await loadQrLibrary();
+    } catch (_) {
+      if (request === this._qrRequest) this._notify(I18n.t("qr.load_error"), "error");
+      return;
     }
+    if (request !== this._qrRequest) return;
     if (this.dom.qrModalTitle) {
       if (label) I18n.setText(this.dom.qrModalTitle, label.key, label.params || {});
       else if (!title) I18n.setText(this.dom.qrModalTitle, 'settings.qr_share');
@@ -3179,6 +3198,9 @@ export class SettingsModule {
     if (this.dom.selExtMqttTransport) this.dom.selExtMqttTransport.value = p.transport || "tcp";
     if (this.dom.chkExtMqttTls) this.dom.chkExtMqttTls.checked = Boolean(p.tls_enabled);
     if (this.dom.chkExtMqttTlsVerify) this.dom.chkExtMqttTlsVerify.checked = p.tls_verify !== false;
+    if (this.dom.inputExtMqttCaFile) this.dom.inputExtMqttCaFile.value = p.tls_ca_file || "";
+    if (this.dom.chkClearExtMqttPass) this.dom.chkClearExtMqttPass.checked = false;
+    if (this.dom.chkClearExtMqttToken) this.dom.chkClearExtMqttToken.checked = false;
     if (this.dom.selExtMqttAuthType) this.dom.selExtMqttAuthType.value = p.auth_type || "anonymous";
     if (this.dom.selExtMqttPrivacy) this.dom.selExtMqttPrivacy.value = p.location_privacy || "fuzzed";
     if (this.dom.inputExtMqttUser) this.dom.inputExtMqttUser.value = p.username || "";
@@ -3214,6 +3236,10 @@ export class SettingsModule {
     if (this.dom.selExtMqttTransport) this.dom.selExtMqttTransport.value = ext.transport || "tcp";
     if (this.dom.chkExtMqttTls) this.dom.chkExtMqttTls.checked = Boolean(ext.tls_enabled);
     if (this.dom.chkExtMqttTlsVerify) this.dom.chkExtMqttTlsVerify.checked = ext.tls_verify !== false;
+    if (this.dom.inputExtMqttCaFile) this.dom.inputExtMqttCaFile.value = ext.tls_ca_file || "";
+    if (this.dom.chkClearExtMqttPass) this.dom.chkClearExtMqttPass.checked = false;
+    if (this.dom.chkClearExtMqttToken) this.dom.chkClearExtMqttToken.checked = false;
+    if (this.dom.chkClearLocalMqttPass) this.dom.chkClearLocalMqttPass.checked = false;
     if (this.dom.selExtMqttAuthType) this.dom.selExtMqttAuthType.value = ext.auth_type || "anonymous";
     if (this.dom.selExtMqttPrivacy) this.dom.selExtMqttPrivacy.value = ext.location_privacy || "fuzzed";
     if (this.dom.inputExtMqttUser) this.dom.inputExtMqttUser.value = ext.username || "";
@@ -3244,7 +3270,7 @@ export class SettingsModule {
 
     // TCP Server
     if (this.dom.chkTcpServerEnabled) this.dom.chkTcpServerEnabled.checked = tcp.enabled !== false;
-    if (this.dom.selTcpServerHost) this.dom.selTcpServerHost.value = tcp.host || "0.0.0.0";
+    if (this.dom.selTcpServerHost) this.dom.selTcpServerHost.value = tcp.host || "127.0.0.1";
     if (this.dom.inputTcpServerPort) this.dom.inputTcpServerPort.value = tcp.port || 5000;
     if (this.dom.inputTcpMaxClients) this.dom.inputTcpMaxClients.value = tcp.max_clients || 8;
     if (this.dom.inputTcpAllowedIps) this.dom.inputTcpAllowedIps.value = tcp.allowed_ips || "";
@@ -3294,11 +3320,14 @@ export class SettingsModule {
       transport: this.dom.selExtMqttTransport?.value || "tcp",
       tls_enabled: Boolean(this.dom.chkExtMqttTls?.checked),
       tls_verify: Boolean(this.dom.chkExtMqttTlsVerify?.checked),
+      tls_ca_file: (this.dom.inputExtMqttCaFile?.value || "").trim() || null,
       auth_type: this.dom.selExtMqttAuthType?.value || "anonymous",
       location_privacy: this.dom.selExtMqttPrivacy?.value || "fuzzed",
       username: (this.dom.inputExtMqttUser?.value || "").trim(),
-      password: this.dom.inputExtMqttPass?.value || "",
-      token: (this.dom.inputExtMqttToken?.value || "").trim(),
+      password: this.dom.chkClearExtMqttPass?.checked ? "" : this.dom.inputExtMqttPass?.value || "",
+      token: this.dom.chkClearExtMqttToken?.checked ? "" : (this.dom.inputExtMqttToken?.value || "").trim(),
+      clear_password: Boolean(this.dom.chkClearExtMqttPass?.checked),
+      clear_token: Boolean(this.dom.chkClearExtMqttToken?.checked),
       downlink_enabled: Boolean(this.dom.chkExtDownlink?.checked),
       topic_mode: this.dom.selExtMqttTopicMode?.value || "standard",
       topic_prefix: (this.dom.inputExtMqttPrefix?.value || "").trim() || "meshcore/remote",
@@ -3324,14 +3353,15 @@ export class SettingsModule {
       topic_prefix: (this.dom.inputLocalMqttPrefix?.value || "").trim() || "meshcore",
       auth_enabled: Boolean(this.dom.chkLocalMqttAuth?.checked),
       username: (this.dom.inputLocalMqttUser?.value || "").trim(),
-      password: this.dom.inputLocalMqttPass?.value || "",
+      password: this.dom.chkClearLocalMqttPass?.checked ? "" : this.dom.inputLocalMqttPass?.value || "",
+      clear_password: Boolean(this.dom.chkClearLocalMqttPass?.checked),
     };
   }
 
   _gatherTcpServerFormData() {
     return {
       enabled: Boolean(this.dom.chkTcpServerEnabled?.checked),
-      host: this.dom.selTcpServerHost?.value || "0.0.0.0",
+      host: this.dom.selTcpServerHost?.value || "127.0.0.1",
       port: parseInt(this.dom.inputTcpServerPort?.value, 10) || 5000,
       max_clients: parseInt(this.dom.inputTcpMaxClients?.value, 10) || 8,
       allowed_ips: (this.dom.inputTcpAllowedIps?.value || "").trim(),

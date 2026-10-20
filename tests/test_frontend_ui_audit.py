@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -301,7 +302,9 @@ async def test_palette_escapes_node_names_and_protects_repeaters(
 
 
 @pytest.mark.skipif(
-    not (ARTIFACTS / "leaflet-1.9.4.js").exists(),
+    not os.getenv("CI") and not all(
+        (ARTIFACTS / f"leaflet-1.9.4.{extension}").is_file() for extension in ("js", "css")
+    ),
     reason="Optional map visual QA needs the application's pinned Leaflet JS/CSS in artifacts",
 )
 async def test_leaflet_map_with_cached_library_and_virtual_tiles(browser_page: Page) -> None:

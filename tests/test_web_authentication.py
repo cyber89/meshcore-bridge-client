@@ -26,6 +26,8 @@ def test_default_account_cannot_authorize_api_and_requires_replacement(tmp_path:
     assert not store.bootstrap("owner", "correct horse battery staple")
     with pytest.raises(ValueError, match="credentials_change_required"):
         store.rotate_api_token(session.token, "admin")
+    with pytest.raises(ValueError, match="invalid_current_password"):
+        store.change_credentials(session.token, None, "owner", "correct horse battery staple")
 
 
 def test_password_change_revokes_sessions_and_api_tokens(tmp_path: Path) -> None:
@@ -373,7 +375,7 @@ def test_proxy_trust_requires_exact_ip_addresses() -> None:
             trusted_proxy_ips(value)
 
 
-async def test_initial_credentials_change_does_not_require_current_password(tmp_path: Path) -> None:
+async def test_initial_credentials_change_requires_current_password(tmp_path: Path) -> None:
     store = AuthStore(tmp_path / "station.sqlite3")
     store.initialize()
     app, authentication = _application(store)
@@ -397,6 +399,13 @@ async def test_initial_credentials_change_does_not_require_current_password(tmp_
                 "username": "admin_new",
                 "password": "valid_new_password_123",
             },
+            headers={"Origin": "http://localhost", "X-CSRF-Token": csrf},
+        )
+        assert response.status_code == 422
+        assert response.json()["error"] == "invalid_credentials_payload"
+        response = await client.put(
+            "/api/auth/credentials",
+            json={"username": "admin_new", "password": "valid_new_password_123", "current_password": "admin"},
             headers={"Origin": "http://localhost", "X-CSRF-Token": csrf},
         )
         assert response.status_code == 200
@@ -428,3 +437,62 @@ async def test_initial_credentials_change_does_not_require_current_password(tmp_
         )
         assert succeeded.status_code == 200
         assert succeeded.json()["username"] == "admin_final"
+
+
+@pytest.mark.parametrize(
+    "peer,authority,extra_headers",
+    [
+        ("192.0.2.8", "localhost", {}),
+        ("127.0.0.1", "bridge.example", {}),
+        ("127.0.0.1", "localhost", {"X-Forwarded-For": "127.0.0.1"}),
+        ("127.0.0.1", "localhost", {"Forwarded": "for=127.0.0.1"}),
+    ],
+)
+async def test_bootstrap_login_rejects_remote_or_forwarded_requests(
+    tmp_path: Path, peer: str, authority: str, extra_headers: dict[str, str]
+) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    app, _ = _application(store)
+    origin = "http://" + authority
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=(peer, 12345)), base_url=origin
+    ) as client:
+        response = await client.post("/api/auth/login",
+                                     json={"username": "admin", "password": "admin"},
+                                     headers={"Origin": origin, **extra_headers})
+        assert response.status_code == 403
+        assert response.json()["error"] == "local_setup_required"
+        assert client.cookies.get("meshcore_session") is None
+
+
+async def test_missing_authentication_service_fails_closed() -> None:
+    inner = FastAPI()
+
+    @inner.get("/api/private")
+    async def private() -> dict[str, bool]:
+        return {"reached": True}
+
+    app = BridgeSecurityMiddleware(inner, auth_managed=True)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as client:
+        response = await client.get("/api/private")
+        assert response.status_code == 503
+        assert response.json()["error"] == "authentication_unavailable"
+        assert response.headers["x-content-type-options"] == "nosniff"
+
+
+async def test_authentication_storage_failure_returns_guarded_503(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    app, _ = _application(store)
+
+    def unavailable(token: str) -> None:
+        raise sqlite3.OperationalError("private database diagnostic")
+
+    monkeypatch.setattr(store, "session", unavailable)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost") as client:
+        response = await client.get("/api/private")
+        assert response.status_code == 503
+        assert response.json()["error"] == "authentication_unavailable"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert "private database diagnostic" not in response.text

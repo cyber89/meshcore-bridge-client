@@ -196,6 +196,52 @@ flowchart TB
    - La estación base local (`LOCAL`) nunca se duplica como vecino ni puede ser destinataria de bucles locales de mensajería.
    - Todo paquete saliente (TX) en Capa 3 debe atravesar el control de airtime y cola de prioridades (`TxRateLimiter`) para proteger el medio compartido LoRa.
 
+### 2.2.1 Revisión de contratos del 2026-10-20
+
+- TCP Companion arranca en loopback por defecto; una exposición remota exige
+  allowlist explícita o el token propio. Las apps oficiales usan allowlist sin
+  handshake nuevo. `max_clients` y `allowed_ips` guardados se inyectan al servidor.
+  El adaptador clasifica opcodes por las ramas del firmware: comandos RF usan la
+  cola TX y cutoff existentes, consultas/setters locales siguen por Companion;
+  CLI desconocido se rechaza. La estimación usa bytes del comando y no mide el
+  airtime RF real. Cada cliente tiene un drenaje de escritura propio con los
+  límites anteriores, sin esperar lectura TCP en un worker RX.
+- El cierre de workers RX vuelve a asegurar consumo de trabajo pendiente y
+  `drain()` espera tanto cola como workers. La entrada SDK retiene hasta 256
+  eventos públicos y un consumidor; el handoff entre hilos reserva como máximo
+  256 callbacks antes de programarlos. Son cotas de etapas distintas. El
+  overflow se registra; no se promete entrega ilimitada. Un watchdog con lock
+  Companion ocupado aplaza la consulta local; `get_time` no transmite por LoRa.
+- `MeshCoreBridge.create(db_path=..., data_dir=...)` usa rutas explícitas para
+  SQLite, fuentes legacy, servicios, canales, mapas, airtime, cooldowns y logs.
+  `db_path` sin `data_dir` toma su directorio padre. Sin override conserva la
+  configuración normal. Las inspecciones usan un directorio temporal completo.
+- `MeshcoreFrame` y el parser raw propio se conservan como seam en memoria. El
+  sniffer también recibe eventos SDK; no depende de ese parser. `crc_errors`
+  contabiliza únicamente la ruta raw y no acredita CRC del receptor físico.
+  `PacketRecord.size_bytes` describe el contenido observado antes de redacción,
+  no bytes retenidos ni necesariamente una trama RF completa. Un historial
+  airtime corrupto sigue bloqueando arranque para evitar resetear protecciones.
+- MQTT externo configura TLS antes de conectar, admite `tls_ca_file` y propaga
+  errores de confianza. El buffer conserva orden cuando Paho rechaza publicar.
+  La recarga prepara candidatos, persiste snapshot y conserva propiedad hasta
+  commit/rollback; no implica que el broker haya aceptado una conexión asíncrona.
+  `clear_password: true` borra el secreto local/externo y `clear_token: true` el
+  token externo; vacío y máscara conservan los existentes. QoS admite 0/1/2 y
+  keepalive 0..65535, incluido 0. El JSON legacy corrupto no se sobrescribe.
+- El bootstrap web conserva `admin:admin` y exige socket y Host locales, sin
+  forwarding, hasta completar el cambio con contraseña actual. API anónima no
+  revela estado de alta. Un fallo de autenticación responde 503 y falla cerrado.
+  `POST /api/preflight` y `POST /api/config/refresh` requieren CSRF en sesiones;
+  `GET /api/config?refresh=true` y su alias radio responden 405. HTML usa
+  `no-store`; teselas autenticadas conservan caché privada. CORS sin allowlist
+  solo admite el origen propio; integraciones entre orígenes requieren entradas
+  exactas configuradas.
+
+La [validación y remediación](audits/2026-10-20-remediation-validation.md)
+distingue evidencia estática, decisiones conservadas y aceptación dinámica
+pendiente; no se ejecutaron suites ni hardware durante esta entrega.
+
 ### 2.3 Arquitectura de Presentación Web SPA y Temas Bootswatch (Zephyr & Slate)
 
 La interfaz de usuario (`src/web/static/`) se concibe como una Single Page Application (SPA) ultraligera en HTML5 semántico, Vanilla CSS y ES6+ nativo sobre **Bootstrap 5.3.8** y temas oficiales de **Bootswatch 5.3.8**, sin sobrecarga de frameworks externos (React, Vue o Tailwind):
@@ -540,7 +586,7 @@ sequenceDiagram
 | GET | `/api/health` | `SystemController` | Reporta subsistemas, contadores, uptime y último error mediante DiagnosticManager; sin métricas RAM/disco/CPU del OS. |
 | GET | `/api/diagnostics` | `SystemController` | Idéntico a `/api/health`. |
 | GET | `/api/diagnostics/report.md` | `WebAPIRouter` / `DiagnosticManager` | Reporte Markdown, con respuesta JSON que contiene el texto. |
-| GET | `/api/preflight` | `SystemController` | Analiza disponibilidad de sistema de archivos, hardware y dependencias. |
+| POST | `/api/preflight` | `SystemController` | Analiza disponibilidad de sistema de archivos, hardware y dependencias. |
 | GET | `/api/system/logs/level` | `LogsController` | Obtiene el nivel de severidad de logs actual del módulo principal. |
 | POST | `/api/system/logs/level` | `LogsController` | Altera en caliente la verbosidad global de logs del sistema (`INFO`, `DEBUG`, etc.). |
 | DELETE | `/api/system/logs` | `LogsController` | Depura el historial de logs del sistema residentes en la memoria RAM del bridge. |
@@ -569,7 +615,7 @@ sequenceDiagram
 | POST | `/api/repeater/remote/action` | `RepeaterController` | Ejecución de una acción instantánea en el dispositivo objetivo (e.g., LED Toggle). |
 | POST | `/api/repeater/ping_zero` | `RepeaterController` | Operación de diagnóstico Hop 0; también `/api/node/ping_zero`. No es ICMP IP. |
 | POST | `/api/traceroute` | `RepeaterController` | Herramienta de medición y exploración de saltos entre el servidor y un destino remoto. |
-| GET | `/api/config` | `ConfigController` | Devuelve caché/defaults de configuración y métricas runtime; `refresh` solicita consulta al hardware con fallback. |
+| GET | `/api/config` | `ConfigController` | Devuelve caché/defaults y métricas runtime; para consultar hardware se exige POST `/api/config/refresh` con CSRF. |
 | POST | `/api/config` | `ConfigController` | Aplica una configuración estructural de manera unificada a variables de sistema y hardware. |
 | POST | `/api/config/radio` | `ConfigController` | Refuerza cambios a las portadoras (BW, Frecuencia, Spreading Factor). |
 | POST | `/api/config/identity` | `ConfigController` | Edita el pseudónimo del puente y propiedades de visualización pública. |

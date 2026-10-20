@@ -94,27 +94,7 @@ class SecurityTrafficInspector:
         r"/\.ds_store",
     )
 
-    # Patrones de inyección de comandos o scripts
-    INJECTION_PATTERNS = (
-        r"<script[\s>]",
-        r"javascript:",
-        r"onerror\s*=",
-        r"onload\s*=",
-        r"cmd\.exe",
-        r"/bin/sh",
-        r"/bin/bash",
-        r"powershell",
-        r";\s*cat\s+",
-        r"\|\s*curl\s+",
-        r"\|\s*wget\s+",
-        r"UNION\s+SELECT",
-        r"DROP\s+TABLE",
-        r"eval\(",
-        r"\$\{jndi:",
-    )
-
     _path_regex = re.compile("|".join(SUSPICIOUS_PATH_PATTERNS), re.IGNORECASE)
-    _injection_regex = re.compile("|".join(INJECTION_PATTERNS), re.IGNORECASE)
 
     @classmethod
     def extract_client_ip(
@@ -135,10 +115,10 @@ class SecurityTrafficInspector:
     @classmethod
     def is_traversal_attempt(cls, raw_path: str) -> bool:
         """Detecta intentos de Directory Traversal en la ruta solicitada."""
-        normalized = raw_path.replace("\\", "/")
+        normalized = raw_path.partition("?")[0].replace("\\", "/")
         low = normalized.lower()
         try:
-            decoded = unquote(unquote(low))
+            decoded = unquote(unquote(low)).replace("\\", "/")
         except Exception:
             decoded = low
 
@@ -148,8 +128,6 @@ class SecurityTrafficInspector:
         return (
             ".." in parts
             or ".." in decoded_parts
-            or "%2e" in low
-            or "%2f" in low
             or "%00" in low
             or "%c0%ae" in low
             or "..../" in normalized
@@ -193,19 +171,10 @@ class SecurityTrafficInspector:
             matched_pattern = match.group(0) if match else clean_path
             return True, "SONDEO_RUTA_SENSIBLE", f"Petición a archivo o ruta restringida/trampa: '{matched_pattern}'"
 
-        # 5. Detección de Inyección de Comandos / Scripts en la Query String o Path
-        if cls._injection_regex.search(path):
-            match = cls._injection_regex.search(path)
-            matched_pattern = match.group(0) if match else "patron_inyeccion"
-            return True, "INYECCION_COMANDO_O_SCRIPT", f"Patrón de inyección detectado en URI: '{matched_pattern}'"
-
-        # 6. Inspección superficial del cuerpo JSON si existe
-        if body_dict:
-            raw_body_str = str(body_dict)
-            if len(raw_body_str) < 4096 and cls._injection_regex.search(raw_body_str):
-                match = cls._injection_regex.search(raw_body_str)
-                matched_pattern = match.group(0) if match else "inyeccion_body"
-                return True, "INYECCION_EN_PAYLOAD", f"Patrón malicioso en payload: '{matched_pattern}'"
+        # Route/query/body values belong to the destination controller's field
+        # validators. Free text, passwords and channel names may legitimately
+        # contain code. Regex matching str(dict) is neither schema validation nor
+        # an output-context sanitizer; HTML consumers escape at render time.
 
         return False, "", ""
 

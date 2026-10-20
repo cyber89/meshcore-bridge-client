@@ -122,7 +122,9 @@ class WebAPIRouter:
         self.recent_messages: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_telemetry: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_system_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
-        self.map_tile_service = MapTileService()
+        self.map_tile_service = MapTileService(
+            data_dir=bridge.data_dir if getattr(bridge, "_storage_overridden", False) is True else None
+        )
 
         # Inyección de dependencias mediante ApiContext
         self.api_ctx = ApiContext(
@@ -476,7 +478,7 @@ class WebAPIRouter:
                 bundle_data = await asyncio.to_thread(diag.generate_full_diagnostic_bundle)
                 return 200, {"status": "ok", "data": bundle_data}
             return 200, {"status": "error", "message": "No diagnostics"}
-        if clean_path == "/api/preflight" and method == "GET":
+        if clean_path == "/api/preflight" and method == "POST":
             return await self.system_ctrl.run_preflight()
         if clean_path == "/api/system/logs/level":
             if method == "GET":
@@ -713,7 +715,9 @@ class WebAPIRouter:
 
         if clean_path == "/api/config":
             if method == "GET":
-                return await self.config_ctrl.get_device_config(refresh=force_refresh)
+                if force_refresh:
+                    return problem_details(405, "Method Not Allowed", "Use POST /api/config/refresh", "post_required")
+                return await self.config_ctrl.get_device_config()
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
@@ -753,7 +757,9 @@ class WebAPIRouter:
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
             if method == "GET":
-                return await self.config_ctrl.get_device_config(refresh=force_refresh)
+                if force_refresh:
+                    return problem_details(405, "Method Not Allowed", "Use POST /api/config/refresh", "post_required")
+                return await self.config_ctrl.get_device_config()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         if clean_path == "/api/config/identity":
@@ -800,7 +806,7 @@ class WebAPIRouter:
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         if clean_path == "/api/config/refresh":
-            if method in ("POST", "GET"):
+            if method == "POST":
                 return await self.config_ctrl.refresh_hardware_config()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 

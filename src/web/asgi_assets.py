@@ -324,7 +324,7 @@ class AssetsAdapter:
                     )
                 ),
                 "Cache-Control": (
-                    "no-cache, must-revalidate"
+                    "no-store"
                     if target.suffix == ".html"
                     else "public, max-age=300"
                 ),

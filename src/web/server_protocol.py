@@ -1,4 +1,4 @@
-"""Framework-neutral seam shared by the native server and future ASGI transport."""
+"""Framework-neutral lifecycle seam implemented by the production ASGI server."""
 
 from __future__ import annotations
 

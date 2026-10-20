@@ -325,6 +325,8 @@ class AirtimeTracker:
         except Exception as e:
             logging.warning(f"AirtimeTracker: No se pudo cargar historial previo de {self.history_file}: {e}")
             if self.database is not None:
+                # Starting with empty state would reset safety counters after
+                # corruption. Preserve the fail-closed station storage contract.
                 raise
 
     @staticmethod

@@ -41,6 +41,8 @@ class CapturedPacket:
     lqi_status: str = "N/A"
     raw_bytes: bytes = b""
     payload_dict: dict[str, Any] = field(default_factory=dict)
+    # Observed bytes (or UTF-8 text fallback) before redaction. This is neither
+    # retained payload length nor a measurement of the complete RF packet.
     size_bytes: int = 0
     session_id: str = ""
 

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import ipaddress
+import logging
 import os
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from http.cookies import CookieError, SimpleCookie
 from typing import Any
 from urllib.parse import urlsplit
@@ -23,11 +25,45 @@ AUTHENTICATED_STATE = "meshcore_authenticated"
 AUTH_SERVICE_STATE = "meshcore_auth_service"
 AUTH_SESSION_STATE = "meshcore_auth_session"
 AUTH_CREDENTIAL_STATE = "meshcore_auth_credential"
+AUTH_RESULT_STATE = "meshcore_auth_result"
 PUBLIC_AUTH_PATHS = frozenset({"/api/auth/login", "/api/auth/session"})
 ACCOUNT_PATHS = frozenset(
     {"/api/auth/session", "/api/auth/credentials", "/api/auth/logout", "/api/auth/api-token"}
 )
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+logger = logging.getLogger(__name__)
+DIRECT_PEER_EXTENSION = "meshcore.direct_peer"
+
+
+def _direct_loopback(scope: Scope, headers: dict[str, str]) -> bool:
+    """Bootstrap requires a local socket and local authority, without forwarding."""
+    if any(name == "forwarded" or name.startswith("x-forwarded-") for name in headers):
+        return False
+    try:
+        peer = scope.get("extensions", {}).get(DIRECT_PEER_EXTENSION, scope.get("client"))
+        effective_peer = scope.get("client")
+        if not peer or not effective_peer:
+            return False
+        for address in (str(peer[0]), str(effective_peer[0])):
+            ip = ipaddress.ip_address(address)
+            normalized_ip = (ip.ipv4_mapped or ip) if isinstance(ip, ipaddress.IPv6Address) else ip
+            if not normalized_ip.is_loopback:
+                return False
+        host = urlsplit("http://" + headers.get("host", "")).hostname or ""
+        return host.lower() == "localhost" or ipaddress.ip_address(host).is_loopback
+    except (ValueError, TypeError, IndexError):
+        return False
+
+
+async def deny_websocket(scope: Scope, send: Send, status: int, code: str) -> None:
+    """Use HTTP denials when supported; never accept an unauthorized socket."""
+    if "websocket.http.response" not in scope.get("extensions", {}):
+        await send({"type": "websocket.close", "code": 1008})
+        return
+    response = _error(status, code)
+    await send({"type": "websocket.http.response.start", "status": status,
+                "headers": list(response.raw_headers)})
+    await send({"type": "websocket.http.response.body", "body": response.body})
 
 
 def _cookie_token(headers: dict[str, str]) -> str:
@@ -64,6 +100,19 @@ def _same_origin(scope: Scope, headers: dict[str, str], *, required: bool = Fals
 
 def _error(status: int, code: str) -> JSONResponse:
     return JSONResponse({"error": code}, status_code=status, headers={"Cache-Control": "no-store"})
+
+
+def _guard_account_route(
+    handler: Callable[[Request], Awaitable[JSONResponse]],
+) -> Callable[[Request], Awaitable[JSONResponse]]:
+    async def guarded(request: Request) -> JSONResponse:
+        try:
+            return await handler(request)
+        except Exception as exception:
+            logger.error("Authentication unavailable (%s)", type(exception).__name__)
+            return _error(503, "authentication_unavailable")
+
+    return guarded
 
 
 class AuthenticationService:
@@ -103,6 +152,12 @@ class AuthenticationService:
                 self._initialized = True
 
     async def authenticate(self, scope: Scope) -> tuple[AuthSession | None, bool]:
+        state = scope.setdefault("state", {})
+        cached = state.get(AUTH_RESULT_STATE)
+        if (scope["type"] == "http" and state.get(AUTH_SERVICE_STATE) is self and isinstance(cached, tuple)
+                and len(cached) == 2 and (cached[0] is None or isinstance(cached[0], AuthSession))
+                and isinstance(cached[1], bool)):
+            return cached[0], cached[1]
         await self.initialize()
         headers = headers_to_legacy_dict(scope.get("headers", ()))
         authorization = headers.get("authorization", "")
@@ -129,11 +184,11 @@ class AuthenticationService:
             session = await asyncio.to_thread(self.store.session, token)
             valid = session is not None
             supplied = token
-        state = scope.setdefault("state", {})
         state[AUTHENTICATED_STATE] = valid
         state[AUTH_SERVICE_STATE] = self
         state[AUTH_SESSION_STATE] = session
         state[AUTH_CREDENTIAL_STATE] = supplied
+        state[AUTH_RESULT_STATE] = (session, valid)
         return session, valid
 
     async def websocket_authorized(self, scope: Scope) -> bool:
@@ -145,7 +200,7 @@ class AuthenticationService:
             "authenticated": session is not None,
             "requires_initial_setup": session.must_change_credentials
             if session is not None
-            else not await asyncio.to_thread(self.store.account_ready),
+            else False,
             "username": session.username if session is not None else None,
             "csrf_token": session.csrf_token if session is not None else None,
             "must_change_credentials": session.must_change_credentials
@@ -181,6 +236,14 @@ class AuthenticationService:
             )
 
         async def login(request: Request) -> JSONResponse:
+            try:
+                account_ready = await asyncio.to_thread(self.store.account_ready)
+            except Exception as error:
+                logger.error("Authentication unavailable (%s)", type(error).__name__)
+                return _error(503, "authentication_unavailable")
+            request_headers = headers_to_legacy_dict(request.scope.get("headers", ()))
+            if not account_ready and not _direct_loopback(request.scope, request_headers):
+                return _error(403, "local_setup_required")
             body = request.scope.get("state", {}).get("meshcore_body_json", {})
             username, password, remember = (
                 body.get("username"),
@@ -232,11 +295,10 @@ class AuthenticationService:
                 body.get("password"),
                 body.get("current_password"),
             )
-            needs_current = not session.must_change_credentials
             if (
                 not isinstance(username, str)
                 or not _password_input(password)
-                or (needs_current and not _password_input(current))
+                or not _password_input(current)
                 or (current is not None and current != "" and not _password_input(current))
             ):
                 return _error(422, "invalid_credentials_payload")
@@ -277,7 +339,7 @@ class AuthenticationService:
             ("/api/auth/credentials", credentials, ["PUT"]),
             ("/api/auth/api-token", api_token, ["POST"]),
         ):
-            app.add_route(path, handler, methods=methods)
+            app.add_route(path, _guard_account_route(handler), methods=methods)
 
 
 def _password_input(value: Any) -> bool:
@@ -309,9 +371,19 @@ class BridgeAuthenticationMiddleware:
         if not protected:
             await self.app(scope, receive, send)
             return
-        session, valid = await self.service.authenticate(scope)
+        try:
+            session, valid = await self.service.authenticate(scope)
+        except Exception as exception:
+            logger.error("Authentication unavailable (%s)", type(exception).__name__)
+            if scope["type"] == "websocket":
+                await deny_websocket(scope, send, 503, "authentication_unavailable")
+            else:
+                await _error(503, "authentication_unavailable")(scope, receive, send)
+            return
         error: tuple[int, str] | None = None
-        if scope["type"] == "websocket":
+        if session is not None and session.must_change_credentials and not _direct_loopback(scope, headers):
+            error = (403, "local_setup_required")
+        elif scope["type"] == "websocket":
             if not valid:
                 error = (401, "auth_required")
             elif session is not None and not _same_origin(scope, headers, required=True):
@@ -349,7 +421,7 @@ class BridgeAuthenticationMiddleware:
         if error is not None:
             status, code = error
             if scope["type"] == "websocket":
-                await send({"type": "websocket.close", "code": 1008})
+                await deny_websocket(scope, send, status, code)
             else:
                 await _error(status, code)(scope, receive, send)
             return
@@ -367,9 +439,16 @@ class BridgeAuthenticationMiddleware:
                     for name, value in message.get("headers", ())
                     if name.lower() not in (b"cache-control", b"vary")
                 ]
+                tile_cache = path.startswith("/api/map/tiles/") and method == "GET"
+                cache_value = b"no-store"
+                if tile_cache and int(message.get("status", 0)) in (200, 304):
+                    existing_cache = next((value for name, value in message.get("headers", ())
+                                           if name.lower() == b"cache-control"), b"")
+                    if existing_cache.startswith(b"public, max-age="):
+                        cache_value = existing_cache.replace(b"public,", b"private,", 1)
                 response_headers.extend(
                     (
-                        (b"cache-control", b"no-store"),
+                        (b"cache-control", cache_value),
                         (
                             b"vary",
                             (", ".join(vary + ["Cookie", "Authorization", "X-Api-Key"])).encode(

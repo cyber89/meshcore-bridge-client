@@ -135,9 +135,21 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["data"][-1]["level"], "WARN")
 
     async def test_preflight_endpoint(self) -> None:
-        code, data = await self.router.handle_request("GET", "/api/preflight")
+        code, data = await self.router.handle_request("POST", "/api/preflight")
         self.assertEqual(code, 200)
         self.assertIn("status", data["data"])
+
+    async def test_get_cannot_trigger_preflight_or_forced_hardware_refresh(self) -> None:
+        self.router.system_ctrl.run_preflight = AsyncMock()
+        self.router.config_ctrl.refresh_hardware_config = AsyncMock()
+        self.router.config_ctrl.get_device_config = AsyncMock()
+        for path in ("/api/preflight", "/api/config/refresh", "/api/node/refresh",
+                     "/api/config?refresh=true", "/api/config/radio?refresh=true"):
+            code, _ = await self.router.handle_request("GET", path)
+            self.assertEqual(code, 405, path)
+        self.router.system_ctrl.run_preflight.assert_not_awaited()
+        self.router.config_ctrl.refresh_hardware_config.assert_not_awaited()
+        self.router.config_ctrl.get_device_config.assert_not_awaited()
 
     async def test_trace_endpoint(self) -> None:
         code, data = await self.router.handle_request("POST", "/api/trace", {"to": "node_alpha", "auth_code": 1234})

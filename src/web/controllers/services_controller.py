@@ -234,6 +234,10 @@ class ServicesController(BaseController):
                 "reloaded": reloaded,
                 "data": data,
             }
+        except ValueError:
+            return problem_details(
+                422, "Unprocessable Entity", "Configuración de servicios inválida.", "invalid_services_config"
+            )
         except Exception as e:
             logger.error("Services configuration reload failed: %s", type(e).__name__)
             return problem_details(
@@ -309,6 +313,7 @@ class ServicesController(BaseController):
             transport=str(body.get("transport") or "tcp"),
             tls_enabled=bool(body.get("tls_enabled", False)),
             tls_verify=bool(body.get("tls_verify", True)),
+            tls_ca_file=str(body.get("tls_ca_file") or "").strip() or None,
             auth_type=str(body.get("auth_type") or "anonymous"),
             username=str(body.get("username") or ""),
             password=password,
@@ -427,16 +432,21 @@ class ServicesController(BaseController):
             transport=str(body.get("transport") or "tcp"),
             tls_enabled=bool(body.get("tls_enabled", False)),
             tls_verify=bool(body.get("tls_verify", True)),
+            tls_ca_file=str(body.get("tls_ca_file") or "").strip() or None,
             auth_type=str(body.get("auth_type") or "anonymous"),
             username=str(body.get("username") or ""),
             password=password,
             token=token,
         )
 
-        timeout = float(body.get("timeout") or 5.0)
-        timeout = max(1.0, min(10.0, timeout))
-
-        test_result = await ExternalBridgeMQTTClient.test_connection(test_cfg, timeout=timeout)
+        try:
+            timeout = float(body.get("timeout") or 5.0)
+            timeout = max(1.0, min(10.0, timeout))
+            test_result = await ExternalBridgeMQTTClient.test_connection(test_cfg, timeout=timeout)
+        except (ValueError, TypeError):
+            return problem_details(
+                422, "Unprocessable Entity", "Configuración de servicios inválida.", "invalid_services_config"
+            )
         return 200, {
             "status": "ok" if test_result.get("ok") else "error",
             "data": test_result,

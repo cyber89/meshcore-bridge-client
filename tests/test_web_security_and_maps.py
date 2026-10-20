@@ -64,6 +64,8 @@ class TestSecurityTrafficInspector(unittest.TestCase):
             "/api/map/tiles/12/234/567.png",
             "/static/css/styles.css",
             "/api/messages?target=node_1",
+            "/api/messages?text=../notes",
+            "/api/channels/name%2fpart",
         ]
         for path in legit_paths:
             self.assertFalse(
@@ -87,12 +89,16 @@ class TestSecurityTrafficInspector(unittest.TestCase):
         self.assertTrue(bad)
         self.assertEqual(anom, "SONDEO_RUTA_SENSIBLE")
 
-        # 3. Inyección XSS / script en query string
+        # Query values are validated by their controller, not a content regex.
         bad, anom, det = SecurityTrafficInspector.inspect_http_request(
             "GET", "/api/nodes?filter=<script>alert(1)</script>", {"user-agent": "Mozilla/5.0"}
         )
-        self.assertTrue(bad)
-        self.assertEqual(anom, "INYECCION_COMANDO_O_SCRIPT")
+        self.assertFalse(bad)
+
+        bad, _, _ = SecurityTrafficInspector.inspect_http_request(
+            "POST", "/api/tx", {}, {"text": "<script>javascript: powershell", "to": "broadcast"}
+        )
+        self.assertFalse(bad)
 
         # 4. Solicitud limpia y normal
         bad, anom, det = SecurityTrafficInspector.inspect_http_request(

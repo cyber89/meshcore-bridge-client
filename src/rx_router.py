@@ -6,6 +6,7 @@ Extraído de MeshCoreBridge para separar responsabilidades y facilitar pruebas u
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -451,15 +452,26 @@ class RxEventRouter:
                 return False
             self._record_rx_overflow(critical=False)
         self._pending_rx.append((factory, observation_key))
+        self._ensure_rx_worker()
+        return True
+
+    def _ensure_rx_worker(self) -> None:
+        """Start pending work without counting already completed workers."""
+        self._rx_workers.difference_update(task for task in tuple(self._rx_workers) if task.done())
+        if not self._pending_rx or len(self._rx_workers) >= self._rx_workers_limit:
+            return
         loop = self._ctx.loop
         if loop is None or not loop.is_running():
             loop = asyncio.get_running_loop()
-        if len(self._rx_workers) < self._rx_workers_limit:
-            task = loop.create_task(self._drain_rx_work(), name="MeshCoreRxWorker")
-            self._rx_workers.add(task)
-            task.add_done_callback(self._rx_workers.discard)
-            self._register_task(task)
-        return True
+        task = loop.create_task(self._drain_rx_work(), name="MeshCoreRxWorker")
+        self._rx_workers.add(task)
+        task.add_done_callback(self._rx_worker_done)
+        self._register_task(task)
+
+    def _rx_worker_done(self, task: asyncio.Task[Any]) -> None:
+        self._rx_workers.discard(task)
+        if not task.cancelled():
+            self._ensure_rx_worker()
 
     def _record_rx_overflow(self, *, critical: bool) -> None:
         self.rx_overflow_count += 1
@@ -505,8 +517,18 @@ class RxEventRouter:
 
     async def drain(self) -> None:
         """Finish accepted RX jobs before the bridge cancels its owned tasks."""
-        while self._rx_workers:
+        while self._pending_rx or self._rx_workers:
+            self._ensure_rx_worker()
             await asyncio.gather(*(asyncio.shield(task) for task in tuple(self._rx_workers)), return_exceptions=True)
+
+    @staticmethod
+    def _metadata_integer(value: Any, field_name: str) -> int:
+        """Keep a received event when optional numeric metadata is malformed."""
+        try:
+            return int(value)
+        except (TypeError, ValueError, OverflowError):
+            logging.debug("[RX-META] Invalid %s; using zero", field_name)
+            return 0
 
     def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
         raw_type = getattr(event, "type", getattr(event, "event_type", ""))
@@ -567,8 +589,8 @@ class RxEventRouter:
                     sender = found_c.public_key
 
         text = str(payload_dict.get("text", payload_dict.get("message", ""))).strip()
-        channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
-        hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
+        channel_idx = self._metadata_integer(payload_dict.get("channel_idx", payload_dict.get("channel", 0)), "channel_idx")
+        hops = self._metadata_integer(payload_dict.get("hop_count", payload_dict.get("hops", 0)), "hop_count")
 
         extracted_name, clean_text = extract_sender_from_text(text)
         if extracted_name:
@@ -1421,7 +1443,10 @@ class RxEventRouter:
             mqtt_evt = frame.to_mqtt_event()
             evt_json = json.dumps(mqtt_evt)
 
-            dedup_key = f"frame::{frame.header.src_node_id}::{frame.header.seq_num}::{int(frame.header.packet_type)}"
+            # Sequence numbers wrap at 256. Distinct payloads or destinations
+            # must not collide merely because their source and sequence match.
+            fingerprint = hashlib.sha256(frame.raw_payload).hexdigest()
+            dedup_key = f"frame::{frame.header.src_node_id}::{frame.header.dst_node_id}::{frame.header.seq_num}::{int(frame.header.packet_type)}::{fingerprint}"
             if await self._ctx.deduplicator.is_duplicate(dedup_key):
                 return
 

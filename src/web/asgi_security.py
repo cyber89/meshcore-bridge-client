@@ -228,7 +228,7 @@ class BridgeSecurityMiddleware:
         receive: Receive,
         send: Send,
     ) -> _BufferedRequest | None:
-        cors_origin = calculate_cors_origin(headers)
+        cors_origin = calculate_cors_origin(headers, scheme=str(scope.get("scheme", "http")))
         if headers.get("transfer-encoding"):
             await self._reply_http(
                 scope, send, 400, b"Unsupported Transfer-Encoding", cors_origin=cors_origin
@@ -352,7 +352,7 @@ class BridgeSecurityMiddleware:
         target = _raw_request_target(scope)
         headers = headers_to_legacy_dict(scope.get("headers", ()))
         started_at = time.perf_counter()
-        cors_origin = calculate_cors_origin(headers)
+        cors_origin = calculate_cors_origin(headers, scheme=str(scope.get("scheme", "http")))
         if not self._inspect(scope, target, headers):
             await self._reply_http(
                 scope,
@@ -368,6 +368,7 @@ class BridgeSecurityMiddleware:
             target,
             headers,
             auth_managed=self.auth_managed,
+            scheme=str(scope.get("scheme", "http")),
         )
         if decision.route_kind == "preflight":
             await self._reply_http(
@@ -410,10 +411,27 @@ class BridgeSecurityMiddleware:
                         self.auth_service = curr.service
                         break
                     curr = getattr(curr, "app", None)
+            if self.auth_service is None:
+                self._log_rejection(peer=_peer_ip(scope), path=target, source="API-AUTH",
+                                    anomaly="AUTH_SERVICE_UNAVAILABLE",
+                                    detail="Authentication service is unavailable")
+                await self._reply_http(scope, send, 503,
+                                       b'{"error":"authentication_unavailable"}',
+                                       content_type="application/json", cors_origin=decision.cors_origin)
+                return
             if self.auth_service is not None:
                 clean_path = str(scope.get("path", "/")).rstrip("/") or "/"
                 if clean_path.startswith("/api/") and clean_path not in PUBLIC_AUTH_PATHS:
-                    session, valid = await self.auth_service.authenticate(scope)
+                    try:
+                        session, valid = await self.auth_service.authenticate(scope)
+                    except Exception:
+                        self._log_rejection(peer=_peer_ip(scope), path=target, source="API-AUTH",
+                                            anomaly="AUTH_SERVICE_UNAVAILABLE",
+                                            detail="Authentication service is unavailable")
+                        await self._reply_http(scope, send, 503,
+                                               b'{"error":"authentication_unavailable"}',
+                                               content_type="application/json", cors_origin=decision.cors_origin)
+                        return
                     if not valid:
                         self._log_rejection(
                             peer=_peer_ip(scope),
@@ -506,10 +524,16 @@ class BridgeSecurityMiddleware:
     async def _handle_websocket(self, scope: Scope, receive: Receive, send: Send) -> None:
         target = _raw_request_target(scope)
         headers = headers_to_legacy_dict(scope.get("headers", ()))
+        if self.auth_managed and self.auth_service is None:
+            self._log_rejection(peer=_peer_ip(scope), path=target, source="WEBSOCKET",
+                                anomaly="AUTH_SERVICE_UNAVAILABLE",
+                                detail="Authentication service is unavailable")
+            await self._deny_websocket(scope, send, 503, b'{"error":"authentication_unavailable"}')
+            return
         if not self._inspect(scope, target, headers):
             await self._deny_websocket(scope, send, 403, b"403 Forbidden - Security Violation")
             return
-        cors_origin = calculate_cors_origin(headers)
+        cors_origin = calculate_cors_origin(headers, scheme=str(scope.get("scheme", "ws")))
         if headers.get("origin", "") and not cors_origin:
             self._log_rejection(
                 peer=_peer_ip(scope),
@@ -539,7 +563,8 @@ class BridgeSecurityMiddleware:
         self._reserved_websockets += 1
         try:
             decision = evaluate_websocket_access(target, headers, previous_count,
-                                                 auth_managed=self.auth_managed)
+                                                 auth_managed=self.auth_managed,
+                                                 scheme=str(scope.get("scheme", "ws")))
             if decision.rejection_status is not None:
                 status = decision.rejection_status
                 body = {

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Any, cast
 
 from uvicorn import Config
@@ -50,7 +49,9 @@ class BridgeWebSocketProtocol(WebSocketsSansIOProtocol):
         self._idle_timer: asyncio.TimerHandle | None = None
         self._idle_task: asyncio.Task[None] | None = None
         self._idle_enabled = False
-        self._idle_interval = float(os.getenv("WS_IDLE_TIMEOUT_SEC", "30.0"))
+        import config as bridge_config
+
+        self._idle_interval = bridge_config.WS_IDLE_TIMEOUT_SEC
 
     def handle_connect(self, event: Request) -> None:
         # Upstream schedules run_asgi without yielding. Attach the callback to
@@ -59,6 +60,7 @@ class BridgeWebSocketProtocol(WebSocketsSansIOProtocol):
         scope = getattr(self, "scope", None)
         if scope is not None:
             scope.setdefault("extensions", {})[WS_ABORT_EXTENSION] = self._abort_peer
+            scope["extensions"]["meshcore.direct_peer"] = self.client
 
     def _abort_peer(self) -> None:
         self.stop_keepalive()

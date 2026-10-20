@@ -35,6 +35,7 @@ from src.rate_limiter import (
 )
 from src.repeater_manager import RepeaterManager
 from src.rx_router import RxEventRouter, RxRouterContext, is_common_chat_message
+from src.serial.sdk_adapter import companion_command_kind
 from src.serial_driver import (
     BaseSerialAdapter,
     MeshcoreSDKAdapter,
@@ -79,6 +80,9 @@ class MeshCoreBridge:
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop | None = None,
+        *,
+        db_path: str | Path | None = None,
+        data_dir: str | Path | None = None,
         **_kwargs: Any,
     ) -> None:
         self.running = True
@@ -88,6 +92,16 @@ class MeshCoreBridge:
         self._started = False
         self.start_time = time.time()
         self._custom_loop = loop
+        self._storage_overridden = db_path is not None or data_dir is not None
+        self.data_dir = Path(data_dir) if data_dir is not None else (
+            Path(db_path).parent if db_path is not None else Path(config.DATA_DIR)
+        )
+        self.database_path = Path(db_path) if db_path is not None else (
+            self.data_dir / "meshcore.sqlite3" if self._storage_overridden else Path(config.DATABASE_PATH)
+        )
+        self.channels_storage_path = self.data_dir / "channels.json" if self._storage_overridden else Path(config.CHANNELS_JSON_PATH)
+        self.node_storage_path = self.data_dir / "node_registry.json" if self._storage_overridden else Path(config.NODE_REGISTRY_STORAGE_PATH)
+        self.airtime_history_file = str(self.data_dir / "airtime_history.json") if self._storage_overridden else getattr(config, "AIRTIME_HISTORY_FILE", None)
 
         self._init_storage_and_network()
         self._init_adapters_and_watchdog()
@@ -108,12 +122,12 @@ class MeshCoreBridge:
         self.packet_buffer = PacketBuffer(max_packets=500)
         # CLI constructs the bridge before asyncio.run; startup disk access is
         # explicit here. Runtime persistence always uses owned worker tasks.
-        self.database = StationDatabase(config.DATABASE_PATH)
+        self.database = StationDatabase(self.database_path)
         self.database.initialize()
-        self.database.read_document("channels", config.CHANNELS_JSON_PATH, validator=validate_channels_document)
+        self.database.read_document("channels", self.channels_storage_path, validator=validate_channels_document)
         self.node_registry = NodeRegistry(database=self.database)
-        self.node_registry.load_from_file(config.NODE_REGISTRY_STORAGE_PATH)
-        self.repeater_manager = RepeaterManager(storage_path=Path(config.DATA_DIR) / "repeater_cooldowns.json", database=self.database)
+        self.node_registry.load_from_file(self.node_storage_path)
+        self.repeater_manager = RepeaterManager(storage_path=self.data_dir / "repeater_cooldowns.json", database=self.database)
         self.rate_limiter = TxRateLimiter(
             tx_interval_sec=config.TX_INTERVAL_SEC,
             radio_config=LoRaRadioConfig(
@@ -125,7 +139,7 @@ class MeshCoreBridge:
             transmit_callback=self._execute_tx_transmission,
             duty_cycle_limit_pct=getattr(config, "DUTY_CYCLE_LIMIT_PCT", 1.0),
             warn_threshold_pct=getattr(config, "DUTY_CYCLE_WARN_THRESHOLD_PCT", 80.0),
-            history_file=getattr(config, "AIRTIME_HISTORY_FILE", None),
+            history_file=self.airtime_history_file,
             on_alert_callback=self._on_duty_cycle_alert,
             cutoff_threshold_pct=getattr(config, "AIRTIME_CUTOFF_THRESHOLD_PCT", 35.0),
             cutoff_resume_pct=getattr(config, "AIRTIME_CUTOFF_RESUME_PCT", 30.0),
@@ -265,8 +279,8 @@ class MeshCoreBridge:
         )
         if not has_file_handler:
             setup_file_logging(
-                log_file_path=getattr(config, "LOG_FILE_PATH", "logs/meshcore-bridge.log"),
-                error_file_path=getattr(config, "LOG_ERROR_FILE_PATH", "logs/meshcore-bridge.error.log"),
+                log_file_path=str(self.data_dir / "logs" / "meshcore-bridge.log") if self._storage_overridden else getattr(config, "LOG_FILE_PATH", "logs/meshcore-bridge.log"),
+                error_file_path=str(self.data_dir / "logs" / "meshcore-bridge.error.log") if self._storage_overridden else getattr(config, "LOG_ERROR_FILE_PATH", "logs/meshcore-bridge.error.log"),
                 max_bytes=getattr(config, "LOG_MAX_BYTES", 5 * 1024 * 1024),
                 backup_count=getattr(config, "LOG_BACKUP_COUNT", 3),
                 level=getattr(config, "LOG_LEVEL", "INFO"),
@@ -343,31 +357,52 @@ class MeshCoreBridge:
 
     async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any, timeout: float = 30.0) -> bool:
         """Maneja comandos binarios enviados por apps móviles o CLI a través del socket TCP Companion."""
-        if not payload:
+        kind = companion_command_kind(payload)
+        if kind is None:
             return False
-        if payload[0] in (2, 3):
+        if kind == "rf":
+            if self.rate_limiter.is_cutoff_active():
+                return False
+            target, channel_idx = self._companion_rf_destination(payload)
+            if target and self.node_registry.is_local_key(target):
+                return False
             # Companion text layout: type + attempt/channel + timestampLE,
             # then the six-byte destination prefix for direct messages.
-            if len(payload) < (14 if payload[0] == 2 else 8):
+            if payload[0] in (2, 3) and len(payload) < (14 if payload[0] == 2 else 8):
                 return False
-            if payload[0] == 3 or payload[1] != 1:
-                channel_idx = payload[2] if payload[0] == 3 else 0
-                target = payload[7:13].hex() if payload[0] == 2 else None
-                try:
-                    future = await self.rate_limiter.submit(payload=payload, priority=TxPriority.NORMAL,
-                                                           target=target, channel_idx=channel_idx)
-                    async with asyncio.timeout(timeout):
-                        result = await future
-                    return isinstance(result, dict) and str(result.get("status", "")).lower() in ("sent", "ok", "success")
-                except TimeoutError:
-                    logging.warning("Timeout esperando confirmación de transmisión chat TCP en rate limiter", extra={"skip_broadcast": True})
-                    return False
-                except Exception:
-                    logging.warning("No se pudo enviar chat TCP por la cola TX", extra={"skip_broadcast": True})
-                    return False
+            try:
+                future = await self.rate_limiter.submit(payload=payload, priority=TxPriority.NORMAL,
+                                                       target=target, channel_idx=channel_idx)
+                async with asyncio.timeout(timeout):
+                    result = await future
+                return isinstance(result, dict) and str(result.get("status", "")).lower() in ("sent", "ok", "success")
+            except TimeoutError:
+                logging.warning("Timeout esperando transmisión TCP Companion en rate limiter", extra={"skip_broadcast": True})
+                return False
+            except Exception:
+                logging.warning("No se pudo enviar comando TCP por la cola TX", extra={"skip_broadcast": True})
+                return False
         if hasattr(self.serial_adapter, "send_raw_companion_frame"):
             return bool(await self.serial_adapter.send_raw_companion_frame(payload))
         return False
+
+    @staticmethod
+    def _companion_rf_destination(payload: bytes) -> tuple[str | None, int]:
+        """Read destination fields from the official per-command layouts."""
+        opcode = payload[0]
+        if opcode == 2 and len(payload) >= 14:
+            return payload[7:13].hex(), 0
+        if opcode == 3 and len(payload) >= 8:
+            return None, payload[2]
+        if opcode in (26, 27, 50, 57) and len(payload) >= 33:
+            return payload[1:33].hex(), 0
+        if opcode == 39 and len(payload) >= 36:
+            return payload[4:36].hex(), 0
+        if opcode == 52 and len(payload) >= 34:
+            return payload[2:34].hex(), 0
+        if opcode == 62 and len(payload) >= 4:
+            return None, payload[1]
+        return None, 0
 
     def _init_metrics_and_tasks(self) -> None:
         """Inicializa contadores y conjuntos de tareas en background."""
@@ -466,7 +501,7 @@ class MeshCoreBridge:
             return None
         return MeshCoreCompanionServer(
             bridge=self,
-            host=getattr(config, "TCP_SERVER_HOST", "0.0.0.0"),  # nosec B104
+            host=getattr(config, "TCP_SERVER_HOST", "127.0.0.1"),
             port=getattr(config, "TCP_SERVER_PORT", 5000),
         )
 
@@ -909,7 +944,7 @@ class MeshCoreBridge:
                     local_pk = str(cfg["public_key"]).strip().lower()
                     self.node_registry.set_local_pubkey(local_pk)
                     if hasattr(self, "services_manager"):
-                        self.services_manager.set_local_pubkey(local_pk)
+                        await self.services_manager.synchronize_local_pubkey(local_pk)
                     self.node_registry.add_or_update(
                         local_pk,
                         NodeContactUpdate(
@@ -1201,6 +1236,11 @@ class MeshCoreBridge:
         if isinstance(item.payload, bytes):
             if item.future is not None and item.future.cancelled():
                 return {"status": "error", "error": "Solicitud TCP cancelada"}
+            raw = item.payload
+            if companion_command_kind(raw) != "rf" or self.rate_limiter.is_cutoff_active():
+                return {"status": "error", "error": "Comando Companion no admitido para TX"}
+            if raw[0] not in (2, 3) or (raw[0] == 2 and len(raw) >= 2 and raw[1] == 1):
+                return await self._execute_companion_control_tx(item)
             # The accepted Companion chat layout is parsed above in the TCP
             # ingress path. Retain the same text offsets without resending it.
             raw = item.payload
@@ -1238,6 +1278,24 @@ class MeshCoreBridge:
                 result["storage_error"] = True
             return result
         return await self._execute_tx(item)
+
+    async def _execute_companion_control_tx(self, item: TxItem) -> dict[str, Any]:
+        """Send one queued RF/admin command without turning it into user chat."""
+        if item.target and self.node_registry.is_local_key(item.target):
+            return {"status": "error", "error": "Destino local no permitido"}
+        success = False
+        try:
+            success = bool(await self.serial_adapter.send_raw_companion_frame(item.payload))
+        except Exception as error:
+            logging.warning("Fallo TX Companion administrativo: %s", type(error).__name__, extra={"skip_broadcast": True})
+        async with self._tx_metrics_lock:
+            self.tx_count += 1
+            if not success:
+                self.tx_error_count += 1
+        if success and getattr(self, "packet_buffer", None) is not None:
+            self.packet_buffer.record(direction="tx", channel_idx=item.channel_idx, packet_type="ADMIN",
+                                      target=item.target or "broadcast", raw_bytes=item.payload, redact_content=True)
+        return {"status": "sent" if success else "error", "request_id": item.request_id}
 
     def _on_duty_cycle_alert(self, level: str, stats: dict[str, Any]) -> None:
         """Maneja transiciones de advertencia/crítico del ciclo de trabajo de radio."""

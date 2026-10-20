@@ -105,7 +105,8 @@ async def test_login_default_profile_validation_unicode_and_logout(virtual_bridg
         await page.locator("#accountDialog").wait_for(state="visible")
         assert await page.locator("#accountRequiredNotice").is_visible()
         assert not await page.locator("#accountCloseButton").is_visible()
-        assert not await page.locator("#accountCurrentPasswordGroup").is_visible()
+        assert await page.locator("#accountCurrentPasswordGroup").is_visible()
+        await page.locator("#accountCurrentPassword").fill("admin")
         for password in ("a" * 7, "😀" * 65):
             await page.locator("#accountNewPassword").fill(password)
             await page.locator("#accountConfirmPassword").fill(password)

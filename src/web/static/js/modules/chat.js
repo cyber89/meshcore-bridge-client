@@ -95,6 +95,12 @@ export class ChatModule {
 
   init() {
     this._bindElements();
+    this._drawerMedia = window.matchMedia("(max-width: 991.98px)");
+    this._drawerBackground = new Map();
+    this._syncDrawerAccessibility();
+    this._drawerMedia.addEventListener("change", () => {
+      this.closeChannelsDrawer({ restoreFocus: false });
+    });
     this._bindEvents();
     this._bindComposerPopoverSizing();
     this._subscribeBus();
@@ -131,35 +137,60 @@ export class ChatModule {
     this._renderEmojiGrid("smileys");
     this.updateCharCounter();
     this._updateActiveChatHeader();
-    if (window.matchMedia("(max-width: 991.98px)").matches && this.dom.sidebarChannelList) {
-      this.openChannelsDrawer();
+  }
+
+  _syncDrawerAccessibility() {
+    const panel = this.dom.sidebarChannelList;
+    if (!panel) return;
+    const mobile = this._drawerMedia?.matches === true;
+    const open = mobile && panel.classList.contains("mobile-open");
+    panel.inert = mobile && !open;
+    this.dom.btnBackToChannelsMobile?.setAttribute("aria-expanded", String(open));
+    if (mobile) panel.setAttribute("aria-hidden", String(!open));
+    else panel.removeAttribute("aria-hidden");
+    if (open) {
+      panel.setAttribute("role", "dialog");
+      panel.setAttribute("aria-modal", "true");
+      document.querySelectorAll(".app-header, #appSidebar, .chat-conversation-panel").forEach((element) => {
+        if (!this._drawerBackground.has(element)) this._drawerBackground.set(element, element.inert);
+        element.inert = true;
+      });
+    } else {
+      panel.removeAttribute("role");
+      panel.removeAttribute("aria-modal");
+      for (const [element, wasInert] of this._drawerBackground) element.inert = wasInert;
+      this._drawerBackground.clear();
     }
+  }
+
+  _drawerCoveredByModal() {
+    return Boolean(document.querySelector('dialog[open], .modal.show, .modal-overlay:not(.hidden)'));
   }
 
   openChannelsDrawer(triggerEl = null) {
     const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
-    if (!panel) return;
+    if (!panel || !this._drawerMedia?.matches) return;
     this._drawerTrigger = triggerEl || this.dom.btnBackToChannelsMobile || document.activeElement;
     panel.classList.add("mobile-open");
+    this._syncDrawerAccessibility();
     if (this.dom.chatChannelsBackdrop) {
       this.dom.chatChannelsBackdrop.classList.add("visible");
     }
-    if (this.dom.btnCloseChannelsDrawer) {
-      this.dom.btnCloseChannelsDrawer.focus();
-    }
+    (panel.querySelector(".channel-select:not(:disabled)") || this.dom.btnCloseChannelsDrawer)?.focus();
   }
 
-  closeChannelsDrawer() {
+  closeChannelsDrawer({ restoreFocus = true } = {}) {
     const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
     if (!panel) return;
     panel.classList.remove("mobile-open");
+    this._syncDrawerAccessibility();
     if (this.dom.chatChannelsBackdrop) {
       this.dom.chatChannelsBackdrop.classList.remove("visible");
     }
-    if (this._drawerTrigger && typeof this._drawerTrigger.focus === "function") {
+    if (restoreFocus && this._drawerTrigger?.isConnected && typeof this._drawerTrigger.focus === "function") {
       this._drawerTrigger.focus();
-      this._drawerTrigger = null;
     }
+    this._drawerTrigger = null;
   }
 
   toggleChannelsDrawer(triggerEl = null) {
@@ -268,11 +299,22 @@ export class ChatModule {
       });
     }
     document.addEventListener("keydown", (e) => {
+      const panel = this.dom.sidebarChannelList;
+      if (e.defaultPrevented || !this._drawerMedia?.matches || !panel?.classList.contains("mobile-open") || this._drawerCoveredByModal()) return;
       if (e.key === "Escape") {
-        const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
-        if (panel && panel.classList.contains("mobile-open")) {
+        e.preventDefault();
+        this.closeChannelsDrawer();
+      } else if (e.key === "Tab") {
+        const controls = [...panel.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')]
+          .filter((element) => !element.closest("[inert], [hidden], .hidden") && element.getClientRects().length);
+        if (!controls.length) return;
+        const first = controls[0], last = controls[controls.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
           e.preventDefault();
-          this.closeChannelsDrawer();
+          last.focus();
+        } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+          e.preventDefault();
+          first.focus();
         }
       }
     });

@@ -67,7 +67,7 @@ ROUTE_CONTRACTS: tuple[RouteContract, ...] = (
     RouteContract("GET", "/api/status", SystemBodyDTO, "system"),
     RouteContract("GET", "/api/health", SystemBodyDTO, "system"),
     RouteContract("GET", "/api/diagnostics", SystemBodyDTO, "system"),
-    RouteContract("GET", "/api/preflight", SystemBodyDTO, "system"),
+    RouteContract("POST", "/api/preflight", SystemBodyDTO, "system"),
     RouteContract("GET", "/api/diagnostics/report.md", SystemBodyDTO, "system"),
     RouteContract("GET", "/api/diagnostics/report", SystemBodyDTO, "system"),
     RouteContract("GET", "/api/diagnostics/export", SystemBodyDTO, "system"),
@@ -159,7 +159,6 @@ ROUTE_CONTRACTS: tuple[RouteContract, ...] = (
     RouteContract("POST", "/api/node/reboot", ConfigBodyDTO, "radio_admin"),
     RouteContract("POST", "/api/config/sync-clock", SyncClockBodyDTO, "radio_admin"),
     RouteContract("POST", "/api/config/clear-stats", ConfigBodyDTO, "radio_admin"),
-    RouteContract("GET", "/api/config/refresh", ConfigBodyDTO, "radio_admin"),
     RouteContract("POST", "/api/config/refresh", ConfigBodyDTO, "radio_admin"),
     RouteContract("POST", "/api/config/reconnect", ConfigBodyDTO, "radio_admin"),
 )

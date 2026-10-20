@@ -56,7 +56,7 @@ def prepare(source: Path, target: Path) -> Path:
             elif item.is_file():
                 shutil.copy2(item, release / component)
         state: UpdateState = {"target": str(target), "moved": [], "installed": []}
-        (stage / MARKER).write_text(json.dumps(state), encoding="utf-8")
+        _write_state(stage, state)
         return stage
     except BaseException:
         shutil.rmtree(stage)
@@ -86,8 +86,17 @@ def _state(stage: Path) -> UpdateState:
 
 def _write_state(stage: Path, state: UpdateState) -> None:
     temporary = stage / (MARKER + ".tmp")
-    temporary.write_text(json.dumps(state), encoding="utf-8")
+    with temporary.open("w", encoding="utf-8") as stream:
+        json.dump(state, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
     os.replace(temporary, stage / MARKER)
+    if os.name == "posix":
+        directory = os.open(stage, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
 
 
 def apply(stage: Path) -> None:

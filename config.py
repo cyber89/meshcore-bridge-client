@@ -119,7 +119,7 @@ TOPIC_ADMIN_CMD   = f"{TOPIC_PREFIX}/admin/cmd"        # Entrada de comandos de 
 TOPIC_ADMIN_STAT  = f"{TOPIC_PREFIX}/admin/status"     # Respuesta de comandos de administración
 TOPIC_ADMIN_REPEATER = f"{TOPIC_PREFIX}/admin/repeater" # Gestión remota de repetidores por RF
 
-MQTT_MAX_PAYLOAD_BYTES = _safe_int("MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+MQTT_MAX_PAYLOAD_BYTES = _safe_int("MQTT_MAX_PAYLOAD_BYTES", 128 * 1024, min_val=1)
 
 # ================= Parámetros de Resiliencia y Control =================
 TX_INTERVAL_SEC = _safe_float("TX_INTERVAL_SEC", 1.0)                 # Espaciado de transmisión RF (LoRa Rate Limiter)
@@ -134,7 +134,7 @@ NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.joi
 # ================= Parámetros de Concurrencia (Nuevos) =================
 MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500, min_val=1)
 MAX_RX_CONCURRENCY = _safe_int("MAX_RX_CONCURRENCY", 20, min_val=1)
-WS_IDLE_TIMEOUT_SEC = _safe_float("WS_IDLE_TIMEOUT_SEC", 30.0)
+WS_IDLE_TIMEOUT_SEC = _safe_float("WS_IDLE_TIMEOUT_SEC", 30.0, min_val=5.0)
 WS_METRICS_INTERVAL_SEC = _safe_float("WS_METRICS_INTERVAL_SEC", 5.0)
 
 # ================= Parámetros de Radio y Airtime LoRa =================
@@ -166,7 +166,7 @@ BRIDGE_ALLOWED_ORIGINS = os.getenv("BRIDGE_ALLOWED_ORIGINS", "http://localhost:8
 
 # ================= Servidor TCP Companion (App Móvil Oficial / CLI) =================
 TCP_SERVER_ENABLED = os.getenv("TCP_SERVER_ENABLED", "true").lower() in ("true", "1", "yes")
-TCP_SERVER_HOST = os.getenv("TCP_SERVER_HOST", "0.0.0.0")
+TCP_SERVER_HOST = os.getenv("TCP_SERVER_HOST", "127.0.0.1")
 TCP_SERVER_PORT = _safe_int("TCP_SERVER_PORT", 5000)
 MAX_COMPANION_CLIENTS = _safe_int("MAX_COMPANION_CLIENTS", 8)
 COMPANION_ALLOWED_IPS = os.getenv("COMPANION_ALLOWED_IPS", "")

@@ -72,9 +72,9 @@ El normalizador descarta `is_outgoing`, `is_local`, rol `LOCAL`, remitente liter
 
 La clasificación canónica procede de `FirmwareAdvertType` (0/1 CLIENT, 2 REPEATER, 3 ROOM, 4 SENSOR) y `is_repeater`, descartando cualquier inferencia heurística basada en nombres de nodo.
 
-`ADMIN_WHITELIST` restringe la autorización exclusivamente a claves públicas / IDs de nodo canónicos (`senderId`), sin evaluar nombres de nodo para prevenir suplantación de identidad.
+`ADMIN_WHITELIST` debe configurarse con claves públicas completas de 64 dígitos hexadecimales. La plantilla vacía deniega administración; no autoriza por nombre ni prefijo. Un `/admin` denegado no publica comando ni respuesta RF.
 
-Los textos de clima y comandos respetan el presupuesto de canal (< 120 bytes de payload) para garantizar compatibilidad con el límite MTU oficial del transceptor incluso con nombres de estación configurados. `/time` formatea la hora UTC canónica mediante `toISOString()`.
+Por decisión del usuario del 2026-10-20, todos los textos TX del ejemplo, incluido el eco, se limitan a 120 bytes UTF-8, truncando entre caracteres completos. Es un presupuesto de texto del workflow, no el tamaño total de trama ni una nueva definición del MTU oficial. Se conservan la programación y la deduplicación existentes; no se añaden timers ni reintentos. `/time` formatea UTC mediante `toISOString()`.
 
 ## 5. Importación y cambios
 

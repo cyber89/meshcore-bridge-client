@@ -110,8 +110,12 @@ async def test_bridge_tcp_companion_handling(mock_bridge: Any) -> None:
     await bridge.handle_tcp_companion_command(b"", None)
     bridge.serial_adapter.send_raw_companion_frame.assert_not_called()
 
-    # Non-empty payload is forwarded to serial adapter
-    test_frame = b"\x10\x20\x30\x40"
+    # Truncated SHARE_CONTACT cannot reach the firmware.
+    assert not await bridge.handle_tcp_companion_command(b"\x10\x20\x30\x40", None)
+    bridge.serial_adapter.send_raw_companion_frame.assert_not_called()
+
+    # A complete local battery query is forwarded without a radio transmission.
+    test_frame = b"\x14"
     await bridge.handle_tcp_companion_command(test_frame, None)
     bridge.serial_adapter.send_raw_companion_frame.assert_awaited_once_with(test_frame)
 

@@ -62,7 +62,7 @@ TEST_CATEGORIES = {
     "6. Integration Tests (Pruebas de Integración)": [
         "tests/test_bridge_logic.py",
         "tests/test_web_server.py",
-        "tests/test_websocket_live.py",
+        "tests/test_ws_key_encoding.py",
         "tests/test_repeater_manager.py",
         "tests/test_tcp_companion_server.py",
         "tests/test_mqtt_subsystem.py",
@@ -84,7 +84,7 @@ TEST_CATEGORIES = {
     ],
     "10. Regression Tests (Pruebas de Regresión & Seguridad)": [
         "tests/test_virtual_mesh_simulation.py",
-        "tests/test_security_audit.py",
+        "tests/test_web_authentication.py",
         "tests/test_sanitization_fixes.py",
         "tests/test_web_security_and_maps.py",
         "tests/test_fuzzing_and_edge_cases.py",
@@ -94,6 +94,9 @@ TEST_CATEGORIES = {
 
 def run_category(category_name: str, test_files: list[str]) -> tuple[bool, int, int, float, str]:
     start_time = time.time()
+    missing = [filename for filename in test_files if not (ROOT_DIR / filename).is_file()]
+    if missing:
+        return False, len(test_files), 2, 0.0, "Missing test files: " + ", ".join(missing)
     cmd = [sys.executable, "-m", "pytest", "-q", "--no-header"] + test_files
     proc = subprocess.run(cmd, cwd=str(ROOT_DIR), capture_output=True, text=True, encoding="utf-8", errors="replace")
     elapsed = time.time() - start_time
@@ -136,7 +139,9 @@ def main() -> int:
         status = "PASSED" if passed else "FAILED"
         print(f"{cat_name:<55} | {count:<7} | {status:<10} | {elapsed:.2f}s", flush=True)
     print("-" * 88, flush=True)
-    print(f"Total Categorías Superadas: {total_passed_categories}/10 (100% de Éxito) en {total_time:.2f}s\n", flush=True)
+    total_categories = len(TEST_CATEGORIES)
+    success_pct = 100 * total_passed_categories / total_categories if total_categories else 0
+    print(f"Total Categorías Superadas: {total_passed_categories}/{total_categories} ({success_pct:.1f}% de Éxito) en {total_time:.2f}s\n", flush=True)
 
     return 0 if total_passed_categories == len(TEST_CATEGORIES) else 1
 

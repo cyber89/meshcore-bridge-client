@@ -42,6 +42,8 @@ async def test_tile_server(virtual_bridge: MeshCoreBridge) -> None:
 
         tile = await client.get("/api/map/tiles/0/0/0.png")
         assert (tile.status_code, tile.headers["content-type"], tile.content) == (200, "image/png", tile_bytes)
+        assert tile.headers["cache-control"] == "private, max-age=86400"
+        assert "Cookie" in tile.headers["vary"]
         fallback = await client.get("/api/map/tiles/18/999/999.png")
         assert fallback.status_code == 200
         assert fallback.headers["content-type"] == "image/png"

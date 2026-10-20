@@ -6,9 +6,8 @@ capturing screenshots of each view to audit styles and layout.
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
-import tempfile
+from contextlib import AsyncExitStack
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -20,36 +19,21 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+from isolated_frontend_station import isolated_frontend_station, login_inspection_context
 from playwright.async_api import async_playwright
-
-from src.bridge_core import MeshCoreBridge
-from src.virtual_mesh_adapter import VirtualMeshAdapter
 
 
 async def inspect_all_views() -> None:
-    temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    db_path = temp_db.name
-    temp_db.close()
-
-    port = 8092
     output_dir = Path("tests/artifacts/views")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    bridge = MeshCoreBridge(db_path=db_path)
-    if bridge.web_server:
-        bridge.web_server.port = port
-    v_adapter = VirtualMeshAdapter(event_callback=bridge.on_mesh_event)
-    bridge.serial_adapter = v_adapter
-    await v_adapter.connect()
-    await bridge.web_server.start()
-    await asyncio.sleep(0.5)
-
-    base_url = f"http://localhost:{port}"
-
-    try:
-        async with async_playwright() as p:
+    async with isolated_frontend_station() as (_bridge, base_url):
+        async with async_playwright() as p, AsyncExitStack() as cleanup:
             browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page(viewport={"width": 1920, "height": 1080})
+            cleanup.push_async_callback(browser.close)
+            context = await browser.new_context(viewport={"width": 1920, "height": 1080})
+            await login_inspection_context(context, base_url)
+            page = await context.new_page()
 
             await page.goto(base_url, wait_until="domcontentloaded")
             await page.wait_for_timeout(1000)
@@ -113,9 +97,11 @@ async def inspect_all_views() -> None:
                         print(f"✓ Capturada subpestaña: {sub_path}")
 
             # Captura Móvil (390x844 - iPhone / Smartphone estándar)
-            mobile_page = await browser.new_page(
+            mobile_context = await browser.new_context(
                 viewport={"width": 390, "height": 844}, is_mobile=True
             )
+            await login_inspection_context(mobile_context, base_url)
+            mobile_page = await mobile_context.new_page()
             await mobile_page.goto(base_url, wait_until="domcontentloaded")
             await mobile_page.wait_for_timeout(1000)
 
@@ -146,17 +132,6 @@ async def inspect_all_views() -> None:
 
             await mobile_page.close()
             await browser.close()
-
-    finally:
-        await v_adapter.disconnect()
-        await bridge.web_server.stop()
-        for ext in ["", "-wal", "-shm"]:
-            p = db_path + ext
-            if os.path.exists(p):
-                try:
-                    os.remove(p)
-                except Exception:
-                    pass
 
 
 if __name__ == "__main__":

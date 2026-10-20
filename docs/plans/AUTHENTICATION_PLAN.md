@@ -2,6 +2,12 @@
 
 Fecha: 2026-10-12. Plan revisado por los agentes de backend/seguridad, frontend e instalación, coordinados por el principal. Actualización posterior solicitada por el usuario: instalación sin prompts, cuenta inicial `admin:admin` y botón Perfil visible arriba a la derecha.
 
+Actualización autorizada el 2026-10-20: se conserva la cuenta inicial, restringida
+a loopback directo con Host local y sin cabeceras de proxy hasta cambiarla.
+La contraseña actual es obligatoria también en el primer cambio. Una consulta
+anónima de sesión no revela el estado de configuración inicial. Véase la
+[validación de la auditoría](../audits/2026-10-20-remediation-validation.md).
+
 ## Alcance y decisiones
 
 Una cuenta de operador protege todos los datos y operaciones HTTP de `/api/`, las teselas locales, la documentación API y los WebSockets. La página y los recursos estáticos necesarios para iniciar sesión son públicos. MQTT y el protocolo TCP Companion conservan sus controles independientes; no utilizan la cookie web.

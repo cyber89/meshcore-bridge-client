@@ -62,7 +62,7 @@ Fuentes: router `_dispatch_system`:395; SystemController get_status:51, get_heal
 | GET | `/api/status` | U | ninguna |200 OK + uptime_seconds, uptime_str, health, rx_count, tx_count, error_count, timestamp |pasivo; diagnóstico externo posible, sin consumidor literal SPA localizado |
 | GET | `/api/health` | U |ninguna |200 OK data health |pasivo |
 | GET | `/api/diagnostics` | U |ninguna |200 OK data health, mismo get_health |pasivo; sniffer.js:687 |
-| GET | `/api/preflight` | U |ninguna; checker toma configuración host |200 OK data reporte de run_all_async o thread; no traduce fallos de checks a status HTTP |red/serial/chequeos locales según PreflightChecker; no se ejecutó |
+| POST | `/api/preflight` | P |ninguna; checker toma configuración host |200 OK data reporte de run_all_async o thread; no traduce fallos de checks a status HTTP |red/serial/chequeos locales según PreflightChecker; no se ejecutó |
 | GET | `/api/diagnostics/report.md` | P |ignora limit/offset una vez parseados |200 OK markdown,text iguales; fallback texto no disponible |local; sin descarga HTTP raw |
 | GET | `/api/diagnostics/report` | P |igual report.md |200 OK markdown,text |local; app.js:540 |
 | GET | `/api/diagnostics/export` | P |ninguna |200 OK data bundle si DiagnosticManager; sin manager 200 {status:error,message:"No diagnostics"} |local; generate_full_diagnostic_bundle en thread |
@@ -187,8 +187,8 @@ Fuente router `_dispatch_config`:636; ConfigController métodos/líneas en tabla
 | POST | `/api/node/reboot` | P |ninguna |200 OK data;CF;reboot_local:280 |serial reinicio; settings.js:1081 usa alias config/reboot |
 | POST | `/api/config/sync-clock` | P |epoch > timestamp;ausente/null⇒hora host;int positivo ostring signed trim;bool/float prohibidos |200 OK data;422 invalid_epoch;503 admin_handler_unavailable;CF;sync_clock:197 |serial RTC;WS clock_synced; settings.js:966 |
 | POST | `/api/config/clear-stats` | P |ninguna |200 OK data;503 admin_handler_unavailable;CF;clear_stats:218 |serial+contadores host;WS metrics_reset; settings.js:1115 |
-| GET | `/api/config/refresh` | U |ninguna;refresh forzado |200 OK data;refresh_hardware_config:248 |serial;WS self_info |
-| POST | `/api/config/refresh` | P |igual GET |igual GET |serial |
+| GET | `/api/config/refresh` | P |retirado como acción |405 method_not_allowed |sin consulta serial |
+| POST | `/api/config/refresh` | P |refresh forzado, CSRF en sesión |200 OK data |serial;WS self_info |
 | POST | `/api/config/reconnect` | P |ninguna |200 OK message si reconnect serial,200 OK data fallbackadmin;503 serial_reconnect_failed;500 {status:error,message} para excepción reconnect;CF;reconnect_serial:259 |serial reapertura; settings.js:1046 |
 
 **LC:** controlador valida cinco campos numéricos si presentes: duty_cycle_limit_pct,warn_threshold_pct,airtime_cutoff_threshold_pct,airtime_cutoff_resume_pct∈[0,100]; repeater_pre_send_delay_s≥0. Bool rechazado; float(value) finito exigido ⇒422 invalid_parameter. Resto se reenvía entero a handle_admin `{action:set_local_config,params}`. Tras CF exitoso se actualiza airtime_tracker, se guarda history sync=True cuando cambia y se actualizan flags/delay host mediante to_bool/float. Response data redactada; WS self_info sólo si resultado contiene config.

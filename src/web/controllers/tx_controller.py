@@ -19,7 +19,10 @@ class TxController(BaseController):
 
     async def send_tx(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Valida y ejecuta una transmisión hacia la red Mesh LoRa."""
-        text = str(req_body.get("text", "")).strip()
+        raw_text = req_body.get("text", "")
+        if not isinstance(raw_text, str):
+            return problem_details(422, "Unprocessable Entity", "El campo 'text' debe ser texto", "invalid_text_field")
+        text = raw_text.strip()
         if not text:
             return problem_details(400, "Bad Request", "El campo 'text' no puede estar vacío", "missing_text_field")
 
@@ -39,6 +42,9 @@ class TxController(BaseController):
                 "El campo de destino ('to'/'target') no puede ser nulo",
                 "null_target_destination",
             )
+
+        if not isinstance(target, str):
+            return problem_details(422, "Unprocessable Entity", "El destino debe ser texto", "invalid_target_destination")
 
         target_str = str(target).strip()
         if not target_str:

@@ -30,8 +30,12 @@ class ChannelsController(BaseController):
 
     def __init__(self, ctx: ApiContext, channels_file: str | None = None) -> None:
         super().__init__(ctx)
+        bridge_path = getattr(ctx.bridge, "channels_storage_path", None)
+        if not isinstance(bridge_path, (str, os.PathLike)):
+            bridge_path = None
         self.channels_file: str = str(
             channels_file
+            or bridge_path
             or os.getenv("CHANNELS_STORAGE_PATH")
             or os.getenv("CHANNELS_JSON_PATH")
             or "data/channels.json"

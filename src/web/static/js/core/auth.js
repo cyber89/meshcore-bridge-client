@@ -183,10 +183,10 @@ export class BrowserAuthentication {
 
     const currentPassGroup = document.getElementById("accountCurrentPasswordGroup");
     const currentPassInput = this.accountForm.elements.current_password;
-    if (currentPassGroup) currentPassGroup.hidden = forced;
+    if (currentPassGroup) currentPassGroup.hidden = false;
     if (currentPassInput) {
-      currentPassInput.required = !forced;
-      currentPassInput.disabled = forced;
+      currentPassInput.required = true;
+      currentPassInput.disabled = false;
       currentPassInput.value = "";
     }
 
@@ -196,9 +196,7 @@ export class BrowserAuthentication {
     if (tokenUsername) tokenUsername.value = usernameVal;
 
     if (!this.dialog.open) this.dialog.showModal();
-    if (forced) {
-      this.accountForm.elements.password.focus();
-    } else if (currentPassInput) {
+    if (currentPassInput) {
       currentPassInput.focus();
     }
   }
@@ -229,7 +227,8 @@ export class BrowserAuthentication {
           this._expire();
           return null;
         }
-        const key = response.status === 429 ? "auth.too_many_attempts" : response.status === 401 ? "auth.invalid_credentials" : null;
+        const key = data?.error === "local_setup_required" ? "auth.local_setup_required"
+          : response.status === 429 ? "auth.too_many_attempts" : response.status === 401 ? "auth.invalid_credentials" : null;
         if (key) feedback.serverError({ message: I18n.t(key) });
         else feedback.serverError(data);
         return null;

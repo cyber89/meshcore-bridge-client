@@ -21,7 +21,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from src.services_config import ExternalMqttConfig
+from src.services_config import ExternalMqttConfig, validate_external_mqtt_config
 
 try:
     import config
@@ -71,6 +71,7 @@ class ExternalBridgeMQTTClient:
         local_pubkey: str = "",
         on_downlink_message_callback: Callable[[str, str], None] | None = None,
     ) -> None:
+        validate_external_mqtt_config(config_data)
         self.config = config_data
         self.local_pubkey = local_pubkey.lower().strip()
         self.on_downlink_message_callback = on_downlink_message_callback
@@ -87,6 +88,10 @@ class ExternalBridgeMQTTClient:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._drain_lock = threading.Lock()
         self.client: Any = None
+        self._will_topic = ""
+        self._connected_state_topic = ""
+        self._start_requested = False
+        self._connect_started = False
 
         if self.config.enabled:
             self._init_paho_client()
@@ -112,14 +117,8 @@ class ExternalBridgeMQTTClient:
 
         # Configuración TLS
         if self.config.tls_enabled:
-            try:
-                context = ssl.create_default_context()
-                if not self.config.tls_verify:
-                    context.check_hostname = False
-                    context.verify_mode = ssl.CERT_NONE
-                self.client.tls_set_context(context)
-            except Exception as e:
-                logger.error(f"Error configurando contexto SSL/TLS para MQTT externo: {e}")
+            context = self._tls_context(self.config)
+            self.client.tls_set_context(context)
 
         # Configuración de Autenticación
         if self.config.auth_type == "user_pass":
@@ -132,6 +131,23 @@ class ExternalBridgeMQTTClient:
             self.client.username_pw_set(user, token_secret)
 
         # Last Will & Testament (LWT)
+        self._configure_will()
+
+        self.client.on_connect = self._on_connect
+        self.client.on_disconnect = self._on_disconnect
+        self.client.on_message = self._on_message
+
+    @staticmethod
+    def _tls_context(settings: ExternalMqttConfig) -> ssl.SSLContext:
+        """Create trust before connecting; configuration errors must propagate."""
+        context = ssl.create_default_context(cafile=settings.tls_ca_file)
+        context.keylog_filename = None  # type: ignore[assignment]  # SSL accepts None; typeshed declares str.
+        if not settings.tls_verify:
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+        return context
+
+    def _configure_will(self) -> None:
         state_topic = self.build_topic("state")
         lwt_payload = json.dumps({
             "status": "offline",
@@ -140,14 +156,8 @@ class ExternalBridgeMQTTClient:
             "timestamp": int(time.time()),
             "iso_time": datetime.now(UTC).isoformat(),
         })
-        try:
-            self.client.will_set(state_topic, lwt_payload, qos=1, retain=True)
-        except Exception as e:
-            logger.debug(f"No se pudo establecer LWT en MQTT externo: {e}")
-
-        self.client.on_connect = self._on_connect
-        self.client.on_disconnect = self._on_disconnect
-        self.client.on_message = self._on_message
+        self.client.will_set(state_topic, lwt_payload, qos=1, retain=True)
+        self._will_topic = state_topic
 
     def start(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         """Inicia el bucle de red de Paho en segundo plano con reconexión exponencial."""
@@ -160,6 +170,11 @@ class ExternalBridgeMQTTClient:
             return
 
         self._loop = loop or (asyncio.get_running_loop() if asyncio._get_running_loop() is not None else None)
+        self._start_requested = True
+
+        if self.config.topic_mode == "hierarchical" and not self.local_pubkey:
+            logger.info("MQTT externo espera la identidad local antes de configurar su sesión jerárquica.")
+            return
 
         if self.client is None:
             self._init_paho_client()
@@ -173,20 +188,25 @@ class ExternalBridgeMQTTClient:
         )
         try:
             self.client.connect_async(self.config.host, self.config.port, self.config.keepalive)
+            self._connect_started = True
             self.client.loop_start()
         except Exception as e:
             self.is_connected = False
+            self._connect_started = False
             logger.error(f"Fallo al conectar con Broker MQTT Externo ({self.config.host}:{self.config.port}): {e}")
+            raise
 
     def stop(self) -> None:
         """Detiene ordenadamente el cliente MQTT externo y publica estado offline."""
+        self._start_requested = False
+        self._connect_started = False
         if self.client is None:
             self.is_connected = False
             return
 
         if self.is_connected:
             try:
-                state_topic = self.build_topic("state")
+                state_topic = self._connected_state_topic or self.build_topic("state")
                 offline_payload = json.dumps({
                     "status": "offline",
                     "reason": "graceful_shutdown",
@@ -220,7 +240,16 @@ class ExternalBridgeMQTTClient:
 
     def set_local_pubkey(self, pubkey: str) -> None:
         """Actualiza la clave pública local del gateway para filtrado y tópicos jerárquicos."""
-        self.local_pubkey = pubkey.lower().strip()
+        normalized = pubkey.lower().strip()
+        if normalized == self.local_pubkey:
+            return
+        if self.config.topic_mode == "hierarchical" and self._connect_started:
+            raise ValueError("Changing a connected hierarchical MQTT identity requires a service reload")
+        self.local_pubkey = normalized
+        if self.client is not None:
+            self._configure_will()
+        if self._start_requested and not self._connect_started:
+            self.start(loop=self._loop)
 
     def build_topic(self, event_type: str, channel_idx: int = 0, pubkey: str = "") -> str:
         """Construye el tópico de destino según el modo: standard, hierarchical o custom."""
@@ -435,6 +464,9 @@ class ExternalBridgeMQTTClient:
                     if getattr(info, "rc", 0) == 0:
                         self.total_published += 1
                         drained_count += 1
+                    else:
+                        self._ring_buffer.appendleft((topic, payload_str, qos, retain))
+                        break
                 except Exception as e:
                     logger.debug(f"Interrupción al vaciar ring buffer MQTT externo: {e}")
                     # Reinsertar al inicio y pausar
@@ -463,7 +495,8 @@ class ExternalBridgeMQTTClient:
             logger.info(f"Conexión exitosa con Broker MQTT Externo ({self.config.host}:{self.config.port})")
 
             # Publicar estado online retenido
-            state_topic = self.build_topic("state")
+            state_topic = self._will_topic
+            self._connected_state_topic = state_topic
             online_payload = json.dumps({
                 "status": "online",
                 "gateway_id": self.local_pubkey or "gateway",
@@ -557,6 +590,10 @@ class ExternalBridgeMQTTClient:
         Ejecuta una prueba efímera de conexión hacia el broker externo con timeout de seguridad.
         Mide la latencia en milisegundos y devuelve el diagnóstico detallado.
         """
+        try:
+            validate_external_mqtt_config(test_config)
+        except ValueError as error:
+            return {"ok": False, "error": str(error), "latency_ms": None}
         host = (test_config.host or "").strip()
         port = test_config.port
 
@@ -588,10 +625,7 @@ class ExternalBridgeMQTTClient:
 
         if test_config.tls_enabled:
             try:
-                context = ssl.create_default_context()
-                if not test_config.tls_verify:
-                    context.check_hostname = False
-                    context.verify_mode = ssl.CERT_NONE
+                context = cls._tls_context(test_config)
                 client.tls_set_context(context)
             except Exception as e:
                 return {"ok": False, "error": f"Fallo al configurar TLS: {e}", "latency_ms": None}

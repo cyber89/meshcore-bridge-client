@@ -65,6 +65,7 @@ class BridgeH11Protocol(H11Protocol):
                 raw_ext = scope.get("extensions")
                 extensions: dict[str, Any] = dict(raw_ext) if isinstance(raw_ext, dict) else {}
                 extensions[HTTP_ABORT_EXTENSION] = self._abort_request
+                extensions["meshcore.direct_peer"] = self.client
                 scope["extensions"] = extensions
             await wrapped_app(scope, receive, send)
 

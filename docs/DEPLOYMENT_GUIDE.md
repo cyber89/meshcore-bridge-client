@@ -208,7 +208,12 @@ Para un broker remoto con TLS, configure `MQTT_TLS=true`, `MQTT_BROKER` con el n
 
 ## 🌐 Acceso a la Estación Web SPA y Seguridad
 
-Una vez iniciado el servicio, accede desde cualquier navegador en la misma red local:
+En una instalación nueva, complete el alta desde `http://localhost:8080` en el
+host. Si es una estación sin escritorio, use un túnel SSH, por ejemplo
+`ssh -L 8081:127.0.0.1:8080 usuario@estacion`, y abra `http://localhost:8081` en
+su equipo. Entre con `admin:admin` y use esa contraseña actual para establecer
+la nueva. El alta rechaza proxies con cabeceras de forwarding; un túnel TCP SSH
+no añade esas cabeceras. Después del cambio, acceda desde la red local:
 
 - **URL de la Estación Web**: `http://<IP_DE_TU_SERVIDOR>:8080`
 - **Indicador de Vivacidad**: El badge en la barra superior mostrará **`⬤ Conectado`** en tiempo real mediante WebSockets RFC 6455.
@@ -229,11 +234,12 @@ El servidor FastAPI publica `/docs` y `/redoc` como visores locales, con assets 
 ## 📱 Conexión con Companion Apps Móviles (Android / iOS / CLI)
 
 El bridge incluye un servidor TCP Companion que recibe comandos binarios y reenvía payloads al Companion conectado. Utiliza framing oficial (`<`/`>` y longitud little-endian); no el framing raw propio `0xAA/0x55`. Su compatibilidad efectiva depende del adaptador y firmware:
-- **Host**: IP de tu servidor o Raspberry Pi
+- **Host**: `127.0.0.1` por defecto. Para una app móvil, configure explícitamente el bind LAN y las IPs de los clientes autorizados en Ajustes/Servicios.
 - **Puerto**: `5000` (configurable mediante `TCP_SERVER_PORT`)
-- **Límite Conexiones**: Hasta 8 clientes simultáneos (`MAX_COMPANION_CLIENTS=8`) con protección contra DoS.
-- **Token de Acceso (Opcional)**: Configurable mediante `COMPANION_TOKEN` en `.env`.
-- **Lista de IPs (Opcional)**: `COMPANION_ALLOWED_IPS`; vacío permite todas. Estos controles son independientes de `BRIDGE_API_KEY` y de las credenciales MQTT.
+- **Límite Conexiones**: `tcp_server.max_clients` y `tcp_server.allowed_ips` guardados se aplican al listener. Los valores de entorno sirven para inicializar la configuración.
+- **Compatibilidad oficial**: Configure una allowlist de IPs para apps oficiales, conservando el framing binario y sin token. `COMPANION_TOKEN` habilita un handshake propio para clientes que lo implementen.
+- **Acceso remoto**: Un listener fuera de loopback exige allowlist o token; una configuración anterior abierta deja de arrancar hasta restringirla. Estas IPs son un control de acceso de red y requieren una LAN confiable/VPN; no cifran el transporte. Son independientes de la cuenta web y de MQTT.
+- **Control RF**: Los opcodes conocidos que transmiten pasan por `TxRateLimiter`; las consultas Companion locales no consumen airtime RF. Comandos desconocidos y CLI no clasificados se rechazan.
 
 ---
 

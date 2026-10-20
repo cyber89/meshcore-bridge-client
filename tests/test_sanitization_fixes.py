@@ -301,17 +301,22 @@ class TestCORSValidation:
     def test_localhost_allowed(self) -> None:
         """Verifica que localhost está permitido."""
         from src.web.access_policy import is_origin_allowed
-        assert is_origin_allowed("http://localhost:8080", "", []) is True
+        assert is_origin_allowed("http://localhost:8080", "", []) is False
+        assert is_origin_allowed("http://localhost:8080", "localhost:8080", []) is True
 
     def test_loopback_allowed(self) -> None:
         """Verifica que 127.0.0.1 está permitido."""
         from src.web.access_policy import is_origin_allowed
-        assert is_origin_allowed("http://127.0.0.1:8080", "", []) is True
+        assert is_origin_allowed("http://127.0.0.1:8080", "", []) is False
+        assert is_origin_allowed("http://127.0.0.1:8080", "127.0.0.1:8080", []) is True
 
     def test_private_ip_allowed(self) -> None:
         """Verifica que IPs privadas 192.168.x.x están permitidas."""
         from src.web.access_policy import is_origin_allowed
-        assert is_origin_allowed("http://192.168.1.100:8080", "", []) is True
+        assert is_origin_allowed("http://192.168.1.100:8080", "", []) is False
+        assert is_origin_allowed("http://192.168.1.100:8080", "station:8080", ["http://192.168.1.100:8080"]) is True
+        assert is_origin_allowed("http://other:8080", "station:8080", ["*"]) is False
+        assert is_origin_allowed("https://station:8080", "station:8080", []) is False
 
     def test_evil_localhost_rejected(self) -> None:
         """Verifica que evil-localhost.com NO está permitido."""
