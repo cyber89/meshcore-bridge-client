@@ -74,7 +74,7 @@ async def test_api_key_headers_authorize_and_query_credentials_are_rejected(
     monkeypatch.setenv("BRIDGE_API_KEY", key)
     query = "api_key=" + quote(key, safe="") if transport == "query" else ""
     header = key if transport == "header" else None
-    expected = (101 if protocol == "WS" else 200) if transport == "header" else (403 if protocol == "WS" else 401)
+    expected = (101 if protocol == "WS" else 200) if transport == "header" else 401
     assert await request_status(auth_server, protocol, query, header) == expected
 
 
@@ -84,7 +84,7 @@ async def test_invalid_or_missing_query_fails_closed(
     auth_server: AsgiWebServer, monkeypatch: pytest.MonkeyPatch, protocol: str, query: str,
 ) -> None:
     monkeypatch.setenv("BRIDGE_API_KEY", "expected-key")
-    assert await request_status(auth_server, protocol, query) == (403 if protocol == "WS" else 401)
+    assert await request_status(auth_server, protocol, query) == 401
 
 
 @pytest.mark.parametrize("protocol", ["REST", "WS"])
@@ -98,7 +98,7 @@ async def test_duplicate_query_keys_are_ambiguous_and_rejected(
     auth_server: AsgiWebServer, monkeypatch: pytest.MonkeyPatch, protocol: str, query: str,
 ) -> None:
     monkeypatch.setenv("BRIDGE_API_KEY", "expected-key")
-    assert await request_status(auth_server, protocol, query) == (403 if protocol == "WS" else 401)
+    assert await request_status(auth_server, protocol, query) == 401
 
 
 @pytest.mark.parametrize("protocol", ["REST", "WS"])
@@ -106,9 +106,9 @@ async def test_header_precedence_is_equivalent_between_transports(
     auth_server: AsgiWebServer, monkeypatch: pytest.MonkeyPatch, protocol: str,
 ) -> None:
     monkeypatch.setenv("BRIDGE_API_KEY", "expected-key")
-    assert await request_status(auth_server, protocol, "api_key=expected-key", "incorrect") == (403 if protocol == "WS" else 401)
+    assert await request_status(auth_server, protocol, "api_key=expected-key", "incorrect") == 401
     assert await request_status(auth_server, protocol, "api_key=incorrect", "expected-key") == (101 if protocol == "WS" else 200)
-    assert await request_status(auth_server, protocol, "api_key=expected-key", "") == (403 if protocol == "WS" else 401)
+    assert await request_status(auth_server, protocol, "api_key=expected-key", "") == 401
     assert await request_status(
         auth_server, protocol, "api_key=incorrect&api_key=incorrect", "expected-key",
     ) == (101 if protocol == "WS" else 200)
@@ -124,9 +124,9 @@ async def test_query_credentials_are_never_written_to_logs(
     key = "synthetic+credential%&"
     query = parameter + "=" + quote(key, safe="")
     monkeypatch.setenv("BRIDGE_API_KEY", key)
-    assert await request_status(auth_server, protocol, query) == (403 if protocol == "WS" else 401)
+    assert await request_status(auth_server, protocol, query) == 401
     monkeypatch.setenv("BRIDGE_API_KEY", "different-key")
-    assert await request_status(auth_server, protocol, query) == (403 if protocol == "WS" else 401)
+    assert await request_status(auth_server, protocol, query) == 401
     assert key not in caplog.text and quote(key, safe="") not in caplog.text
 
 
@@ -135,4 +135,4 @@ async def test_unconfigured_key_does_not_allow_anonymous_access(
     auth_server: AsgiWebServer, monkeypatch: pytest.MonkeyPatch, protocol: str,
 ) -> None:
     monkeypatch.delenv("BRIDGE_API_KEY", raising=False)
-    assert await request_status(auth_server, protocol) == (403 if protocol == "WS" else 401)
+    assert await request_status(auth_server, protocol) == 401

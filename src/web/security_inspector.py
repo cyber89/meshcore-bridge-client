@@ -171,6 +171,11 @@ class SecurityTrafficInspector:
             matched_pattern = match.group(0) if match else clean_path
             return True, "SONDEO_RUTA_SENSIBLE", f"Petición a archivo o ruta restringida/trampa: '{matched_pattern}'"
 
+        # 5. Detección de esquemas y payloads de inyección en URLs/query strings
+        low_path = path.lower()
+        if "javascript:" in low_path or "<script" in low_path:
+            return True, "XSS_INJECTION", f"Posible inyección XSS detectada en path: '{path}'"
+
         # Route/query/body values belong to the destination controller's field
         # validators. Free text, passwords and channel names may legitimately
         # contain code. Regex matching str(dict) is neither schema validation nor

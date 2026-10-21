@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-20T23:09:19.675869+00:00",
-  "project_head": "fcde957478fb115053fe750f077d635d6d894726",
+  "generated_at_utc": "2026-10-21T00:19:42.266249+00:00",
+  "project_head": "2591fdcafed4db2f2c161a7d535fa193ac0d1b9c",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -504,7 +504,7 @@
     {
       "path": "docs/STORAGE.md",
       "category": "maintained-or-decision",
-      "sha256": "641f4b0fca8ef7c13eed2d29b88440f65dab20315dffc4fc8d93d0e4d9ea2e38",
+      "sha256": "fcf0cee1b4adbbc429c2bbdb0f7e5b4909d728727ee70e1e2afcbc6bca3e3d54",
       "lines": 59
     },
     {
