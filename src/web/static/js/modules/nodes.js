@@ -22,7 +22,7 @@ export class NodesModule {
     this._subscribeBus();
     this.initPresenceTicker();
     this.initContactDiscovery();
-    this.fetchNodes();
+    setTimeout(() => this.fetchNodes(), 30);
   }
 
   onLanguageChange() {

@@ -234,7 +234,15 @@ class MeshCoreApp {
 
         this.activeTabId = tabId;
         this.store.set("activeTab", tabId);
-        this.eventBus.emit(EVENTS.TAB_CHANGED, tabId);
+
+        const emitTabChange = () => {
+          this.eventBus.emit(EVENTS.TAB_CHANGED, tabId);
+        };
+        if ("scheduler" in window && "yield" in scheduler) {
+          scheduler.yield().then(emitTabChange);
+        } else {
+          setTimeout(emitTabChange, 0);
+        }
       });
       btn.addEventListener("keydown", (event) => {
         let nextIndex;

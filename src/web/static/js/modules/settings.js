@@ -91,10 +91,17 @@ export class SettingsModule {
     this._subscribeBus();
     this.fetchChannels();
     this.fetchLocalNodeConfig();
-    this.fetchCustomVars();
-    this.fetchFloodScope();
-    this.fetchAutoAddConfig();
-    this.loadServicesConfig();
+    const loadDeferredSettings = () => {
+      this.fetchCustomVars();
+      this.fetchFloodScope();
+      this.fetchAutoAddConfig();
+      this.loadServicesConfig();
+    };
+    if ("requestIdleCallback" in window) {
+      requestIdleCallback(loadDeferredSettings, { timeout: 3000 });
+    } else {
+      setTimeout(loadDeferredSettings, 500);
+    }
     this._startLiveTick();
     window.showQrModal = (title, uri, rawJson, label) => this.showQrModal(title, uri, rawJson, label);
   }
@@ -1316,6 +1323,8 @@ export class SettingsModule {
         if (!this._lastFetchTime || (now - this._lastFetchTime) > 30000) {
           this.fetchLocalNodeConfig(false);
         }
+        if (!this._customVars) this.fetchCustomVars();
+        if (!this.servicesConfig) this.loadServicesConfig();
       }
     });
 

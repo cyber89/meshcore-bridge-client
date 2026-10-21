@@ -31,7 +31,6 @@ export class MapModule {
     this._bindElements();
     this._bindEvents();
     this._subscribeBus();
-    this.initLeafletMap();
     this.initMapOverlayToggle();
     this.initTraceroute();
 
@@ -39,6 +38,18 @@ export class MapModule {
       this.ctx.centerMapOnCoords = (lat, lon, zoom) => this.centerMapOnCoords(lat, lon, zoom);
       this.ctx.centerOnLocalNode = (zoom, showToast) => this.centerOnLocalNode(zoom, showToast);
     }
+
+    // Schedule background map initialization during idle time to avoid blocking initial LCP
+    if ("requestIdleCallback" in window) {
+      requestIdleCallback(() => this.ensureMapInitialized(), { timeout: 3000 });
+    } else {
+      setTimeout(() => this.ensureMapInitialized(), 2000);
+    }
+  }
+
+  ensureMapInitialized() {
+    if (this.map || !this.dom.liveGpsMap) return;
+    this.initLeafletMap();
   }
 
   onLanguageChange() {
@@ -137,7 +148,9 @@ export class MapModule {
     if (!this.ctx.eventBus) return;
 
     this.ctx.eventBus.on(EVENTS.TAB_CHANGED, async (tabId) => {
-      if (tabId === "tab-map" && this.map) {
+      if (tabId === "tab-map") {
+        this.ensureMapInitialized();
+        if (!this.map) return;
         this._syncThemeLayer();
         if ((!this.ctx.knownNodes || this.ctx.knownNodes.size <= 1) && this.ctx.fetchNodes) {
           try {
@@ -653,6 +666,7 @@ export class MapModule {
   }
 
   centerMapOnCoords(lat, lon, zoom = 14) {
+    this.ensureMapInitialized();
     if (!this.map) return;
     const fLat = parseFloat(lat);
     const fLon = parseFloat(lon);

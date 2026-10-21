@@ -281,6 +281,19 @@ export class MeshCoreStorage {
     });
   }
 
+  async getCachedHistory(feedKey, { limit = 100, before = null } = {}) {
+    const authGeneration = this.authGeneration;
+    await this.readyPromise;
+    try {
+      this._assertCacheAccess(authGeneration);
+      if (!this.db || !this.stationId) return [];
+      const messages = await this._cachedFeed(feedKey, limit, before);
+      return messages || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   async getDmConversations(localPubkey = "") {
     const authGeneration = this.authGeneration;
     const accessGeneration = this.accessGeneration;

@@ -47,7 +47,10 @@ export class AnalyticsModule {
       this._clearProtectedAnalytics();
       this._setRequestState("auth");
     });
-    this.fetchAnalytics();
+    const activeTab = document.querySelector(".tab-pane.active")?.id;
+    if (activeTab === "tab-analytics") {
+      this.fetchAnalytics();
+    }
   }
 
   onLanguageChange() {

@@ -9,6 +9,7 @@
   
   <!-- Vector identity shared with the station header. -->
   <link rel="icon" type="image/svg+xml" href="/brand.svg">
+  <link rel="preload" href="/css/fonts/bootstrap-icons.woff2?e34853135f9e39acf64315236852cd5a" as="font" type="font/woff2" crossorigin>
   <script async src="/js/session_startup.js"></script>
 
   <!-- Bootswatch 5.3 Themes Locales Offline: Slate (Oscuro) y Zephyr (Claro) -->
@@ -38,9 +39,9 @@
   <link rel="stylesheet" href="/css/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/app.css">
 
-  <!-- Leaflet Map CSS & JS (Offline Local Bundles) -->
-  <link rel="stylesheet" href="/css/leaflet.min.css">
-  <script defer src="/js/leaflet.min.js"></script>
+  <!-- Leaflet Map CSS (Offline Local Bundle, deferred non-critical style) -->
+  <link rel="preload" href="/css/leaflet.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="/css/leaflet.min.css"></noscript>
 </head>
 <body class="bg-body text-body d-flex flex-column overflow-hidden auth-pending">
   <a href="#appMain" class="skip-link" data-i18n="ui.skip_to_content">Saltar al contenido</a>
@@ -3126,6 +3127,7 @@
   <!-- Contenedor Global de Notificaciones Toast -->
   <div id="toastContainer" class="toast-container app-toast-container" role="region" aria-label="Notificaciones" data-i18n-aria-label="app.notifications"></div>
 
+  <script defer src="/js/leaflet.min.js"></script>
   <script defer src="/js/bootstrap.bundle.min.js"></script>
   <script defer src="/js/i18n.js"></script>
   <script type="module" src="/js/app.js"></script>

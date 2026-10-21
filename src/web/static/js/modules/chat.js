@@ -319,9 +319,20 @@ export class ChatModule {
       }
     });
 
-    // Contador de caracteres/bytes en tiempo real
+    // Contador de caracteres/bytes en tiempo real optimizado para INP
     if (this.dom.chatInputText) {
-      this.dom.chatInputText.addEventListener("input", () => this.updateCharCounter());
+      let _charCounterRaf = null;
+      let _charCounterAirtimeTimer = null;
+      this.dom.chatInputText.addEventListener("input", () => {
+        if (_charCounterRaf) cancelAnimationFrame(_charCounterRaf);
+        _charCounterRaf = requestAnimationFrame(() => {
+          this.updateCharCounterFast();
+        });
+        if (_charCounterAirtimeTimer) clearTimeout(_charCounterAirtimeTimer);
+        _charCounterAirtimeTimer = setTimeout(() => {
+          this.updateCharCounterAirtime();
+        }, 120);
+      });
     }
 
     if (this.dom.chatInputForm) {
@@ -951,7 +962,17 @@ export class ChatModule {
     await this.sendMessage();
   }
 
-  updateCharCounter() {
+  updateCharCounterFast() {
+    if (!this.dom.chatInputText || !this.dom.chatCharCounter) return;
+    const text = this.dom.chatInputText.value || "";
+    const byteLen = getUtf8ByteLength(text);
+    const pktCount = Math.ceil(byteLen / MAX_LORA_TEXT_BYTES) || 1;
+    this.dom.chatCharCounter.textContent = pktCount > 1 ? `${byteLen} B (${pktCount} pkts)` : `${byteLen} B`;
+    this.dom.chatCharCounter.classList.remove("is-warning", "is-danger");
+    if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = this._sending;
+  }
+
+  updateCharCounterAirtime() {
     if (!this.dom.chatInputText || !this.dom.chatCharCounter) return;
     const text = this.dom.chatInputText.value || "";
     const byteLen = getUtf8ByteLength(text);
@@ -965,17 +986,15 @@ export class ChatModule {
     const cr = Number(cfg.coding_rate || cfg.cr || 5);
     const airtimeMs = chunks.reduce((total, chunk) => total + estimateLoraAirtimeMs(getUtf8ByteLength(chunk), sf, bw, cr), 0);
 
-    // Actualizar texto del badge sin límite forzado
-    this.dom.chatCharCounter.textContent = chunks.length > 1 ? `${byteLen} B (${chunks.length} pkts)` : `${byteLen} B`;
-
     // Tooltip informativo con ocupación estimada de espectro
     this.dom.chatCharCounter.title = chunks.length > 1
       ? I18n.t("chat.fragmented_payload_title", { bytes: byteLen, packets: chunks.length, max: MAX_LORA_TEXT_BYTES, sf, bw, airtime: airtimeMs })
       : I18n.t("chat.payload_title", { p0: byteLen, p1: MAX_LORA_TEXT_BYTES, p2: charCount, p3: sf, p4: bw, p5: airtimeMs });
+  }
 
-    // Sin bloqueo ni desactivación del botón de envío por longitud
-    this.dom.chatCharCounter.classList.remove("is-warning", "is-danger");
-    if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = this._sending;
+  updateCharCounter() {
+    this.updateCharCounterFast();
+    this.updateCharCounterAirtime();
   }
 
 
@@ -1054,7 +1073,12 @@ export class ChatModule {
       this.closeChannelsDrawer();
     }
 
-    this.renderCurrentConversation();
+    const render = () => this.renderCurrentConversation();
+    if ("scheduler" in window && "yield" in scheduler) {
+      scheduler.yield().then(render);
+    } else {
+      setTimeout(render, 0);
+    }
   }
 
   setDmTarget(pubkey, name) {
@@ -1109,7 +1133,12 @@ export class ChatModule {
       this.closeChannelsDrawer();
     }
 
-    this.renderCurrentConversation();
+    const render = () => this.renderCurrentConversation();
+    if ("scheduler" in window && "yield" in scheduler) {
+      scheduler.yield().then(render);
+    } else {
+      setTimeout(render, 0);
+    }
   }
 
   shareCurrentLocation() {
@@ -1404,8 +1433,31 @@ export class ChatModule {
       && feedKey === (this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`);
 
     if (refresh && this.ctx.storage) {
-      this._historyStates.set(feedKey, "loading");
-      this._paintConversation(feedKey, { preserveScroll });
+      if (before == null && (!this.channelFeeds.has(feedKey) || this.channelFeeds.get(feedKey).length === 0)) {
+        try {
+          const cached = await this.ctx.storage.getCachedHistory(feedKey, { limit: MAX_FEED_MESSAGES });
+          if (isCurrent() && cached && cached.length > 0 && (!this.channelFeeds.has(feedKey) || this.channelFeeds.get(feedKey).length === 0)) {
+            const byId = new Map();
+            for (const msg of cached) {
+              if (isCommandOrSystemText(msg.text, msg.txt_type)) continue;
+              const id = messageIdentity(msg);
+              const display = msg.is_outgoing ? msg : { ...msg, text: extractSenderAndText(msg.text, msg.sender_name).cleanText };
+              if (id) byId.set(id, { ...mergeMessage(byId.get(id), display), id });
+            }
+            const merged = [...byId.values()].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) || (a.seq || 0) - (b.seq || 0));
+            if (merged.length > 0) {
+              this.channelFeeds.set(feedKey, merged.slice(-MAX_FEED_MESSAGES));
+              this._historyStates.set(feedKey, "ready");
+              this._paintConversation(feedKey, { preserveScroll });
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (!this.channelFeeds.has(feedKey) || this.channelFeeds.get(feedKey).length === 0) {
+        this._historyStates.set(feedKey, "loading");
+        this._paintConversation(feedKey, { preserveScroll });
+      }
       try {
         const page = await this.ctx.storage.getHistoryPage(feedKey, { before });
         if (!isCurrent() || page.station_id !== this.ctx.storage.stationId) return;
@@ -1998,16 +2050,19 @@ export class ChatModule {
     const excess = bubbles.length - MAX_FEED_MESSAGES;
     let removedHeight = 0;
     if (excess > 0) {
+      if (!followTail) {
+        for (let i = 0; i < excess; i++) {
+          removedHeight += bubbles[i].offsetHeight;
+        }
+      }
       for (let i = 0; i < excess; i++) {
-        const b = bubbles[i];
-        removedHeight += b.offsetHeight;
-        b.remove();
+        bubbles[i].remove();
       }
       const separators = this.dom.chatMessageFeed.querySelectorAll(".chat-date-separator");
       for (const sep of separators) {
         const next = sep.nextElementSibling;
         if (!next || next.classList.contains("chat-date-separator")) {
-          removedHeight += sep.offsetHeight;
+          if (!followTail) removedHeight += sep.offsetHeight;
           sep.remove();
         }
       }
