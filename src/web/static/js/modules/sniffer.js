@@ -140,6 +140,7 @@ export class SnifferModule {
 
       // Panel 1: Logs del Sistema
       systemLogsFeed: document.getElementById("systemLogsFeed"),
+      logsCountBadge: document.getElementById("logsCountBadge"),
       logLevelFilter: document.getElementById("logLevelFilter"),
       logSearchInput: document.getElementById("logSearchInput"),
       chkDebugMode: document.getElementById("chkDebugMode"),
@@ -823,6 +824,12 @@ export class SnifferModule {
     return true;
   }
 
+  _updateLogsCount(count) {
+    if (!this.dom.logsCountBadge) return;
+    const label = count === 1 ? I18n.t('logs.event_single', 'evento') : I18n.t('logs.event_plural', 'eventos');
+    this.dom.logsCountBadge.textContent = `${count} ${label}`;
+  }
+
   renderFilteredLogs() {
     if (!this.dom.systemLogsFeed) return;
     const filtered = this.systemLogs.filter((log) => this.matchesLogFilter(log));
@@ -830,6 +837,7 @@ export class SnifferModule {
     this.dom.systemLogsFeed.textContent = "";
     if (filtered.length === 0) {
       this.dom.systemLogsFeed.innerHTML = `<div class="logs-empty-state">${I18n.t('sniffer.no_logs_filter')}</div>`;
+      this._updateLogsCount(0);
       return;
     }
 
@@ -839,6 +847,7 @@ export class SnifferModule {
       frag.appendChild(this.createLogElement(log));
     }
     this.dom.systemLogsFeed.appendChild(frag);
+    this._updateLogsCount(visibleLogs.length);
 
     if (!this.logsScrollPaused) {
       this.dom.systemLogsFeed.scrollTop = this.dom.systemLogsFeed.scrollHeight;
@@ -885,6 +894,7 @@ export class SnifferModule {
     while (this.dom.systemLogsFeed.children.length > MAX_SYSTEM_LOGS) {
       this.dom.systemLogsFeed.removeChild(this.dom.systemLogsFeed.firstElementChild);
     }
+    this._updateLogsCount(this.dom.systemLogsFeed.children.length);
     if (!this.logsScrollPaused) {
       this.dom.systemLogsFeed.scrollTop = this.dom.systemLogsFeed.scrollHeight;
     }

@@ -715,8 +715,21 @@
                 </div>
               </div>
 
-              <!-- Contenedor Principal de Logs -->
-              <div class="system-logs-box" id="systemLogsFeed" role="log"></div>
+              <!-- Contenedor Principal de Logs con Marco Terminal Unificado -->
+              <div class="linux-term-window logs-term-window">
+                <div class="linux-term-header">
+                  <div class="linux-term-dots">
+                    <span class="linux-term-dot dot-red"></span>
+                    <span class="linux-term-dot dot-yellow"></span>
+                    <span class="linux-term-dot dot-green"></span>
+                  </div>
+                  <span class="linux-term-title" data-i18n="logs.window_title"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>meshcore-bridge.log &mdash; Consola de Eventos</span>
+                  <div class="linux-term-actions">
+                    <span class="badge badge-outline text-xs font-mono" id="logsCountBadge">0 eventos</span>
+                  </div>
+                </div>
+                <div class="system-logs-box linux-term-body" id="systemLogsFeed" role="log"></div>
+              </div>
             </div>
 
             <!-- Subpanel 2: Monitor de Paquetes RF (LoRa Sniffer) -->

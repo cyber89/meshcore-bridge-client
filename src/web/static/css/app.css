@@ -273,6 +273,9 @@ body.auth-pending > #app { display: none !important; }
   /* Consoles keep a dark surface in both application themes. */
   --term-muted: #afbdd1;
   --term-accent: #93c5fd;
+  --term-header-bg: rgba(0, 0, 0, 0.42);
+  --term-border: rgba(255, 255, 255, 0.08);
+  --term-prompt: #38bdf8;
 
   /* Tipografía Fluida Progresiva (WCAG 2.2 / Modern CSS) */
   --font-fluid-body: clamp(0.8125rem, 0.77rem + 0.25vw, 0.9375rem);
@@ -406,6 +409,9 @@ html.density-compact {
   --focus-ring: #2563eb;
   --term-bg: #1e293b;
   --term-text: #f8fafc;
+  --term-header-bg: rgba(15, 23, 42, 0.65);
+  --term-border: rgba(255, 255, 255, 0.1);
+  --term-prompt: #38bdf8;
   --map-overlay-bg: rgba(243, 246, 250, 0.95);
   --card-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
   --dialog-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
@@ -2735,24 +2741,32 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   margin-left: auto;
 }
 
-/* Terminales y Consola de Comandos */
-.system-logs-box, .linux-term-body {
+/* ==========================================================================
+   Terminales & Consolas de Comandos Unificadas (Settings, Repetidor, Logs)
+   ========================================================================== */
+.system-logs-box,
+.linux-term-body {
   font-family: var(--bs-font-monospace);
-  font-size: 12px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   background: var(--term-bg, #090d16);
   color: var(--term-text, #e2e8f0);
-  border: 1px solid var(--bs-border-color);
-  border-radius: 0.375rem;
-  padding: 0.75rem;
+  padding: 0.875rem 1rem;
   overflow-y: auto;
+  min-height: 300px;
   max-height: 520px;
 }
 
+/* Standalone fallback if rendered without a window */
+.system-logs-box:not(.linux-term-body) {
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--radius-md, 8px);
+}
+
 .logs-empty-state {
-  color: var(--term-muted);
+  color: var(--term-muted, #afbdd1);
   font-style: italic;
-  padding: 8px;
+  padding: 12px 8px;
 }
 
 .term-line {
@@ -2760,23 +2774,33 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--bs-font-monospace);
-  font-size: var(--font-meta);
-  line-height: 1.45;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 .term-sys { color: #94a3b8; font-style: italic; }
-.term-cmd { color: #38bdf8; font-weight: 600; }
-.term-resp { color: #e2e8f0; }
-.term-info { color: #93c5fd; }
+.term-cmd { color: var(--term-prompt, #38bdf8); font-weight: 600; }
+.term-resp { color: var(--term-text, #e2e8f0); }
+.term-info { color: var(--term-accent, #93c5fd); }
 .term-success { color: #4ade80; }
 .term-warning { color: #fbbf24; }
 .term-error { color: #f87171; font-weight: 600; }
 
 .linux-term-window {
   border: 1px solid var(--bs-border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-md, 8px);
   overflow: hidden;
   background: var(--term-bg, #090d16);
   margin-bottom: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Eliminate nested borders and gaps when inside .linux-term-window */
+.linux-term-window .linux-term-body,
+.linux-term-window .system-logs-box {
+  border: none;
+  border-radius: 0;
 }
 
 .linux-term-header {
@@ -2784,14 +2808,18 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px;
-  background: rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--term-header-bg, rgba(0, 0, 0, 0.42));
+  border-bottom: 1px solid var(--term-border, rgba(255, 255, 255, 0.08));
+  gap: 8px;
+  user-select: none;
+  min-height: 38px;
 }
 
 .linux-term-dots {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .linux-term-dot {
@@ -2799,6 +2827,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   height: 10px;
   border-radius: 50%;
   display: inline-block;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
 }
 
 .dot-red { background-color: #ef4444; }
@@ -2808,22 +2837,31 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 .linux-term-title {
   font-size: 0.75rem;
   font-family: var(--bs-font-monospace);
-  color: #afbdd1;
+  color: var(--term-muted, #afbdd1);
   font-weight: 600;
   letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  margin: 0 8px;
+  display: flex;
+  align-items: center;
 }
 
 .linux-term-actions {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .terminal-help-drawer {
-  background: rgba(15, 23, 42, 0.95);
-  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--term-bg, #090d16);
+  border-bottom: 1px solid var(--term-border, rgba(255, 255, 255, 0.08));
   padding: 10px 14px;
-  color: var(--term-text);
+  color: var(--term-text, #e2e8f0);
 }
 
 .help-drawer-header {
@@ -2832,12 +2870,59 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   justify-content: space-between;
   margin-bottom: 8px;
   font-size: var(--font-meta);
+  color: var(--term-muted, #afbdd1);
 }
 
-.help-drawer-grid {
+.help-drawer-grid,
+.help-cmd-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.help-cmd-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--term-text, #e2e8f0);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 40px;
+}
+
+.help-cmd-item:hover,
+.help-cmd-item:focus-visible {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: var(--term-prompt, #38bdf8);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.help-cmd-item code {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--term-prompt, #38bdf8);
+  background: transparent;
+  padding: 0;
+}
+
+.help-cmd-item span {
+  font-size: 0.6875rem;
+  color: var(--term-muted, #afbdd1);
+  line-height: 1.25;
 }
 
 /* Entradas y badges del Registro del Sistema (System Logs Feed) */
@@ -2946,87 +3031,111 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   padding-left: 6px;
 }
 
-.linux-term-input-bar,
-.rep-quick-cmd-bar {
+/* Barra de Entrada Terminal (Docked flush en ventanas o standalone en vista general) */
+.linux-term-window .linux-term-input-bar {
+  margin-top: 0;
+  border: none;
+  border-top: 1px solid var(--term-border, rgba(255, 255, 255, 0.08));
+  border-radius: 0;
+  background: var(--term-header-bg, rgba(0, 0, 0, 0.35));
+  padding: 8px 12px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-sm, 8px);
+  min-width: 0;
+}
+
+.rep-quick-cmd-bar,
+.linux-term-input-bar:not(.linux-term-window .linux-term-input-bar) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm, 8px);
   min-width: 0;
   background: var(--term-bg, #090d16);
   border: 1px solid var(--bs-border-color);
-  border-radius: 0.375rem;
-  padding: 6px 12px;
+  border-radius: var(--radius-md, 8px);
+  padding: 8px 12px;
   margin-top: 8px;
 }
 
 .linux-term-prompt {
   font-family: var(--bs-font-monospace);
-  color: #8bc6ff;
-  font-weight: 600;
-  font-size: 13px;
+  color: var(--term-prompt, #38bdf8);
+  font-weight: 700;
+  font-size: 0.8125rem;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .linux-term-input {
   flex: 1 1 12rem;
   min-width: 0;
   max-width: 100%;
-  min-height: var(--control-height);
-  padding: 6px 8px;
-  background: var(--term-bg, #090d16);
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-sm);
+  min-height: var(--control-height-sm, 32px);
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm, 4px);
   color: var(--term-text, #e2e8f0);
   font-family: var(--bs-font-monospace);
-  font-size: 13px;
+  font-size: 0.8125rem;
+  outline: none;
+  transition: var(--control-transition);
 }
 
 .linux-term-input::placeholder {
-  color: #afbdd1;
-  opacity: 1;
+  color: var(--term-muted, #afbdd1);
+  opacity: 0.7;
 }
 
 .linux-term-input:focus-visible {
-  outline-color: #8bc6ff;
+  border-color: var(--term-prompt, #38bdf8);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
 }
 
 .btn-term-send {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  min-height: var(--control-height);
+  gap: 4px;
+  min-height: var(--control-height-sm, 32px);
   max-width: 100%;
   background: var(--primary-fill);
-  color: var(--primary-action-text);
+  color: var(--primary-action-text, #fff);
   border: 1px solid var(--primary-fill);
-  border-radius: var(--radius-sm);
-  padding: 6px 12px;
-  font-size: 0.8125rem;
+  border-radius: var(--radius-sm, 4px);
+  padding: 4px 14px;
+  font-size: 0.75rem;
+  font-family: var(--bs-font-monospace);
   line-height: 1.25;
   font-weight: 600;
   cursor: pointer;
   transition: var(--control-transition);
+  white-space: nowrap;
 }
 
 .btn-term-send:hover:not(:disabled) {
   background: var(--primary-fill-hover);
   border-color: var(--primary-fill-hover);
+  transform: translateY(-1px);
 }
 
 .btn-term-send:active:not(:disabled) {
   background: var(--primary-fill-active);
   border-color: var(--primary-fill-active);
+  transform: translateY(0);
 }
 
 .btn-term-send:focus-visible {
-  outline-color: #8bc6ff;
+  outline: 2px solid var(--term-prompt, #38bdf8);
+  outline-offset: 1px;
 }
 
 .btn-term-send:disabled {
   cursor: not-allowed;
-  border-style: dashed;
+  opacity: 0.5;
   box-shadow: none;
 }
 
@@ -3034,28 +3143,60 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  min-height: var(--control-height-sm);
+  padding: 2px 8px;
+  min-height: 26px;
   font-size: 0.75rem;
   font-family: var(--bs-font-monospace);
   font-weight: 500;
-  background: transparent;
-  color: var(--term-text);
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--radius-sm, 6px);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--term-text, #e2e8f0);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm, 4px);
   cursor: pointer;
   transition: var(--control-transition);
+  white-space: nowrap;
 }
 
 .btn-outline-term:hover:not(:disabled) {
-  background: rgba(139, 198, 255, 0.12);
-  border-color: #8bc6ff;
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--term-prompt, #38bdf8);
   color: #fff;
 }
 
 .btn-outline-term:focus-visible {
-  outline: 2px solid var(--bs-primary);
+  outline: 2px solid var(--term-prompt, #38bdf8);
   outline-offset: 1px;
+}
+
+/* Scrollbars uniformes de alto contraste para consolas y drawers */
+.linux-term-body::-webkit-scrollbar,
+.system-logs-box::-webkit-scrollbar,
+.help-drawer-grid::-webkit-scrollbar,
+.help-cmd-grid::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.linux-term-body::-webkit-scrollbar-track,
+.system-logs-box::-webkit-scrollbar-track,
+.help-drawer-grid::-webkit-scrollbar-track,
+.help-cmd-grid::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.linux-term-body::-webkit-scrollbar-thumb,
+.system-logs-box::-webkit-scrollbar-thumb,
+.help-drawer-grid::-webkit-scrollbar-thumb,
+.help-cmd-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.linux-term-body::-webkit-scrollbar-thumb:hover,
+.system-logs-box::-webkit-scrollbar-thumb:hover,
+.help-drawer-grid::-webkit-scrollbar-thumb:hover,
+.help-cmd-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .code-textarea {
@@ -5154,58 +5295,6 @@ details.settings-disclosure > .disclosure-content {
 .cmd-item:focus-visible {
   background: var(--bs-primary-bg-subtle);
   color: var(--bs-primary-text-emphasis);
-}
-
-/* Grilla y Botones de Comandos de Ayuda (Terminales & Consolas) */
-.help-cmd-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px;
-  max-height: 280px;
-  overflow-y: auto;
-  padding: 8px;
-  background: var(--bg-surface-elevated, var(--bs-body-bg));
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--radius-md, 8px);
-}
-
-.help-cmd-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm, 6px);
-  background: var(--bs-tertiary-bg);
-  border: 1px solid var(--bs-border-color);
-  color: var(--bs-body-color);
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-  min-height: 44px;
-}
-
-.help-cmd-item:hover,
-.help-cmd-item:focus-visible {
-  background: var(--bs-primary-bg-subtle);
-  border-color: var(--bs-primary);
-  color: var(--bs-primary-text-emphasis);
-  transform: translateY(-1px);
-}
-
-.help-cmd-item code {
-  font-family: var(--bs-font-monospace);
-  font-size: var(--font-label);
-  font-weight: 700;
-  color: var(--bs-primary);
-  background: transparent;
-  padding: 0;
-}
-
-.help-cmd-item span {
-  font-size: 0.75rem;
-  color: var(--bs-secondary-color);
-  line-height: 1.25;
 }
 
 /* Tablas con desplazamiento dentro de modales */
