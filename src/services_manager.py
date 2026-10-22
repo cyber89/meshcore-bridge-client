@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+from src.capabilities import CapabilityName, CapabilityRegistry, CapabilityState
 from src.external_mqtt_client import ExternalBridgeMQTTClient
 from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
 from src.services_config import (
@@ -46,6 +47,7 @@ class ServicesManager:
         on_incoming_mqtt_message: Callable[[str, str], None] | None = None,
         on_incoming_external_downlink: Callable[[str, str], None] | None = None,
         config_override: ServicesConfig | None = None,
+        capabilities: CapabilityRegistry | None = None,
     ) -> None:
         self.bridge = bridge
         self.on_incoming_mqtt_message = on_incoming_mqtt_message
@@ -60,9 +62,20 @@ class ServicesManager:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._lifecycle_lock = asyncio.Lock()
         self._configuration_write_task: asyncio.Task[None] | None = None
+        self.capabilities: CapabilityRegistry | None = capabilities or getattr(bridge, "capabilities", None)
 
         # 1. Instanciar Cliente MQTT Local
         self.local_mqtt = self._create_local_mqtt_client(self.services_config.local_mqtt)
+        if self.capabilities:
+            if self.services_config.local_mqtt.enabled:
+                self.capabilities.update_capability(
+                    CapabilityName.LOCAL_MQTT,
+                    configured=True,
+                    instantiated=self.local_mqtt is not None,
+                    state=CapabilityState.STARTING if self.local_mqtt is not None else CapabilityState.NOT_INSTALLED,
+                )
+            else:
+                self.capabilities.set_disabled(CapabilityName.LOCAL_MQTT)
 
         # 2. Instanciar Cliente MQTT Externo
         local_pk = self._get_local_pubkey()
@@ -71,11 +84,31 @@ class ServicesManager:
             local_pubkey=local_pk,
             on_downlink_message_callback=self.on_incoming_external_downlink,
         )
+        if self.capabilities:
+            if self.services_config.external_mqtt.enabled:
+                self.capabilities.update_capability(
+                    CapabilityName.EXTERNAL_MQTT,
+                    configured=True,
+                    instantiated=self.external_mqtt is not None,
+                    state=CapabilityState.STARTING if self.external_mqtt is not None else CapabilityState.NOT_INSTALLED,
+                )
+            else:
+                self.capabilities.set_disabled(CapabilityName.EXTERNAL_MQTT)
 
         # 3. Instanciar Servidor TCP Companion si está habilitado
         self.tcp_server: MeshCoreCompanionServer | None = None
         if self.services_config.tcp_server.enabled:
             self.tcp_server = self._create_tcp_server(self.services_config.tcp_server)
+            if self.capabilities:
+                self.capabilities.update_capability(
+                    CapabilityName.COMPANION,
+                    configured=True,
+                    instantiated=True,
+                    state=CapabilityState.STARTING,
+                )
+        else:
+            if self.capabilities:
+                self.capabilities.set_disabled(CapabilityName.COMPANION)
 
     def _get_local_pubkey(self) -> str:
         """Obtiene la clave pública del nodo local desde NodeRegistry o Bridge."""
@@ -229,16 +262,36 @@ class ServicesManager:
         # 1. Iniciar MQTT Local si está activo
         if self.services_config.local_mqtt.enabled:
             logger.info("Iniciando cliente MQTT Local...")
-            self.local_mqtt.start(loop=self._loop)
+            if self.local_mqtt is not None:
+                self.local_mqtt.start(loop=self._loop)
+                if self.capabilities:
+                    self.capabilities.update_capability(
+                        CapabilityName.LOCAL_MQTT,
+                        started=True,
+                        operational=bool(getattr(self.local_mqtt, "is_connected", False)),
+                        state=CapabilityState.AVAILABLE if getattr(self.local_mqtt, "is_connected", False) else CapabilityState.STARTING,
+                    )
         else:
             logger.info("Cliente MQTT Local deshabilitado por configuración (Modo Standalone / Reducido).")
+            if self.capabilities:
+                self.capabilities.set_disabled(CapabilityName.LOCAL_MQTT)
 
         # 2. Iniciar MQTT Externo si está activo
         if self.services_config.external_mqtt.enabled:
             logger.info("Iniciando cliente MQTT Externo...")
-            self.external_mqtt.start(loop=self._loop)
+            if self.external_mqtt is not None:
+                self.external_mqtt.start(loop=self._loop)
+                if self.capabilities:
+                    self.capabilities.update_capability(
+                        CapabilityName.EXTERNAL_MQTT,
+                        started=True,
+                        operational=bool(getattr(self.external_mqtt, "is_connected", False)),
+                        state=CapabilityState.AVAILABLE if getattr(self.external_mqtt, "is_connected", False) else CapabilityState.STARTING,
+                    )
         else:
             logger.debug("Cliente MQTT Externo deshabilitado en configuración.")
+            if self.capabilities:
+                self.capabilities.set_disabled(CapabilityName.EXTERNAL_MQTT)
 
         # 3. Iniciar Servidor TCP Companion si está activo
         if self.tcp_server is not None and self.services_config.tcp_server.enabled:
@@ -248,9 +301,19 @@ class ServicesManager:
             )
             try:
                 await self.tcp_server.start()
+                if self.capabilities:
+                    self.capabilities.set_operational(
+                        CapabilityName.COMPANION,
+                        True,
+                        {"host": self.services_config.tcp_server.host, "port": self.services_config.tcp_server.port},
+                    )
             except Exception as e:
                 logger.error("TCP Companion startup failed: %s", type(e).__name__)
+                if self.capabilities:
+                    self.capabilities.set_failed(CapabilityName.COMPANION, str(e), "tcp_companion_startup_failed")
                 raise
+        elif self.capabilities:
+            self.capabilities.set_disabled(CapabilityName.COMPANION)
 
     async def stop(self) -> None:
         """Detiene ordenadamente todos los servicios de red."""
@@ -280,6 +343,11 @@ class ServicesManager:
                 await asyncio.to_thread(self.external_mqtt.stop)
             except Exception as e:
                 logger.debug("External MQTT shutdown failed: %s", type(e).__name__)
+
+        if self.capabilities:
+            self.capabilities.update_capability(CapabilityName.LOCAL_MQTT, started=False, operational=False)
+            self.capabilities.update_capability(CapabilityName.EXTERNAL_MQTT, started=False, operational=False)
+            self.capabilities.update_capability(CapabilityName.COMPANION, started=False, operational=False)
 
         logger.info("Todos los servicios de red han sido detenidos ordenadamente.")
 
@@ -398,6 +466,40 @@ class ServicesManager:
         reloaded = [name for name, changed in (
             ("local_mqtt", local_changed), ("external_mqtt", external_changed), ("tcp_server", tcp_changed)
         ) if changed]
+
+        if self.capabilities:
+            if self.services_config.local_mqtt.enabled:
+                self.capabilities.update_capability(
+                    CapabilityName.LOCAL_MQTT,
+                    configured=True,
+                    instantiated=self.local_mqtt is not None,
+                    operational=bool(getattr(self.local_mqtt, "is_connected", False)),
+                    state=CapabilityState.AVAILABLE if getattr(self.local_mqtt, "is_connected", False) else CapabilityState.STARTING,
+                )
+            else:
+                self.capabilities.set_disabled(CapabilityName.LOCAL_MQTT)
+
+            if self.services_config.external_mqtt.enabled:
+                self.capabilities.update_capability(
+                    CapabilityName.EXTERNAL_MQTT,
+                    configured=True,
+                    instantiated=self.external_mqtt is not None,
+                    operational=bool(getattr(self.external_mqtt, "is_connected", False)),
+                    state=CapabilityState.AVAILABLE if getattr(self.external_mqtt, "is_connected", False) else CapabilityState.STARTING,
+                )
+            else:
+                self.capabilities.set_disabled(CapabilityName.EXTERNAL_MQTT)
+
+            if self.services_config.tcp_server.enabled:
+                self.capabilities.update_capability(
+                    CapabilityName.COMPANION,
+                    configured=True,
+                    instantiated=self.tcp_server is not None,
+                    operational=self.tcp_server is not None,
+                    state=CapabilityState.AVAILABLE if self.tcp_server is not None else CapabilityState.STARTING,
+                )
+            else:
+                self.capabilities.set_disabled(CapabilityName.COMPANION)
 
         logger.info(f"Recarga de servicios completada. Componentes actualizados: {reloaded or ['ninguno']}")
         return {

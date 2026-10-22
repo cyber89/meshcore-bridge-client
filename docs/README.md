@@ -103,6 +103,7 @@ Los ADRs documentan de forma inmutable las decisiones arquitectónicas fundament
 | **[ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)** | Seguridad MQTT, Idempotencia de Órdenes y Resolvedor de Tópicos | Vigente |
 | **[ADR 0022](adr/0022-consumer-isolation-and-bounded-admission.md)** | Aislamiento de Consumidores y Admisión Acotada en Ingesta | Vigente |
 | **[ADR 0023](adr/0023-messaging-and-contact-application-services.md)** | Extracción de Servicios de Aplicación para Mensajería y Contactos | Vigente |
+| **[ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md)** | Registro de Capacidades, Opcionalidad en Runtime y Desacoplamiento de Servicios Opcionales | Vigente |
 
 ---
 

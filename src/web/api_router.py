@@ -438,7 +438,7 @@ class WebAPIRouter:
             if clean_path.startswith(("/api/node", "/api/config")):
                 return await self._dispatch_config(method, path, clean_path, req_body)
 
-            if clean_path.startswith("/api/services"):
+            if clean_path in ("/api/capabilities",) or clean_path.startswith("/api/services"):
                 return await self._dispatch_services(method, path, clean_path, req_body)
 
             if clean_path.startswith("/api/packets"):
@@ -821,6 +821,11 @@ class WebAPIRouter:
         self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]
     ) -> tuple[int, dict[str, Any]]:
         """Despacha endpoints para administración y diagnóstico de servicios de red y presets."""
+        if clean_path in ("/api/services/capabilities", "/api/capabilities"):
+            if method == "GET":
+                return await self.services_ctrl.get_capabilities()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
         if clean_path == "/api/services/config":
             if method == "GET":
                 return await self.services_ctrl.get_services_config()

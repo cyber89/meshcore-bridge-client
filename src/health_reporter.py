@@ -15,7 +15,6 @@ from typing import Any
 
 import config
 from src.contact_manager import NodeRegistry
-from src.mqtt_client import AsyncBridgeMQTTClient
 from src.rate_limiter import TxRateLimiter
 from src.rx_router import BridgeCounters
 from src.serial_driver import BaseSerialAdapter
@@ -24,12 +23,13 @@ from src.serial_driver import BaseSerialAdapter
 @dataclass(slots=True)
 class HealthContext:
     """Dependencias necesarias para construir y publicar el payload de salud."""
-    mqtt: AsyncBridgeMQTTClient
+    mqtt: Any
     serial_adapter: BaseSerialAdapter
     node_registry: NodeRegistry
     rate_limiter: TxRateLimiter
     counters: BridgeCounters
     start_time: float
+    bridge: Any | None = None
 
 
 class HealthReporter:
@@ -57,12 +57,26 @@ class HealthReporter:
 
     async def build_payload(self) -> dict[str, Any]:
         """Construye el snapshot de métricas de salud del bridge."""
-        return {
-            "status": "healthy" if self._ctx.serial_adapter.is_connected and self._ctx.mqtt.is_connected else "degraded",
+        serial_conn = bool(self._ctx.serial_adapter.is_connected)
+        mqtt_conn = bool(getattr(self._ctx.mqtt, "is_connected", False))
+
+        mqtt_required = True
+        capabilities_dict: dict[str, Any] | None = None
+        if self._ctx.bridge is not None and hasattr(self._ctx.bridge, "capabilities"):
+            caps = self._ctx.bridge.capabilities
+            capabilities_dict = caps.to_dict()
+            mqtt_required = caps.mqtt_local.is_active or caps.mqtt_external.is_active
+        elif not getattr(config, "MQTT_ENABLED", True):
+            mqtt_required = False
+
+        status = "healthy" if serial_conn and (mqtt_conn or not mqtt_required) else "degraded"
+
+        payload: dict[str, Any] = {
+            "status": status,
             "uptime_seconds": int(time.time() - self._ctx.start_time),
             "serial_port": getattr(self._ctx.serial_adapter, "port", config.SERIAL_PORT),
-            "serial_connected": self._ctx.serial_adapter.is_connected,
-            "mqtt_connected": self._ctx.mqtt.is_connected,
+            "serial_connected": serial_conn,
+            "mqtt_connected": mqtt_conn,
             "known_mesh_nodes": self._ctx.node_registry.get_count(),
             "tx_queue_depth": self._ctx.rate_limiter.get_queue_depth(),
             "total_rx_packets": self._ctx.counters.rx_count,
@@ -71,6 +85,9 @@ class HealthReporter:
             "total_processing_errors": self._ctx.counters.err_count,
             "timestamp": datetime.now(UTC).isoformat(),
         }
+        if capabilities_dict is not None:
+            payload["capabilities"] = capabilities_dict
+        return payload
 
     async def _loop(self) -> None:
         """Bucle periódico de publicación de métricas."""
@@ -79,7 +96,8 @@ class HealthReporter:
                 await asyncio.sleep(self._interval_sec)
                 payload = await self.build_payload()
                 topic_health = getattr(self._ctx.mqtt, "topic_health", config.TOPIC_HEALTH)
-                self._ctx.mqtt.publish_safe(topic_health, json.dumps(payload), qos=0)
+                if hasattr(self._ctx.mqtt, "publish_safe"):
+                    self._ctx.mqtt.publish_safe(topic_health, json.dumps(payload), qos=0)
             except asyncio.CancelledError:
                 break
             except Exception as e:

@@ -22,6 +22,7 @@ from typing import Any, Protocol, Self, cast
 import config
 from src.admin_handler import AdminCommandHandler, AdminContext
 from src.application import ChannelService, ContactService, MessageService
+from src.capabilities import CapabilityRegistry, StableMqttPort
 from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.deduplicator import PacketDeduplicator
 from src.diagnostics import DiagnosticManager, SystemLogHandler, setup_file_logging
@@ -166,11 +167,14 @@ class MeshCoreBridge:
             database=self.database,
         )
         self.repeater_manager.is_cutoff_active_callback = self.rate_limiter.is_cutoff_active
+        self.capabilities = CapabilityRegistry(web_enabled=bool(getattr(config, "WEB_ENABLED", True)))
         self.services_manager = ServicesManager(
             bridge=self,
             on_incoming_mqtt_message=self._on_incoming_mqtt_message,
             on_incoming_external_downlink=self._on_incoming_external_downlink,
+            capabilities=self.capabilities,
         )
+        self.mqtt_port = StableMqttPort(lambda: getattr(self.services_manager, "local_mqtt", None))
         self.mqtt = self.services_manager.local_mqtt
         self.external_mqtt = self.services_manager.external_mqtt
         self.preflight = PreflightChecker()
@@ -552,23 +556,40 @@ class MeshCoreBridge:
     def _create_web_server(self) -> WebServerProtocol | None:
         """Crea el servidor web asíncrono FastAPI ASGI si está habilitado por configuración."""
         if not getattr(config, "WEB_ENABLED", True):
+            if hasattr(self, "capabilities"):
+                self.capabilities.web.mark_configured(False)
             return None
 
-        from src.web.api_router import WebAPIRouter
-        from src.web.asgi_server import AsgiWebServer
+        if hasattr(self, "capabilities") and not self.capabilities.web.is_installed:
+            logging.info("Web framework (FastAPI/Starlette/Uvicorn) no instalado; operando en modo headless.")
+            return None
 
-        router = WebAPIRouter(bridge=self)
-        return AsgiWebServer(
-            router=router,
-            host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
-            port=getattr(config, "WEB_PORT", 8080),
-            shutdown_budget_s=getattr(config, "SHUTDOWN_TIMEOUT", 1.5),
-            owns_tile_service=True,
-            on_failure=self._on_web_server_failure,
-        )
+        try:
+            from src.web.api_router import WebAPIRouter
+            from src.web.asgi_server import AsgiWebServer
+
+            router = WebAPIRouter(bridge=self)
+            server = AsgiWebServer(
+                router=router,
+                host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
+                port=getattr(config, "WEB_PORT", 8080),
+                shutdown_budget_s=getattr(config, "SHUTDOWN_TIMEOUT", 1.5),
+                owns_tile_service=True,
+                on_failure=self._on_web_server_failure,
+            )
+            if hasattr(self, "capabilities"):
+                self.capabilities.web.mark_instantiated(server)
+            return server
+        except ImportError as e:
+            if hasattr(self, "capabilities"):
+                self.capabilities.web.mark_failed(e)
+            logging.warning("Fallo al importar dependencias web opcionales: %s; operando headless.", e)
+            return None
 
     def _on_web_server_failure(self, error: Exception) -> None:
         """Observe web termination without initiating radio work or a restart."""
+        if hasattr(self, "capabilities"):
+            self.capabilities.web.mark_failed(error)
         logging.error(
             "Web subsystem terminated unexpectedly: %s",
             type(error).__name__,
@@ -644,6 +665,7 @@ class MeshCoreBridge:
                 rate_limiter=self.rate_limiter,
                 counters=self,
                 start_time=self.start_time,
+                bridge=self,
             ),
             interval_sec=config.HEALTH_METRICS_INTERVAL_SEC,
         )
@@ -733,7 +755,7 @@ class MeshCoreBridge:
         is_mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
         is_mqtt_ok = is_mqtt_connected if loc_enabled else True
         port_val = getattr(serial_adapter, "port", getattr(config, "SERIAL_PORT", "desconocido")) if serial_adapter else "none"
-        return {
+        health_payload: dict[str, Any] = {
             "status": "healthy" if is_ser_ok and is_mqtt_ok else "degraded",
             "timestamp": time.time(),
             "uptime_seconds": int(time.time() - getattr(self, "start_time", time.time())),
@@ -748,6 +770,9 @@ class MeshCoreBridge:
                 },
             },
         }
+        if hasattr(self, "capabilities"):
+            health_payload["capabilities"] = self.capabilities.to_dict()
+        return health_payload
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         # Primero consultar el registro dinámico local
@@ -837,6 +862,9 @@ class MeshCoreBridge:
         # Iniciar servidor web si está habilitado
         if self.web_server:
             await self.web_server.start()
+            if hasattr(self, "capabilities"):
+                self.capabilities.web.mark_started()
+                self.capabilities.web.mark_operational()
 
         # Auto-importación en arranque: canales, contactos y configuración del hardware Heltec
         await self._auto_bootstrap_heltec_state()
@@ -970,6 +998,8 @@ class MeshCoreBridge:
             try:
                 async with asyncio.timeout(budget):
                     await coro
+                    if subsystem_name == "web_server" and hasattr(self, "capabilities"):
+                        self.capabilities.web.mark_stopped()
             except TimeoutError:
                 logging.warning(f"Timeout (budget {budget:.2f}s) al detener subsistema '{subsystem_name}'.")
             except Exception as e:

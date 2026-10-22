@@ -223,7 +223,7 @@ class DiagnosticManager:
 
         mqtt_healthy = is_mqtt_conn if local_mqtt_enabled else True
 
-        return {
+        snapshot: dict[str, Any] = {
             "status": "healthy" if serial_status["connected"] and mqtt_healthy else "degraded",
             "timestamp": time.time(),
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
@@ -259,6 +259,9 @@ class DiagnosticManager:
             if self.log_handler.last_error_time
             else None,
         }
+        if hasattr(self.bridge, "capabilities"):
+            snapshot["capabilities"] = self.bridge.capabilities.to_dict()
+        return snapshot
 
     def generate_full_diagnostic_bundle(self) -> dict[str, Any]:
         """Genera un paquete de diagnóstico integral listo para exportar en JSON."""

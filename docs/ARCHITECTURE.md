@@ -156,6 +156,13 @@ Conforme a las fases F1 y F3.1 del plan de evolución (`nuevo.md`, [ADR 0020](ad
    - El estado de canales (`channels`) y configuración de estación (`stationConfig`) se centralizan en el almacén reactivo `store` (`src/web/static/js/core/store.js`).
    - Se desacopla `ChatModule` de `SettingsModule`: la vista de chat ya no depende de que el módulo de ajustes haya cargado previamente la lista de canales para renderizar la barra lateral ni para compartir canales.
    - Sincronización en vivo mediante eventos WebSocket desacoplados: `meshcore:channels_updated` y `meshcore:config_updated`.
+8. **Registro de Capacidades y Opcionalidad en Runtime (Fase F4 / [ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md))**:
+   - `CapabilityRegistry` (`src/application/capabilities.py`) gestiona un modelo de ciclo de vida en 5 niveles (`installed`, `configured`, `instantiated`, `started`, `operational`) para cada capacidad de la estación (`core`, `web`, `companion`, `mqtt_local`, `mqtt_external`).
+   - Diferencia la liveness del proceso (estación viva y comunicando por radio) de la readiness de subsistemas opcionales. La ausencia o deshabilitación de Web o MQTT no marca la estación como degradada.
+   - `StableMqttPort` actúa como fachada perenne para publicación segura y tópicos dinámicos, eliminando la invalidación de referencias internas durante el hot-reload de `ServicesManager`.
+   - Soporte headless nativo: el bridge detecta la ausencia de dependencias web sin lanzar excepciones no controladas.
+   - Perfiles explícitos de instalación en `pyproject.toml` (`core`, `web`, `mqtt`, `all`, `dev`).
+   - Endpoint de introspección `GET /api/capabilities`.
 
 ## 2. Modelo Canónico de Arquitectura en 5 Capas
 

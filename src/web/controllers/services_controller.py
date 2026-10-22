@@ -106,7 +106,19 @@ class ServicesController(BaseController):
             data["external_mqtt_connected"] = bool(getattr(mgr.external_mqtt, "is_connected", False))
         else:
             data["external_mqtt_connected"] = False
+        caps = getattr(self.ctx.bridge, "capabilities", None)
+        if caps is not None:
+            data["capabilities"] = caps.to_dict()
         return 200, {"status": "ok", "data": data}
+
+    async def get_capabilities(self) -> tuple[int, dict[str, Any]]:
+        """Devuelve el inventario dinámico de capacidades de runtime y su estado de opcionalidad."""
+        caps = getattr(self.ctx.bridge, "capabilities", None)
+        if caps is not None:
+            return 200, {"status": "ok", "data": caps.to_dict()}
+        from src.capabilities import CapabilityRegistry
+        fallback = CapabilityRegistry(web_enabled=True)
+        return 200, {"status": "ok", "data": fallback.to_dict()}
 
     def _companion_connection(self, cfg: ServicesConfig) -> dict[str, str | bool]:
         adapter = getattr(self.ctx.bridge, "serial_adapter", None)

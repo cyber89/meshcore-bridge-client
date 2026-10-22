@@ -22,8 +22,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Retain the web extra for existing installation commands; ASGI is production.
+# Granular profiles for optional runtime components
+core = []
+mqtt = [
+    "paho-mqtt==2.1.0",
+]
 web = [
+    "fastapi==0.143.0",
+    "uvicorn==0.54.0",
+    "pydantic==2.14.1",
+    "websockets==17.3",
+    "starlette==1.7.0",
+    "h11==0.16.0",
+]
+all = [
+    "paho-mqtt==2.1.0",
     "fastapi==0.143.0",
     "uvicorn==0.54.0",
     "pydantic==2.14.1",
