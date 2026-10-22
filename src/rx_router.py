@@ -59,6 +59,9 @@ _SENDER_PREFIX_RE = re.compile(
     r"^(?:\[([a-zA-Z0-9_\-\.]{2,32})\]|<([a-zA-Z0-9_\-\.]{2,32})>|([a-zA-Z0-9_\-\.]{2,32})):\s*(.*)$",
     re.DOTALL,
 )
+_TIMESTAMP_PREFIX_RE = re.compile(r"^\d{1,2}:\d{2}(?::\d{2})?")
+_PROMPT_PREFIX_RE = re.compile(r"^(?:->|- >|>)\s*")
+_TAGGED_CLI_RE = re.compile(r"^[0-9a-fA-F]{2}\|")
 
 
 def _get_coord(d: dict[str, Any], keys: tuple[str, ...], *, latitude: bool = False) -> float | None:
@@ -98,7 +101,7 @@ def extract_sender_from_text(text: str) -> tuple[str | None, str]:
     if not text or not isinstance(text, str):
         return None, text
     stripped = text.strip()
-    if re.match(r"^\d{1,2}:\d{2}(?::\d{2})?", stripped):
+    if _TIMESTAMP_PREFIX_RE.match(stripped):
         return None, text
     m = _SENDER_PREFIX_RE.match(stripped)
     if m:
@@ -157,7 +160,7 @@ def is_command_or_system_message(text: str, txt_type: int = 0) -> bool:
     # Normalizar si contiene prefijos de prompt como "-> ", "- > ", "> "
     has_prompt = clean_lower.startswith(("->", "- >", ">"))
     if has_prompt:
-        clean_lower = re.sub(r"^(?:->|- >|>)\s*", "", clean_lower)
+        clean_lower = _PROMPT_PREFIX_RE.sub("", clean_lower)
 
     if clean_lower.startswith(_SYSTEM_PREFIXES):
         return True
@@ -1052,7 +1055,7 @@ class RxEventRouter:
         if await self._is_deduplicated_mesh_msg(msg):
             return None
 
-        tagged_cli = bool(re.match(r"^[0-9a-fA-F]{2}\|", msg.text))
+        tagged_cli = bool(_TAGGED_CLI_RE.match(msg.text))
         # Scalar CLI replies need their request context; a password or latitude
         # must never become battery telemetry through the generic text parser.
         extracted_telem = {} if tagged_cli or msg.txt_type == 1 else self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)

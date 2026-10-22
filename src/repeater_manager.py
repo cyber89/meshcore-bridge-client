@@ -26,6 +26,48 @@ from src.shared_utils import (
 )
 from src.station_database import StationDatabase
 
+# Pre-compiled regular expressions for high-frequency telemetry response parsing
+_RE_BATTERY_1 = re.compile(r'(?:battery|batt|bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', re.IGNORECASE)
+_RE_BATTERY_2 = re.compile(r'(?:^|>)\s*(\d{3,4})\s*(?:mv)?(?:\s*\((?:(\d+)\s*%)?\))?$', re.IGNORECASE)
+_RE_BATTERY_3 = re.compile(r'(?:^|>)\s*([34]\.\d{1,3})\s*(?:v)?$', re.IGNORECASE)
+_RE_BATTERY_4 = re.compile(r'(?:^|>)\s*(\d{1,2}|100)\s*%$', re.IGNORECASE)
+_RE_VOLTAGE = re.compile(r'(?:voltage|volt|vbat|v_bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v)?', re.IGNORECASE)
+_RE_SOLAR = re.compile(r'(?:solar(?:_v)?|vin|v_in|vsolar|input(?:_v)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*v?', re.IGNORECASE)
+_RE_RADIO_LINE = re.compile(r'(?:^|>)\s*(\d{3,4}(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+)\s*,\s*(\d+)')
+_RE_FREQ = re.compile(r'(?:freq(?:uency)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mhz)?', re.IGNORECASE)
+_RE_POWER_1 = re.compile(r'(?:tx_?power|power)\s*[:=]?\s*(\d+)\s*(?:dbm)?', re.IGNORECASE)
+_RE_POWER_2 = re.compile(r'(?:^|[\s,;])tx\s*[:=]?\s*(\d+)\s*dbm', re.IGNORECASE)
+_RE_POWER_3 = re.compile(r'(?:params|radio|config)?:.*?\btx\s*[:=]?\s*(\d{1,2})\b', re.IGNORECASE)
+_RE_SF = re.compile(r'(?:spreading_?factor|sf)\s*[:=]?\s*(\d+)', re.IGNORECASE)
+_RE_BW = re.compile(r'(?:bandwidth|bw)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:khz)?', re.IGNORECASE)
+_RE_CR = re.compile(r'(?:coding_?rate|cr)\s*[:=]?\s*([0-9/]+)', re.IGNORECASE)
+_RE_REPEAT = re.compile(r'(?:repeat(?:er)?|repeating|mode|routing)\s*[:=]?\s*(on|off|true|false|1|0|enabled|disabled|activa(?:do)?|desactiva(?:do)?)', re.IGNORECASE)
+_RE_HOPS = re.compile(r'(?:hop_?limit|max_?hops|default_?hops?)\s*[:=]?\s*(\d+)', re.IGNORECASE)
+_RE_CLOCK_1 = re.compile(r'(?:clock|rtc|time)(?:\s*set)?\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)', re.IGNORECASE)
+_RE_CLOCK_2 = re.compile(r'(?:^|>)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})?(?:\s*(?:UTC|[ap]m))?)', re.IGNORECASE)
+_RE_CLOCK_3 = re.compile(r'(?:^|>)\s*([0-9\-:\s\/]+UTC)', re.IGNORECASE)
+_RE_DUTY_1 = re.compile(r'(?:duty(?:cycle)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%', re.IGNORECASE)
+_RE_DUTY_2 = re.compile(r'(?:^|>)\s*(\d+(?:\.\d+)?)\s*%')
+_RE_UPTIME = re.compile(r'\b(?:uptime\s*[:=]?\s*|up\s*[:=]\s*)(\d+[0-9a-zA-Z\s:]*?)(?:,|$|\n)', re.IGNORECASE)
+_RE_AIRTIME = re.compile(r'(?:total\s+)?airtime\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(ms|s)?', re.IGNORECASE)
+_RE_NOISE = re.compile(r'(?:noise(?:\s*floor)?|noisefloor|floor)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?', re.IGNORECASE)
+_RE_RSSI = re.compile(r'(?:last\s+)?rssi\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?', re.IGNORECASE)
+_RE_SNR = re.compile(r'(?:last\s+)?snr\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:db)?', re.IGNORECASE)
+_RE_TEMP = re.compile(r'(?:temp(?:erature)?(?:_c)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?c)?', re.IGNORECASE)
+_RE_HUM = re.compile(r'(?:hum(?:idity)?(?:_pct)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:%)?', re.IGNORECASE)
+_RE_PRESS = re.compile(r'(?:press(?:ure)?(?:_hpa)?|baro(?:meter)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:hpa)?', re.IGNORECASE)
+_RE_PKT_BLOCK = re.compile(r'packets:\s*rx=(\d+),\s*tx=(\d+)(?:,\s*routed=(\d+))?(?:,\s*(?:drop|err|errors?)=(\d+))?', re.IGNORECASE)
+_RE_PKT_SENT = re.compile(r'(?:packets?\s+sent|tx\s+packets?|sent\s+packets?|nb_sent)\s*[:=]?\s*(\d+)', re.IGNORECASE)
+_RE_PKT_RECV = re.compile(r'(?:packets?\s+rec(?:ei)?ved|rx\s+packets?|rec(?:ei)?ved\s+packets?|nb_recv)\s*[:=]?\s*(\d+)', re.IGNORECASE)
+_RE_LAT = re.compile(r'lat(?:itude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)', re.IGNORECASE)
+_RE_LON = re.compile(r'lon(?:gitude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)', re.IGNORECASE)
+_RE_ALT = re.compile(r'alt(?:itude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*m?', re.IGNORECASE)
+_RE_FIXED = re.compile(r'fixed(?:\s*pos(?:ition)?)?\s*[:=]?\s*(on|off|1|0|true|false)', re.IGNORECASE)
+_RE_OWNER = re.compile(r'owner(?:\.name)?\s*[:=]?\s*([^\n\r,]+)', re.IGNORECASE)
+_RE_OWNER_INFO = re.compile(r'owner(?:\.info)?\s*[:=]?\s*([^\n\r]+)', re.IGNORECASE)
+_RE_VER = re.compile(r'(?:ver|version|firmware)\s*[:=]?\s*([^\n\r]+)', re.IGNORECASE)
+_RE_BOARD = re.compile(r'board\s*[:=]?\s*([^\n\r]+)', re.IGNORECASE)
+
 
 class RepeaterManager:
     """Administrador de comandos remotos a repetidores y analizador de telemetría."""
@@ -1016,13 +1058,13 @@ class RepeaterManager:
 
     def _parse_battery_and_voltage(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae porcentaje de batería, voltaje y lecturas solares de respuestas CLI."""
-        bat_m = re.search(r'(?:battery|batt|bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', text, re.IGNORECASE)
+        bat_m = _RE_BATTERY_1.search(text)
         if not bat_m:
-            bat_m = re.search(r'(?:^|>)\s*(\d{3,4})\s*(?:mv)?(?:\s*\((?:(\d+)\s*%)?\))?$', text, re.IGNORECASE)
+            bat_m = _RE_BATTERY_2.search(text)
         if not bat_m:
-            bat_m = re.search(r'(?:^|>)\s*([34]\.\d{1,3})\s*(?:v)?$', text, re.IGNORECASE)
+            bat_m = _RE_BATTERY_3.search(text)
         if not bat_m:
-            bat_m = re.search(r'(?:^|>)\s*(\d{1,2}|100)\s*%$', text, re.IGNORECASE)
+            bat_m = _RE_BATTERY_4.search(text)
 
         if bat_m:
             raw_val_str = bat_m.group(1)
@@ -1049,7 +1091,7 @@ class RepeaterManager:
                 pass
 
         if "voltage_v" not in extracted:
-            volt_m = re.search(r'(?:voltage|volt|vbat|v_bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v)?', text, re.IGNORECASE)
+            volt_m = _RE_VOLTAGE.search(text)
             if volt_m:
                 try:
                     v_num = float(volt_m.group(1))
@@ -1060,7 +1102,7 @@ class RepeaterManager:
                 except Exception:
                     pass
 
-        solar_m = re.search(r'(?:solar(?:_v)?|vin|v_in|vsolar|input(?:_v)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*v?', text, re.IGNORECASE)
+        solar_m = _RE_SOLAR.search(text)
         if solar_m:
             try:
                 extracted["solar_v"] = round(float(solar_m.group(1)), 2)
@@ -1069,7 +1111,7 @@ class RepeaterManager:
 
     def _parse_radio_parameters(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae parámetros de módem RF LoRa (frecuencia, potencia, SF, BW, CR)."""
-        radio_line_m = re.search(r'(?:^|>)\s*(\d{3,4}(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+)\s*,\s*(\d+)', text)
+        radio_line_m = _RE_RADIO_LINE.search(text)
         if radio_line_m:
             try:
                 extracted["frequency"] = round(float(radio_line_m.group(1)), 3)
@@ -1080,18 +1122,18 @@ class RepeaterManager:
             except Exception:
                 pass
 
-        freq_m = re.search(r'(?:freq(?:uency)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mhz)?', text, re.IGNORECASE)
+        freq_m = _RE_FREQ.search(text)
         if freq_m:
             try:
                 extracted["frequency"] = round(float(freq_m.group(1)), 3)
             except Exception:
                 pass
 
-        power_m = re.search(r'(?:tx_?power|power)\s*[:=]?\s*(\d+)\s*(?:dbm)?', text, re.IGNORECASE)
+        power_m = _RE_POWER_1.search(text)
         if not power_m:
-            power_m = re.search(r'(?:^|[\s,;])tx\s*[:=]?\s*(\d+)\s*dbm', text, re.IGNORECASE)
+            power_m = _RE_POWER_2.search(text)
         if not power_m:
-            power_m = re.search(r'(?:params|radio|config)?:.*?\btx\s*[:=]?\s*(\d{1,2})\b', text, re.IGNORECASE)
+            power_m = _RE_POWER_3.search(text)
         if power_m:
             try:
                 p_val = int(power_m.group(1))
@@ -1100,29 +1142,29 @@ class RepeaterManager:
             except Exception:
                 pass
 
-        sf_m = re.search(r'(?:spreading_?factor|sf)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        sf_m = _RE_SF.search(text)
         if sf_m:
             try:
                 extracted["spreading_factor"] = int(sf_m.group(1))
             except Exception:
                 pass
 
-        bw_m = re.search(r'(?:bandwidth|bw)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:khz)?', text, re.IGNORECASE)
+        bw_m = _RE_BW.search(text)
         if bw_m:
             try:
                 extracted["bandwidth"] = float(bw_m.group(1))
             except Exception:
                 pass
 
-        cr_m = re.search(r'(?:coding_?rate|cr)\s*[:=]?\s*([0-9/]+)', text, re.IGNORECASE)
+        cr_m = _RE_CR.search(text)
         if cr_m:
             extracted["coding_rate"] = cr_m.group(1).strip()
 
-        repeat_m = re.search(r'(?:repeat(?:er)?|repeating|mode|routing)\s*[:=]?\s*(on|off|true|false|1|0|enabled|disabled|activa(?:do)?|desactiva(?:do)?)', text, re.IGNORECASE)
+        repeat_m = _RE_REPEAT.search(text)
         if repeat_m:
             extracted["repeat_enabled"] = repeat_m.group(1).lower() in ("on", "true", "1", "enabled", "activado", "active")
 
-        hops_m = re.search(r'(?:hop_?limit|max_?hops|default_?hops?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        hops_m = _RE_HOPS.search(text)
         if hops_m:
             try:
                 extracted["hop_limit"] = int(hops_m.group(1))
@@ -1131,70 +1173,70 @@ class RepeaterManager:
 
     def _parse_system_metrics(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae uptime, ruido base, airtime, paquetes transmitidos y métricas de enlace."""
-        clock_m = re.search(r'(?:clock|rtc|time)(?:\s*set)?\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)', text, re.IGNORECASE)
+        clock_m = _RE_CLOCK_1.search(text)
         if not clock_m or not clock_m.group(1).strip():
-            clock_m = re.search(r'(?:^|>)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})?(?:\s*(?:UTC|[ap]m))?)', text, re.IGNORECASE)
+            clock_m = _RE_CLOCK_2.search(text)
         if not clock_m or not clock_m.group(1).strip():
-            clock_m = re.search(r'(?:^|>)\s*([0-9\-:\s\/]+UTC)', text, re.IGNORECASE)
+            clock_m = _RE_CLOCK_3.search(text)
         if clock_m and clock_m.group(1).strip():
             extracted["clock"] = clock_m.group(1).strip()
 
-        duty_m = re.search(r'(?:duty(?:cycle)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%', text, re.IGNORECASE)
+        duty_m = _RE_DUTY_1.search(text)
         if not duty_m:
-            duty_m = re.search(r'(?:^|>)\s*(\d+(?:\.\d+)?)\s*%', text)
+            duty_m = _RE_DUTY_2.search(text)
         if duty_m:
             clean_dc = clean_numeric_value(duty_m.group(1))
             if clean_dc is not None:
                 extracted["duty_cycle_pct"] = float(clean_dc)
 
-        uptime_m = re.search(r'\b(?:uptime\s*[:=]?\s*|up\s*[:=]\s*)(\d+[0-9a-zA-Z\s:]*?)(?:,|$|\n)', text, re.IGNORECASE)
+        uptime_m = _RE_UPTIME.search(text)
         if uptime_m:
             extracted["uptime"] = uptime_m.group(1).strip()
 
-        airtime_m = re.search(r'(?:total\s+)?airtime\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(ms|s)?', text, re.IGNORECASE)
+        airtime_m = _RE_AIRTIME.search(text)
         if airtime_m:
             clean_at = clean_numeric_value(airtime_m.group(1))
             if clean_at is not None:
                 unit = (airtime_m.group(2) or "ms").lower()
                 extracted["airtime_ms"] = int(clean_at * 1000) if unit == "s" else int(clean_at)
 
-        noise_m = re.search(r'(?:noise(?:\s*floor)?|noisefloor|floor)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?', text, re.IGNORECASE)
+        noise_m = _RE_NOISE.search(text)
         if noise_m:
             clean_n = clean_numeric_value(noise_m.group(1))
             if clean_n is not None:
                 extracted["noise_floor_dbm"] = int(round(clean_n))
 
-        rssi_m = re.search(r'(?:last\s+)?rssi\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?', text, re.IGNORECASE)
+        rssi_m = _RE_RSSI.search(text)
         if rssi_m:
             clean_rssi = clean_numeric_value(rssi_m.group(1))
             if clean_rssi is not None:
                 extracted["last_rssi"] = int(round(clean_rssi))
 
-        snr_m = re.search(r'(?:last\s+)?snr\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:db)?', text, re.IGNORECASE)
+        snr_m = _RE_SNR.search(text)
         if snr_m:
             clean_snr = clean_numeric_value(snr_m.group(1))
             if clean_snr is not None:
                 extracted["last_snr"] = round(clean_snr, 1)
 
-        temp_m = re.search(r'(?:temp(?:erature)?(?:_c)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?c)?', text, re.IGNORECASE)
+        temp_m = _RE_TEMP.search(text)
         if temp_m:
             clean_t = clean_numeric_value(temp_m.group(1))
             if clean_t is not None:
                 extracted["temperature_c"] = round(clean_t, 1)
 
-        hum_m = re.search(r'(?:hum(?:idity)?(?:_pct)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:%)?', text, re.IGNORECASE)
+        hum_m = _RE_HUM.search(text)
         if hum_m:
             clean_h = clean_numeric_value(hum_m.group(1))
             if clean_h is not None:
                 extracted["humidity_pct"] = round(clean_h, 1)
 
-        press_m = re.search(r'(?:press(?:ure)?(?:_hpa)?|baro(?:meter)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:hpa)?', text, re.IGNORECASE)
+        press_m = _RE_PRESS.search(text)
         if press_m:
             clean_p = clean_numeric_value(press_m.group(1))
             if clean_p is not None:
                 extracted["pressure_hpa"] = round(clean_p, 1)
 
-        pkt_block = re.search(r'packets:\s*rx=(\d+),\s*tx=(\d+)(?:,\s*routed=(\d+))?(?:,\s*(?:drop|err|errors?)=(\d+))?', text, re.IGNORECASE)
+        pkt_block = _RE_PKT_BLOCK.search(text)
         if pkt_block:
             clean_rx = clean_numeric_value(pkt_block.group(1))
             clean_tx = clean_numeric_value(pkt_block.group(2))
@@ -1208,14 +1250,14 @@ class RepeaterManager:
                     extracted["packet_errors"] = int(clean_err)
 
         if "packets_sent" not in extracted:
-            sent_m = re.search(r'(?:packets?\s+sent|tx\s+packets?|sent\s+packets?|nb_sent)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+            sent_m = _RE_PKT_SENT.search(text)
             if sent_m:
                 clean_s = clean_numeric_value(sent_m.group(1))
                 if clean_s is not None:
                     extracted["packets_sent"] = int(clean_s)
 
         if "packets_recv" not in extracted:
-            recv_m = re.search(r'(?:packets?\s+rec(?:ei)?ved|rx\s+packets?|rec(?:ei)?ved\s+packets?|nb_recv)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+            recv_m = _RE_PKT_RECV.search(text)
             if recv_m:
                 clean_r = clean_numeric_value(recv_m.group(1))
                 if clean_r is not None:
@@ -1223,40 +1265,40 @@ class RepeaterManager:
 
     def _parse_owner_and_location(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae coordenadas GPS, propietario e información de versión del firmware."""
-        lat_m = re.search(r'lat(?:itude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)', text, re.IGNORECASE)
+        lat_m = _RE_LAT.search(text)
         if lat_m:
             clean_lat = clean_numeric_value(lat_m.group(1))
             if clean_lat is not None:
                 extracted["latitude"] = round(clean_lat, 5)
 
-        lon_m = re.search(r'lon(?:gitude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)', text, re.IGNORECASE)
+        lon_m = _RE_LON.search(text)
         if lon_m:
             clean_lon = clean_numeric_value(lon_m.group(1))
             if clean_lon is not None:
                 extracted["longitude"] = round(clean_lon, 5)
 
-        alt_m = re.search(r'alt(?:itude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*m?', text, re.IGNORECASE)
+        alt_m = _RE_ALT.search(text)
         if alt_m:
             clean_alt = clean_numeric_value(alt_m.group(1))
             if clean_alt is not None:
                 extracted["altitude_m"] = round(clean_alt, 1)
 
-        fixed_m = re.search(r'fixed(?:\s*pos(?:ition)?)?\s*[:=]?\s*(on|off|1|0|true|false)', text, re.IGNORECASE)
+        fixed_m = _RE_FIXED.search(text)
         if fixed_m:
             extracted["fixed_position"] = fixed_m.group(1).lower() in ("on", "1", "true")
 
-        owner_m = re.search(r'owner(?:\.name)?\s*[:=]?\s*([^\n\r,]+)', text, re.IGNORECASE)
+        owner_m = _RE_OWNER.search(text)
         if owner_m:
             extracted["owner_name"] = owner_m.group(1).strip()
 
-        owner_info_m = re.search(r'owner(?:\.info)?\s*[:=]?\s*([^\n\r]+)', text, re.IGNORECASE)
+        owner_info_m = _RE_OWNER_INFO.search(text)
         if owner_info_m and not owner_info_m.group(0).lower().startswith("owner.name") and not owner_info_m.group(0).lower().startswith("owner:"):
             extracted["owner_info"] = owner_info_m.group(1).strip()
 
-        ver_m = re.search(r'(?:ver|version|firmware)\s*[:=]?\s*([^\n\r]+)', text, re.IGNORECASE)
+        ver_m = _RE_VER.search(text)
         if ver_m:
             extracted["firmware_version"] = ver_m.group(1).strip()
 
-        board_m = re.search(r'board\s*[:=]?\s*([^\n\r]+)', text, re.IGNORECASE)
+        board_m = _RE_BOARD.search(text)
         if board_m:
             extracted["hardware_board"] = board_m.group(1).strip()
