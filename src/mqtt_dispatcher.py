@@ -15,6 +15,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 import config
+from src.application.command_policy import CommandLedgerPolicy, CommandStatus
+from src.integrations.mqtt.topics import MqttTopics
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.rate_limiter import TxPriority, TxRateLimiter
 
@@ -28,6 +30,7 @@ class MqttInboundContext:
     rate_limiter: TxRateLimiter
     handle_admin: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
     register_task: Callable[[asyncio.Task[Any]], asyncio.Task[Any]] | None = None
+    database: Any | None = None
 
 
 class MqttInboundDispatcher:
@@ -40,6 +43,8 @@ class MqttInboundDispatcher:
         self._scheduled_handles: dict[object, asyncio.Handle] = {}
         self._inbound_tasks: dict[asyncio.Task[Any], object] = {}
         self._closed = False
+        db = getattr(ctx, "database", None)
+        self.command_policy = CommandLedgerPolicy(database=db)
 
     def start(self) -> None:
         with self._admission_lock:
@@ -136,38 +141,35 @@ class MqttInboundDispatcher:
             logging.error("No se pudo programar procesamiento MQTT")
 
     @property
+    def topics(self) -> MqttTopics:
+        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topics"):
+            return self._ctx.mqtt.topics
+        prefix = getattr(self._ctx.mqtt, "topic_prefix", getattr(config, "TOPIC_PREFIX", "meshcore"))
+        return MqttTopics.from_prefix(prefix)
+
+    @property
     def topic_tx_status(self) -> str:
-        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topic_tx_status"):
-            return str(self._ctx.mqtt.topic_tx_status)
-        return getattr(config, "TOPIC_TX_STATUS", "meshcore/tx/status")
+        return self.topics.tx_status
 
     @property
     def topic_admin_stat(self) -> str:
-        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topic_admin_stat"):
-            return str(self._ctx.mqtt.topic_admin_stat)
-        return getattr(config, "TOPIC_ADMIN_STAT", "meshcore/admin/status")
+        return self.topics.admin_status
 
     @property
     def topic_admin_repeater(self) -> str:
-        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topic_admin_repeater"):
-            return str(self._ctx.mqtt.topic_admin_repeater).rstrip("/")
-        prefix = getattr(self._ctx.mqtt, "topic_prefix", config.TOPIC_PREFIX)
-        return f"{prefix}/admin/repeater"
+        return self.topics.admin_repeater
 
     async def _process_mqtt_input(self, topic: str, payload_str: str) -> None:
         """Clasifica el tópico entrante y delega en el manejador correspondiente."""
         try:
-            repeater_base = self.topic_admin_repeater
-            tx_topic = getattr(self._ctx.mqtt, "topic_tx", None) if self._ctx.mqtt else None
-            admin_topic = getattr(self._ctx.mqtt, "topic_admin_cmd", None) if self._ctx.mqtt else None
-            is_tx = (
-                (tx_topic is not None and topic == tx_topic)
-                or topic.endswith("/tx")
-                or topic.endswith("/send")
-            )
+            tx_topic = self.topics.tx
+            admin_topic = self.topics.admin_cmd
+            repeater_base = self.topics.admin_repeater
+
+            is_tx = (topic == tx_topic) or topic.endswith("/tx") or topic.endswith("/send")
             if is_tx:
                 await self._handle_tx_request(payload_str)
-            elif admin_topic is not None and topic == admin_topic:
+            elif topic == admin_topic:
                 await self._handle_admin_request(payload_str)
             elif topic.startswith(repeater_base + "/"):
                 relative = topic[len(repeater_base) + 1:].split("/")
@@ -213,7 +215,7 @@ class MqttInboundDispatcher:
                 if isinstance(raw_ch, bool) or not isinstance(raw_ch, (str, int, type(None))):
                     raise ValueError("El canal debe ser un entero")
                 channel_idx = int(raw_ch) if raw_ch is not None else 0
-                req_id = data.get("request_id", data.get("id"))
+                req_id = data.get("command_id", data.get("request_id", data.get("id")))
                 prio_val = data.get("priority", 1)
                 priority = TxPriority(prio_val) if prio_val in (0, 1, 2) else TxPriority.NORMAL
             elif isinstance(data, str):
@@ -229,10 +231,47 @@ class MqttInboundDispatcher:
         if not text:
             return
 
+        # Idempotency check via CommandLedgerPolicy
+        reservation = self.command_policy.reserve(
+            integration_scope="mqtt",
+            command_id=str(req_id) if req_id else None,
+            action_type="tx",
+            semantic_payload={
+                "text": text,
+                "target": str(target) if target else None,
+                "channel_idx": channel_idx,
+                "priority": priority.value,
+            },
+        )
+        if not reservation.admitted:
+            if reservation.status == CommandStatus.CONFLICT:
+                status_payload = {
+                    "status": "conflict",
+                    "error": reservation.error_message or "Command ID conflict with different payload",
+                    "request_id": req_id,
+                    "target": target,
+                    "channel_idx": channel_idx,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+                self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
+                return
+            else:
+                status_payload = reservation.existing_result or {
+                    "status": reservation.status.value,
+                    "request_id": req_id,
+                    "target": target,
+                    "channel_idx": channel_idx,
+                    "deduplicated": True,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+                self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
+                return
+
         logging.info(
             f"[MQTT-TX-IN] Solicitud TX recibida vía MQTT: '{text[:50]}' -> Destino: {target or 'broadcast'} (Canal #{channel_idx})"
         )
 
+        self.command_policy.mark_dispatching("mqtt", str(req_id) if req_id else None)
         future = await self._ctx.rate_limiter.submit(
             payload=text,
             priority=priority,
@@ -260,18 +299,22 @@ class MqttInboundDispatcher:
                 status_payload["delivery_tracking"] = res["delivery_tracking"]
             if "message" in res and "error" not in status_payload:
                 status_payload["message"] = res["message"]
+
+            outcome = CommandStatus.COMPLETED if res.get("status") in ("sent", "delivered") else CommandStatus.FAILED
+            self.command_policy.record_result("mqtt", str(req_id) if req_id else None, outcome, status_payload)
             self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
 
         except TimeoutError:
             logging.error("TX future timeout, activating diagnostic alert")
             status_payload = {
-                "status": "error",
-                "error": "TX future timeout",
+                "status": "uncertain",
+                "error": "TX future timeout (dispatch outcome uncertain)",
                 "request_id": req_id,
                 "target": target,
                 "channel_idx": channel_idx,
                 "timestamp": datetime.now(UTC).isoformat(),
             }
+            self.command_policy.record_result("mqtt", str(req_id) if req_id else None, CommandStatus.UNCERTAIN, status_payload)
             self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
         except Exception as e:
             logging.error(f"TX execution error: {e}", exc_info=True)
@@ -283,6 +326,7 @@ class MqttInboundDispatcher:
                 "channel_idx": channel_idx,
                 "timestamp": datetime.now(UTC).isoformat(),
             }
+            self.command_policy.record_result("mqtt", str(req_id) if req_id else None, CommandStatus.FAILED, status_payload)
             self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
 
     def _reject_tx_input(self, error: str) -> None:
@@ -299,10 +343,33 @@ class MqttInboundDispatcher:
             data = payload_str
         command = dict(data) if isinstance(data, dict) else {"action": str(data)}
         command.setdefault("action", command.get("command", ""))
+        action = str(command.get("action", "")).strip()
+        cmd_id = command.get("command_id", command.get("request_id", command.get("id")))
+
+        if cmd_id:
+            reservation = self.command_policy.reserve(
+                integration_scope="mqtt_admin",
+                command_id=str(cmd_id),
+                action_type=f"admin_{action}",
+                semantic_payload=command,
+            )
+            if not reservation.admitted:
+                if reservation.status == CommandStatus.CONFLICT:
+                    err_res = {"status": "error", "error": reservation.error_message or "Conflict", "command_id": cmd_id}
+                    self._ctx.mqtt.publish_safe(self.topic_admin_stat, json.dumps(err_res), qos=1)
+                    return
+                elif reservation.existing_result:
+                    self._ctx.mqtt.publish_safe(self.topic_admin_stat, json.dumps(reservation.existing_result), qos=1)
+                    return
+
+            self.command_policy.mark_dispatching("mqtt_admin", str(cmd_id))
+
         logging.info("[MQTT-ADMIN-IN] Solicitud de administración recibida")
         res = await self._ctx.handle_admin(command)
         if isinstance(res, dict):
-            action = str(command.get("action", "")).strip()
+            if cmd_id:
+                admin_outcome = CommandStatus.COMPLETED if res.get("status") != "error" else CommandStatus.FAILED
+                self.command_policy.record_result("mqtt_admin", str(cmd_id), admin_outcome, res)
             if action in (
                 "get_custom_vars",
                 "set_custom_vars",

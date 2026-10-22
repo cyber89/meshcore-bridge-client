@@ -54,7 +54,19 @@ Administración local usa `meshcore/admin/cmd`, con `action` y parámetros. Para
 }
 ```
 
-El bridge publica resultados TX en `meshcore/tx/status` y resultados administrativos en sus tópicos de estado. `sent` no equivale a entrega universal a receptores. Las credenciales MQTT y permisos de publicación dependen del broker; la API key HTTP del bridge no protege MQTT.
+El bridge publica resultados TX en `meshcore/tx/status` y resultados administrativos en sus tópicos de estado. `sent` no equivale a entrega universal a receptores.
+
+### Idempotencia, `command_id` y Reglas de Seguridad (ADR 0021)
+
+1. **Idempotencia con `command_id`**:
+   Para transmisiones salientes hacia `meshcore/tx`, el payload admite un identificador único `command_id` (o `request_id` / `id`). Cuando se incluye este campo, el bridge registra la orden en un ledger transaccional en SQLite:
+   - Si n8n o un cliente reintenta la misma orden con idéntico payload, el bridge devuelve el resultado previo sin retransmitir por RF.
+   - Si se detecta el mismo `command_id` con contenido diferente, el bridge rechaza la operación con estado `conflict`.
+   - Las órdenes sin `command_id` se aceptan en modo legado (sin deduplicación garantizada) emitiendo una advertencia en los logs.
+2. **Rechazo de Mensajes Retenidos (`retain=True`)**:
+   El bridge descarta automáticamente cualquier mensaje publicado con el flag `retain=True` en tópicos de transmisión o administración (`/tx`, `/send`, `/admin/*`). Esto evita ráfagas involuntarias en la malla LoRa tras reinicios o reconexiones de n8n.
+3. **Autenticación en Broker Local / LAN**:
+   El broker Mosquitto gestionado por `install.sh` opera con autenticación obligatoria (`allow_anonymous false`). Para conectar n8n desde la LAN, configure en las credenciales MQTT de n8n el usuario `meshcore_client` y la contraseña generada durante la instalación.
 
 ## 3. Comportamiento de los handlers
 

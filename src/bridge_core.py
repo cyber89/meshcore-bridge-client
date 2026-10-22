@@ -19,6 +19,7 @@ from typing import Any, Protocol, Self, cast
 
 import config
 from src.admin_handler import AdminCommandHandler, AdminContext
+from src.application.channels import ChannelService
 from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.deduplicator import PacketDeduplicator
 from src.diagnostics import DiagnosticManager, SystemLogHandler, setup_file_logging
@@ -125,6 +126,11 @@ class MeshCoreBridge:
         self.database = StationDatabase(self.database_path)
         self.database.initialize()
         self.database.read_document("channels", self.channels_storage_path, validator=validate_channels_document)
+        self.channel_service = ChannelService(
+            channels_file=self.channels_storage_path,
+            database=self.database,
+            serial_adapter_provider=lambda: getattr(self, "serial_adapter", None),
+        )
         self.node_registry = NodeRegistry(database=self.database)
         self.node_registry.load_from_file(self.node_storage_path)
         self.repeater_manager = RepeaterManager(storage_path=self.data_dir / "repeater_cooldowns.json", database=self.database)
@@ -515,6 +521,7 @@ class MeshCoreBridge:
                 rate_limiter=self.rate_limiter,
                 handle_admin=self.handle_admin,
                 register_task=self._add_background_task,
+                database=self.database,
             )
         )
 
@@ -884,20 +891,21 @@ class MeshCoreBridge:
         al arrancar el script, garantizando que la Web Station disponga de todos los datos reales.
         """
         logging.info("Iniciando auto-importación inicial de canales, contactos y configuración del nodo Heltec...")
-        # 1. Sincronizar canales configurados en el hardware
-        if hasattr(self.serial_adapter, "get_channels") and self.web_server:
+        # 1. Sincronizar canales configurados en el hardware (ChannelService - F3.1)
+        if hasattr(self.serial_adapter, "get_channels"):
             try:
                 node_channels = await self.serial_adapter.get_channels()
                 if node_channels:
-                    controller = self.web_server.router.channels_ctrl
-                    async with controller._mutation_lock:
-                        if controller._write_task is not None:
-                            await asyncio.shield(controller._write_task)
-                        for ch in node_channels:
-                            idx = int(ch.get("index", 0))
-                            controller.channels[idx] = ch
-                        controller._dirty = True
-                        await controller._save_channels_async()
+                    if hasattr(self, "channel_service") and self.channel_service:
+                        await self.channel_service.sync_from_radio(node_channels)
+                    elif self.web_server:
+                        controller = self.web_server.router.channels_ctrl
+                        async with controller._mutation_lock:
+                            for ch in node_channels:
+                                idx = int(ch.get("index", 0))
+                                controller.channels[idx] = ch
+                            controller._dirty = True
+                            await controller._save_channels_async()
                     logging.info(f"Auto-importados {len(node_channels)} canales desde el transceptor serial.")
             except Exception as e:
                 logging.debug("Error en auto-importación de canales: %s", type(e).__name__)
@@ -1118,7 +1126,12 @@ class MeshCoreBridge:
                 ack_payload["storage_error"] = True
                 logging.error("Radio outcome recorded in memory; chat persistence failed: %s", type(error).__name__, extra={"skip_broadcast": True})
 
-        self.publish_mqtt_safe(config.TOPIC_TX_STATUS, json.dumps(ack_payload), qos=1)
+        status_topic = str(
+            getattr(self.mqtt, "topic_tx_status", None)
+            or (self.mqtt.topics.tx_status if hasattr(self.mqtt, "topics") else None)
+            or getattr(config, "TOPIC_TX_STATUS", "meshcore/tx/status")
+        )
+        self.publish_mqtt_safe(status_topic, json.dumps(ack_payload), qos=1)
         self._record_tx_packet(str(target), ch_idx, text, is_admin_cmd, ack_payload)
 
         if status_val == "sent":
@@ -1320,7 +1333,7 @@ class MeshCoreBridge:
         # 2. Publicar en tópico MQTT de alertas
         if getattr(self, "mqtt", None):
             try:
-                alert_topic = getattr(config, "TOPIC_ALERT", f"{config.TOPIC_PREFIX}/bridge/alert")
+                alert_topic = str(getattr(self.mqtt, "topic_alert", None) or getattr(config, "TOPIC_ALERT", f"{config.TOPIC_PREFIX}/bridge/alert"))
                 self.mqtt.publish_safe(alert_topic, json.dumps(payload), qos=1)
             except Exception as e:
                 logging.debug("Error publicando duty_cycle_alert en MQTT: %s", type(e).__name__)
@@ -1346,7 +1359,7 @@ class MeshCoreBridge:
 
         if getattr(self, "mqtt", None):
             try:
-                alert_topic = getattr(config, "TOPIC_ALERT", f"{config.TOPIC_PREFIX}/bridge/alert")
+                alert_topic = str(getattr(self.mqtt, "topic_alert", None) or getattr(config, "TOPIC_ALERT", f"{config.TOPIC_PREFIX}/bridge/alert"))
                 self.mqtt.publish_safe(alert_topic, json.dumps(payload), qos=1)
             except Exception as e:
                 logging.debug("Error publicando airtime_cutoff_change en MQTT: %s", type(e).__name__)

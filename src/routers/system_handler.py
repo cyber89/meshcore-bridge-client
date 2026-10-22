@@ -161,7 +161,9 @@ class SystemHandler(BaseRxHandler):
             ch_idx = int(payload.get("channel_idx", 0))
             ch_hash = str(payload.get("channel_hash", "--"))
             logging.info(f"[ESTACIÓN LOCAL] Canal #{ch_idx}: {ch_name} (Hash: {ch_hash})")
-            if router_ctx.web_server and hasattr(router_ctx.web_server, "router") and hasattr(router_ctx.web_server.router, "channels"):
+            if hasattr(router_ctx.bridge, "channel_service") and router_ctx.bridge.channel_service:
+                router_ctx.bridge.channel_service.update_from_system_event(ch_idx, ch_name, ch_hash)
+            elif router_ctx.web_server and hasattr(router_ctx.web_server, "router") and hasattr(router_ctx.web_server.router, "channels"):
                 router_ctx.web_server.router.channels[ch_idx] = {
                     "index": ch_idx,
                     "name": ch_name,
@@ -176,9 +178,12 @@ class SystemHandler(BaseRxHandler):
             payload["timestamp"] = now_iso
 
         evt_json = json.dumps(payload, sort_keys=True)
-        router_ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+        topics = getattr(router_ctx.mqtt, "topics", None)
+        topic_all = topics.rx_all if topics else config.TOPIC_RX_ALL
+        topic_log = topics.rx_log if topics else config.TOPIC_RX_LOG
+        router_ctx.mqtt.publish_safe(topic_all, evt_json, qos=0)
         if event_type in ("log_data", "rx_log_data"):
-            router_ctx.mqtt.publish_safe(config.TOPIC_RX_LOG, evt_json, qos=0)
+            router_ctx.mqtt.publish_safe(topic_log, evt_json, qos=0)
 
         if event_type not in ("log_data", "rx_log_data"):
             logging.info(f"[RX-SISTEMA] Evento de red: {event_type.upper()} | Carga: {payload}")

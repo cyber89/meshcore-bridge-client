@@ -124,6 +124,25 @@ Los HTML/SVG y sus recibos conservan la fecha de generación de cada artefacto. 
 > python scripts/build_diagrams.py
 > ```
 
+
+### Servicios de Aplicación y Resiliencia MQTT (2026-10-21)
+
+Conforme a las fases F1 y F3.1 del plan de evolución (`nuevo.md`, [ADR 0020](adr/0020-application-service-boundaries-and-channels.md), [ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)):
+1. **Extracción de `ChannelService` (`src/application/channels.py`)**:
+   - La tabla de canales, los bloqueos de mutación (`asyncio.Lock`), los tombstones de eliminación y la persistencia transaccional en SQLite residen en el servicio de aplicación `ChannelService`.
+   - `MeshCoreBridge` inicializa y posee `ChannelService`, permitiendo el arranque y sincronización de canales desde la radio física en modo headless (`WEB_ENABLED=false`).
+   - `ChannelsController` delega todas las consultas y mutaciones en `ChannelService`, enmascarando las claves secretas (`psk`) para endpoints y vistas públicas.
+2. **Resolvedor Unificado de Tópicos (`src/integrations/mqtt/topics.py`)**:
+   - `MqttTopics` actúa como autoridad central para construir dinámicamente todos los tópicos MQTT a partir del prefijo activo (`TOPIC_PREFIX`).
+   - Se eliminaron las dependencias de constantes globales estáticas en `rx_router`, `bridge_core`, `system_handler` y `admin_handlers`.
+3. **Idempotencia y Ledger Transaccional (`src/application/command_policy.py`)**:
+   - Las órdenes MQTT que contienen `command_id` son registradas atómicamente en la tabla `command_ledger` de SQLite (`StationDatabase`) antes de cruzar la frontera de transmisión RF.
+   - Si se recibe una orden idéntica con el mismo `command_id`, se devuelve el estado previo sin emitir un duplicado por radio LoRa. Solicitudes con el mismo ID pero diferente huella producen conflicto (`conflict`).
+   - Las órdenes sin `command_id` se aceptan en modo legado con advertencia estructurada.
+   - La tabla aplica una poda determinista acotada a 10 000 filas en el momento de la inserción, sin timers en segundo plano.
+4. **Rechazo Estricto de Mensajes Retenidos**:
+   - Los adaptadores MQTT (`MeshCoreMqttClient` y `ExternalMqttClient`) inspeccionan la bandera `retain`. Cualquier mensaje con `retain=True` dirigido a tópicos de acción (`/tx`, `/send`, `/admin/*`) es descartado inmediatamente para prevenir ráfagas involuntarias tras reconexiones.
+
 ## 2. Modelo Canónico de Arquitectura en 5 Capas
 
 El sistema se estructura bajo una arquitectura limpia y desacoplada (*Clean Architecture* / *Ports & Adapters*) complementada con la filosofía de **Deep Modules** (John Ousterhout). Esta distribución organiza el código en cinco capas concéntricas con responsabilidades unívocas e invariantes de dominio:

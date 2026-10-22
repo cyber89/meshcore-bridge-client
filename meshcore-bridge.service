@@ -1,7 +1,6 @@
 [Unit]
 Description=MeshCore Universal Bridge & Web Station v3.0 Service
-After=network.target mosquitto.service
-Wants=mosquitto.service
+After=network.target
 
 [Service]
 Type=simple
@@ -15,7 +14,7 @@ EnvironmentFile=-/opt/meshcore-bridge/.env
 StandardOutput=journal
 StandardError=journal
 
-# La cuenta se crea/renderiza por install.sh; necesita permisos de datos y serie.
+# Service account created by install.sh; requires serial and data permissions.
 NoNewPrivileges=true
 KillMode=control-group
 TimeoutStopSec=20

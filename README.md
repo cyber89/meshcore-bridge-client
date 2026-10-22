@@ -56,7 +56,7 @@ sudo bash install.sh
 
 The installer deploys to `/opt/meshcore-bridge`, creates a Python virtual environment, configures serial access, and registers and starts `meshcore-bridge.service`. It creates `.env` from the template when absent and preserves an existing configuration. A new installation creates the web account `admin:admin` automatically, without credential prompts or a waiting period. Complete the initial sign-in and password change through direct loopback access before accessing the station remotely. An SSH local port forward can provide this access. Updates preserve the existing account.
 
-The initial installation also configures and starts Mosquitto with an anonymous listener on `0.0.0.0:1883`. Choose the broker's bind address, authentication, and firewall rules for your deployment. To configure the bridge before its first connection, use the manual setup below.
+The initial installation also configures and starts Mosquitto on `0.0.0.0:1883` with authentication enabled (`allow_anonymous false`), dedicated service credentials for the bridge, and ACL rules for LAN clients (e.g., n8n). Choose the broker's bind address, authentication, and firewall rules for your deployment. To configure the bridge before its first connection, use the manual setup below.
 
 If your supported interpreter has a custom location, pass it explicitly:
 

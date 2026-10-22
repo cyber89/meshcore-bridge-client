@@ -106,8 +106,17 @@ class AdminCommandHandler:
         """Redact executor responses at the MQTT boundary before publication."""
         if self._ctx.mqtt and hasattr(self._ctx.mqtt, "publish_safe"):
             try:
+                effective_topic = topic
+                if hasattr(self._ctx.mqtt, "topics"):
+                    topics = self._ctx.mqtt.topics
+                    if topic == config.TOPIC_ADMIN_STAT:
+                        effective_topic = topics.admin_status
+                    elif topic.startswith(config.TOPIC_ADMIN_REPEATER):
+                        rel = topic[len(config.TOPIC_ADMIN_REPEATER):]
+                        effective_topic = f"{topics.admin_repeater}{rel}"
+
                 public_payload = json.dumps(redact_sensitive_dict(json.loads(payload)))
-                self._ctx.mqtt.publish_safe(topic, public_payload, qos=qos)
+                self._ctx.mqtt.publish_safe(effective_topic, public_payload, qos=qos)
             except Exception as e:
                 logging.debug(f"Error publicando en MQTT ({topic}): {e}")
 

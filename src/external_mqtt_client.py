@@ -555,6 +555,13 @@ class ExternalBridgeMQTTClient:
         self.total_received += 1
         try:
             topic = str(msg.topic)
+            is_retained = bool(getattr(msg, "retain", False))
+            if is_retained:
+                logger.warning(
+                    "[MQTT-SECURITY] Descartando mensaje retenido (retain=True) en downlink externo: %s",
+                    topic,
+                )
+                return
             raw_payload = getattr(msg, "payload", b"")
             max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024) if config else 128 * 1024
             if isinstance(raw_payload, (bytes, bytearray)) and len(raw_payload) > max_payload_size:

@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _DOCUMENT_NAMES = frozenset({"nodes", "channels", "services", "airtime", "repeater_cooldowns"})
 _MESSAGE_FIELDS = frozenset({
     "sender", "sender_name", "text", "is_outgoing", "channel_idx", "dm_target",
@@ -165,6 +165,18 @@ class StationDatabase:
                     last_sample_timestamp INTEGER,
                     last_push_at REAL)""")
                 connection.execute("CREATE INDEX IF NOT EXISTS sensor_subscriptions_tag ON sensor_subscriptions(push_tag)")
+                connection.execute("""CREATE TABLE IF NOT EXISTS command_ledger (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    station_id TEXT NOT NULL,
+                    integration_scope TEXT NOT NULL,
+                    command_id TEXT NOT NULL,
+                    fingerprint TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    result_payload TEXT,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    UNIQUE (station_id, integration_scope, command_id))""")
+                connection.execute("CREATE INDEX IF NOT EXISTS idx_command_ledger_lookup ON command_ledger (station_id, integration_scope, command_id)")
                 connection.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
                 sub_rows = connection.execute("SELECT * FROM sensor_subscriptions").fetchall()
                 self._sensor_subscriptions_cache = {
@@ -773,3 +785,102 @@ class StationDatabase:
             self._sensor_subscriptions_cache = new_cache
             return result
 
+
+    def get_station_id(self) -> str:
+        """Return the stable station_id stored in database metadata."""
+        with self._connection() as connection:
+            row = connection.execute("SELECT value FROM metadata WHERE key = 'station_id'").fetchone()
+            if row is not None:
+                return str(row[0])
+            station_id = str(uuid.uuid4())
+            connection.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('station_id', ?)", (station_id,))
+            return station_id
+
+    def reserve_command(
+        self,
+        station_id: str,
+        integration_scope: str,
+        command_id: str,
+        fingerprint: str,
+    ) -> tuple[bool, str, dict[str, Any] | None]:
+        """
+        Check and reserve a command in the command ledger.
+        Returns:
+            (admitted, status, prior_result)
+        """
+        sid = str(station_id).strip()
+        scope = str(integration_scope).strip()
+        cid = str(command_id).strip()
+        fp = str(fingerprint).strip()
+        now = time.time()
+
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT status, fingerprint, result_payload FROM command_ledger "
+                "WHERE station_id = ? AND integration_scope = ? AND command_id = ?",
+                (sid, scope, cid),
+            ).fetchone()
+
+            if row is not None:
+                existing_status = str(row["status"])
+                existing_fp = str(row["fingerprint"])
+                raw_payload = row["result_payload"]
+                prior_payload = json.loads(raw_payload) if raw_payload else None
+
+                if existing_fp == fp:
+                    return False, existing_status, prior_payload
+                return False, "conflict", None
+
+            connection.execute(
+                "INSERT INTO command_ledger (station_id, integration_scope, command_id, fingerprint, status, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, 'admitted', ?, ?)",
+                (sid, scope, cid, fp, now, now),
+            )
+
+            # Enforce 10,000 row cap on insert (deterministic pruning without background timers)
+            count_row = connection.execute("SELECT count(*) FROM command_ledger").fetchone()
+            total_rows = int(count_row[0]) if count_row else 0
+            if total_rows > 10000:
+                excess = total_rows - 10000
+                connection.execute(
+                    "DELETE FROM command_ledger WHERE id IN ("
+                    "  SELECT id FROM command_ledger ORDER BY id ASC LIMIT ?"
+                    ")",
+                    (excess,),
+                )
+
+            return True, "admitted", None
+
+    def update_command_status(
+        self,
+        station_id: str,
+        integration_scope: str,
+        command_id: str,
+        status: str,
+        result_payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Update command ledger entry status and optional result payload."""
+        sid = str(station_id).strip()
+        scope = str(integration_scope).strip()
+        cid = str(command_id).strip()
+        st = str(status).strip()
+        payload_str = json.dumps(result_payload) if result_payload is not None else None
+        now = time.time()
+
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "UPDATE command_ledger SET status = ?, result_payload = ?, updated_at = ? "
+                "WHERE station_id = ? AND integration_scope = ? AND command_id = ?",
+                (st, payload_str, now, sid, scope, cid),
+            )
+
+    def backup_database(self, backup_path: str | Path) -> None:
+        """Create a consistent online backup using SQLite's backup API (safe for WAL)."""
+        dst_path = Path(backup_path)
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            with self._connection() as src_conn:
+                with sqlite3.connect(dst_path) as dst_conn:
+                    src_conn.backup(dst_conn)

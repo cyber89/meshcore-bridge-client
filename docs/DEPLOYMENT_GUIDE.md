@@ -50,7 +50,7 @@ sudo bash install.sh --update
 
 **El instalador realiza estas tareas si dispone de los permisos, paquetes y servicios necesarios:**
 1. Instala herramientas de compilación, bibliotecas SSL/ffi y servicios/herramientas del sistema (`mosquitto`, `git`, `curl`, `udev`, `sudo`); el intérprete CPython compatible debe existir previamente.
-2. Configura e inicia **Mosquitto** escuchando en `0.0.0.0:1883` con `allow_anonymous true`. Esto expone el broker a otras interfaces del host; revise el bind, autenticación y firewall para su red.
+2. Configura e inicia **Mosquitto** en `0.0.0.0:1883` con autenticación (`allow_anonymous false`), credenciales dedicadas para el bridge y credenciales con ACL para integraciones LAN (n8n, Home Assistant). El servicio systemd incluye un drop-in de dependencia (`meshcore-bridge.service.d/mosquitto.conf`).
 3. Utiliza la cuenta invocante `SUDO_USER` sin UID 0; si se invoca directamente como root, crea/usa la cuenta de sistema `meshcore`. Obtiene su grupo primario y añade los grupos serie existentes (`dialout`/`uucp`).
 4. **Detecta automáticamente el puerto de tu placa LoRa** conectada por USB.
 5. Despliega los archivos en `/opt/meshcore-bridge` y crea el archivo de configuración `.env`.
@@ -137,9 +137,24 @@ la disponibilidad de dependencias. No sustituir el Python del sistema operativo.
 Cree una configuración para un broker limitado al host. Este ejemplo manual usa loopback; difiere del bind abierto que escribe la instalación inicial del instalador actual. La actualización `--update` conserva Mosquitto. Para un n8n remoto, configure explícitamente una interfaz accesible, credenciales y permisos del broker.
 
 ```bash
+# Crear archivo de contraseñas y ACL
+sudo touch /etc/mosquitto/conf.d/meshcore_passwd
+sudo mosquitto_passwd -b /etc/mosquitto/conf.d/meshcore_passwd meshcore_bridge <PASSWORD_BRIDGE>
+sudo mosquitto_passwd -b /etc/mosquitto/conf.d/meshcore_passwd meshcore_client <PASSWORD_CLIENT>
+
+sudo tee /etc/mosquitto/conf.d/meshcore_acl << 'EOF'
+user meshcore_bridge
+topic readwrite #
+
+user meshcore_client
+topic readwrite meshcore/#
+EOF
+
 sudo tee /etc/mosquitto/conf.d/meshcore_local.conf << 'EOF'
-listener 1883 127.0.0.1
-allow_anonymous true
+listener 1883 0.0.0.0
+allow_anonymous false
+password_file /etc/mosquitto/conf.d/meshcore_passwd
+acl_file /etc/mosquitto/conf.d/meshcore_acl
 EOF
 
 sudo systemctl restart mosquitto

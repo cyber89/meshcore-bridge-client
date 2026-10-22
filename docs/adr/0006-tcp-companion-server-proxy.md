@@ -1,9 +1,12 @@
 # ADR 0006: Servidor Proxy TCP Companion Integrado para Multiplexación de Radio USB
 
-- **Estado**: Aceptado
-- **Fecha**: 2026-09-24
+- **Estado**: Aceptado (Enmendado por [ADR 0019](0019-tcp-companion-server-amendment.md))
+- **Fecha**: 2026-09-24 (Enmienda: 2026-10-21)
 - **Autores**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Bridge Architect)
-- **Contexto**: `CONTEXT.md`, `reference/meshcore-proxy/`, `reference/meshcore_cli/`, `docs/ARCHITECTURE.md`
+- **Contexto**: `CONTEXT.md`, `reference/meshcore-proxy/`, `reference/meshcore_cli/`, `docs/ARCHITECTURE.md`, [ADR 0019](0019-tcp-companion-server-amendment.md)
+
+> [!NOTE]
+> Este ADR ha sido formalmente enmendado por el **[ADR 0019](0019-tcp-companion-server-amendment.md)** para reflejar el límite canónico de 300 bytes (alineado con `meshcore_py 2.3.14`), la clasificación de tráfico RF/control y el direccionamiento exclusivo de respuestas síncronas al cliente emisor (`response_owner`). El texto a continuación se conserva con fines de trazabilidad histórica.
 
 ---
 

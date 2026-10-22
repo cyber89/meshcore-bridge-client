@@ -24,7 +24,9 @@ docs/
 │   ├── TEST_INVENTORY.md           <- Inventario catalogado de pruebas automatizadas
 │   ├── PROJECT_KNOWLEDGE.md        <- Mapa de conocimiento y procedencia de referencias
 │   └── PROJECT_INVENTORY.json      <- Snapshot reproducible de hashes e inventario
-├── adr/                            <- Registros de Decisiones de Arquitectura (0001 - 0018)
+├── adr/                            <- Registros de Decisiones de Arquitectura (0001 - 0022)
+├── evolution/                      <- Especificaciones y contratos de evolución por fases (nuevo.md)
+
 ├── audits/                         <- Informes de auditoría fechados (YYYY-MM-DD-*.md)
 ├── plans/                          <- Planes de modernización e integración completados o activos
 ├── fastapi/                        <- Documentación, fases y contratos del subsistema ASGI
@@ -96,6 +98,10 @@ Los ADRs documentan de forma inmutable las decisiones arquitectónicas fundament
 | **[ADR 0016](adr/0016-python-3-12-baseline.md)** | Mínimo CPython 3.12 y versión recomendada 3.13.5 (sin máximo) | Vigente |
 | **[ADR 0017](adr/0017-sqlite-station-browser-cache.md)** | SQLite y caché de navegador (sustituye ADR 0005) | Vigente |
 | **[ADR 0018](adr/0018-personal-station-authentication.md)** | Autenticación de la estación personal | Vigente |
+| **[ADR 0019](adr/0019-tcp-companion-server-amendment.md)** | Enmienda al Servidor Proxy TCP Companion (300 Bytes y Propietario) | Vigente |
+| **[ADR 0020](adr/0020-application-service-boundaries-and-channels.md)** | Extracción de Servicios de Aplicación y Desacoplamiento de Canales | Vigente |
+| **[ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)** | Seguridad MQTT, Idempotencia de Órdenes y Resolvedor de Tópicos | Vigente |
+| **[ADR 0022](adr/0022-consumer-isolation-and-bounded-admission.md)** | Aislamiento de Consumidores y Admisión Acotada en Ingesta | Propuesto |
 
 ---
 

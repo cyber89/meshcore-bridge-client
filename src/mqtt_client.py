@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import config
+from src.integrations.mqtt.topics import MqttTopics
 
 try:
     import paho.mqtt.client as _paho_mqtt
@@ -84,13 +85,15 @@ class AsyncBridgeMQTTClient:
         if not config.tls_enabled and any((config.tls_ca_file, config.tls_cert_file, config.tls_key_file)):
             raise ValueError("MQTT TLS files require tls_enabled=True")
 
-        self.topic_state = f"{self.topic_prefix}/bridge/state"
-        self.topic_health = f"{self.topic_prefix}/bridge/health"
-        self.topic_tx = f"{self.topic_prefix}/tx"
-        self.topic_tx_status = f"{self.topic_prefix}/tx/status"
-        self.topic_admin_cmd = f"{self.topic_prefix}/admin/cmd"
-        self.topic_admin_stat = f"{self.topic_prefix}/admin/status"
-        self.topic_admin_repeater = f"{self.topic_prefix}/admin/repeater"
+        self.topics = MqttTopics.from_prefix(self.topic_prefix)
+        self.topic_state = self.topics.state
+        self.topic_health = self.topics.health
+        self.topic_alert = self.topics.alert
+        self.topic_tx = self.topics.tx
+        self.topic_tx_status = self.topics.tx_status
+        self.topic_admin_cmd = self.topics.admin_cmd
+        self.topic_admin_stat = self.topics.admin_status
+        self.topic_admin_repeater = self.topics.admin_repeater
 
         self.is_connected = False
         self.reconnect_count = 0
@@ -280,6 +283,19 @@ class AsyncBridgeMQTTClient:
         self.total_received += 1
         try:
             topic = str(msg.topic)
+            is_retained = bool(getattr(msg, "retain", False))
+            if is_retained and (
+                topic == self.topic_tx
+                or topic.endswith("/tx")
+                or topic.endswith("/send")
+                or topic == self.topic_admin_cmd
+                or "/admin/" in topic
+            ):
+                logging.warning(
+                    "[MQTT-SECURITY] Descartando mensaje retenido (retain=True) en tópico de acción: %s",
+                    topic,
+                )
+                return
             raw_payload = getattr(msg, "payload", b"")
             max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
             if len(raw_payload) > max_payload_size:

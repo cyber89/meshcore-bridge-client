@@ -6,17 +6,14 @@ Handles /api/channels and /api/channels/sync.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import re
-import threading
-import time
 import urllib.parse
 from typing import Any
 
+from src.application.channels import ChannelService
 from src.shared_utils import derive_channel_secret
-from src.storage_validation import validate_channels_document
 from src.web.controllers.base import (
     ApiContext,
     BaseController,
@@ -40,83 +37,52 @@ class ChannelsController(BaseController):
             or os.getenv("CHANNELS_JSON_PATH")
             or "data/channels.json"
         )
-        self.channels: dict[int, dict[str, Any]] = {}
-        self._deleted_channels: set[int] = set()
-        self._dirty: bool = False
-        self._mutation_lock = asyncio.Lock()
-        self._save_lock = threading.Lock()
-        self._write_task: asyncio.Task[None] | None = None
         self.database = getattr(ctx.bridge, "database", None)
-        self._load_channels()
+        self.channel_service: ChannelService = (
+            getattr(ctx.bridge, "channel_service", None)
+            or ChannelService(
+                channels_file=self.channels_file,
+                database=self.database,
+                serial_adapter_provider=lambda: getattr(self.ctx.bridge, "serial_adapter", None),
+            )
+        )
+
+    @property
+    def channels(self) -> dict[int, dict[str, Any]]:
+        return self.channel_service.channels
+
+    @channels.setter
+    def channels(self, val: dict[int, dict[str, Any]]) -> None:
+        self.channel_service._channels = dict(val)
+
+    @property
+    def _deleted_channels(self) -> set[int]:
+        return self.channel_service._deleted_channels
+
+    @property
+    def _dirty(self) -> bool:
+        return self.channel_service._dirty
+
+    @_dirty.setter
+    def _dirty(self, val: bool) -> None:
+        self.channel_service._dirty = val
+
+    @property
+    def _mutation_lock(self) -> asyncio.Lock:
+        return self.channel_service._mutation_lock
+
+    @property
+    def _write_task(self) -> asyncio.Task[None] | None:
+        return self.channel_service._write_task
 
     def _load_channels(self) -> None:
-        """Carga la tabla de canales desde disco o inicializa el canal público."""
-        if self.database is not None:
-            data = self.database.read_document("channels", self.channels_file, validator=self._validate_channels_document)
-            if isinstance(data, list):
-                self.channels = {int(c.get("index", i)): c for i, c in enumerate(data)}
-            elif isinstance(data, dict):
-                self.channels = {int(k): v for k, v in data.items() if str(k).isdigit()}
-        elif os.path.exists(self.channels_file):
-            try:
-                with open(self.channels_file, encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        self.channels = {int(c.get("index", i)): c for i, c in enumerate(data)}
-                    elif isinstance(data, dict):
-                        self.channels = {int(k): v for k, v in data.items() if str(k).isdigit()}
-            except Exception as error:
-                logging.warning("Channel load failed: %s", type(error).__name__)
-
-        if 0 not in self.channels:
-            self.channels[0] = {
-                "index": 0,
-                "name": "Public / Broadcast",
-                "psk": "",
-                "is_public": True,
-            }
-
-    @staticmethod
-    def _validate_channels_document(data: Any) -> None:
-        validate_channels_document(data)
+        self.channel_service._load_channels()
 
     def _save_channels(self, force: bool = False) -> None:
-        """Persiste la tabla de canales a disco de forma atómica si hubo cambios."""
-        with self._save_lock:
-            if not force and not self._dirty:
-                logging.debug("Tabla de canales sin cambios pendientes (omitiendo escritura en disco)")
-                return
-
-            if self.database is not None:
-                self.database.write_document("channels", list(self.channels.values()))
-                self._dirty = False
-                return
-            target_dir = os.path.dirname(self.channels_file) or "."
-            os.makedirs(target_dir, exist_ok=True)
-            tmp_path = f"{self.channels_file}_{os.getpid()}_{time.time_ns()}.tmp"
-            try:
-                channels_data = list(self.channels.values())
-                with open(tmp_path, "w", encoding="utf-8") as f:
-                    json.dump(channels_data, f, indent=2, ensure_ascii=False)
-                os.replace(tmp_path, self.channels_file)
-                self._dirty = False
-                logging.debug("Canales persistidos exitosamente")
-            except Exception as error:
-                if os.path.exists(tmp_path):
-                    try:
-                        os.remove(tmp_path)
-                    except OSError:
-                        pass
-                logging.error("Channel persistence failed: %s", type(error).__name__)
-                raise
+        self.channel_service._save_channels_sync(force)
 
     async def _save_channels_async(self, force: bool = False) -> None:
-        """Persiste la tabla de canales a disco de forma atómica y no bloqueante en thread pool."""
-        if self._write_task is not None:
-            await asyncio.shield(self._write_task)
-        self._write_task = asyncio.create_task(asyncio.to_thread(self._save_channels, force), name="ChannelsPersistence")
-        self._write_task.add_done_callback(self._observe_write)
-        await asyncio.shield(self._write_task)
+        await self.channel_service.save_channels_async(force)
 
     @staticmethod
     def _observe_write(task: asyncio.Task[None]) -> None:
@@ -164,34 +130,7 @@ class ChannelsController(BaseController):
 
     async def _sync_from_serial(self) -> None:
         """Sincroniza la tabla de canales desde el hardware serial si está disponible."""
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if not ser or not hasattr(ser, "get_channels"):
-            raise ConnectionError("Transceptor serial no disponible")
-        node_channels = await ser.get_channels()
-        if node_channels is not None:
-            for ch in node_channels:
-                idx = int(ch.get("index", 0))
-                # Si el canal fue eliminado explícitamente por el usuario, nunca resucitarlo
-                if idx in self._deleted_channels:
-                    if idx in self.channels:
-                        del self.channels[idx]
-                        self._dirty = True
-                    continue
-
-                ch_name = str(ch.get("name") or "").strip()
-                raw_psk = str(ch.get("psk") or "").strip()
-                # Un canal con nombre vacío y clave vacía o de ceros se considera slot libre/borrado
-                is_empty_slot = (not ch_name and (not raw_psk or raw_psk == "0" * 32 or raw_psk == "00" * 16))
-                if idx > 0 and is_empty_slot:
-                    if idx in self.channels:
-                        del self.channels[idx]
-                        self._dirty = True
-                    continue
-
-                if self.channels.get(idx) != ch:
-                    self.channels[idx] = ch
-                    self._dirty = True
-            await self._save_channels_async()
+        await self.channel_service.sync_from_radio()
 
     async def _sync_channels(self) -> tuple[int, dict[str, Any]]:
         """Sincroniza los canales desde el hardware serial y retorna la lista enmascarada."""

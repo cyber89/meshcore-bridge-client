@@ -28,6 +28,7 @@ from src.contact_manager import (
 )
 from src.deduplicator import PacketDeduplicator
 from src.event_utils import extract_sender_from_payload
+from src.integrations.mqtt.topics import MqttTopics
 from src.lqi_engine import LinkQualityEngine
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import (
@@ -218,6 +219,13 @@ class RxRouterContext:
 
 class RxEventRouter:
     """Enruta eventos de la red Mesh (RF/radio) hacia MQTT, n8n y WebSocket."""
+
+    @property
+    def topics(self) -> MqttTopics:
+        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topics"):
+            return self._ctx.mqtt.topics
+        prefix = getattr(self._ctx.mqtt, "topic_prefix", getattr(config, "TOPIC_PREFIX", "meshcore"))
+        return MqttTopics.from_prefix(prefix)
 
     def __init__(self, ctx: RxRouterContext) -> None:
         import os
@@ -967,14 +975,14 @@ class RxEventRouter:
             "timestamp": now_iso,
         }
         if extracted_telem:
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, json.dumps({
+            self._ctx.mqtt.publish_safe(self.topics.rx_telemetry, json.dumps({
                 "event_type": "repeater_telemetry",
                 "sender": msg.sender,
                 "sender_name": msg.sender_name,
                 "telemetry": extracted_telem,
                 "timestamp": now_iso,
             }), qos=0)
-        self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
+        self._ctx.mqtt.publish_safe(self.topics.rx_all, json.dumps(rep_payload, sort_keys=True), qos=0)
         self._spawn_broadcast_task(rep_payload)
 
     def _process_chat_message(
@@ -1032,7 +1040,7 @@ class RxEventRouter:
         }
 
         evt_json = json.dumps(evt_payload, sort_keys=True)
-        self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+        self._ctx.mqtt.publish_safe(self.topics.rx_all, evt_json, qos=0)
         self._spawn_broadcast_task(evt_payload)
         return evt_payload
 
@@ -1097,9 +1105,9 @@ class RxEventRouter:
 
         evt_json = json.dumps(evt_payload, sort_keys=True)
         if msg.channel_idx == 0:
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
+            self._ctx.mqtt.publish_safe(self.topics.rx_public, evt_json, qos=0)
         else:
-            self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{msg.channel_idx}", evt_json, qos=0)
+            self._ctx.mqtt.publish_safe(self.topics.rx_channel_topic(msg.channel_idx), evt_json, qos=0)
 
         self._forward_to_external_mqtt(
             event_type="public" if msg.channel_idx == 0 else "channel",
@@ -1119,7 +1127,7 @@ class RxEventRouter:
             return
 
         evt_json = json.dumps(evt_payload, sort_keys=True)
-        topic = f"{config.TOPIC_RX_DIRECT}/{msg.sender}"
+        topic = self.topics.rx_direct_topic(msg.sender or "")
         self._ctx.mqtt.publish_safe(topic, evt_json, qos=1)
 
         self._forward_to_external_mqtt(
@@ -1314,7 +1322,7 @@ class RxEventRouter:
 
         payload_dict["timestamp"] = datetime.now(UTC).isoformat()
         evt_json = json.dumps(payload_dict, sort_keys=True)
-        self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+        self._ctx.mqtt.publish_safe(self.topics.rx_all, evt_json, qos=0)
         is_telemetry_payload = (
             payload_dict.get("telemetry_source") == "sensor_subscription"
             or any(
@@ -1327,7 +1335,7 @@ class RxEventRouter:
             )
         )
         if is_telemetry_payload:
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
+            self._ctx.mqtt.publish_safe(self.topics.rx_telemetry, evt_json, qos=0)
         self._spawn_broadcast_task(payload_dict)
 
         if not is_self_info:
@@ -1450,24 +1458,24 @@ class RxEventRouter:
             if await self._ctx.deduplicator.is_duplicate(dedup_key):
                 return
 
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+            self._ctx.mqtt.publish_safe(self.topics.rx_all, evt_json, qos=0)
 
             if frame.header.packet_type == PacketType.TELEMETRY_RESPONSE:
-                self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
+                self._ctx.mqtt.publish_safe(self.topics.rx_telemetry, evt_json, qos=0)
             elif frame.header.packet_type == PacketType.CONTACT:
-                self._ctx.mqtt.publish_safe(config.TOPIC_RX_NODES, evt_json, qos=0)
+                self._ctx.mqtt.publish_safe(self.topics.rx_nodes, evt_json, qos=0)
             elif frame.header.packet_type in (PacketType.CHANNEL_MSG_RECV, PacketType.CONTACT_MSG_RECV):
                 if isinstance(frame.payload, TextMessagePayload):
                     if not is_common_chat_message(frame.payload.text):
                         return
                     if frame.header.packet_type == PacketType.CHANNEL_MSG_RECV:
                         if frame.payload.channel_idx == 0:
-                            self._ctx.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
+                            self._ctx.mqtt.publish_safe(self.topics.rx_public, evt_json, qos=0)
                         else:
-                            self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{frame.payload.channel_idx}", evt_json, qos=0)
+                            self._ctx.mqtt.publish_safe(self.topics.rx_channel_topic(frame.payload.channel_idx), evt_json, qos=0)
                     elif frame.header.packet_type == PacketType.CONTACT_MSG_RECV:
                         src_hex = f"0x{frame.header.src_node_id:04X}"
-                        self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{src_hex}", evt_json, qos=0)
+                        self._ctx.mqtt.publish_safe(self.topics.rx_direct_topic(src_hex), evt_json, qos=0)
 
             logging.info(
                 f"[RX-FRAME] De: 0x{frame.header.src_node_id:04X} -> Para: 0x{frame.header.dst_node_id:04X} | "

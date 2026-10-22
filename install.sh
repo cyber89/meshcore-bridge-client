@@ -123,6 +123,7 @@ if [[ "$ACTION" == "--uninstall" ]]; then
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$SERVICE_NAME" 2>/dev/null || true
     rm -f "$SYSTEMD_DIR/$SERVICE_NAME"
+    rm -rf "$SYSTEMD_DIR/${SERVICE_NAME}.d"
     systemctl daemon-reload
     print_ok "System service removed."
 
@@ -341,21 +342,51 @@ print_step "2/7" "Select stable CPython runtime (>= 3.12)"
 select_runtime_python
 
 # Step 3: Local MQTT broker
-print_step "3/7" "Configure and start Mosquitto"
+print_step "3/7" "Configure and start Mosquitto with authentication"
 MOSQUITTO_CONF_DIR="/etc/mosquitto/conf.d"
 mkdir -p "$MOSQUITTO_CONF_DIR"
 
-cat << 'EOF' > "$MOSQUITTO_CONF_DIR/meshcore_local.conf"
-# Local access configuration for MeshCore Bridge
+MQTT_BRIDGE_USER="meshcore_bridge"
+MQTT_CLIENT_USER="meshcore_client"
+EXISTING_ENV="$INSTALL_DIR/.env"
+MQTT_BRIDGE_PASS=""
+if [[ -f "$EXISTING_ENV" ]]; then
+    MQTT_BRIDGE_PASS="$(grep '^MQTT_PASSWORD=' "$EXISTING_ENV" | cut -d'=' -f2- | tr -d ''"')"
+fi
+if [[ -z "$MQTT_BRIDGE_PASS" ]]; then
+    MQTT_BRIDGE_PASS="$(python3 -c 'import secrets; print(secrets.token_hex(12))' 2>/dev/null || openssl rand -hex 12 2>/dev/null || echo 'MeshCore_Secured_2026!')"
+fi
+MQTT_CLIENT_PASS="$(python3 -c 'import secrets; print(secrets.token_hex(12))' 2>/dev/null || openssl rand -hex 12 2>/dev/null || echo 'Client_Secured_2026!')"
+
+touch "$MOSQUITTO_CONF_DIR/meshcore_passwd"
+chmod 600 "$MOSQUITTO_CONF_DIR/meshcore_passwd"
+mosquitto_passwd -b "$MOSQUITTO_CONF_DIR/meshcore_passwd" "$MQTT_BRIDGE_USER" "$MQTT_BRIDGE_PASS" >/dev/null 2>&1 || true
+mosquitto_passwd -b "$MOSQUITTO_CONF_DIR/meshcore_passwd" "$MQTT_CLIENT_USER" "$MQTT_CLIENT_PASS" >/dev/null 2>&1 || true
+
+cat << 'EOF' > "$MOSQUITTO_CONF_DIR/meshcore_acl"
+# MeshCore Bridge internal service user permissions
+user meshcore_bridge
+topic readwrite #
+
+# LAN client integration permissions (n8n, Home Assistant, etc.)
+user meshcore_client
+topic readwrite meshcore/#
+EOF
+chmod 644 "$MOSQUITTO_CONF_DIR/meshcore_acl"
+
+cat << EOF > "$MOSQUITTO_CONF_DIR/meshcore_local.conf"
+# Secure access configuration for MeshCore Bridge and LAN integrations
 listener 1883 0.0.0.0
-allow_anonymous true
+allow_anonymous false
+password_file $MOSQUITTO_CONF_DIR/meshcore_passwd
+acl_file $MOSQUITTO_CONF_DIR/meshcore_acl
 EOF
 
 systemctl enable mosquitto >/dev/null 2>&1 || true
 systemctl restart mosquitto >/dev/null 2>&1 || true
 
 if systemctl is-active --quiet mosquitto; then
-    print_ok "Mosquitto is active on port 1883."
+    print_ok "Mosquitto is active on port 1883 with authentication and ACL enabled."
 else
     print_warn "Mosquitto did not start. Check: sudo systemctl status mosquitto"
 fi
@@ -415,8 +446,14 @@ mkdir -p "$INSTALL_DIR/data"
 if [[ ! -f "$INSTALL_DIR/.env" ]]; then
     cp -f "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
     sed -i "s|^SERIAL_PORT=AUTO|SERIAL_PORT=${DETECTED_PORT}|" "$INSTALL_DIR/.env"
-    print_ok "Created .env with SERIAL_PORT=${DETECTED_PORT}."
+    sed -i "s|^MQTT_USER=.*|MQTT_USER=${MQTT_BRIDGE_USER}|" "$INSTALL_DIR/.env"
+    sed -i "s|^MQTT_PASSWORD=.*|MQTT_PASSWORD=${MQTT_BRIDGE_PASS}|" "$INSTALL_DIR/.env"
+    print_ok "Created .env with SERIAL_PORT=${DETECTED_PORT} and configured MQTT credentials."
 else
+    if ! grep -q '^MQTT_USER=' "$INSTALL_DIR/.env" || [[ -z "$(grep '^MQTT_USER=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)" ]]; then
+        sed -i "s|^MQTT_USER=.*|MQTT_USER=${MQTT_BRIDGE_USER}|" "$INSTALL_DIR/.env"
+        sed -i "s|^MQTT_PASSWORD=.*|MQTT_PASSWORD=${MQTT_BRIDGE_PASS}|" "$INSTALL_DIR/.env"
+    fi
     print_ok "Existing .env preserved."
 fi
 
@@ -437,6 +474,16 @@ print_ok "Python environment ready; dependency imports and versions verified."
 # Step 7: Register and start the service
 print_step "7/7" "Register and start ${SERVICE_NAME}"
 render_service "$INSTALL_DIR/meshcore-bridge.service" "$SYSTEMD_DIR/$SERVICE_NAME"
+
+# Register Mosquitto dependency drop-in for local broker
+DROPIN_DIR="$SYSTEMD_DIR/${SERVICE_NAME}.d"
+mkdir -p "$DROPIN_DIR"
+cat << 'EOF' > "$DROPIN_DIR/mosquitto.conf"
+[Unit]
+After=mosquitto.service
+Wants=mosquitto.service
+EOF
+
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
 systemctl restart "$SERVICE_NAME"
@@ -466,7 +513,9 @@ fi
 printf '  Installation  %s\n' "$INSTALL_DIR"
 printf '  Configuration %s/.env\n' "$INSTALL_DIR"
 printf '  Web default   http://%s:8080 (see .env for overrides)\n' "$LOCAL_IP"
-printf '  MQTT broker   127.0.0.1:1883 (meshcore/#)\n'
+printf '  MQTT broker   %s:1883 (meshcore/#)\n' "$LOCAL_IP"
+printf '  Bridge user   %s\n' "$MQTT_BRIDGE_USER"
+printf '  LAN client    %s (password: %s)\n' "$MQTT_CLIENT_USER" "$MQTT_CLIENT_PASS"
 printf '  Serial port   %s\n' "$DETECTED_PORT"
 printf '  Service user  %s\n' "$SERVICE_USER"
 print_service_commands

@@ -77,9 +77,7 @@ de la suite; los módulos E2E no deben depender de una estación ya activa en
 `localhost:8080`. Las fixtures deben usar configuración y datos temporales,
 adaptadores virtuales, mocks de MQTT/SDK y servicios propios en loopback.
 
-El argumento antiguo `MeshCoreBridge(db_path=...)` no aísla la persistencia JSON:
-el constructor lo acepta mediante kwargs de compatibilidad y lo ignora. Configurar
-las rutas actuales de datos en las fixtures. Cerrar servidores, navegadores, tareas
+El argumento `MeshCoreBridge(db_path=..., data_dir=...)` aísla explícitamente la base de datos SQLite y el directorio de almacenamiento (`src/bridge_core.py:80–106`). Las fixtures deben configurar rutas actuales de datos temporales. Cerrar servidores, navegadores, tareas
 y archivos aun cuando falle una expectativa.
 
 Áreas verificadas: framing y CRC del fallback, enums oficiales, CayenneLPP,
