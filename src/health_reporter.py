@@ -62,8 +62,9 @@ class HealthReporter:
 
         mqtt_required = True
         capabilities_dict: dict[str, Any] | None = None
-        if self._ctx.bridge is not None and hasattr(self._ctx.bridge, "capabilities"):
-            caps = self._ctx.bridge.capabilities
+        bridge_obj = getattr(self._ctx, "bridge", None)
+        if bridge_obj is not None and hasattr(bridge_obj, "capabilities") and bridge_obj.capabilities is not None:
+            caps = bridge_obj.capabilities
             capabilities_dict = caps.to_dict()
             mqtt_required = caps.mqtt_local.is_active or caps.mqtt_external.is_active
         elif not getattr(config, "MQTT_ENABLED", True):

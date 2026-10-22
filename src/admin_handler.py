@@ -27,6 +27,7 @@ from src.admin.sdk_commands import require_success, run_sdk_command
 from src.contact_manager import (
     NodeRegistry,
 )
+from src.integrations.mqtt.topics import MqttTopics
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import redact_sensitive_dict, redact_sensitive_mapping
 from src.repeater_manager import RepeaterManager
@@ -107,13 +108,13 @@ class AdminCommandHandler:
         if self._ctx.mqtt and hasattr(self._ctx.mqtt, "publish_safe"):
             try:
                 effective_topic = topic
-                if hasattr(self._ctx.mqtt, "topics"):
-                    topics = self._ctx.mqtt.topics
+                topics_obj = getattr(self._ctx.mqtt, "topics", None) if self._ctx.mqtt else None
+                if isinstance(topics_obj, MqttTopics):
                     if topic == config.TOPIC_ADMIN_STAT:
-                        effective_topic = topics.admin_status
+                        effective_topic = topics_obj.admin_status
                     elif topic.startswith(config.TOPIC_ADMIN_REPEATER):
                         rel = topic[len(config.TOPIC_ADMIN_REPEATER):]
-                        effective_topic = f"{topics.admin_repeater}{rel}"
+                        effective_topic = f"{topics_obj.admin_repeater}{rel}"
 
                 public_payload = json.dumps(redact_sensitive_dict(json.loads(payload)))
                 self._ctx.mqtt.publish_safe(effective_topic, public_payload, qos=qos)

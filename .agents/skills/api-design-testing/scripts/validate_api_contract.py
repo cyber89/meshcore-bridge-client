@@ -56,7 +56,7 @@ def isolated_environment() -> Iterator[Path]:
         from src.web import api_router
         from src.web.map_tile_service import MapTileService
 
-        stack.enter_context(patch.object(api_router, "MapTileService", lambda: MapTileService(data_dir=data_dir)))
+        stack.enter_context(patch.object(api_router, "MapTileService", lambda *args, **kwargs: MapTileService(data_dir=data_dir)))
         yield data_dir
 
 

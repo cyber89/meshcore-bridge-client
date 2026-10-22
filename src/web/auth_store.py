@@ -110,8 +110,7 @@ class AuthStore:
                 raise
             finally:
                 connection.close()
-                if write:
-                    self._restrict_files()
+                self._restrict_files()
 
     def initialize(self) -> None:
         """Create only authentication tables, without replacing station schema/version."""

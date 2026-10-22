@@ -143,29 +143,47 @@ class MqttInboundDispatcher:
 
     @property
     def topics(self) -> MqttTopics:
-        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topics"):
-            return self._ctx.mqtt.topics
-        prefix = getattr(self._ctx.mqtt, "topic_prefix", getattr(config, "TOPIC_PREFIX", "meshcore"))
+        topics_obj = getattr(self._ctx.mqtt, "topics", None) if self._ctx.mqtt else None
+        if isinstance(topics_obj, MqttTopics):
+            return topics_obj
+        raw_prefix = getattr(self._ctx.mqtt, "topic_prefix", None) if self._ctx.mqtt else None
+        if isinstance(raw_prefix, str) and raw_prefix:
+            prefix = raw_prefix
+        else:
+            prefix = getattr(config, "TOPIC_PREFIX", "meshcore")
         return MqttTopics.from_prefix(prefix)
 
     @property
     def topic_tx_status(self) -> str:
+        custom = getattr(self._ctx.mqtt, "topic_tx_status", None) if self._ctx.mqtt else None
+        if isinstance(custom, str):
+            return custom
         return self.topics.tx_status
 
     @property
     def topic_admin_stat(self) -> str:
+        custom = getattr(self._ctx.mqtt, "topic_admin_stat", None) if self._ctx.mqtt else None
+        if isinstance(custom, str):
+            return custom
         return self.topics.admin_status
 
     @property
     def topic_admin_repeater(self) -> str:
+        custom = getattr(self._ctx.mqtt, "topic_admin_repeater", None) if self._ctx.mqtt else None
+        if isinstance(custom, str):
+            return custom.rstrip("/")
         return self.topics.admin_repeater
 
     async def _process_mqtt_input(self, topic: str, payload_str: str) -> None:
         """Clasifica el tópico entrante y delega en el manejador correspondiente."""
         try:
-            tx_topic = self.topics.tx
-            admin_topic = self.topics.admin_cmd
-            repeater_base = self.topics.admin_repeater
+            custom_tx = getattr(self._ctx.mqtt, "topic_tx", None) if self._ctx.mqtt else None
+            tx_topic = custom_tx if isinstance(custom_tx, str) else self.topics.tx
+
+            custom_admin = getattr(self._ctx.mqtt, "topic_admin_cmd", None) if self._ctx.mqtt else None
+            admin_topic = custom_admin if isinstance(custom_admin, str) else self.topics.admin_cmd
+
+            repeater_base = self.topic_admin_repeater
 
             is_tx = (topic == tx_topic) or topic.endswith("/tx") or topic.endswith("/send")
             if is_tx:
@@ -232,8 +250,9 @@ class MqttInboundDispatcher:
         if not text:
             return
 
-        if self._ctx.message_service:
-            validation = self._ctx.message_service.validate_tx_request(
+        msg_service = getattr(self._ctx, "message_service", None)
+        if msg_service is not None and hasattr(msg_service, "validate_tx_request"):
+            validation = msg_service.validate_tx_request(
                 text=text,
                 target=target,
                 channel_idx=channel_idx,

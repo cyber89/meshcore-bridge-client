@@ -15,9 +15,10 @@ from src.web.controllers.base import ApiContext, BaseController, problem_details
 class HistoryController(BaseController):
     def __init__(self, ctx: ApiContext) -> None:
         super().__init__(ctx)
+        ms = getattr(ctx.bridge, "message_service", None)
         self.message_service: MessageService = (
-            getattr(ctx.bridge, "message_service", None)
-            or MessageService(
+            ms if isinstance(ms, MessageService)
+            else MessageService(
                 node_registry=getattr(ctx.bridge, "node_registry", None),
                 rate_limiter=getattr(ctx.bridge, "rate_limiter", None),
                 database=getattr(ctx.bridge, "database", None),
@@ -29,7 +30,7 @@ class HistoryController(BaseController):
         database = getattr(self.ctx.bridge, "database", None)
         if not isinstance(database, StationDatabase):
             return problem_details(503, "Service Unavailable", "Station storage is unavailable", "storage_unavailable")
-        service = getattr(self.ctx.bridge, "message_service", self.message_service)
+        service = self.message_service
         try:
             if method == "GET" and path == "/api/messages/history":
                 limit = self._integer(body.get("limit", 100), 1, 200)

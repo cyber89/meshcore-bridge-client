@@ -397,7 +397,7 @@ class BridgeSecurityMiddleware:
                 scope,
                 send,
                 401,
-                b'{"error": "Unauthorized"}',
+                b'{"error": "auth_required"}',
                 content_type="application/json",
                 cors_origin=decision.cors_origin,
             )
@@ -444,7 +444,7 @@ class BridgeSecurityMiddleware:
                             scope,
                             send,
                             401,
-                            b'{"error": "Unauthorized"}',
+                            b'{"error": "auth_required"}',
                             content_type="application/json",
                             cors_origin=decision.cors_origin,
                         )

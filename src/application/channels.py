@@ -55,8 +55,8 @@ class ChannelService:
 
     @property
     def channels(self) -> dict[int, dict[str, Any]]:
-        """Devuelve una vista superficial del diccionario de canales internos."""
-        return dict(self._channels)
+        """Devuelve el diccionario de canales internos."""
+        return self._channels
 
     def _load_channels(self) -> None:
         """Carga la tabla de canales desde SQLite o JSON fallback."""

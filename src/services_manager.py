@@ -41,6 +41,8 @@ class ServicesManager:
     sin reiniciar el proceso ni interrumpir el enlace serie del módem LoRa.
     """
 
+    capabilities: CapabilityRegistry | None = None
+
     def __init__(
         self,
         bridge: Any,
@@ -467,9 +469,10 @@ class ServicesManager:
             ("local_mqtt", local_changed), ("external_mqtt", external_changed), ("tcp_server", tcp_changed)
         ) if changed]
 
-        if self.capabilities:
+        caps = getattr(self, "capabilities", None)
+        if caps:
             if self.services_config.local_mqtt.enabled:
-                self.capabilities.update_capability(
+                caps.update_capability(
                     CapabilityName.LOCAL_MQTT,
                     configured=True,
                     instantiated=self.local_mqtt is not None,
@@ -477,10 +480,10 @@ class ServicesManager:
                     state=CapabilityState.AVAILABLE if getattr(self.local_mqtt, "is_connected", False) else CapabilityState.STARTING,
                 )
             else:
-                self.capabilities.set_disabled(CapabilityName.LOCAL_MQTT)
+                caps.set_disabled(CapabilityName.LOCAL_MQTT)
 
             if self.services_config.external_mqtt.enabled:
-                self.capabilities.update_capability(
+                caps.update_capability(
                     CapabilityName.EXTERNAL_MQTT,
                     configured=True,
                     instantiated=self.external_mqtt is not None,
@@ -488,10 +491,10 @@ class ServicesManager:
                     state=CapabilityState.AVAILABLE if getattr(self.external_mqtt, "is_connected", False) else CapabilityState.STARTING,
                 )
             else:
-                self.capabilities.set_disabled(CapabilityName.EXTERNAL_MQTT)
+                caps.set_disabled(CapabilityName.EXTERNAL_MQTT)
 
             if self.services_config.tcp_server.enabled:
-                self.capabilities.update_capability(
+                caps.update_capability(
                     CapabilityName.COMPANION,
                     configured=True,
                     instantiated=self.tcp_server is not None,
@@ -499,7 +502,7 @@ class ServicesManager:
                     state=CapabilityState.AVAILABLE if self.tcp_server is not None else CapabilityState.STARTING,
                 )
             else:
-                self.capabilities.set_disabled(CapabilityName.COMPANION)
+                caps.set_disabled(CapabilityName.COMPANION)
 
         logger.info(f"Recarga de servicios completada. Componentes actualizados: {reloaded or ['ninguno']}")
         return {

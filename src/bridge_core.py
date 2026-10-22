@@ -27,6 +27,7 @@ from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.deduplicator import PacketDeduplicator
 from src.diagnostics import DiagnosticManager, SystemLogHandler, setup_file_logging
 from src.health_reporter import HealthContext, HealthReporter
+from src.integrations.mqtt.topics import MqttTopics
 from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
 from src.packet_buffer import PacketBuffer
 from src.preflight import PreflightChecker
@@ -80,6 +81,60 @@ class MeshCoreProtocol(Protocol):
 
 class MeshCoreBridge:
     """Orquestador central del puente MeshCore <-> MQTT <-> n8n (v2.1)."""
+
+    running: bool = True
+    _is_stopped: bool = False
+    _bg_capacity: int = 256
+    _bg_workers_limit: int = 5
+    _cross_thread_bg_count: int = 0
+
+    @property
+    def _cross_thread_bg_lock(self) -> threading.Lock:
+        lock = self.__dict__.get("_cross_thread_bg_lock")
+        if lock is None:
+            lock = threading.Lock()
+            self.__dict__["_cross_thread_bg_lock"] = lock
+        return lock
+
+    @_cross_thread_bg_lock.setter
+    def _cross_thread_bg_lock(self, val: threading.Lock) -> None:
+        self.__dict__["_cross_thread_bg_lock"] = val
+
+    @property
+    def _bg_queue(self) -> deque[Callable[[], Coroutine[Any, Any, Any]]]:
+        q = self.__dict__.get("_bg_queue")
+        if q is None:
+            q = deque()
+            self.__dict__["_bg_queue"] = q
+        return q
+
+    @_bg_queue.setter
+    def _bg_queue(self, val: deque[Callable[[], Coroutine[Any, Any, Any]]]) -> None:
+        self.__dict__["_bg_queue"] = val
+
+    @property
+    def _bg_workers(self) -> set[asyncio.Task[Any]]:
+        w = self.__dict__.get("_bg_workers")
+        if w is None:
+            w = set()
+            self.__dict__["_bg_workers"] = w
+        return w
+
+    @_bg_workers.setter
+    def _bg_workers(self, val: set[asyncio.Task[Any]]) -> None:
+        self.__dict__["_bg_workers"] = val
+
+    @property
+    def _background_tasks(self) -> set[asyncio.Task[Any]]:
+        tasks = self.__dict__.get("_background_tasks")
+        if tasks is None:
+            tasks = set()
+            self.__dict__["_background_tasks"] = tasks
+        return tasks
+
+    @_background_tasks.setter
+    def _background_tasks(self, val: set[asyncio.Task[Any]]) -> None:
+        self.__dict__["_background_tasks"] = val
 
     def __init__(
         self,
@@ -414,8 +469,10 @@ class MeshCoreBridge:
                     coro = factory()
                     if asyncio.iscoroutine(coro):
                         await coro
-                except Exception:
-                    logging.debug("Auxiliary background task failed", exc_info=True, extra={"skip_broadcast": True})
+                except Exception as error:
+                    logging.error("Error en tarea background: %s", error,
+                                  exc_info=(type(error), error, error.__traceback__),
+                                  extra={"skip_broadcast": True})
         except asyncio.CancelledError:
             self._bg_queue.clear()
             raise
@@ -440,26 +497,36 @@ class MeshCoreBridge:
         if kind is None:
             return False
         if kind == "rf":
-            if self.rate_limiter.is_cutoff_active():
+            rate_limiter = getattr(self, "rate_limiter", None)
+            if rate_limiter and hasattr(rate_limiter, "is_cutoff_active") and rate_limiter.is_cutoff_active():
                 return False
-            target, channel_idx = self._companion_rf_destination(payload)
-            if target and self.node_registry.is_local_key(target):
-                return False
+            target, channel_idx = MeshCoreBridge._companion_rf_destination(payload)
+            node_reg = getattr(self, "node_registry", None)
+            if target and node_reg:
+                is_local = getattr(node_reg, "is_local_key", lambda k: False)(target)
+                is_rep = getattr(node_reg, "is_repeater_key", lambda k: False)(target)
+                if is_local or is_rep:
+                    return False
             # Companion text layout: type + attempt/channel + timestampLE,
             # then the six-byte destination prefix for direct messages.
             if payload[0] in (2, 3) and len(payload) < (14 if payload[0] == 2 else 8):
                 return False
-            try:
-                future = await self.rate_limiter.submit(payload=payload, priority=TxPriority.NORMAL,
+            if rate_limiter and hasattr(rate_limiter, "submit"):
+                try:
+                    future = await rate_limiter.submit(payload=payload, priority=TxPriority.NORMAL,
                                                        target=target, channel_idx=channel_idx)
-                async with asyncio.timeout(timeout):
-                    result = await future
-                return isinstance(result, dict) and str(result.get("status", "")).lower() in ("sent", "ok", "success")
-            except TimeoutError:
-                logging.warning("Timeout esperando transmisión TCP Companion en rate limiter", extra={"skip_broadcast": True})
-                return False
-            except Exception:
-                logging.warning("No se pudo enviar comando TCP por la cola TX", extra={"skip_broadcast": True})
+                    async with asyncio.timeout(timeout):
+                        result = await future
+                    return isinstance(result, dict) and str(result.get("status", "")).lower() in ("sent", "ok", "success")
+                except TimeoutError:
+                    logging.warning("Timeout esperando transmisión TCP Companion en rate limiter", extra={"skip_broadcast": True})
+                    return False
+                except Exception:
+                    logging.warning("No se pudo enviar comando TCP por la cola TX", extra={"skip_broadcast": True})
+                    return False
+            elif rate_limiter is None:
+                if hasattr(self, "serial_adapter") and hasattr(self.serial_adapter, "send_raw_companion_frame"):
+                    return bool(await self.serial_adapter.send_raw_companion_frame(payload))
                 return False
         if hasattr(self.serial_adapter, "send_raw_companion_frame"):
             return bool(await self.serial_adapter.send_raw_companion_frame(payload))
@@ -1288,9 +1355,11 @@ class MeshCoreBridge:
                 ack_payload["storage_error"] = True
                 logging.error("Radio outcome recorded in memory; chat persistence failed: %s", type(error).__name__, extra={"skip_broadcast": True})
 
+        mqtt_obj = getattr(self, "mqtt", None)
+        topics_obj = getattr(mqtt_obj, "topics", None) if mqtt_obj else None
         status_topic = str(
-            getattr(self.mqtt, "topic_tx_status", None)
-            or (self.mqtt.topics.tx_status if hasattr(self.mqtt, "topics") else None)
+            getattr(mqtt_obj, "topic_tx_status", None)
+            or (topics_obj.tx_status if isinstance(topics_obj, MqttTopics) else None)
             or getattr(config, "TOPIC_TX_STATUS", "meshcore/tx/status")
         )
         self.publish_mqtt_safe(status_topic, json.dumps(ack_payload), qos=1)

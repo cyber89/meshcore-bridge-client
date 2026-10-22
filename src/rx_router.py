@@ -225,9 +225,14 @@ class RxEventRouter:
 
     @property
     def topics(self) -> MqttTopics:
-        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topics"):
-            return self._ctx.mqtt.topics
-        prefix = getattr(self._ctx.mqtt, "topic_prefix", getattr(config, "TOPIC_PREFIX", "meshcore"))
+        topics_obj = getattr(self._ctx.mqtt, "topics", None) if self._ctx.mqtt else None
+        if isinstance(topics_obj, MqttTopics):
+            return topics_obj
+        raw_prefix = getattr(self._ctx.mqtt, "topic_prefix", None) if self._ctx.mqtt else None
+        if isinstance(raw_prefix, str) and raw_prefix:
+            prefix = raw_prefix
+        else:
+            prefix = getattr(config, "TOPIC_PREFIX", "meshcore")
         return MqttTopics.from_prefix(prefix)
 
     def __init__(self, ctx: RxRouterContext) -> None:
@@ -516,10 +521,9 @@ class RxEventRouter:
             if web_server and hasattr(web_server, "broadcast_event"):
                 bridge._schedule_background(lambda: web_server.broadcast_event(payload))
         elif web_server and hasattr(web_server, "broadcast_event"):
-            loop = self._ctx.loop
-            if loop and loop.is_running():
-                task = loop.create_task(web_server.broadcast_event(payload), name="RxBroadcastEvent")
-                self._register_task(task)
+            contact = payload.get("contact")
+            key = f"contact:{contact.get('public_key')}" if payload.get("type") == "contact_updated" and isinstance(contact, dict) and contact.get("public_key") else None
+            self._enqueue_work(lambda: web_server.broadcast_event(payload), observation_key=key)
 
     async def drain(self) -> None:
         """Finish accepted RX jobs before the bridge cancels its owned tasks."""

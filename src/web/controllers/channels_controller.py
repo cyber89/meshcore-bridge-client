@@ -38,9 +38,10 @@ class ChannelsController(BaseController):
             or "data/channels.json"
         )
         self.database = getattr(ctx.bridge, "database", None)
+        cs = getattr(ctx.bridge, "channel_service", None)
         self.channel_service: ChannelService = (
-            getattr(ctx.bridge, "channel_service", None)
-            or ChannelService(
+            cs if isinstance(cs, ChannelService)
+            else ChannelService(
                 channels_file=self.channels_file,
                 database=self.database,
                 serial_adapter_provider=lambda: getattr(self.ctx.bridge, "serial_adapter", None),
@@ -93,7 +94,7 @@ class ChannelsController(BaseController):
         self, path: str, method: str, req_body: dict[str, Any]
     ) -> tuple[int, dict[str, Any]]:
         async with self._mutation_lock:
-            if self._write_task is not None:
+            if isinstance(self._write_task, (asyncio.Future, asyncio.Task)):
                 await asyncio.shield(self._write_task)
             return await self._handle_channels_route(path, method, req_body)
 

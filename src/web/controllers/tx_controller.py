@@ -19,9 +19,10 @@ class TxController(BaseController):
 
     def __init__(self, ctx: ApiContext) -> None:
         super().__init__(ctx)
+        ms = getattr(ctx.bridge, "message_service", None)
         self.message_service: MessageService = (
-            getattr(ctx.bridge, "message_service", None)
-            or MessageService(
+            ms if isinstance(ms, MessageService)
+            else MessageService(
                 node_registry=getattr(ctx.bridge, "node_registry", None),
                 rate_limiter=getattr(ctx.bridge, "rate_limiter", None),
                 database=getattr(ctx.bridge, "database", None),
@@ -44,7 +45,7 @@ class TxController(BaseController):
         raw_ch = req_body.get("channel_index", req_body.get("channel_idx", 0))
         req_id = req_body.get("request_id", f"web_{int(time.time() * 1000)}")
 
-        service = getattr(self.ctx.bridge, "message_service", self.message_service)
+        service = self.message_service
         res = await service.submit_chat(
             text=raw_text,
             target=target,
@@ -75,7 +76,7 @@ class TxController(BaseController):
 
     async def get_recent_messages(self) -> tuple[int, dict[str, Any]]:
         """Keep the recent-message envelope while reading durable station history."""
-        service = getattr(self.ctx.bridge, "message_service", self.message_service)
+        service = self.message_service
         msgs = await service.get_recent_messages(limit=200)
         if not msgs and hasattr(self.ctx, "recent_messages"):
             msgs = list(self.ctx.recent_messages)

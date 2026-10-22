@@ -351,7 +351,7 @@ MQTT_CLIENT_USER="meshcore_client"
 EXISTING_ENV="$INSTALL_DIR/.env"
 MQTT_BRIDGE_PASS=""
 if [[ -f "$EXISTING_ENV" ]]; then
-    MQTT_BRIDGE_PASS="$(grep '^MQTT_PASSWORD=' "$EXISTING_ENV" | cut -d'=' -f2- | tr -d ''"')"
+    MQTT_BRIDGE_PASS="$(grep '^MQTT_PASSWORD=' "$EXISTING_ENV" 2>/dev/null | cut -d'=' -f2- | tr -d "'\"" || true)"
 fi
 if [[ -z "$MQTT_BRIDGE_PASS" ]]; then
     MQTT_BRIDGE_PASS="$(python3 -c 'import secrets; print(secrets.token_hex(12))' 2>/dev/null || openssl rand -hex 12 2>/dev/null || echo 'MeshCore_Secured_2026!')"

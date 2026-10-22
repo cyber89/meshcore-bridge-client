@@ -973,7 +973,8 @@ export class ChatModule {
     if (!this.dom.chatInputText || !this.dom.chatCharCounter) return;
     const text = this.dom.chatInputText.value || "";
     const byteLen = getUtf8ByteLength(text);
-    const pktCount = Math.ceil(byteLen / MAX_LORA_TEXT_BYTES) || 1;
+    const chunks = splitUtf8Message(text, MAX_LORA_TEXT_BYTES);
+    const pktCount = chunks.length || 1;
     this.dom.chatCharCounter.textContent = pktCount > 1 ? `${byteLen} B (${pktCount} pkts)` : `${byteLen} B`;
     this.dom.chatCharCounter.classList.remove("is-warning", "is-danger");
     if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = this._sending;

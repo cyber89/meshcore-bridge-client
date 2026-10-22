@@ -22,11 +22,15 @@ class ContactsController(BaseController):
 
     def __init__(self, ctx: ApiContext) -> None:
         super().__init__(ctx)
-        self.contact_service: ContactService = getattr(ctx.bridge, "contact_service", None) or ContactService(
-            node_registry=ctx.bridge.node_registry,
-            serial_adapter_provider=lambda: getattr(ctx.bridge, "serial_adapter", None),
-            database=getattr(ctx.bridge, "database", None),
-            log_system_event=ctx.log_system_event,
+        cs = getattr(ctx.bridge, "contact_service", None)
+        self.contact_service: ContactService = (
+            cs if isinstance(cs, ContactService)
+            else ContactService(
+                node_registry=getattr(ctx.bridge, "node_registry", None),
+                serial_adapter_provider=lambda: getattr(self.ctx.bridge, "serial_adapter", None),
+                database=getattr(ctx.bridge, "database", None),
+                log_system_event=ctx.log_system_event,
+            )
         )
 
     def _contact_validation(self, pubkey: str, name: str, role: str) -> tuple[int, dict[str, Any]] | None:

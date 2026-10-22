@@ -10,12 +10,14 @@ import re
 import sys
 from collections.abc import Callable
 
-CORE_DEPENDENCIES = (
+DEPENDENCIES = (
+    ("paho-mqtt", "paho.mqtt.client", (2, 1, 0)),
     ("meshcore", "meshcore", (2, 3, 17)),
     ("pyserial", "serial", (3, 5, 0)),
     ("python-dotenv", "dotenv", (1, 2, 4)),
 )
 
+CORE_DEPENDENCIES = DEPENDENCIES
 MQTT_DEPENDENCIES = (
     ("paho-mqtt", "paho.mqtt.client", (2, 1, 0)),
 )
@@ -37,10 +39,10 @@ WEB_PINNED_VERSIONS = {
 }
 
 PROFILES: dict[str, tuple[tuple[str, str, tuple[int, ...]], ...]] = {
-    "core": CORE_DEPENDENCIES,
-    "mqtt": CORE_DEPENDENCIES + MQTT_DEPENDENCIES,
-    "web": CORE_DEPENDENCIES + MQTT_DEPENDENCIES + WEB_DEPENDENCIES,
-    "all": CORE_DEPENDENCIES + MQTT_DEPENDENCIES + WEB_DEPENDENCIES,
+    "core": DEPENDENCIES,
+    "mqtt": DEPENDENCIES,
+    "web": DEPENDENCIES + WEB_DEPENDENCIES,
+    "all": DEPENDENCIES + WEB_DEPENDENCIES,
 }
 
 MIN_PYTHON_VERSION = (3, 12, 0)
