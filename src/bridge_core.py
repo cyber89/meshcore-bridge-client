@@ -10,8 +10,10 @@ import asyncio
 import json
 import logging
 import signal
+import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from pathlib import Path
@@ -168,11 +170,23 @@ class MeshCoreBridge:
         self._persistence_tasks: set[asyncio.Task[Any]] = set()
 
     async def _persist(self, callback: Callable[..., Any], *args: Any) -> Any:
-        """Keep a worker owned until commit even when its caller is cancelled."""
+        """Keep a worker owned until commit even when its caller is cancelled.
+
+        Serializes database writes with an asyncio.Semaphore(1) to reflect SQLite WAL's
+        single-writer architecture and prevent thread pool exhaustion under heavy load.
+        """
         tasks = getattr(self, "_persistence_tasks", None)
         if tasks is None:
             tasks = self._persistence_tasks = set()
-        task = asyncio.create_task(asyncio.to_thread(callback, *args), name="StationPersistence")
+        sem = getattr(self, "_persist_semaphore", None)
+        if sem is None:
+            sem = self._persist_semaphore = asyncio.Semaphore(1)
+
+        async def _do_persist() -> Any:
+            async with sem:
+                return await asyncio.to_thread(callback, *args)
+
+        task = asyncio.create_task(_do_persist(), name="StationPersistence")
         tasks.add(task)
         task.add_done_callback(self._persistence_done)
         return await asyncio.shield(task)
@@ -207,11 +221,9 @@ class MeshCoreBridge:
         else:
             return None
         web = getattr(self, "web_server", None)
-        if web is not None and not getattr(self, "_draining_storage", False):
-            try:
-                await web.broadcast_event(payload)
-            except Exception as error:
-                logging.warning("Chat committed but WebSocket notification failed: %s", type(error).__name__, extra={"skip_broadcast": True})
+        if web is not None and not getattr(self, "_draining_storage", False) and hasattr(web, "broadcast_event"):
+            # Fanout to WebSocket clients is non-blocking: scheduled on auxiliary background worker
+            self._schedule_background(lambda: web.broadcast_event(payload))
         return payload
 
     async def consume_pending_ack(self, ack_code: str, trip_time_ms: float | None = None) -> dict[str, Any] | None:
@@ -313,8 +325,12 @@ class MeshCoreBridge:
         self._schedule_background(lambda: web.broadcast_event(payload))
 
     def _schedule_background(self, factory: Callable[[], Coroutine[Any, Any, Any]]) -> None:
-        """Create and own tasks on their event loop, including callbacks from threads."""
-        if not getattr(self, "running", False):
+        """Create and own auxiliary background tasks (logs, UI broadcasts, TCP frames).
+
+        These run in dedicated auxiliary background workers, isolated from the critical
+        LoRa RF packet queue in RxEventRouter.
+        """
+        if not getattr(self, "running", False) or getattr(self, "_is_stopped", False):
             return
         loop = getattr(self, "_custom_loop", None)
         try:
@@ -326,26 +342,69 @@ class MeshCoreBridge:
         if loop is None or loop.is_closed():
             return
 
-        def launch() -> None:
-            if not getattr(self, "running", False):
+        def enqueue_and_ensure() -> None:
+            if not getattr(self, "running", False) or getattr(self, "_is_stopped", False):
                 return
-            try:
-                router = getattr(self, "rx_router", None)
-                if isinstance(router, RxEventRouter):
-                    router._enqueue_work(factory)
-                else:
-                    self._add_background_task(asyncio.create_task(factory()))
-            except Exception:
-                logging.exception("No se pudo iniciar tarea background", extra={"skip_broadcast": True})
+            if len(self._bg_queue) >= self._bg_capacity:
+                try:
+                    self._bg_queue.popleft()
+                except IndexError:
+                    pass
+            self._bg_queue.append(factory)
+            self._ensure_bg_worker()
 
         if current_loop is loop:
-            launch()
+            enqueue_and_ensure()
         else:
+            with self._cross_thread_bg_lock:
+                if self._cross_thread_bg_count >= 256:
+                    return
+                self._cross_thread_bg_count += 1
+
+            def threadsafe_launch() -> None:
+                try:
+                    enqueue_and_ensure()
+                finally:
+                    with self._cross_thread_bg_lock:
+                        self._cross_thread_bg_count -= 1
+
             try:
-                loop.call_soon_threadsafe(launch)
+                loop.call_soon_threadsafe(threadsafe_launch)
             except RuntimeError:
-                # The loop may have stopped between inspection and scheduling.
-                return
+                with self._cross_thread_bg_lock:
+                    self._cross_thread_bg_count -= 1
+
+    def _ensure_bg_worker(self) -> None:
+        """Ensure active auxiliary workers up to the concurrency limit."""
+        self._bg_workers.difference_update(t for t in tuple(self._bg_workers) if t.done())
+        if not self._bg_queue or len(self._bg_workers) >= self._bg_workers_limit:
+            return
+        loop = getattr(self, "_custom_loop", None)
+        if loop is None or not loop.is_running():
+            loop = asyncio.get_running_loop()
+        task = loop.create_task(self._drain_bg_queue(), name="MeshCoreAuxBackgroundWorker")
+        self._bg_workers.add(task)
+        task.add_done_callback(self._bg_worker_done)
+        self._add_background_task(task)
+
+    def _bg_worker_done(self, task: asyncio.Task[Any]) -> None:
+        self._bg_workers.discard(task)
+        if not task.cancelled() and getattr(self, "running", False):
+            self._ensure_bg_worker()
+
+    async def _drain_bg_queue(self) -> None:
+        try:
+            while self._bg_queue and getattr(self, "running", False):
+                factory = self._bg_queue.popleft()
+                try:
+                    coro = factory()
+                    if asyncio.iscoroutine(coro):
+                        await coro
+                except Exception:
+                    logging.debug("Auxiliary background task failed", exc_info=True, extra={"skip_broadcast": True})
+        except asyncio.CancelledError:
+            self._bg_queue.clear()
+            raise
 
     def _on_raw_companion_frame_rx(self, payload: bytes) -> None:
         """Difunde tramas binarias de la radio hacia clientes TCP Companion conectados (App Móvil / CLI)."""
@@ -422,6 +481,13 @@ class MeshCoreBridge:
         self._background_tasks: set[asyncio.Task[Any]] = set()
         self._tasks_lock = asyncio.Lock()
         self._tx_metrics_lock = asyncio.Lock()
+        self._bg_queue: deque[Callable[[], Coroutine[Any, Any, Any]]] = deque()
+        self._bg_capacity: int = 256
+        self._bg_workers: set[asyncio.Task[Any]] = set()
+        self._bg_workers_limit: int = 5
+        self._cross_thread_bg_lock = threading.Lock()
+        self._cross_thread_bg_count: int = 0
+        self._persist_semaphore = asyncio.Semaphore(1)
 
     def reset_counters(self) -> dict[str, Any]:
         """Restablece los contadores de paquetes y errores acumulados del bridge."""
@@ -771,59 +837,108 @@ class MeshCoreBridge:
         self._add_background_task(self._cleanup_task)
         logging.info("MeshCore Bridge iniciado y operativo (v3.0).")
 
-    async def stop(self) -> None:
-        """Detención ordenada de todos los subsistemas."""
+    async def stop(self, timeout: float = 5.0) -> None:
+        """Detención ordenada de todos los subsistemas con deadline global."""
         async with self._get_lifecycle_lock():
-            await self._stop_subsystems()
+            await self._stop_subsystems(timeout=timeout)
 
-    async def _stop_subsystems(self) -> None:
+    async def _stop_subsystems(self, timeout: float = 5.0) -> None:
         if getattr(self, "_is_stopped", False):
             return
         self._started = False
-        logging.info("Deteniendo MeshCore Bridge...")
+        logging.info("Deteniendo MeshCore Bridge (deadline global: %.1fs)...", timeout)
         self.running = False
         self._draining_storage = True
+        deadline = time.monotonic() + timeout
+
+        def remaining_budget(cap: float = 1.5) -> float:
+            rem = deadline - time.monotonic()
+            return max(0.05, min(cap, rem))
+
+        # 1. Cerrar admisión externa (MQTT ingress y Watchdog)
         dispatcher = getattr(self, "mqtt_dispatcher", None)
         if dispatcher is not None:
             try:
-                async with asyncio.timeout(1.5):
+                async with asyncio.timeout(remaining_budget(1.5)):
                     await dispatcher.close()
             except Exception:
-                logging.warning("MQTT ingress shutdown did not complete within existing shutdown bound")
+                logging.warning("MQTT ingress shutdown did not complete within remaining budget")
 
+        if hasattr(self, "watchdog") and self.watchdog is not None:
+            try:
+                async with asyncio.timeout(remaining_budget(0.5)):
+                    await self.watchdog.stop()
+            except Exception:
+                pass
+
+        # 2. Detener nuevas notificaciones y drenar tareas auxiliares de broadcast
+        if hasattr(self, "_bg_queue"):
+            self._bg_queue.clear()
+        bg_workers = list(getattr(self, "_bg_workers", set()))
+        for w in bg_workers:
+            if not w.done():
+                w.cancel()
+        if bg_workers:
+            try:
+                async with asyncio.timeout(remaining_budget(0.5)):
+                    await asyncio.gather(*bg_workers, return_exceptions=True)
+            except Exception:
+                pass
+            self._bg_workers.clear()
+
+        # 3. Dejar de aceptar TX y cancelar items no despachados
+        if hasattr(self, "rate_limiter") and self.rate_limiter is not None:
+            try:
+                async with asyncio.timeout(remaining_budget(1.5)):
+                    await self.rate_limiter.stop()
+            except Exception as e:
+                logging.warning("Timeout o error al detener rate_limiter: %s", type(e).__name__)
+
+        # 4. Drenar lo durable aceptado (RX router y escrituras SQLite)
         router = getattr(self, "rx_router", None)
         if router is not None:
-            await router.drain()
+            try:
+                async with asyncio.timeout(remaining_budget(2.0)):
+                    await router.drain()
+            except Exception:
+                logging.warning("RX router drain did not complete within remaining budget")
 
         cleanup_task = self._cleanup_task
         if cleanup_task is not None and not cleanup_task.done():
             cleanup_task.cancel()
             try:
-                async with asyncio.timeout(0.5):
+                async with asyncio.timeout(remaining_budget(0.5)):
                     await cleanup_task
             except (asyncio.CancelledError, TimeoutError, Exception):
                 pass
             self._cleanup_task = None
 
         current_task = asyncio.current_task()
-        owned = [task for task in self._background_tasks if task is not current_task]
+        owned = [
+            task for task in self._background_tasks
+            if task is not current_task and task not in getattr(self, "_persistence_tasks", set())
+        ]
         for task in owned:
             if not task.done():
                 task.cancel()
         if owned:
-            # Reuse the existing per-subsystem shutdown bound.
             try:
-                async with asyncio.timeout(1.5):
+                async with asyncio.timeout(remaining_budget(1.0)):
                     await asyncio.gather(*owned, return_exceptions=True)
-            except TimeoutError:
-                logging.warning("Timeout al detener tareas background", extra={"skip_broadcast": True})
+            except Exception:
+                logging.warning("Timeout al cancelar tareas background generales")
             self._background_tasks.difference_update(task for task in owned if task.done())
 
+        # Completar escrituras SQLite pendientes (protegidas con shield para no corromper transacciones)
         pending_writes = list(getattr(self, "_persistence_tasks", set()))
         if pending_writes:
-            await asyncio.gather(*(asyncio.shield(task) for task in pending_writes), return_exceptions=True)
+            try:
+                async with asyncio.timeout(remaining_budget(2.0)):
+                    await asyncio.gather(*(asyncio.shield(task) for task in pending_writes), return_exceptions=True)
+            except Exception:
+                logging.warning("Timeout esperando escrituras persistentes en SQLite durante el apagado")
 
-        # Detención resiliente: cada subsistema se cierra con timeout individual estricto (1.5s máx)
+        # 5. Detener servicios de red (TCP companion, MQTT, Web) y hardware
         stop_tcp = None
         tcp_srv = getattr(self, "tcp_server", None)
         if tcp_srv is not None:
@@ -836,35 +951,34 @@ class MeshCoreBridge:
             ("tcp_server", stop_tcp),
             ("web_server", self.web_server.stop() if self.web_server else None),
             ("health_reporter", self.health_reporter.stop()),
-            ("watchdog", self.watchdog.stop()),
-            ("rate_limiter", self.rate_limiter.stop()),
             ("serial_adapter", self.serial_adapter.disconnect()),
         ]:
             if coro is None:
                 continue
+            budget = remaining_budget(1.5)
             try:
-                async with asyncio.timeout(1.5):
+                async with asyncio.timeout(budget):
                     await coro
             except TimeoutError:
-                logging.warning(f"Timeout (1.5s) al detener subsistema '{subsystem_name}'.")
+                logging.warning(f"Timeout (budget {budget:.2f}s) al detener subsistema '{subsystem_name}'.")
             except Exception as e:
                 logging.error("Error deteniendo %s: %s", subsystem_name, type(e).__name__)
 
-        # Persistir libreta de contactos y métricas de nodos de forma no bloqueante
+        # Guardar NodeRegistry en disco
         try:
             if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
-                async with asyncio.timeout(1.0):
+                async with asyncio.timeout(remaining_budget(1.0)):
                     await asyncio.to_thread(self.node_registry.save_to_file, None, True)
-        except (TimeoutError, Exception) as e:
+        except Exception as e:
             logging.debug("Error o timeout guardando NodeRegistry al detener: %s", type(e).__name__)
 
         sm_instance = getattr(self, "services_manager", None)
         if sm_instance is None or getattr(sm_instance, "local_mqtt", None) is not getattr(self, "mqtt", None):
             if hasattr(self, "mqtt") and self.mqtt is not None and hasattr(self.mqtt, "stop"):
                 try:
-                    async with asyncio.timeout(1.5):
+                    async with asyncio.timeout(remaining_budget(1.0)):
                         await asyncio.to_thread(self.mqtt.stop)
-                except (TimeoutError, Exception) as e:
+                except Exception as e:
                     logging.warning("Error o timeout deteniendo cliente MQTT: %s", type(e).__name__)
 
         if hasattr(self, "log_handler") and self.log_handler in logging.getLogger().handlers:
@@ -872,7 +986,7 @@ class MeshCoreBridge:
         manager = getattr(self, "repeater_manager", None)
         if manager is not None:
             try:
-                async with asyncio.timeout(1.5):
+                async with asyncio.timeout(remaining_budget(1.0)):
                     await manager.close()
             except Exception:
                 logging.warning("Repeater cooldown persistence did not complete at shutdown")

@@ -483,25 +483,34 @@ sequenceDiagram
     WebSocket-->>WebUI: event
 ```
 
-### 5.2 RX Completo (Recepción desde la red de Radio)
+### 5.2 RX Completo y Aislamiento de Consumidores (Fase F2 / ADR 0022)
 
 ```mermaid
 sequenceDiagram
     participant Radio
-    participant SerialDriver
-    participant RxRouter
+    participant SerialDriver as SerialDriver (SDK Thread)
+    participant RxRouter as RxEventRouter (Cola RF Exclusiva)
     participant RouterHandlers
-    participant Managers
-    participant MQTT
-    participant WebSocket
+    participant Database as StationDatabase (Worker SQLite)
+    participant MQTT as MQTT Client (Async)
+    participant AuxQueue as BridgeCore (_bg_queue Auxiliar)
+    participant WebSocket as WebSocket Hub (Browsers)
 
-    Radio->>SerialDriver: Evento Companion
-    SerialDriver->>RxRouter: Evento SDK normalizado
-    RxRouter->>RouterHandlers: route()
-    RouterHandlers->>Managers: update(NodeRegistry/LQI)
-    RouterHandlers->>MQTT: publish()
-    RouterHandlers->>WebSocket: broadcast()
+    Radio->>SerialDriver: Trama binaria / evento Companion
+    SerialDriver->>RxRouter: Handoff con admisión acotada (_pending_rx <= 256)
+    RxRouter->>RouterHandlers: dispatch_sdk_event()
+    RouterHandlers->>Database: Commit persistente síncrono (_persist con semáforo WAL)
+    Database-->>RouterHandlers: Registro confirmado (msg_id, secuencia)
+    RouterHandlers->>MQTT: publish_safe(tópico resuelto dinámicamente)
+    RouterHandlers->>AuxQueue: Fanout no bloqueante a WebSocket (_schedule_background)
+    AuxQueue->>WebSocket: broadcast_event() en worker background
+    WebSocket-->>WebSocket: Entrega con timeout individual (sin bloquear persistencia)
 ```
+
+> **Aislamiento de Consumidores (ADR 0022)**:
+> 1. **Cola RF Pura**: `rx_router._pending_rx` procesa exclusivamente paquetes de radio LoRa y eventos decodificados. Tareas diagnósticas, logs de sistema (`_broadcast_system_log`), tramas crudas TCP Companion y eventos del sniffer (`rf_packet`) son despachadas a través de `BridgeCore._bg_queue`, impidiendo que ráfagas de logs o navegadores lentos provoquen desbordamiento (`RX-OVERFLOW`) y pérdida de tráfico LoRa.
+> 2. **Persistencia Garantizada antes de Fanout**: `publish_chat_event` efectúa el commit en SQLite antes de notificar a clientes WebSockets. La notificación web se agenda de forma asíncrona no bloqueante; clientes lentos o brokers desconectados nunca retrasan el hilo de persistencia.
+> 3. **Admisión Acotada Inter-Hilos**: Las llamadas `call_soon_threadsafe` en `AsyncBridgeMQTTClient` y `ExternalBridgeMQTTClient` implementan contadores atómicos protegidos por cerrojo con rechazo medido ante saturación (`[MQTT-INGRESS-OVERFLOW]`).
 
 ### 5.3 Comando de Administración (Local o Remoto)
 
@@ -523,7 +532,7 @@ sequenceDiagram
     Executors->>WebSocket: broadcast(result)
 ```
 
-### 5.4 Ciclo de Vida (Startup → Shutdown)
+### 5.4 Ciclo de Vida y Apagado Ordenado con Deadline Global (Fase F2 / ADR 0022)
 
 ```mermaid
 sequenceDiagram
@@ -545,11 +554,14 @@ sequenceDiagram
     BridgeCore->>Web: start()
     BridgeCore->>EventLoop: run_forever()
     note over EventLoop: Running
-    EventLoop->>BridgeCore: SIGINT
-    BridgeCore->>MQTT: Publicar offline (graceful_shutdown); LWT para caída inesperada
-    BridgeCore->>Web: stop()
-    BridgeCore->>Serial: close()
-    BridgeCore->>Main: exit
+    EventLoop->>BridgeCore: SIGINT / SIGTERM / stop(timeout=5.0)
+    note over BridgeCore: Deadline global monotónico (timeout 5.0s)
+    BridgeCore->>MQTT: 1. Cerrar admisión externa (dispatcher.close(), watchdog.stop())
+    BridgeCore->>BridgeCore: 2. Detener difusiones auxiliares (_bg_queue.clear(), bg_workers.cancel())
+    BridgeCore->>BridgeCore: 3. Detener admisión TX (rate_limiter.stop(), cancelación ítems)
+    BridgeCore->>BridgeCore: 4. Drenar trabajos RX (rx_router.drain()) y escrituras SQLite (asyncio.shield)
+    BridgeCore->>Web: 5. Cerrar transportes de red y hardware (web_server, tcp_server, serial.disconnect())
+    BridgeCore->>Main: Apagado limpio sin hilos ni tareas huérfanas
 ```
 
 ## 6. Catálogo de Clases Principales

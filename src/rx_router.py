@@ -506,22 +506,17 @@ class RxEventRouter:
             raise
 
     def _spawn_broadcast_task(self, payload: dict[str, Any]) -> None:
-        """Emite eventos WebSocket registrando la tarea en background_tasks."""
-        kind = str(payload.get("type", payload.get("event_type", ""))).lower()
+        """Emite eventos WebSocket desacoplados de la cola de recepción de radio."""
         bridge = self._ctx.bridge
-        persistent_chat = kind in ("public", "channel", "direct") and bridge is not None and hasattr(bridge, "publish_chat_event")
-        if not self._ctx.web_server and not persistent_chat:
-            return
-        async def broadcast() -> None:
-            if not persistent_chat and bridge is not None and getattr(bridge, "_draining_storage", False):
-                return
-            coro = bridge.publish_chat_event(payload) if persistent_chat else self._ctx.web_server.broadcast_event(payload)
-            if asyncio.iscoroutine(coro):
-                await coro
-
-        contact = payload.get("contact")
-        key = f"contact:{contact.get('public_key')}" if payload.get("type") == "contact_updated" and isinstance(contact, dict) and contact.get("public_key") else None
-        self._enqueue_work(broadcast, observation_key=key)
+        web_server = self._ctx.web_server
+        if bridge is not None and hasattr(bridge, "_schedule_background"):
+            if web_server and hasattr(web_server, "broadcast_event"):
+                bridge._schedule_background(lambda: web_server.broadcast_event(payload))
+        elif web_server and hasattr(web_server, "broadcast_event"):
+            loop = self._ctx.loop
+            if loop and loop.is_running():
+                task = loop.create_task(web_server.broadcast_event(payload), name="RxBroadcastEvent")
+                self._register_task(task)
 
     async def drain(self) -> None:
         """Finish accepted RX jobs before the bridge cancels its owned tasks."""
@@ -985,7 +980,7 @@ class RxEventRouter:
         self._ctx.mqtt.publish_safe(self.topics.rx_all, json.dumps(rep_payload, sort_keys=True), qos=0)
         self._spawn_broadcast_task(rep_payload)
 
-    def _process_chat_message(
+    async def _process_chat_message(
         self,
         msg: MeshMessageEvent,
         event_type_str: str,
@@ -1041,7 +1036,13 @@ class RxEventRouter:
 
         evt_json = json.dumps(evt_payload, sort_keys=True)
         self._ctx.mqtt.publish_safe(self.topics.rx_all, evt_json, qos=0)
-        self._spawn_broadcast_task(evt_payload)
+        bridge = self._ctx.bridge
+        if bridge is not None and hasattr(bridge, "publish_chat_event"):
+            res = await bridge.publish_chat_event(evt_payload)
+            if res and isinstance(res, dict):
+                evt_payload.update(res)
+        elif self._ctx.web_server:
+            self._spawn_broadcast_task(evt_payload)
         return evt_payload
 
     async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict[str, Any] | None:
@@ -1096,7 +1097,7 @@ class RxEventRouter:
             self._process_repeater_command_response(msg, extracted_telem, tagged_cli, now_iso)
             return None
 
-        return self._process_chat_message(msg, event_type_str, extracted_telem, now_iso)
+        return await self._process_chat_message(msg, event_type_str, extracted_telem, now_iso)
 
     async def _handle_mesh_channel_msg(self, msg: MeshMessageEvent) -> None:
         evt_payload = await self._handle_mesh_msg_common(msg, "public" if msg.channel_idx == 0 else "channel")

@@ -100,6 +100,9 @@ class AsyncBridgeMQTTClient:
         self.total_published = 0
         self.total_received = 0
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._cross_thread_lock = threading.Lock()
+        self._cross_thread_scheduled = 0
+        self._max_cross_thread_scheduled = 256
 
         # Inicialización de cliente con compatibilidad de versiones paho
         client_uid = f"meshcore_bridge_{int(time.time())}_{uuid.uuid4().hex[:8]}"
@@ -309,7 +312,34 @@ class AsyncBridgeMQTTClient:
 
             if self.on_rx_message_callback:
                 if self._loop and self._loop.is_running():
-                    self._loop.call_soon_threadsafe(self.on_rx_message_callback, topic, payload_str)
+                    with self._cross_thread_lock:
+                        if self._cross_thread_scheduled >= self._max_cross_thread_scheduled:
+                            rejected = True
+                        else:
+                            self._cross_thread_scheduled += 1
+                            rejected = False
+
+                    if rejected:
+                        logging.warning(
+                            "[MQTT-INGRESS-OVERFLOW] Cross-thread callback buffer full (%d); message rejected on topic %s",
+                            self._max_cross_thread_scheduled,
+                            topic,
+                        )
+                        return
+
+                    def scheduled_callback() -> None:
+                        try:
+                            if self.on_rx_message_callback:
+                                self.on_rx_message_callback(topic, payload_str)
+                        finally:
+                            with self._cross_thread_lock:
+                                self._cross_thread_scheduled -= 1
+
+                    try:
+                        self._loop.call_soon_threadsafe(scheduled_callback)
+                    except RuntimeError:
+                        with self._cross_thread_lock:
+                            self._cross_thread_scheduled -= 1
                 else:
                     try:
                         self.on_rx_message_callback(topic, payload_str)

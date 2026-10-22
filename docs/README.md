@@ -101,7 +101,7 @@ Los ADRs documentan de forma inmutable las decisiones arquitectónicas fundament
 | **[ADR 0019](adr/0019-tcp-companion-server-amendment.md)** | Enmienda al Servidor Proxy TCP Companion (300 Bytes y Propietario) | Vigente |
 | **[ADR 0020](adr/0020-application-service-boundaries-and-channels.md)** | Extracción de Servicios de Aplicación y Desacoplamiento de Canales | Vigente |
 | **[ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)** | Seguridad MQTT, Idempotencia de Órdenes y Resolvedor de Tópicos | Vigente |
-| **[ADR 0022](adr/0022-consumer-isolation-and-bounded-admission.md)** | Aislamiento de Consumidores y Admisión Acotada en Ingesta | Propuesto |
+| **[ADR 0022](adr/0022-consumer-isolation-and-bounded-admission.md)** | Aislamiento de Consumidores y Admisión Acotada en Ingesta | Vigente |
 
 ---
 
