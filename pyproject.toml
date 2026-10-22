@@ -165,3 +165,13 @@ forbidden_modules = [
     "src.serial_driver",
 ]
 
+[[tool.importlinter.contracts]]
+name = "Clean Architecture: Capa de Aplicación aislada de Adaptadores Web"
+type = "forbidden"
+source_modules = [
+    "src.application",
+]
+forbidden_modules = [
+    "src.web",
+]
+
