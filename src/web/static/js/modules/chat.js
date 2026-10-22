@@ -803,7 +803,7 @@ export class ChatModule {
     if (!this.dom.modalShareChannel || this._sharingChannel) return;
     ++this._shareChannelSession;
 
-    const rawList = this.ctx.channelsList || this.ctx.settingsModule?.channelsList || [];
+    const rawList = this.ctx.channelsList || [];
     // REGLA SSoT: El canal 0 (Public / Broadcast) es universal y todos los nodos ya lo tienen.
     // NUNCA permitir compartir el canal público. Solo compartir canales privados/cifrados (índice >= 1).
     const chList = rawList.filter((ch) => Number(ch.index) > 0);
@@ -833,7 +833,7 @@ export class ChatModule {
     const focusKey = this._getPickerFocusKey(this.dom.shareChannelList);
     this.dom.shareChannelList.innerHTML = "";
 
-    const rawList = this.ctx.channelsList || this.ctx.settingsModule?.channelsList || [];
+    const rawList = this.ctx.channelsList || [];
     // REGLA SSoT: El canal 0 (Public / Broadcast) es universal y todos los nodos ya lo tienen.
     // NUNCA permitir compartir el canal público. Solo compartir canales privados/cifrados (índice >= 1).
     const chList = rawList.filter((ch) => Number(ch.index) > 0);
@@ -900,11 +900,18 @@ export class ChatModule {
     // Si es un canal privado y la clave está enmascarada, intentar obtenerla de /api/channels/export
     if (!isPublic && (!secret || secret.includes("•") || secret === "••••••••")) {
       try {
-        const headers = this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {};
-        const exportUrl = ch.index != null ? `/api/channels/export?index=${encodeURIComponent(ch.index)}` : "/api/channels/export";
-        const res = await fetch(exportUrl, { headers });
-        if (res.ok) {
-          const exportData = await res.json();
+        let exportData = null;
+        if (this.ctx.apiClient?.exportChannels) {
+          exportData = await this.ctx.apiClient.exportChannels(ch.index);
+        } else {
+          const headers = this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {};
+          const exportUrl = ch.index != null ? `/api/channels/export?index=${encodeURIComponent(ch.index)}` : "/api/channels/export";
+          const res = await fetch(exportUrl, { headers });
+          if (res.ok) {
+            exportData = await res.json();
+          }
+        }
+        if (exportData) {
           let rawPsk = String(exportData.data?.secret || exportData.secret || "").trim();
           if (!rawPsk || rawPsk.includes("•")) {
             const list = Array.isArray(exportData) ? exportData : (exportData.channels || []);
@@ -1032,7 +1039,7 @@ export class ChatModule {
       }
     } else {
       // Caso Canal
-      const chList = this.ctx.settingsModule?.channelsList || [];
+      const chList = this.ctx.channelsList || [];
       const ch = chList.find((c) => Number(c.index) === this.activeChannelIdx);
       const isEncrypted = ch ? Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0 && ch.psk !== MESHCORE_PUBLIC_CHANNEL_SECRET)) : (this.activeChannelIdx !== 0);
       const prefix = window.I18n ? window.I18n.t('chat.channel_prefix') || 'Canal' : 'Canal';

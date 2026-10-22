@@ -9,6 +9,7 @@ import { DialogController } from "./core/dialog_controller.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
 import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders, readLocalPreference, writeLocalPreference } from "./core/utils.js";
 import { store } from "./core/store.js";
+import { apiClient } from "./core/api_client.js";
 import { BrowserAuthentication } from "./core/auth.js";
 import { applyThemePreference, readThemePreference, applyDensityPreference } from "./core/theme.js";
 
@@ -26,6 +27,7 @@ class MeshCoreApp {
     this.storage = new MeshCoreStorage();
     this.wsClient = new MeshCoreWebSocketClient(this.eventBus, "/ws");
     this.store = store;
+    this.apiClient = apiClient;
 
     this.activeTabId = "tab-chat";
     this.knownNodes = new Map();
@@ -39,6 +41,7 @@ class MeshCoreApp {
       storage: this.storage,
       wsClient: this.wsClient,
       store: this.store,
+      apiClient: this.apiClient,
       knownNodes: this.knownNodes,
       localNodePubkey: "",
       showToast: (msg, type, duration) => this.showToast(msg, type, duration),
@@ -60,8 +63,8 @@ class MeshCoreApp {
       get activeChannelIdx() { return self.chatModule ? self.chatModule.activeChannelIdx : 0; },
       get activeDmTarget() { return self.chatModule ? self.chatModule.activeDmTarget : null; },
       get settingsModule() { return self.settingsModule; },
-      get channelsList() { return self.settingsModule?.channelsList || []; },
-      get localConfig() { return self.settingsModule?.cachedConfig || {}; },
+      get channelsList() { return self.store.get("channels") || self.settingsModule?.channelsList || []; },
+      get localConfig() { return self.store.get("stationConfig") || self.settingsModule?.cachedConfig || {}; },
       renderNodesDirectory: () => self.nodesModule?.renderNodesDirectory?.(),
       fetchNodes: () => self.nodesModule?.fetchNodes(),
       updateNodeInDom: (a, b) => self.nodesModule?.updateNodeInDom?.(a, b),
@@ -108,6 +111,9 @@ class MeshCoreApp {
     this.nodesModule.init();
     this.chatModule.init();
     this.analyticsModule.init();
+
+    // Cargar estado inicial desacoplado (canales y configuración)
+    this.fetchInitialStationState();
 
     // Exponer instancia global y helpers de diálogos del sistema
     window.bridgeApp = this;
@@ -640,6 +646,47 @@ class MeshCoreApp {
         }
       }
     });
+
+    this.eventBus.on(EVENTS.CHANNELS_UPDATED, (payload) => {
+      const list = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload?.channels) ? payload.channels : []));
+      this.store.set("channels", list);
+      if (this.settingsModule?.renderChannelsList) {
+        this.settingsModule.renderChannelsList(list);
+      }
+    });
+
+    this.eventBus.on(EVENTS.CONFIG_UPDATED, (payload) => {
+      const cfg = payload?.data || payload || {};
+      this.store.set("stationConfig", cfg);
+      if (this.settingsModule?.populateLocalConfig) {
+        this.settingsModule.populateLocalConfig(cfg);
+      }
+    });
+  }
+
+  async fetchInitialStationState() {
+    try {
+      const [channelsRes, configRes] = await Promise.allSettled([
+        this.apiClient.getChannels(),
+        this.apiClient.getConfig(),
+      ]);
+      if (channelsRes.status === "fulfilled" && channelsRes.value?.status === "ok") {
+        const list = Array.isArray(channelsRes.value.data) ? channelsRes.value.data : [];
+        this.store.set("channels", list);
+        if (this.settingsModule?.renderChannelsList) {
+          this.settingsModule.renderChannelsList(list);
+        }
+      }
+      if (configRes.status === "fulfilled" && configRes.value?.status === "ok") {
+        const cfg = configRes.value.data || {};
+        this.store.set("stationConfig", cfg);
+        if (this.settingsModule?.populateLocalConfig) {
+          this.settingsModule.populateLocalConfig(cfg);
+        }
+      }
+    } catch (err) {
+      console.warn("Error cargando estado inicial de la estación:", err);
+    }
   }
 
   updateAirtimeBadge(payload) {

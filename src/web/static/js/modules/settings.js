@@ -1412,12 +1412,20 @@ export class SettingsModule {
 
   async fetchChannels() {
     try {
-      const res = await fetch("/api/channels", {
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
-      });
-      const data = await res.json();
-      if (data.status === "ok" && Array.isArray(data.data)) {
+      let data = null;
+      if (this.ctx.apiClient?.getChannels) {
+        data = await this.ctx.apiClient.getChannels();
+      } else {
+        const res = await fetch("/api/channels", {
+          headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+        });
+        data = await res.json();
+      }
+      if (data?.status === "ok" && Array.isArray(data.data)) {
         this.channelsList = data.data;
+        if (this.ctx.store) {
+          this.ctx.store.set("channels", data.data);
+        }
         this.renderChannelsList(data.data);
       }
     } catch (e) {
@@ -1427,6 +1435,9 @@ export class SettingsModule {
 
   renderChannelsList(channels) {
     this.channelsList = Array.isArray(channels) ? channels : [];
+    if (this.ctx.store && this.ctx.store.get("channels") !== this.channelsList) {
+      this.ctx.store.set("channels", this.channelsList);
+    }
     const listEl = this.dom.channelListUi || document.getElementById("channelListUi");
     if (!listEl) return;
     const focusedControl = listEl.contains(document.activeElement) ? document.activeElement : null;
@@ -1689,6 +1700,9 @@ export class SettingsModule {
       if (v !== undefined && v !== null) {
         this.cachedConfig[k] = v;
       }
+    }
+    if (this.ctx.store) {
+      this.ctx.store.set("stationConfig", { ...this.cachedConfig });
     }
 
     if (incoming.device_epoch_time) {

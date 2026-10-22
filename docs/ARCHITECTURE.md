@@ -151,6 +151,11 @@ Conforme a las fases F1 y F3.1 del plan de evolución (`nuevo.md`, [ADR 0020](ad
    - Aplica de forma obligatoria las Reglas 1.1 y 1.2: prohíbe la inclusión de nodos de infraestructura (`REPEATER` / `ROUTER`) o de la estación local (`LOCAL`) en contactos.
    - Gestiona la sincronización con el transceptor físico (`ser.add_contact`, `ser.remove_contact`, `ser.sync_all_contacts`), garantizando que un fallo de hardware cancele la mutación local sin dejar registros inconsistentes.
    - Procesa la importación por lotes desde URIs `meshcore://contact/add`, tags `<pubkey:type:name>`, JSON estructurado y volcados hexadecimales/binarios.
+7. **Modernización de Frontend y Cliente API Unificado (`src/web/static/js/core/api_client.js`)**:
+   - `ApiClient` provee métodos tipados para toda la API REST (`/api/*`), abstrayendo tokens CSRF (`X-CSRF-Token`), credenciales `same-origin`, y normalización de errores RFC 7807 (`ProblemDetailsError`).
+   - El estado de canales (`channels`) y configuración de estación (`stationConfig`) se centralizan en el almacén reactivo `store` (`src/web/static/js/core/store.js`).
+   - Se desacopla `ChatModule` de `SettingsModule`: la vista de chat ya no depende de que el módulo de ajustes haya cargado previamente la lista de canales para renderizar la barra lateral ni para compartir canales.
+   - Sincronización en vivo mediante eventos WebSocket desacoplados: `meshcore:channels_updated` y `meshcore:config_updated`.
 
 ## 2. Modelo Canónico de Arquitectura en 5 Capas
 

@@ -105,6 +105,21 @@ export class MeshCoreWebSocketClient {
           return;
         }
 
+        if (pType === "channels_updated") {
+          this.eventBus.emit(EVENTS.CHANNELS_UPDATED, payload.data || payload);
+          return;
+        }
+
+        if (pType === "contacts_updated") {
+          this.eventBus.emit(EVENTS.CONTACTS_UPDATED, payload.data || payload);
+          return;
+        }
+
+        if (pType === "config_updated") {
+          this.eventBus.emit(EVENTS.CONFIG_UPDATED, payload.data || payload);
+          return;
+        }
+
 
         this.eventBus.emit(EVENTS.RX_PACKET, payload);
       } catch (err) {

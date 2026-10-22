@@ -123,4 +123,8 @@ export const store = new ReactiveStore({
   knownNodesCount: 0,
   theme: "dark",
   unreadCount: 0,
+  channels: [],
+  stationConfig: {},
+  stationStatus: {},
+  servicesConfig: {},
 });
