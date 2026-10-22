@@ -13,7 +13,7 @@ SQLite is the authoritative store for station state and chat history. Browser st
 | --- | --- |
 | LocalStorage | Theme, language, panel layout and other interface preferences. |
 | IndexedDB | Messages already downloaded, separated by persistent station UUID; quick conversation loading and offline reading. The old browser store remains available for explicit import. |
-| SQLite | Received and outgoing chat, conversations, delivery states, node registry, channels and PSKs, services and MQTT presets, airtime history, and repeater cooldown timestamps. |
+| SQLite | Received and outgoing chat, conversations, delivery states, node registry, channels and PSKs, services and MQTT presets, airtime history, repeater cooldown timestamps, and MQTT command idempotency ledger (`command_ledger`). |
 
 API credentials and browser sessions use an HttpOnly session cookie (`meshcore_session`) and an in-memory CSRF token (`X-CSRF-Token`). Credentials and session tokens are never stored in client browser storage (`localStorage` or `sessionStorage`). The database may contain channel and service credentials: restrict access to the station account and protect backups as secrets. SQLite files and backups use mode 0600 on POSIX; on Windows this does not configure NTFS ACLs, so restrict the directory and account permissions separately.
 
@@ -45,6 +45,14 @@ History reads, imports and WebSocket access always require an authenticated sess
 | `GET /api/messages/recent` | Compatibility envelope `data` list and `count`, now backed by SQLite in production. |
 
 Feeds use `ch_<channel index>` or `dm_<public key>`. Messages include stable `msg_id`, sequence `seq`, station identity, direction, timestamp, text and delivery state. Invalid history inputs return 422; unavailable storage returns 503; unexpected storage failures return 500 without exposing credentials.
+
+## Command idempotency ledger (`command_ledger`)
+
+To guarantee strict command idempotency for LAN/n8n MQTT commands ([ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)), SQLite maintains the `command_ledger` table:
+- **Schema**: `(id INTEGER PRIMARY KEY AUTOINCREMENT, station_id TEXT NOT NULL, integration_scope TEXT NOT NULL, command_id TEXT NOT NULL, fingerprint TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL, UNIQUE (station_id, integration_scope, command_id))`
+- **Index**: `idx_command_ledger_lookup` on `(station_id, integration_scope, command_id)`
+- **Capacity Policy**: Strictly bounded to 10 000 rows. Pruning executes inline during insertion (retaining the most recent entries) without requiring background timers.
+- **Rollback Note**: Restoring an older SQLite backup also reverts the ledger; incoming requests with previously reserved command IDs during the gap must be reconciled by the integration.
 
 ## Backup, restore and rollback
 

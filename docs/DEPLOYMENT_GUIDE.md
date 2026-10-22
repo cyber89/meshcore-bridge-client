@@ -71,17 +71,21 @@ Los pins core y ASGI fijan las versiones de esta actualización. La resolución 
 
 La verificación con el mismo intérprete del launcher comprueba imports y versiones; no ejecuta endpoints ni acredita el comportamiento de la estación:
 
-- **Perfil `web`**: Verifica cuatro dependencias core y seis ASGI. Es el default sin variable `MESHCORE_PROFILE`; ambos instaladores lo seleccionan explícitamente con `--profile web`:
+- **Perfil `web` / `all`**: Verifica dependencias core, cliente MQTT y los seis pins ASGI. Es el default sin variable `MESHCORE_PROFILE`; ambos instaladores lo seleccionan explícitamente con `--profile web`:
   ```bash
   python scripts/check_runtime_dependencies.py                  # Por defecto (perfil web)
   python scripts/check_runtime_dependencies.py --profile web    # Explícito
   ```
-- **Perfil `core`**: Verifica únicamente los cuatro mínimos core y no importa ASGI durante esa comprobación:
+- **Perfil `mqtt`**: Verifica dependencias core y cliente MQTT Paho (`meshcore`, `pyserial`, `python-dotenv`, `paho-mqtt`):
   ```bash
-  python scripts/check_runtime_dependencies.py --profile core   # Perfil core headless
+  python scripts/check_runtime_dependencies.py --profile mqtt   # Perfil core + broker MQTT
+  ```
+- **Perfil `core`**: Verifica únicamente los mínimos core (`meshcore`, `pyserial`, `python-dotenv`) y no importa ASGI ni MQTT durante esa comprobación:
+  ```bash
+  python scripts/check_runtime_dependencies.py --profile core   # Perfil core headless puro
   ```
 
-`MESHCORE_PROFILE` selecciona el perfil del comprobador cuando no se pasa `--profile`. Un perfil desconocido falla; no reduce silenciosamente la verificación a core. El argumento explícito tiene prioridad sobre la variable. Este perfil no cambia la configuración de ejecución ni el manifest que instala pip. `WEB_ENABLED=false` desactiva la construcción y arranque web mediante imports diferidos en `bridge_core.py`; no elimina paquetes ya instalados. Los instaladores actuales instalan el manifest completo incluso para una estación headless; no existe un instalador ni manifest mantenido que instale sólo core.
+`MESHCORE_PROFILE` selecciona el perfil del comprobador cuando no se pasa `--profile`. Un perfil desconocido falla; no reduce silenciosamente la verificación a core. El argumento explícito tiene prioridad sobre la variable. Con la Fase F4 ([ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md)), `pyproject.toml` define extras formales de instalación granular: `pip install -e .[core]`, `pip install -e .[mqtt]`, `pip install -e .[web]`, y `pip install -e .[all]`. `WEB_ENABLED=false` o la ausencia de librerías ASGI desactiva de forma segura la construcción y arranque web mediante imports diferidos en `bridge_core.py`, operando en modo headless nativo sin excepciones no controladas.
 
 Cuando `WEB_ENABLED=true`, el core crea [`AsgiWebServer`](../src/web/asgi_server.py), con FastAPI y Uvicorn embebido. No hay selector del servidor nativo ni fallback si faltan dependencias. La adopción está implementada en código; las pruebas funcionales de REST, WS, documentación offline, apagado e instalación por plataforma siguen pendientes para esta revisión. No se han medido RAM, arranque ni rendimiento en los gateways citados.
 

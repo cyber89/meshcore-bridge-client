@@ -10,11 +10,14 @@ import re
 import sys
 from collections.abc import Callable
 
-DEPENDENCIES = (
-    ("paho-mqtt", "paho.mqtt.client", (2, 1, 0)),
+CORE_DEPENDENCIES = (
     ("meshcore", "meshcore", (2, 3, 17)),
     ("pyserial", "serial", (3, 5, 0)),
     ("python-dotenv", "dotenv", (1, 2, 4)),
+)
+
+MQTT_DEPENDENCIES = (
+    ("paho-mqtt", "paho.mqtt.client", (2, 1, 0)),
 )
 
 WEB_DEPENDENCIES = (
@@ -34,8 +37,10 @@ WEB_PINNED_VERSIONS = {
 }
 
 PROFILES: dict[str, tuple[tuple[str, str, tuple[int, ...]], ...]] = {
-    "core": DEPENDENCIES,
-    "web": DEPENDENCIES + WEB_DEPENDENCIES,
+    "core": CORE_DEPENDENCIES,
+    "mqtt": CORE_DEPENDENCIES + MQTT_DEPENDENCIES,
+    "web": CORE_DEPENDENCIES + MQTT_DEPENDENCIES + WEB_DEPENDENCIES,
+    "all": CORE_DEPENDENCIES + MQTT_DEPENDENCIES + WEB_DEPENDENCIES,
 }
 
 MIN_PYTHON_VERSION = (3, 12, 0)
@@ -95,9 +100,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check MeshCore Bridge dependencies by profile.")
     parser.add_argument(
         "--profile",
-        choices=["core", "web"],
+        choices=["core", "mqtt", "web", "all"],
         default=os.getenv("MESHCORE_PROFILE", "web"),
-        help="Dependency profile to check (core: minimal headless; web: core + ASGI stack).",
+        help="Dependency profile to check (core: minimal headless; mqtt: core + paho-mqtt; web/all: complete stack).",
     )
     args = parser.parse_args(argv)
     failures = check_dependencies(profile=args.profile)
