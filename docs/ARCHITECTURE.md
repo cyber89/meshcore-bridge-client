@@ -142,6 +142,15 @@ Conforme a las fases F1 y F3.1 del plan de evolución (`nuevo.md`, [ADR 0020](ad
    - La tabla aplica una poda determinista acotada a 10 000 filas en el momento de la inserción, sin timers en segundo plano.
 4. **Rechazo Estricto de Mensajes Retenidos**:
    - Los adaptadores MQTT (`MeshCoreMqttClient` y `ExternalMqttClient`) inspeccionan la bandera `retain`. Cualquier mensaje con `retain=True` dirigido a tópicos de acción (`/tx`, `/send`, `/admin/*`) es descartado inmediatamente para prevenir ráfagas involuntarias tras reconexiones.
+5. **Extracción de `MessageService` (`src/application/messaging.py`)**:
+   - Centraliza la validación (`validate_tx_request`), ejecución (`submit_chat`), consulta de historial y conversaciones (`get_history`, `get_conversations`), e importación masiva de mensajes de chat.
+   - Aplica de forma unificada las invariantes de red LoRa: prohíbe el envío de mensajería hacia repetidores o hacia la estación local tanto desde la Web REST como desde MQTT y scripts headless.
+   - Integra rate limiting de transmisión (`TxRateLimiter`) y persistencia directa en SQLite (`StationDatabase`).
+6. **Extracción de `ContactService` (`src/application/contacts.py`)**:
+   - Centraliza la libreta de contactos (clientes LoRa), validaciones de nombres de firmware (31 bytes UTF-8) y claves públicas (32 bytes / 64 hex).
+   - Aplica de forma obligatoria las Reglas 1.1 y 1.2: prohíbe la inclusión de nodos de infraestructura (`REPEATER` / `ROUTER`) o de la estación local (`LOCAL`) en contactos.
+   - Gestiona la sincronización con el transceptor físico (`ser.add_contact`, `ser.remove_contact`, `ser.sync_all_contacts`), garantizando que un fallo de hardware cancele la mutación local sin dejar registros inconsistentes.
+   - Procesa la importación por lotes desde URIs `meshcore://contact/add`, tags `<pubkey:type:name>`, JSON estructurado y volcados hexadecimales/binarios.
 
 ## 2. Modelo Canónico de Arquitectura en 5 Capas
 

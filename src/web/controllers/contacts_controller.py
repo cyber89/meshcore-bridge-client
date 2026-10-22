@@ -1,68 +1,47 @@
 """
 Contacts REST controller.
 Handles /api/contacts, /api/contacts/sync, /api/contacts/share, export, and import.
+Delegates domain logic, hardware synchronization, and persistence to ContactService.
 """
 
 from __future__ import annotations
 
-import asyncio
-import json
-import logging
 import re
-import urllib.parse
 from typing import Any
 
-from src.contact_manager import NodeContactUpdate, is_valid_node_key
+from src.application.contacts import ContactOperationResult, ContactService
 from src.web.controllers.base import (
     ApiContext,
     BaseController,
-    firmware_name_valid,
     problem_details,
 )
 
-_CONTACT_TYPE_MAP_REV: dict[str, str] = {"1": "CLIENT", "2": "REPEATER", "3": "ROOM", "4": "SENSOR"}
-_ROLE_TYPE_MAP: dict[str, int] = {"CLIENT": 1, "CHAT": 1, "USER": 1, "REPEATER": 2, "ROUTER": 2, "ROOM": 3, "SENSOR": 4}
-
 
 class ContactsController(BaseController):
-    """Controlador para libreta de contactos (clientes LoRa) y sincronización con el firmware."""
+    """Controlador REST para la libreta de contactos (clientes LoRa) y sincronización con el firmware."""
 
     def __init__(self, ctx: ApiContext) -> None:
         super().__init__(ctx)
-        self._mutation_lock = asyncio.Lock()
+        self.contact_service: ContactService = getattr(ctx.bridge, "contact_service", None) or ContactService(
+            node_registry=ctx.bridge.node_registry,
+            serial_adapter_provider=lambda: getattr(ctx.bridge, "serial_adapter", None),
+            database=getattr(ctx.bridge, "database", None),
+            log_system_event=ctx.log_system_event,
+        )
 
     def _contact_validation(self, pubkey: str, name: str, role: str) -> tuple[int, dict[str, Any]] | None:
-        if not is_valid_node_key(pubkey) or len(pubkey) != 64:
-            return problem_details(422, "Unprocessable Entity", "Se requiere una clave pública de 32 bytes", "invalid_public_key")
-        if not firmware_name_valid(name):
-            return problem_details(422, "Unprocessable Entity", "El nombre debe caber en 31 bytes UTF-8 sin caracteres de control", "invalid_contact_name")
-        registry = self.ctx.bridge.node_registry
-        if registry.is_local_key(pubkey):
-            return problem_details(400, "Bad Request", "No se permite agregar la estación base local", "cannot_add_local_station")
-        existing = registry.get_node(pubkey)
-        if role.upper() in {"REPEATER", "ROUTER", "LOCAL"} or (existing and existing.role in {"REPEATER", "ROUTER", "LOCAL"}):
-            return problem_details(400, "Bad Request", "Los nodos de infraestructura no pertenecen a contactos", "repeater_contact_forbidden")
-        if role.upper() not in {"CLIENT", "CHAT", "NONE", "ROOM", "SENSOR"}:
-            return problem_details(422, "Unprocessable Entity", "Tipo de contacto no reconocido por el firmware", "invalid_contact_role")
+        """Valida un contacto usando ContactService y devuelve un problem_details si es inválido."""
+        val: ContactOperationResult = self.contact_service.validate_contact(pubkey, name, role)
+        if not val.success:
+            title = "Unprocessable Entity" if val.http_code == 422 else "Bad Request"
+            return problem_details(val.http_code, title, val.error or "Error de validación", val.error_code or "validation_error")
         return None
 
     async def _save_registry_async(self) -> bool:
-        """Persiste el registro de nodos en un thread pool sin bloquear el event loop."""
-        reg = getattr(self.ctx.bridge, "node_registry", None)
-        if reg:
-            if hasattr(reg, "save_to_file_async"):
-                return bool(await reg.save_to_file_async())
-            elif hasattr(reg, "save_to_file"):
-                return bool(await asyncio.to_thread(reg.save_to_file))
-        return True
+        """Persiste el registro de nodos delegando a ContactService."""
+        return await self.contact_service._save_registry_async()
 
     async def handle_contacts_route(
-        self, path: str, method: str, req_body: dict[str, Any]
-    ) -> tuple[int, dict[str, Any]]:
-        async with self._mutation_lock:
-            return await self._handle_contacts_route(path, method, req_body)
-
-    async def _handle_contacts_route(
         self,
         path: str,
         method: str,
@@ -86,6 +65,7 @@ class ContactsController(BaseController):
                 return problem_details(405, "Method Not Allowed", "Contacto individual admite DELETE", "method_not_allowed")
         elif method not in resource_methods[path]:
             return problem_details(405, "Method Not Allowed", "Método no permitido para este recurso", "method_not_allowed")
+
         if path == "/api/contacts/sync" and method == "POST":
             return await self._sync_contacts()
 
@@ -99,7 +79,7 @@ class ContactsController(BaseController):
             return await self._import_contact(req_body)
 
         if method == "GET":
-            nodes = self.ctx.bridge.node_registry.list_client_contacts()
+            nodes = self.contact_service.list_contacts()
             return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
 
         if method == "POST":
@@ -112,45 +92,20 @@ class ContactsController(BaseController):
 
     async def _sync_contacts(self) -> tuple[int, dict[str, Any]]:
         """Sincroniza los contactos almacenados en el firmware con el registro del bridge."""
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if not ser or not hasattr(ser, "sync_all_contacts"):
-            return problem_details(503, "Service Unavailable", "Transceptor no disponible para sincronización de contactos", "transceiver_offline")
-        imported_count = 0
-        try:
-            imported = await ser.sync_all_contacts()
-            for c in imported:
-                pk = str(c.get("public_key", "")).strip()
-                if pk:
-                    last_adv = c.get("last_advert")
-                    eff_lat = c.get("latitude") if c.get("latitude") is not None else (c.get("lat") if c.get("lat") is not None else c.get("adv_lat"))
-                    eff_lon = c.get("longitude") if c.get("longitude") is not None else (c.get("lon") if c.get("lon") is not None else c.get("adv_lon"))
-                    self.ctx.bridge.node_registry.add_or_update(
-                        pk,
-                        NodeContactUpdate(
-                            name=c.get("name"),
-                            alias=c.get("alias"),
-                            role=c.get("role", "CLIENT"),
-                            last_seen=None,
-                            last_advert=float(last_adv) if isinstance(last_adv, (int, float)) and last_adv > 0 else None,
-                            latitude=eff_lat,
-                            longitude=eff_lon,
-                            adv_lat=c.get("adv_lat") or eff_lat,
-                            adv_lon=c.get("adv_lon") or eff_lon,
-                            flags=c.get("flags"),
-                            out_path=c.get("out_path"),
-                            out_path_len=c.get("out_path_len"),
-                            out_path_hash_mode=c.get("out_path_hash_mode"),
-                        ),
-                    )
-                    imported_count += 1
-            await self._save_registry_async()
-        except ConnectionError:
-            return problem_details(503, "Service Unavailable", "No se pudo sincronizar contactos", "sync_failed")
-        except Exception:
-            return problem_details(503, "Service Unavailable", "Fallo sincronizando contactos con el nodo", "sync_failed")
+        res = await self.contact_service.sync_from_radio()
+        if not res.success:
+            return problem_details(
+                res.http_code,
+                "Service Unavailable",
+                res.error or "Fallo sincronizando contactos con el nodo",
+                res.error_code or "sync_failed",
+            )
 
-        nodes = self.ctx.bridge.node_registry.list_client_contacts()
-        return 200, {"status": "ok", "imported": imported_count, "data": nodes, "count": len(nodes)}
+        if self.ctx.broadcast_ws:
+            self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
+
+        nodes = self.contact_service.list_contacts()
+        return 200, {"status": "ok", "imported": res.data.get("imported", 0), "data": nodes, "count": len(nodes)}
 
     async def _share_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Comparte un contacto con los nodos de la malla."""
@@ -158,353 +113,44 @@ class ContactsController(BaseController):
         if not pubkey:
             return problem_details(400, "Bad Request", "Se requiere 'public_key'", "missing_public_key")
 
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        res = await ser.share_contact(pubkey) if ser and hasattr(ser, "share_contact") else None
-        failure = self.command_failure(res)
-        if failure:
-            return failure
-        self.ctx.log_system_event("INFO", f"Contacto compartido con la malla: {pubkey}", source="contacts")
-        return 200, {"status": "ok", "result": res}
+        res = await self.contact_service.share_contact(pubkey)
+        if not res.success:
+            return problem_details(
+                res.http_code,
+                "Bad Request" if res.http_code == 400 else "Service Unavailable",
+                res.error or "Error al compartir contacto",
+                res.error_code or "share_failed",
+            )
+        return 200, {"status": "ok", "result": res.data}
 
     async def _export_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Exporta los datos de un contacto en URI oficial de MeshCore (meshcore://contact/add?name=...&public_key=...&type=...)."""
+        """Exporta los datos de un contacto en formato canónico de MeshCore."""
         pubkey = str(req_body.get("public_key") or req_body.get("pubkey") or req_body.get("key") or "").strip()
         if not pubkey:
             return problem_details(400, "Bad Request", "Se requiere 'public_key' para exportar", "missing_public_key")
 
-        validation = self._contact_validation(pubkey, "Export", "CLIENT")
-        if validation:
-            return validation
+        res = await self.contact_service.export_contact(pubkey)
+        if not res.success:
+            title = "Unprocessable Entity" if res.http_code == 422 else "Bad Request"
+            return problem_details(res.http_code, title, res.error or "Error al exportar contacto", res.error_code or "export_failed")
 
-        name = ""
-        role = "CLIENT"
-
-        # 1. Buscar en el registro de nodos
-        node = None
-        if hasattr(self.ctx.bridge, "node_registry"):
-            reg = self.ctx.bridge.node_registry
-            if hasattr(reg, "get"):
-                node = reg.get(pubkey)
-            elif hasattr(reg, "get_by_key_or_prefix"):
-                node = reg.get_by_key_or_prefix(pubkey)
-            if not node and hasattr(reg, "is_local_key") and reg.is_local_key(pubkey):
-                local_ident = getattr(reg, "local_identity", None)
-                if local_ident:
-                    name = getattr(local_ident, "name", "") or getattr(local_ident, "node_name", "")
-                role = "CLIENT"
-
-        if node:
-            name = str(getattr(node, "name", "") or getattr(node, "alias", "") or "").strip()
-            role = str(getattr(node, "role", "CLIENT") or "CLIENT").strip().upper()
-
-        if not name:
-            name = str(req_body.get("name") or req_body.get("alias") or f"Node_{pubkey[:6]}").strip()
-
-        # Mapeo numérico oficial MeshCore FirmwareAdvertType:
-        # 1: CHAT / CLIENT, 2: REPEATER, 3: ROOM, 4: SENSOR
-        type_map = {
-            "CLIENT": 1,
-            "CHAT": 1,
-            "USER": 1,
-            "REPEATER": 2,
-            "ROUTER": 2,
-            "ROOM": 3,
-            "SENSOR": 4,
-        }
-        type_num = type_map.get(role, 1)
-
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        res = await ser.export_contact(pubkey) if ser and hasattr(ser, "export_contact") else None
-
-        raw_hex_str: str | None = None
-        if isinstance(res, str):
-            raw_hex_str = res
-        elif isinstance(res, dict) and isinstance(res.get("raw_hex"), str):
-            raw_hex_str = res["raw_hex"]
-        elif isinstance(res, dict) and res.get("status") == "OK" and "response" in res:
-            raw_hex_str = str(res["response"])
-
-        encoded_name = urllib.parse.quote(name)
-        canonical_uri = f"meshcore://contact/add?name={encoded_name}&public_key={pubkey}&type={type_num}"
-        message_tag = f"<{pubkey}:{type_num}:{name}>"
-
-        contact_data = {
-            "type": "contact",
-            "name": name,
-            "public_key": pubkey,
-            "role": role,
-            "contact_type": type_num,
-            "uri": canonical_uri,
-            "message_tag": message_tag,
-            "raw_hex": raw_hex_str,
-        }
-
-        return 200, {
-            "status": "ok",
-            "uri": canonical_uri,
-            "qr_uri": canonical_uri,
-            "message_tag": message_tag,
-            "data": contact_data,
-            "result": raw_hex_str,
-        }
-
-    @staticmethod
-    def _parse_contacts_from_tags(raw_payload: str) -> list[dict[str, Any]]:
-        """Extrae contactos en formato de mensaje MeshCore <pubkey:type:name>."""
-        contacts: list[dict[str, Any]] = []
-        m_single = re.match(r"^<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>$", raw_payload)
-        if m_single:
-            pk = m_single.group(1).lower()
-            raw_type = m_single.group(2)
-            nm = m_single.group(3).strip()
-            rl = _CONTACT_TYPE_MAP_REV.get(raw_type, "CLIENT")
-            contacts.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
-        else:
-            matches = re.findall(r"<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>", raw_payload)
-            for m_pk, m_type, m_name in matches:
-                rl = _CONTACT_TYPE_MAP_REV.get(m_type, "CLIENT")
-                contacts.append({"public_key": m_pk.lower(), "name": m_name.strip(), "alias": m_name.strip(), "role": rl})
-        return contacts
-
-    @staticmethod
-    def _parse_contacts_from_uri(raw_payload: str) -> tuple[list[dict[str, Any]], tuple[int, dict[str, Any]] | None]:
-        """Extrae contactos desde URI meshcore://."""
-        if not raw_payload.startswith("meshcore://"):
-            return [], None
-        try:
-            parsed_uri = urllib.parse.urlparse(raw_payload)
-            if "channel" in parsed_uri.netloc.lower() or "channel" in parsed_uri.path.lower():
-                return [], problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto. Usa la sección Canales para importarlo.", "channel_payload_in_contacts")
-
-            qs = urllib.parse.parse_qs(parsed_uri.query)
-            pk = (qs.get("public_key") or qs.get("pubkey") or qs.get("key") or [""])[0].strip()
-            nm = (qs.get("name") or qs.get("alias") or [""])[0].strip()
-            raw_type = (qs.get("type") or [""])[0].strip()
-            rl = (qs.get("role") or [""])[0].strip().upper()
-            if not rl and raw_type:
-                rl = _CONTACT_TYPE_MAP_REV.get(raw_type, "CLIENT")
-            if not rl:
-                rl = "CLIENT"
-            lat_s = (qs.get("latitude") or qs.get("lat") or qs.get("adv_lat") or [""])[0].strip()
-            lon_s = (qs.get("longitude") or qs.get("lon") or qs.get("adv_lon") or [""])[0].strip()
-            c_entry: dict[str, Any] = {"public_key": pk, "name": nm, "alias": nm, "role": rl}
-            if lat_s:
-                try:
-                    c_entry["latitude"] = float(lat_s)
-                except (ValueError, TypeError):
-                    pass
-            if lon_s:
-                try:
-                    c_entry["longitude"] = float(lon_s)
-                except (ValueError, TypeError):
-                    pass
-            if pk:
-                return [c_entry], None
-        except Exception as error:
-            logging.warning("Contact URI parsing failed: %s", type(error).__name__)
-        return [], None
-
-    @staticmethod
-    def _parse_contacts_from_json(raw_payload: str) -> tuple[list[dict[str, Any]], tuple[int, dict[str, Any]] | None]:
-        """Extrae contactos desde cadena JSON."""
-        if not (raw_payload.startswith("{") or raw_payload.startswith("[")):
-            return [], None
-        try:
-            loaded = json.loads(raw_payload)
-            if isinstance(loaded, dict):
-                if loaded.get("type") == "channel":
-                    return [], problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto", "channel_payload_in_contacts")
-                return [loaded], None
-            elif isinstance(loaded, list):
-                return [c for c in loaded if isinstance(c, dict)], None
-        except Exception as error:
-            logging.warning("Contact JSON parsing failed: %s", type(error).__name__)
-        return [], None
-
-    @classmethod
-    def _parse_contacts_from_hex(cls, raw_payload: str) -> tuple[list[dict[str, Any]], bytes | None, tuple[int, dict[str, Any]] | None]:
-        """Extrae contactos desde volcado hexadecimal, decodificando UTF-8 o retornando bytes binarios para el firmware."""
-        try:
-            bin_data = bytes.fromhex(raw_payload)
-        except ValueError:
-            return [], None, problem_details(400, "Bad Request", "Formato de datos no reconocido (no es URI, JSON ni hexadecimal válido)", "invalid_hex_data")
-
-        try:
-            utf8_text = bin_data.decode("utf-8").strip()
-            if utf8_text.startswith("{") or utf8_text.startswith("["):
-                contacts, err = cls._parse_contacts_from_json(utf8_text)
-                if err:
-                    return [], None, err
-                if contacts:
-                    return contacts, None, None
-            elif utf8_text.startswith("meshcore://"):
-                contacts, err = cls._parse_contacts_from_uri(utf8_text)
-                if err:
-                    return [], None, err
-                if contacts:
-                    return contacts, None, None
-        except Exception:
-            pass
-
-        return [], bin_data, None
-
-    def _validate_contacts_to_import(
-        self, contacts_to_add: list[dict[str, Any]]
-    ) -> tuple[list[tuple[str, str, str, str, bool | None, float | None, float | None]], tuple[int, dict[str, Any]] | None]:
-        """Valida y filtra el lote de contactos a importar asegurando reglas de infraestructura y formato."""
-        from src.shared_utils import to_bool
-
-        validated_batch: list[tuple[str, str, str, str, bool | None, float | None, float | None]] = []
-        for c_dict in contacts_to_add:
-            if not isinstance(c_dict, dict):
-                return [], problem_details(422, "Unprocessable Entity", "Cada contacto debe ser un objeto JSON", "invalid_contact_format")
-            pubkey = str(c_dict.get("public_key") or c_dict.get("pubkey") or c_dict.get("key") or "").strip()
-            if not pubkey:
-                continue
-
-            # Regla 1.1: Prohibido agregar transceptor local a contactos
-            if hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.is_local_key(pubkey):
-                continue
-
-            name = str(c_dict.get("name") or "").strip()
-            alias = str(c_dict.get("alias") or name or f"Node_{pubkey[:6]}").strip()
-            role = str(c_dict.get("role") or "CLIENT").strip().upper()
-
-            # Regla 1.1: Prohibido agregar repetidores a libreta de contactos
-            if role in ("REPEATER", "ROUTER"):
-                continue
-
-            validation = self._contact_validation(pubkey, name or alias, role)
-            if validation:
-                return [], validation
-
-            is_fav = c_dict.get("is_favorite")
-            is_favorite_val = to_bool(is_fav) if is_fav is not None else None
-
-            raw_lat = c_dict.get("latitude") if c_dict.get("latitude") is not None else (c_dict.get("lat") if c_dict.get("lat") is not None else c_dict.get("adv_lat"))
-            raw_lon = c_dict.get("longitude") if c_dict.get("longitude") is not None else (c_dict.get("lon") if c_dict.get("lon") is not None else c_dict.get("adv_lon"))
-            lat_val = None
-            lon_val = None
-            if raw_lat is not None:
-                try:
-                    lat_val = float(raw_lat)
-                except (ValueError, TypeError):
-                    pass
-            if raw_lon is not None:
-                try:
-                    lon_val = float(raw_lon)
-                except (ValueError, TypeError):
-                    pass
-
-            validated_batch.append((pubkey, name, alias, role, is_favorite_val, lat_val, lon_val))
-
-        return validated_batch, None
-
-    async def _persist_imported_batch(
-        self, validated_batch: list[tuple[str, str, str, str, bool | None, float | None, float | None]]
-    ) -> tuple[int, dict[str, Any]]:
-        """Sincroniza y persiste el lote de contactos validados contra el firmware y la base de datos."""
-        imported_records: list[dict[str, Any]] = []
-
-        for pubkey, name, alias, role, is_favorite_val, lat_val, lon_val in validated_batch:
-            type_num = _ROLE_TYPE_MAP.get(role, 1)
-            mutation_data: dict[str, Any] = {
-                "public_key": pubkey,
-                "name": name or alias,
-                "role": role,
-                "type": type_num,
-                "latitude": lat_val,
-                "longitude": lon_val,
-                "adv_lat": lat_val,
-                "adv_lon": lon_val,
-            }
-            failure = await self.serial_mutation("add_contact", mutation_data)
-            if failure:
-                # Earlier successful records in a batch must remain persisted and acknowledged.
-                if imported_records:
-                    await self._save_registry_async()
-                return failure
-
-            contact = self.ctx.bridge.node_registry.add_or_update(
-                pubkey,
-                NodeContactUpdate(
-                    name=name or alias,
-                    alias=alias,
-                    role=role,
-                    is_favorite=is_favorite_val,
-                    latitude=lat_val,
-                    longitude=lon_val,
-                    adv_lat=lat_val,
-                    adv_lon=lon_val,
-                ),
-            )
-            imported_records.append(contact.to_dict())
-
-        if imported_records:
-            saved = await self._save_registry_async()
-            if not saved:
-                return problem_details(500, "Internal Server Error", "Error al persistir contactos importados en disco", "persistence_failed")
-
-            if self.ctx.broadcast_ws:
-                self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
-
-            self.ctx.log_system_event("INFO", f"Se importaron {len(imported_records)} contactos exitosamente", source="contacts")
-            return 201, {"status": "ok", "imported": len(imported_records), "data": imported_records}
-
-        return problem_details(400, "Bad Request", "Ningún contacto válido pudo ser agregado (verifique que no sean nodos repetidores o la estación base local)", "import_rejected")
+        return 200, res.data
 
     async def _import_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Importa contactos desde URI canónica (meshcore://contact/add?...), formato de mensaje (<pubkey:type:name>), JSON estructurado o volcado hexadecimal."""
-        raw_payload = str(req_body.get("data") or req_body.get("payload") or req_body.get("uri") or "").strip()
-        contacts_to_add: list[dict[str, Any]] = []
+        """Importa contactos desde URI, tags, JSON estructurado o volcado hexadecimal."""
+        res = await self.contact_service.import_contact_payload(req_body, sync_to_hardware=True)
+        if not res.success:
+            title = (
+                "Unprocessable Entity"
+                if res.http_code == 422
+                else ("Service Unavailable" if res.http_code >= 500 else "Bad Request")
+            )
+            return problem_details(res.http_code, title, res.error or "Error al importar contactos", res.error_code or "import_failed")
 
-        # 1. Si req_body ya tiene campos directos de contacto
-        if "public_key" in req_body or "pubkey" in req_body or "key" in req_body:
-            contacts_to_add.append(req_body)
-        elif isinstance(req_body.get("contacts"), list):
-            contacts_to_add.extend(c for c in req_body["contacts"] if isinstance(c, dict))
+        if self.ctx.broadcast_ws:
+            self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
 
-        # 2. Parseo de string si viene en raw_payload
-        if raw_payload and not contacts_to_add:
-            contacts_to_add = self._parse_contacts_from_tags(raw_payload)
-
-            if not contacts_to_add:
-                uri_contacts, uri_err = self._parse_contacts_from_uri(raw_payload)
-                if uri_err:
-                    return uri_err
-                contacts_to_add = uri_contacts
-
-            if not contacts_to_add:
-                json_contacts, json_err = self._parse_contacts_from_json(raw_payload)
-                if json_err:
-                    return json_err
-                contacts_to_add = json_contacts
-
-            if not contacts_to_add:
-                hex_contacts, bin_data, hex_err = self._parse_contacts_from_hex(raw_payload)
-                if hex_err:
-                    return hex_err
-                if hex_contacts:
-                    contacts_to_add = hex_contacts
-                elif bin_data:
-                    ser = getattr(self.ctx.bridge, "serial_adapter", None)
-                    res = await ser.import_contact(bin_data) if ser and hasattr(ser, "import_contact") else None
-                    failure = self.command_failure(res)
-                    if failure:
-                        return failure
-                    self.ctx.log_system_event("INFO", "Contacto binario importado hacia el firmware", source="contacts")
-                    return 200, {"status": "ok", "result": res}
-
-        if not contacts_to_add:
-            return problem_details(400, "Bad Request", "No se detectaron contactos válidos para importar", "no_valid_contacts")
-
-        validated_batch, val_err = self._validate_contacts_to_import(contacts_to_add)
-        if val_err:
-            return val_err
-        if not validated_batch:
-            return problem_details(400, "Bad Request", "Ningún contacto válido pudo ser agregado (verifique que no sean nodos repetidores o la estación base local)", "import_rejected")
-
-        return await self._persist_imported_batch(validated_batch)
+        return res.http_code, res.data
 
     async def _create_or_update_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Crea o actualiza un contacto en la libreta del bridge."""
@@ -515,25 +161,14 @@ class ContactsController(BaseController):
         if not pubkey:
             return problem_details(400, "Bad Request", "Se requiere 'public_key'", "missing_public_key")
 
-        validation = self._contact_validation(pubkey, name or alias or f"Node_{pubkey[:6]}", role)
-        if validation:
-            return validation
-
-        if hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.is_local_key(pubkey):
-            return problem_details(400, "Bad Request", "No se permite agregar la estación base local a la libreta de contactos", "cannot_add_local_station")
-
-        if role.upper() in ("REPEATER", "ROUTER"):
-            return problem_details(400, "Bad Request", "Los repetidores son nodos de infraestructura y no pueden agregarse a contactos", "repeater_contact_forbidden")
-
-        is_new_contact = hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.get_node(pubkey) is None
         from src.shared_utils import to_bool
         is_fav = req_body.get("is_favorite")
         is_favorite_val = to_bool(is_fav) if is_fav is not None else None
 
         raw_lat = req_body.get("latitude") if req_body.get("latitude") is not None else (req_body.get("lat") if req_body.get("lat") is not None else req_body.get("adv_lat"))
         raw_lon = req_body.get("longitude") if req_body.get("longitude") is not None else (req_body.get("lon") if req_body.get("lon") is not None else req_body.get("adv_lon"))
-        lat_val = None
-        lon_val = None
+        lat_val: float | None = None
+        lon_val: float | None = None
         if raw_lat is not None:
             try:
                 lat_val = float(raw_lat)
@@ -545,63 +180,71 @@ class ContactsController(BaseController):
             except (ValueError, TypeError):
                 pass
 
-        type_num = _ROLE_TYPE_MAP.get(role.upper(), 1)
-        mutation_data: dict[str, Any] = {
-            "public_key": pubkey,
-            "name": name or alias or f"Node_{pubkey[:6]}",
-            "role": role,
-            "type": type_num,
-            "latitude": lat_val,
-            "longitude": lon_val,
-            "adv_lat": lat_val,
-            "adv_lon": lon_val,
-        }
-        failure = await self.serial_mutation("add_contact", mutation_data)
-        if failure:
-            return failure
-        contact = self.ctx.bridge.node_registry.add_or_update(
-            pubkey,
-            NodeContactUpdate(
-                name=name or f"Node_{pubkey[:6]}",
-                alias=alias,
-                role=role,
-                is_favorite=is_favorite_val,
-                latitude=lat_val,
-                longitude=lon_val,
-                adv_lat=lat_val,
-                adv_lon=lon_val,
-            ),
+        res = await self.contact_service.create_or_update_contact(
+            pubkey=pubkey,
+            name=name,
+            alias=alias or None,
+            role=role,
+            is_favorite=is_favorite_val,
+            latitude=lat_val,
+            longitude=lon_val,
+            sync_to_hardware=True,
         )
-        saved = await self._save_registry_async()
-        if not saved:
-            return problem_details(500, "Internal Server Error", "Error al persistir el contacto en disco", "persistence_failed")
+        if not res.success:
+            title = (
+                "Unprocessable Entity"
+                if res.http_code == 422
+                else ("Service Unavailable" if res.http_code >= 500 else "Bad Request")
+            )
+            return problem_details(res.http_code, title, res.error or "Error al crear o actualizar contacto", res.error_code or "contact_error")
 
         if self.ctx.broadcast_ws:
             self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
 
-        self.ctx.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
-        status_code = 201 if is_new_contact else 200
-        return status_code, {"status": "ok", "data": contact.to_dict()}
+        return res.http_code, {"status": "ok", "data": res.data}
 
     async def _delete_contact(self, req_body: dict[str, Any], path_pubkey: str = "") -> tuple[int, dict[str, Any]]:
         """Elimina un contacto de la libreta."""
         pubkey = str(req_body.get("public_key", req_body.get("key", path_pubkey))).strip().lower()
+        if not pubkey:
+            return problem_details(400, "Bad Request", "Se requiere 'public_key'", "missing_public_key")
 
-        if hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.is_local_key(pubkey):
-            return problem_details(400, "Bad Request", "No se permite eliminar la estación base local", "cannot_delete_local_station")
+        res = await self.contact_service.delete_contact(pubkey=pubkey, sync_to_hardware=True)
+        if not res.success:
+            title = (
+                "Not Found"
+                if res.http_code == 404
+                else ("Unprocessable Entity" if res.http_code == 422 else ("Bad Request" if res.http_code == 400 else "Service Unavailable"))
+            )
+            return problem_details(res.http_code, title, res.error or "Error al eliminar contacto", res.error_code or "contact_error")
 
-        if not self.ctx.bridge.node_registry.get_node(pubkey):
-            return problem_details(404, "Not Found", "Contacto no encontrado", "contact_not_found")
-        failure = await self.serial_mutation("remove_contact", pubkey)
-        if failure:
-            return failure
+        if self.ctx.broadcast_ws:
+            self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
 
-        if pubkey and self.ctx.bridge.node_registry.remove_node(pubkey):
-            saved = await self._save_registry_async()
-            if not saved:
-                return problem_details(500, "Internal Server Error", "Error al persistir eliminación en disco", "persistence_failed")
-            if self.ctx.broadcast_ws:
-                self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
-            return 204, {}
+        return res.http_code, {}
 
-        return problem_details(404, "Not Found", "Contacto no encontrado", "contact_not_found")
+    # Compatibilidad estática hacia métodos auxiliares
+    @staticmethod
+    def _parse_contacts_from_tags(raw_payload: str) -> list[dict[str, Any]]:
+        return ContactService.parse_contacts_from_tags(raw_payload)
+
+    @staticmethod
+    def _parse_contacts_from_uri(raw_payload: str) -> tuple[list[dict[str, Any]], tuple[int, dict[str, Any]] | None]:
+        contacts, err = ContactService.parse_contacts_from_uri(raw_payload)
+        if err:
+            return [], problem_details(err.http_code, "Bad Request", err.error or "Error", err.error_code or "error")
+        return contacts, None
+
+    @staticmethod
+    def _parse_contacts_from_json(raw_payload: str) -> tuple[list[dict[str, Any]], tuple[int, dict[str, Any]] | None]:
+        contacts, err = ContactService.parse_contacts_from_json(raw_payload)
+        if err:
+            return [], problem_details(err.http_code, "Bad Request", err.error or "Error", err.error_code or "error")
+        return contacts, None
+
+    @classmethod
+    def _parse_contacts_from_hex(cls, raw_payload: str) -> tuple[list[dict[str, Any]], bytes | None, tuple[int, dict[str, Any]] | None]:
+        contacts, bin_data, err = ContactService.parse_contacts_from_hex(raw_payload)
+        if err:
+            return [], None, problem_details(err.http_code, "Bad Request", err.error or "Error", err.error_code or "error")
+        return contacts, bin_data, None

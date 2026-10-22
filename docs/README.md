@@ -102,6 +102,7 @@ Los ADRs documentan de forma inmutable las decisiones arquitectónicas fundament
 | **[ADR 0020](adr/0020-application-service-boundaries-and-channels.md)** | Extracción de Servicios de Aplicación y Desacoplamiento de Canales | Vigente |
 | **[ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)** | Seguridad MQTT, Idempotencia de Órdenes y Resolvedor de Tópicos | Vigente |
 | **[ADR 0022](adr/0022-consumer-isolation-and-bounded-admission.md)** | Aislamiento de Consumidores y Admisión Acotada en Ingesta | Vigente |
+| **[ADR 0023](adr/0023-messaging-and-contact-application-services.md)** | Extracción de Servicios de Aplicación para Mensajería y Contactos | Vigente |
 
 ---
 

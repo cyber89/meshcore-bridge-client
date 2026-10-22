@@ -31,6 +31,7 @@ class MqttInboundContext:
     handle_admin: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
     register_task: Callable[[asyncio.Task[Any]], asyncio.Task[Any]] | None = None
     database: Any | None = None
+    message_service: Any | None = None
 
 
 class MqttInboundDispatcher:
@@ -230,6 +231,19 @@ class MqttInboundDispatcher:
 
         if not text:
             return
+
+        if self._ctx.message_service:
+            validation = self._ctx.message_service.validate_tx_request(
+                text=text,
+                target=target,
+                channel_idx=channel_idx,
+            )
+            if not validation.is_valid:
+                self._reject_tx_input(validation.error or "Campos de transmisión inválidos")
+                return
+            text = validation.clean_text
+            target = validation.clean_target if not validation.is_broadcast else None
+            channel_idx = validation.channel_idx
 
         # Idempotency check via CommandLedgerPolicy
         reservation = self.command_policy.reserve(

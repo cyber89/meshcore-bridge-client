@@ -21,7 +21,7 @@ from typing import Any, Protocol, Self, cast
 
 import config
 from src.admin_handler import AdminCommandHandler, AdminContext
-from src.application.channels import ChannelService
+from src.application import ChannelService, ContactService, MessageService
 from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.deduplicator import PacketDeduplicator
 from src.diagnostics import DiagnosticManager, SystemLogHandler, setup_file_logging
@@ -135,6 +135,11 @@ class MeshCoreBridge:
         )
         self.node_registry = NodeRegistry(database=self.database)
         self.node_registry.load_from_file(self.node_storage_path)
+        self.contact_service = ContactService(
+            node_registry=self.node_registry,
+            serial_adapter_provider=lambda: getattr(self, "serial_adapter", None),
+            database=self.database,
+        )
         self.repeater_manager = RepeaterManager(storage_path=self.data_dir / "repeater_cooldowns.json", database=self.database)
         self.rate_limiter = TxRateLimiter(
             tx_interval_sec=config.TX_INTERVAL_SEC,
@@ -153,6 +158,11 @@ class MeshCoreBridge:
             cutoff_resume_pct=getattr(config, "AIRTIME_CUTOFF_RESUME_PCT", 30.0),
             cutoff_enabled=getattr(config, "AIRTIME_CUTOFF_ENABLED", True),
             on_cutoff_change_callback=self._on_airtime_cutoff_change,
+            database=self.database,
+        )
+        self.message_service = MessageService(
+            node_registry=self.node_registry,
+            rate_limiter=self.rate_limiter,
             database=self.database,
         )
         self.repeater_manager.is_cutoff_active_callback = self.rate_limiter.is_cutoff_active
@@ -588,6 +598,7 @@ class MeshCoreBridge:
                 handle_admin=self.handle_admin,
                 register_task=self._add_background_task,
                 database=self.database,
+                message_service=self.message_service,
             )
         )
 
@@ -1024,8 +1035,15 @@ class MeshCoreBridge:
             except Exception as e:
                 logging.debug("Error en auto-importación de canales: %s", type(e).__name__)
 
-        # 2. Sincronizar libreta de contactos desde el hardware
-        if hasattr(self.serial_adapter, "sync_all_contacts"):
+        # 2. Sincronizar libreta de contactos desde el hardware (ContactService - F3.2)
+        if hasattr(self, "contact_service") and self.contact_service:
+            try:
+                contact_res = await self.contact_service.sync_from_radio()
+                if contact_res.success and isinstance(contact_res.data, dict):
+                    logging.info("Auto-importados %d contactos desde el transceptor serial (ContactService).", contact_res.data.get("imported", 0))
+            except Exception as e:
+                logging.debug("Error en auto-importación de contactos: %s", type(e).__name__)
+        elif hasattr(self.serial_adapter, "sync_all_contacts"):
             try:
                 imported_contacts = await self.serial_adapter.sync_all_contacts()
                 if imported_contacts:
