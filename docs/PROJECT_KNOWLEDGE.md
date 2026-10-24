@@ -166,6 +166,11 @@ Companion serializa contactos como 147 bytes de datos más un opcode; esto no es
 
 ## Conciliación del 2026-10-23
 
+La [segunda revisión profunda](audits/2026-10-23-deep-script-contract-review.md)
+registra 15 hallazgos adicionales de instalación, locks, identidades DM,
+validación, persistencia y códigos de salida. Son conclusiones de trazado estático
+con activadores explícitos, sin reparación de código ni ejecución de suites.
+
 La revisión actualiza documentación de instalación, servicios de aplicación,
 capacidades, persistencia y recuperación de credenciales. Corrige el índice de
 ADRs y las secciones del ADR 0019, y distingue el plan original `nuevo.md` del

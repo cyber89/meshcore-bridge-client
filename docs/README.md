@@ -120,6 +120,7 @@ Documentos de planificación paso a paso para la adopción de nuevas capacidades
 
 ## 🛡️ 4. Historial de Auditorías y Revisiones (`docs/audits/`)
 
+- [Segunda revisión profunda 2026-10-23](audits/2026-10-23-deep-script-contract-review.md): 15 hallazgos adicionales en instalación, locks, contratos, persistencia y verificadores; evidencia estática, sin cambios de código ni suites.
 - [Revisión de documentación y scripts 2026-10-23](audits/2026-10-23-documentation-scripts-review.md): conciliación con el checkout, inventarios regenerados, verificaciones estáticas y límites pendientes.
 - [Comparación con clientes oficiales 2026-10-21](audits/2026-10-21-official-clients-comparison.md).
 - [Validación y remediación de auditoría 2026-10-20](audits/2026-10-20-remediation-validation.md): matriz de 69 hallazgos, decisiones del usuario, cambios y límites de verificación estática.
