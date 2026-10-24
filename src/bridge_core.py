@@ -577,6 +577,7 @@ class MeshCoreBridge:
         self.tx_count = 0
         self.tx_error_count = 0
         self.err_count = 0
+        res: dict[str, Any] = {}
         if hasattr(self, "node_registry") and hasattr(self.node_registry, "reset_analytics"):
             res = self.node_registry.reset_analytics()
         if hasattr(self, "packet_buffer") and getattr(self.packet_buffer, "metrics_aggregator", None):
@@ -1170,8 +1171,8 @@ class MeshCoreBridge:
                 imported_contacts = await self.serial_adapter.sync_all_contacts()
                 if imported_contacts:
                     for c in imported_contacts:
-                        pk = str(c.get("public_key", "")).strip()
-                        if pk:
+                        pk = str(c.get("public_key", "")).strip().lower()
+                        if pk and not self.node_registry.is_local_key(pk):
                             last_adv = c.get("last_advert")
                             self.node_registry.add_or_update(
                                 pk,
@@ -1180,7 +1181,7 @@ class MeshCoreBridge:
                                     alias=c.get("alias"),
                                     role=c.get("role", "CLIENT"),
                                     auto_discovered=False,
-                                    is_favorite=True,
+                                    is_favorite=bool(c.get("is_favorite", c.get("favorite", False))),
                                     last_seen=None,
                                     last_advert=float(last_adv) if isinstance(last_adv, (int, float)) and last_adv > 0 else None,
                                     latitude=c.get("latitude"),
@@ -1194,6 +1195,10 @@ class MeshCoreBridge:
                                 ),
                             )
 
+                    if hasattr(self.node_registry, "save_to_file_async"):
+                        await self.node_registry.save_to_file_async()
+                    elif hasattr(self.node_registry, "save_to_file"):
+                        await asyncio.to_thread(self.node_registry.save_to_file)
                     logging.info(f"Auto-importados {len(imported_contacts)} contactos desde el transceptor serial.")
             except Exception as e:
                 logging.debug("Error en auto-importación de contactos: %s", type(e).__name__)
@@ -1318,6 +1323,10 @@ class MeshCoreBridge:
         if err_msg:
             return {"status": "error", "error": err_msg, "request_id": req_id}
 
+        if hasattr(item, "future") and item.future is not None and item.future.cancelled():
+            logging.info("TxRateLimiter: Transmisión cancelada/expirada antes de radio (req_id=%s)", req_id)
+            return {"status": "cancelled", "error": "TX cancelled or expired", "request_id": req_id}
+
         chat_event: dict[str, Any] | None = None
         if not is_admin_cmd and is_common_chat_message(text):
             chat_event = self._outgoing_chat(req_id, target_str, ch_idx, text, is_broadcast)
@@ -1416,7 +1425,7 @@ class MeshCoreBridge:
             dest_label = "Broadcast / Canal 0" if is_broadcast else f"Nodo [{target[:8] if len(str(target)) >= 8 else target}]"
             logging.info(
                 f"[TX-TRANSMISIÓN] Destino: {dest_label} | Canal: #{ch_idx} | "
-                f"Texto: '{text}' | ACK esperado: {expected_ack_hex or 'None'}"
+                f"Tamaño: {len(text)} bytes | ACK esperado: {expected_ack_hex or 'None'}"
             )
         else:
             logging.warning(

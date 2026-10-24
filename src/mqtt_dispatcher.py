@@ -304,7 +304,7 @@ class MqttInboundDispatcher:
                 return
 
         logging.info(
-            f"[MQTT-TX-IN] Solicitud TX recibida vía MQTT: '{text[:50]}' -> Destino: {target or 'broadcast'} (Canal #{channel_idx})"
+            f"[MQTT-TX-IN] Solicitud TX recibida vía MQTT ({len(text)} bytes) -> Destino: {target or 'broadcast'} (Canal #{channel_idx})"
         )
 
         try:
@@ -337,9 +337,14 @@ class MqttInboundDispatcher:
 
             outcome = CommandStatus.COMPLETED if res.get("status") in ("sent", "delivered") else CommandStatus.FAILED
             await self.command_policy.record_result_async("mqtt", str(req_id) if req_id else None, outcome, status_payload)
-            self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
+            # bridge._execute_tx_transmission already published ack_payload to topic_tx_status for sent/delivered
 
         except TimeoutError:
+            limiter = getattr(self._ctx, "rate_limiter", None)
+            if limiter and hasattr(limiter, "cancel_by_request_id"):
+                limiter.cancel_by_request_id(req_id)
+            elif hasattr(future, "cancel") and not future.done():
+                future.cancel()
             logging.error("TX future timeout, activating diagnostic alert")
             status_payload = {
                 "status": "uncertain",

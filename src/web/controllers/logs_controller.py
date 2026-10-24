@@ -5,6 +5,7 @@ Handles /api/messages, /api/telemetry, /api/system/logs, /api/diagnostics/report
 
 from __future__ import annotations
 
+import os
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -22,10 +23,10 @@ class LogsController(BaseController):
         query = parse_qs(urlsplit(raw_path).query)
         raw_limit = query.get("limit", [""])[0]
         raw_offset = query.get("offset", [""])[0]
-        if raw_limit.isdigit():
-            limit = int(raw_limit)
-        if raw_offset.isdigit():
-            offset = int(raw_offset)
+        if raw_limit.isdigit() and len(raw_limit) <= 6:
+            limit = max(1, min(1000, int(raw_limit)))
+        if raw_offset.isdigit() and len(raw_offset) <= 6:
+            offset = max(0, int(raw_offset))
 
         if clean_path == "/api/messages":
             all_messages = list(self.ctx.recent_messages)
@@ -134,6 +135,6 @@ class LogsController(BaseController):
         return 200, {
             "status": "ok",
             "raw_logs": tail,
-            "log_file": log_file,
+            "log_file": os.path.basename(log_file) if log_file else None,
             "line_count": len(tail.splitlines()),
         }

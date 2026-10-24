@@ -617,11 +617,11 @@ h5, .h5 { font-size: 0.875rem; font-weight: 650; }
 
 /* Botones Estandarizados de Cabecera (Navbar Actions) */
 .btn-header-action {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  max-height: 32px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  max-height: 36px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -654,11 +654,11 @@ h5, .h5 { font-size: 0.875rem; font-weight: 650; }
 
 .app-header .btn-header-action.btn-icon,
 .btn-header-action.btn-icon {
-  width: 32px;
-  min-width: 32px;
-  max-width: 32px;
-  height: 32px;
-  min-height: 32px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  min-height: 36px;
   max-height: 32px;
   padding: 0;
 }
@@ -6910,4 +6910,32 @@ details.settings-disclosure > .disclosure-content {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   text-align: right;
+}
+
+/* U-34: Alto contraste WCAG AA (>= 4.5:1) para badges sobre fondo oscuro de terminal en ambos temas */
+.linux-term-header .badge-outline,
+#logsCountBadge.badge-outline {
+  color: #cbd5e1 !important;
+  border-color: rgba(203, 213, 225, 0.45) !important;
+}
+
+/* U-05: Regla universal anti-zoom iOS en orientacion horizontal y tablets */
+@media (hover: none) and (pointer: coarse) {
+  input[type="text"],
+  input[type="search"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select,
+  .form-control {
+    font-size: 16px !important;
+  }
+}
+
+/* U-27: Indicadores de foco visible para pildoras de filtro y botones de accion de tarjeta */
+.filter-pill:focus-visible,
+.subtab-btn:focus-visible,
+.card-action-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }

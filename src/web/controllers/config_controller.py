@@ -138,6 +138,15 @@ class ConfigController(BaseController):
                     if f_val < 0.0:
                         return problem_details(422, "Unprocessable Entity", f"El parámetro '{k}' debe ser no negativo", "invalid_parameter")
 
+        cutoff_thresh = params.get("airtime_cutoff_threshold_pct")
+        cutoff_resume = params.get("airtime_cutoff_resume_pct")
+        if cutoff_thresh is not None or cutoff_resume is not None:
+            current_tracker = getattr(getattr(self.ctx.bridge, "rate_limiter", None), "airtime_tracker", None)
+            cur_th = float(cutoff_thresh) if cutoff_thresh is not None else getattr(current_tracker, "airtime_cutoff_threshold_pct", getattr(config, "AIRTIME_CUTOFF_THRESHOLD_PCT", 30.0))
+            cur_res = float(cutoff_resume) if cutoff_resume is not None else getattr(current_tracker, "airtime_cutoff_resume_pct", getattr(config, "AIRTIME_CUTOFF_RESUME_PCT", 15.0))
+            if cur_res >= cur_th:
+                return problem_details(422, "Unprocessable Entity", "airtime_cutoff_resume_pct debe ser menor que airtime_cutoff_threshold_pct", "invalid_cutoff_bounds")
+
         cmd = {"action": "set_local_config", "params": params}
         res = await self.ctx.bridge.handle_admin(cmd)
         failure = self.command_failure(res)

@@ -21,23 +21,24 @@ FRONTEND_DIR = ROOT_DIR / "src" / "web" / "static" / "js"
 
 
 def extract_backend_routes() -> set[str]:
-    """Extrae las rutas /api/... definidas en api_router.py."""
+    """Extrae las rutas /api/... definidas en api_router.py, authentication.py y asgi_route_catalog.py."""
     routes: set[str] = set()
-    if not BACKEND_ROUTER.exists():
-        print(f"⚠️  No se encontró {BACKEND_ROUTER}")
-        return routes
-
-    content = BACKEND_ROUTER.read_text(encoding="utf-8")
-    # Buscar patrones de rutas /api/...
-    matches = re.findall(r'"(/api/[a-zA-Z0-9_\-\./]+)"', content)
-    for m in matches:
-        clean = m.rstrip("/")
-        # Omitir rutas de ejemplo o tests
-        if not clean.endswith(".py"):
-            routes.add(clean)
+    source_files = [
+        ROOT_DIR / "src" / "web" / "api_router.py",
+        ROOT_DIR / "src" / "web" / "authentication.py",
+        ROOT_DIR / "src" / "web" / "asgi_route_catalog.py",
+    ]
+    for src_file in source_files:
+        if not src_file.exists():
+            continue
+        content = src_file.read_text(encoding="utf-8")
+        matches = re.findall(r"""['"](/api/[a-zA-Z0-9_\-./]+)['"]""", content)
+        for m in matches:
+            clean = m.rstrip("/")
+            if not clean.endswith(".py"):
+                routes.add(clean)
 
     return routes
-
 
 def extract_frontend_api_calls() -> dict[str, list[str]]:
     """Extrae todas las llamadas a endpoints /api/... en archivos JS del frontend."""

@@ -159,10 +159,10 @@ class ContactService:
                 http_code=400,
             )
 
-        if role_upper not in {"CLIENT", "CHAT", "NONE", "ROOM", "SENSOR"}:
+        if role_upper not in {"CLIENT", "CHAT", "NONE"}:
             return ContactOperationResult(
                 success=False,
-                error="Tipo de contacto no reconocido por la pila oficial del firmware",
+                error="La libreta de contactos sólo admite dispositivos cliente de mensajería (rol CLIENT). Los sensores, salas y repetidores se gestionan en Nodos/Telemetría.",
                 error_code="invalid_contact_role",
                 http_code=422,
             )
@@ -212,6 +212,8 @@ class ContactService:
             clean_name = name.strip()
             clean_alias = alias.strip() if alias else clean_name
             clean_role = role.strip().upper()
+            if clean_role in {"CHAT", "NONE"}:
+                clean_role = "CLIENT"
 
             validation = self.validate_contact(pubkey=clean_pk, name=clean_name or clean_alias or f"Node_{clean_pk[:6]}", role=clean_role)
             if not validation.success:

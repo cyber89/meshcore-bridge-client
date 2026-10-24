@@ -146,6 +146,10 @@ class ExternalBridgeMQTTClient:
         context = ssl.create_default_context(cafile=settings.tls_ca_file)
         context.keylog_filename = None  # type: ignore[assignment]  # SSL accepts None; typeshed declares str.
         if not settings.tls_verify:
+            logger.warning(
+                "[EXT-MQTT-SECURITY] TLS hostname/certificate verification is DISABLED for %s:%d. Traffic is vulnerable to MITM attacks.",
+                settings.host, settings.port
+            )
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
         return context
@@ -514,15 +518,22 @@ class ExternalBridgeMQTTClient:
 
             # DOWNLINK: Solo suscribir si el usuario lo activó explícitamente en la configuración
             if self.config.downlink_enabled:
-                downlink_topic = self.build_topic("tx")
-                try:
-                    self.client.subscribe([(downlink_topic, 1)])
-                    logger.warning(
-                        f"Downlink activado en MQTT externo. Suscrito a {downlink_topic}. "
-                        "El tráfico entrante pasará por el limitador de tasa LoRa."
+                is_local = self.config.host in ("127.0.0.1", "localhost", "::1")
+                if self.config.tls_enabled and not self.config.tls_verify and not is_local:
+                    logger.error(
+                        "[EXT-MQTT-SECURITY] Downlink REJECTED: Refusing to enable downlink over unverified TLS (tls_verify=False) on public host %s.",
+                        self.config.host
                     )
-                except Exception as e:
-                    logger.error(f"Error suscribiendo a tópico downlink externo {downlink_topic}: {e}")
+                else:
+                    downlink_topic = self.build_topic("tx")
+                    try:
+                        self.client.subscribe([(downlink_topic, 1)])
+                        logger.warning(
+                            f"Downlink activado en MQTT externo. Suscrito a {downlink_topic}. "
+                            "El tráfico entrante pasará por el limitador de tasa LoRa."
+                        )
+                    except Exception as e:
+                        logger.error(f"Error suscribiendo a tópico downlink externo {downlink_topic}: {e}")
             else:
                 logger.debug("Downlink desactivado en MQTT externo (Modo Solo Uplink seguro).")
 
@@ -620,6 +631,26 @@ class ExternalBridgeMQTTClient:
                     self.on_downlink_message_callback(topic, payload_str)
         except Exception as e:
             logger.error(f"Error procesando mensaje entrante en downlink MQTT externo: {e}")
+
+    def get_status(self) -> dict[str, Any]:
+        """Devuelve el estado de conectividad y métricas de seguridad del cliente MQTT externo."""
+        status = "connected" if self.is_connected else "disconnected"
+        degraded = False
+        warnings: list[str] = []
+        if self.config.tls_enabled and not self.config.tls_verify:
+            degraded = True
+            warnings.append("TLS verification is disabled (vulnerable to MITM)")
+        if degraded and status == "connected":
+            status = "degraded"
+        return {
+            "status": status,
+            "connected": self.is_connected,
+            "reconnect_count": self.reconnect_count,
+            "total_published": self.total_published,
+            "total_received": self.total_received,
+            "buffered_count": len(self._ring_buffer),
+            "warnings": warnings,
+        }
 
     @classmethod
     async def test_connection(cls, test_config: ExternalMqttConfig, timeout: float = 5.0) -> dict[str, Any]:

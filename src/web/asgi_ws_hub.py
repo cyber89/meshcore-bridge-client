@@ -40,6 +40,10 @@ class _Peer:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     ready: bool = False
     logged: bool = False
+    last_auth_check: float = 0.0
+    auth_valid_cached: bool = True
+    last_ping_sec: float = 0.0
+    ping_count_sec: int = 0
 
 
 class WebSocketHub:
@@ -227,6 +231,13 @@ class WebSocketHub:
                 except Exception:
                     continue
                 if isinstance(payload, dict) and payload.get("type") == "ping":
+                    now = time.monotonic()
+                    if now - peer.last_ping_sec >= 1.0:
+                        peer.last_ping_sec = now
+                        peer.ping_count_sec = 0
+                    peer.ping_count_sec += 1
+                    if peer.ping_count_sec > 5:
+                        continue
                     async with peer.lock:
                         await websocket.send_text(json.dumps({
                             "type": "pong", "timestamp": int(time.time())
@@ -246,10 +257,15 @@ class WebSocketHub:
         async with peer.lock:
             if self.running and peer.ready and peer.socket in self._peers:
                 authentication = peer.socket.scope.get("state", {}).get(AUTH_SERVICE_STATE)
-                if isinstance(authentication, AuthenticationService) and not await authentication.websocket_authorized(peer.socket.scope):
-                    self._remove_peer(peer)
-                    await peer.socket.close(code=1008)
-                    return
+                if isinstance(authentication, AuthenticationService):
+                    now = time.monotonic()
+                    if now - peer.last_auth_check > 15.0:
+                        peer.auth_valid_cached = await authentication.websocket_authorized(peer.socket.scope)
+                        peer.last_auth_check = now
+                    if not peer.auth_valid_cached:
+                        self._remove_peer(peer)
+                        await peer.socket.close(code=1008)
+                        return
                 await peer.socket.send_text(text)
 
     async def _deliver_to_peer(self, peer: _Peer, text: str) -> None:

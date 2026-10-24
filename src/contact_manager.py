@@ -910,7 +910,9 @@ class NodeRegistry:
     def is_local_key(self, raw_key: str) -> bool:
         """Determina si una clave o prefijo corresponde a la estación base local."""
         norm = str(raw_key).strip().lower()
-        if not norm or norm in ("local", "000000000000"):
+        if not norm:
+            return False
+        if norm in ("local", "000000000000"):
             return True
         if not self._local_pubkey:
             return False
@@ -1683,7 +1685,7 @@ class NodeRegistry:
         with self._lock:
             to_remove = [
                 k for k, c in self._nodes_by_key.items()
-                if (now - c.last_seen) > max_idle_seconds
+                if c.last_seen > 0 and (now - c.last_seen) > max_idle_seconds
                 and not c.is_local
                 and not self.is_local_key(k)
                 and str(c.role).upper() != "LOCAL"

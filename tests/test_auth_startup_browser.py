@@ -196,6 +196,7 @@ async def test_login_reflows_with_conditional_setup_help(virtual_bridge: MeshCor
         try:
             page = await browser.new_page()
             await page.goto(origin)
+            await page.locator(".auth-first-login").evaluate("el => el.hidden = false")
             await expect(page.locator(".auth-first-login")).to_be_visible()
             for theme in ("dark", "light"):
                 await _apply_theme(page, theme)

@@ -17,16 +17,12 @@ def derive_channel_secret(name: str, psk: str) -> bytes:
     a hexadecimal key, a 16-character token or a hashed token. An empty PSK
     keeps the adapter's existing all-zero key for secondary open channels.
     """
-    if name.startswith("#"):
+    clean_psk = psk.strip() if psk else ""
+    if name.startswith("#") or not clean_psk:
         return hashlib.sha256(name.encode("utf-8")).digest()[:16]
-    if psk:
-        clean_psk = psk.strip()
-        if len(clean_psk) == 32 and all(c in "0123456789abcdefABCDEF" for c in clean_psk):
-            return bytes.fromhex(clean_psk)
-        if len(clean_psk) == 16:
-            return clean_psk.encode("utf-8")
-        return hashlib.sha256(clean_psk.encode("utf-8")).digest()[:16]
-    return b"\x00" * 16
+    if len(clean_psk) == 32 and all(c in "0123456789abcdefABCDEF" for c in clean_psk):
+        return bytes.fromhex(clean_psk)
+    raise ValueError("El secreto de canal (PSK) debe contener exactamente 32 caracteres hexadecimales (16 bytes)")
 
 
 def classify_device_role(advert_type: int, is_local: bool = False) -> str:
@@ -50,7 +46,7 @@ def classify_device_role(advert_type: int, is_local: bool = False) -> str:
             return "CLIENT"
         return fat.name
     except (ValueError, TypeError):
-        return "CLIENT"
+        return "UNKNOWN"
 
 
 def clean_numeric_value(val: Any) -> float | None:

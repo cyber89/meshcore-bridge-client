@@ -6,7 +6,7 @@
 > - **Primary Rule**: Automatic execution of test suites (pytest, Playwright, Bandit, fuzzing) is STRICTLY PROHIBITED unless explicitly requested by the user.
 > - **Isolation Invariant**: Tests MUST use temporary directories, mock hardware/transceivers, and loopback ports. NEVER touch operational databases or transmit over physical radio.
 
-Esta guía describe la suite mantenida y cómo obtener evidencia reproducible. Las
+Esta guía describe la suite mantenida y cómo obtener evidencia reproducible. El inventario y clasificación detallada de los 147 módulos de prueba, fixtures y scripts auxiliares se encuentra en [TEST_INVENTORY.md](TEST_INVENTORY.md). Las
 pruebas se ejecutan bajo petición explícita del usuario, según [AGENTS.md](../AGENTS.md).
 La autorización del 2026-09-29 corresponde a la revisión histórica descrita más abajo;
 no autoriza tareas posteriores. La auditoría inicial del 2026-10-09 se realizó sin

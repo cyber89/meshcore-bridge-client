@@ -2,7 +2,7 @@
 <html lang="es" data-bs-theme="dark" class="density-compact">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" data-i18n-content="ui.document_description" content="MeshCore Web Station - Estación base para mensajería, telemetría LoRa, administración de repetidores y puente asíncrono MQTT.">
   <meta name="theme-color" content="#101b2e">
   <title data-i18n="ui.document_title">MeshCore Web Station — Estación base</title>
@@ -17,6 +17,9 @@
     (function() {
       try {
         var t = localStorage.getItem("meshcore_theme");
+        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+          t = "light";
+        }
         if (t === "light") {
           document.documentElement.setAttribute("data-bs-theme", "light");
           var m = document.querySelector('meta[name="theme-color"]');

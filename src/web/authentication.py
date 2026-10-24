@@ -99,7 +99,30 @@ def _same_origin(scope: Scope, headers: dict[str, str], *, required: bool = Fals
 
 
 def _error(status: int, code: str) -> JSONResponse:
-    return JSONResponse({"error": code}, status_code=status, headers={"Cache-Control": "no-store"})
+    titles = {
+        400: "Bad Request",
+        401: "Unauthorized",
+        403: "Forbidden",
+        415: "Unsupported Media Type",
+        422: "Unprocessable Entity",
+        429: "Too Many Requests",
+        500: "Internal Server Error",
+        503: "Service Unavailable",
+    }
+    payload = {
+        "type": f"urn:meshcore:error:{code}",
+        "title": titles.get(status, "Error"),
+        "status": status,
+        "detail": code,
+        "error": code,
+        "message": code,
+    }
+    return JSONResponse(
+        payload,
+        status_code=status,
+        headers={"Cache-Control": "no-store"},
+        media_type="application/problem+json",
+    )
 
 
 def _guard_account_route(

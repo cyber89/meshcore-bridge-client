@@ -298,6 +298,10 @@ class ChannelsController(BaseController):
         psk = str(req_body.get("psk", "")).strip()
         if psk == "••••••••" and idx in self.channels:
             psk = str(self.channels[idx].get("psk", ""))
+        elif psk == "••••••••":
+            return problem_details(422, "Unprocessable Entity", "Placeholder de PSK inválido para un canal nuevo", "invalid_psk")
+        if psk and not re.fullmatch(r"[a-fA-F0-9]{32}", psk):
+            return problem_details(422, "Unprocessable Entity", "La clave PSK debe contener exactamente 32 caracteres hexadecimales (16 bytes)", "invalid_psk")
         failure = await self.serial_mutation("set_channel", idx, name, psk)
         if failure:
             return failure

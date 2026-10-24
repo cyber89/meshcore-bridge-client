@@ -19,11 +19,11 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 _DOCUMENT_NAMES = frozenset({"nodes", "channels", "services", "airtime", "repeater_cooldowns"})
 _MESSAGE_FIELDS = frozenset({
     "sender", "sender_name", "text", "is_outgoing", "channel_idx", "dm_target",
@@ -177,11 +177,23 @@ class StationDatabase:
                     updated_at REAL NOT NULL,
                     UNIQUE (station_id, integration_scope, command_id))""")
                 connection.execute("CREATE INDEX IF NOT EXISTS idx_command_ledger_lookup ON command_ledger (station_id, integration_scope, command_id)")
+                connection.execute("""CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL,
+                    description TEXT NOT NULL)""")
+                now_iso = datetime.now(UTC).isoformat()
+                if version < 1:
+                    connection.execute("INSERT OR IGNORE INTO schema_migrations VALUES (1, ?, 'Initial station schema with metadata, documents, messages')", (now_iso,))
+                if version < 2:
+                    connection.execute("INSERT OR IGNORE INTO schema_migrations VALUES (2, ?, 'Add command_ledger and sensor_subscriptions tables')", (now_iso,))
+                if version < 3:
+                    connection.execute("INSERT OR IGNORE INTO schema_migrations VALUES (3, ?, 'Message retention pruning (30d/50k) and schema_migrations tracking')", (now_iso,))
                 connection.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
                 sub_rows = connection.execute("SELECT * FROM sensor_subscriptions").fetchall()
                 self._sensor_subscriptions_cache = {
                     str(row["public_key"]): dict(row) for row in sub_rows
                 }
+                self._prune_messages(connection)
                 connection.commit()
                 self._initialized = True
             except BaseException:
@@ -341,6 +353,8 @@ class StationDatabase:
                            (record["msg_id"], record["feed_key"], record["timestamp"],
                             "outgoing" if record["is_outgoing"] else "incoming", record["status"],
                             record.get("expected_ack", ""), _json(record)))
+        if existing is None:
+            self._prune_messages(connection)
         row = connection.execute("SELECT * FROM messages WHERE msg_id = ?", (record["msg_id"],)).fetchone()
         return self._result(connection, row), existing is None
 
@@ -394,6 +408,21 @@ class StationDatabase:
                     record["trip_time_ms"] = trip
                 updated.append(self._write_message(connection, record)[0])
             return updated
+
+    @staticmethod
+    def _prune_messages(connection: sqlite3.Connection) -> None:
+        """Enforce retention of 30 days and maximum 50,000 messages (PST-01)."""
+        cutoff_dt = datetime.now(UTC) - timedelta(days=30)
+        cutoff_iso = cutoff_dt.isoformat()
+        connection.execute("DELETE FROM messages WHERE timestamp < ?", (cutoff_iso,))
+        count_row = connection.execute("SELECT count(*) FROM messages").fetchone()
+        total_rows = int(count_row[0]) if count_row else 0
+        if total_rows > 50000:
+            excess = total_rows - 50000
+            connection.execute(
+                "DELETE FROM messages WHERE seq IN (SELECT seq FROM messages ORDER BY seq ASC LIMIT ?)",
+                (excess,),
+            )
 
     @staticmethod
     def _prune_acks(connection: sqlite3.Connection) -> None:

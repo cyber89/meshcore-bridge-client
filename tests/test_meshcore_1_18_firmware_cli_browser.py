@@ -41,7 +41,7 @@ async def settings(page: Page) -> None:
                 body["data"]["radio_connected"] = snapshot["reason"] != "disconnected"
             await route.fulfill(response=response, json=body)
 
-        await page.route(re.compile(r"/api/config(?:\?.*)?$"), reported_config)
+        await page.route(re.compile(r"/api/config(?:/refresh)?(?:\?.*)?$"), reported_config)
     if not await page.locator("#tab-settings").is_visible():
         menu = page.locator('[data-bs-toggle="offcanvas"][data-bs-target="#appSidebar"]')
         if await menu.is_visible():
@@ -183,7 +183,7 @@ async def test_old_config_response_cannot_restore_firmware_capability_after_sess
         await gate.wait()
         await route.fulfill(response=response, json=body)
 
-    await page.route(re.compile(r"/api/config(?:\?.*)?$"), delayed_config)
+    await page.route(re.compile(r"/api/config(?:/refresh)?(?:\?.*)?$"), delayed_config)
     try:
         await page.evaluate("void window.__qaObservedSettings.fetchLocalNodeConfig(true)")
         await asyncio.wait_for(dispatched.wait(), timeout=5)
@@ -239,7 +239,7 @@ async def test_repeated_offline_metrics_allow_fresh_config_without_enabling_cli(
         await gate.wait()
         await route.fulfill(response=response, json=body)
 
-    await page.route(re.compile(r"/api/config(?:\?.*)?$"), delayed_config)
+    await page.route(re.compile(r"/api/config(?:/refresh)?(?:\?.*)?$"), delayed_config)
     try:
         await page.evaluate("void (window.__qaOfflineRead = window.__qaObservedSettings.fetchLocalNodeConfig(true))")
         await asyncio.wait_for(dispatched.wait(), timeout=5)

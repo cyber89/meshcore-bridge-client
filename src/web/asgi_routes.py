@@ -41,7 +41,10 @@ class _RawTargetAPIRoute(APIRoute):
     def matches(self, scope: Scope) -> tuple[Match, Scope]:
         if scope["type"] != "http":
             return super().matches(scope)
-        legacy_scope: Scope = {**scope, "path": _raw_request_target(scope).partition("?")[0]}
+        import urllib.parse
+        raw_target = _raw_request_target(scope).partition("?")[0]
+        decoded_path = urllib.parse.unquote(raw_target)
+        legacy_scope: Scope = {**scope, "path": decoded_path}
         return super().matches(legacy_scope)
 
 

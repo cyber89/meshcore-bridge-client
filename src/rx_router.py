@@ -920,7 +920,12 @@ class RxEventRouter:
             dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}::{msg.sender_timestamp}"
         else:
             dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}"
-        if await self._ctx.deduplicator.is_duplicate(dedup_key):
+        is_dup = await (
+            self._ctx.deduplicator.is_duplicate(dedup_key)
+            if msg.sender_timestamp is not None
+            else self._ctx.deduplicator.is_duplicate(dedup_key, window_override=7.0)
+        )
+        if is_dup:
             if self._ctx.bridge and hasattr(self._ctx.bridge, "dup_count"):
                 self._ctx.bridge.dup_count += 1
             elif hasattr(self._ctx.counters, "dup_count"):
@@ -1041,8 +1046,6 @@ class RxEventRouter:
             "sender_timestamp": msg.sender_timestamp,
         }
 
-        evt_json = json.dumps(evt_payload, sort_keys=True)
-        self._ctx.mqtt.publish_safe(self.topics.rx_all, evt_json, qos=0)
         bridge = self._ctx.bridge
         if bridge is not None and hasattr(bridge, "publish_chat_event"):
             res = await bridge.publish_chat_event(evt_payload)
@@ -1050,6 +1053,9 @@ class RxEventRouter:
                 evt_payload.update(res)
         elif self._ctx.web_server:
             self._spawn_broadcast_task(evt_payload)
+
+        evt_json = json.dumps(evt_payload, sort_keys=True)
+        self._ctx.mqtt.publish_safe(self.topics.rx_all, evt_json, qos=0)
         return evt_payload
 
     async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict[str, Any] | None:

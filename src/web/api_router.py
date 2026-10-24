@@ -378,7 +378,8 @@ class WebAPIRouter:
     ) -> tuple[int, dict[str, Any]]:
         """Maneja una solicitud REST despachando limpiamente a controladores modulares especializados."""
         clean_path = path.split("?")[0].rstrip("/")
-        # Saneamiento y consolidación de alias a rutas canónicas (Recomendación A2)
+        import urllib.parse
+        clean_path = urllib.parse.unquote(clean_path)
         clean_path = ROUTE_ALIASES.get(clean_path, clean_path)
         req_body = dict(body) if body else {}
         if "?" in path:

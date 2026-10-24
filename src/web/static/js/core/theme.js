@@ -4,6 +4,9 @@ export function readThemePreference() {
     const saved = localStorage.getItem("meshcore_theme");
     if (saved === "light" || saved === "dark") return saved;
   } catch (_) { /* Retain the preference in the DOM when storage is unavailable. */ }
+  if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+    return "light";
+  }
   return document.documentElement.getAttribute("data-bs-theme") === "light" ? "light" : "dark";
 }
 

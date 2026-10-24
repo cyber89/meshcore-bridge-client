@@ -202,6 +202,7 @@ class BridgeSecurityMiddleware:
         content_type: str | None = None,
         cors_origin: str = "",
         headers: list[tuple[bytes, bytes]] | None = None,
+        scheme: str = "http",
     ) -> None:
         header_list = (
             headers
@@ -210,6 +211,7 @@ class BridgeSecurityMiddleware:
                 content_type=content_type,
                 content_length=len(body),
                 cors_origin=cors_origin,
+                scheme=scheme,
             )
         )
         await send({"type": "http.response.start", "status": status, "headers": header_list})
@@ -324,7 +326,7 @@ class BridgeSecurityMiddleware:
 
     @staticmethod
     def _normal_response_headers(
-        original: list[tuple[bytes, bytes]], cors_origin: str, *, documentation: bool = False
+        original: list[tuple[bytes, bytes]], cors_origin: str, *, documentation: bool = False, scheme: str = "http"
     ) -> list[tuple[bytes, bytes]]:
         content_type: str | None = None
         extras: list[tuple[bytes, bytes]] = []
@@ -335,7 +337,7 @@ class BridgeSecurityMiddleware:
             elif lowered not in _NORMAL_HEADER_NAMES:
                 extras.append((lowered, value))
         assembled = response_headers(
-            content_type=content_type, cors_origin=cors_origin, extra_headers=extras
+            content_type=content_type, cors_origin=cors_origin, extra_headers=extras, scheme=scheme
         )
         if documentation and content_type and content_type.startswith("text/html"):
             assembled = [
@@ -352,14 +354,26 @@ class BridgeSecurityMiddleware:
         target = _raw_request_target(scope)
         headers = headers_to_legacy_dict(scope.get("headers", ()))
         started_at = time.perf_counter()
-        cors_origin = calculate_cors_origin(headers, scheme=str(scope.get("scheme", "http")))
+        req_scheme = str(scope.get("scheme", "http"))
+        if headers.get("x-forwarded-proto") == "https":
+            req_scheme = "https"
+        cors_origin = calculate_cors_origin(headers, scheme=req_scheme)
         if not self._inspect(scope, target, headers):
+            prob_403 = {
+                "type": "urn:meshcore:error:forbidden",
+                "title": "Forbidden",
+                "status": 403,
+                "detail": "403 Forbidden - Security Violation",
+                "error": "forbidden",
+            }
             await self._reply_http(
                 scope,
                 send,
                 403,
-                b"403 Forbidden - Security Violation",
+                json.dumps(prob_403).encode("utf-8"),
+                content_type="application/problem+json",
                 cors_origin=cors_origin,
+                scheme=req_scheme,
             )
             return
 
@@ -376,13 +390,21 @@ class BridgeSecurityMiddleware:
             )
             return
         if decision.rejection_status == 405:
+            prob_405 = {
+                "type": "urn:meshcore:error:method_not_allowed",
+                "title": "Method Not Allowed",
+                "status": 405,
+                "detail": "Only GET is supported for map tiles",
+                "error": "method_not_allowed",
+            }
             await self._reply_http(
                 scope,
                 send,
                 405,
-                b'{"error": "Method Not Allowed", "detail": "Only GET is supported for map tiles"}',
-                content_type="application/json",
+                json.dumps(prob_405).encode("utf-8"),
+                content_type="application/problem+json",
                 cors_origin=decision.cors_origin,
+                scheme=req_scheme,
             )
             return
         if decision.rejection_status == 401:
@@ -393,13 +415,21 @@ class BridgeSecurityMiddleware:
                 anomaly="AUTENTICACION_API_FALLIDA",
                 detail="Protected endpoint rejected an absent or invalid API key",
             )
+            prob_401 = {
+                "type": "urn:meshcore:error:auth_required",
+                "title": "Unauthorized",
+                "status": 401,
+                "detail": "Authentication required",
+                "error": "auth_required",
+            }
             await self._reply_http(
                 scope,
                 send,
                 401,
-                b'{"error": "auth_required"}',
-                content_type="application/json",
+                json.dumps(prob_401).encode("utf-8"),
+                content_type="application/problem+json",
                 cors_origin=decision.cors_origin,
+                scheme=req_scheme,
             )
             return
 
@@ -415,9 +445,17 @@ class BridgeSecurityMiddleware:
                 self._log_rejection(peer=_peer_ip(scope), path=target, source="API-AUTH",
                                     anomaly="AUTH_SERVICE_UNAVAILABLE",
                                     detail="Authentication service is unavailable")
+                prob_503 = {
+                    "type": "urn:meshcore:error:authentication_unavailable",
+                    "title": "Service Unavailable",
+                    "status": 503,
+                    "detail": "Authentication service is unavailable",
+                    "error": "authentication_unavailable",
+                }
                 await self._reply_http(scope, send, 503,
-                                       b'{"error":"authentication_unavailable"}',
-                                       content_type="application/json", cors_origin=decision.cors_origin)
+                                       json.dumps(prob_503).encode("utf-8"),
+                                       content_type="application/problem+json", cors_origin=decision.cors_origin,
+                                       scheme=req_scheme)
                 return
             if self.auth_service is not None:
                 clean_path = str(scope.get("path", "/")).rstrip("/") or "/"
@@ -483,6 +521,7 @@ class BridgeSecurityMiddleware:
                     message.get("headers", []),
                     decision.cors_origin,
                     documentation=bool(scope.get("state", {}).get(DOC_RESPONSE_STATE)),
+                    scheme=req_scheme,
                 )
                 try:
                     SecurityTrafficInspector.log_http_access(

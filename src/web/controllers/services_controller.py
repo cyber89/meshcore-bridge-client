@@ -225,6 +225,17 @@ class ServicesController(BaseController):
                     422, "Unprocessable Entity", "La privacidad GPS debe ser 'exact', 'fuzzed' o 'hidden'.", "invalid_location_privacy"
                 )
 
+            tp = str(ext.get("topic_prefix") or "").strip().strip("/")
+            if tp and any(ch in tp for ch in "+#"):
+                return problem_details(
+                    422, "Unprocessable Entity", "El prefijo del topic MQTT no puede contener caracteres comodín (+ o #).", "invalid_topic_prefix"
+                )
+            iata = str(ext.get("region_iata") or "").strip().upper()
+            if iata and not re.match(r"^[A-Z]{3}$", iata):
+                return problem_details(
+                    422, "Unprocessable Entity", "El código de región IATA debe contener exactamente 3 letras mayúsculas.", "invalid_region_iata"
+                )
+
         # Validación de Local MQTT si está presente
         loc = body.get("local_mqtt")
         if isinstance(loc, dict) and loc.get("enabled"):
@@ -333,6 +344,17 @@ class ServicesController(BaseController):
                 422, "Unprocessable Entity", "Keepalive y QoS deben ser enteros válidos.", "invalid_preset_number"
             )
 
+        topic_prefix = str(body.get("topic_prefix") or "meshcore/remote").strip().strip("/")
+        if any(ch in topic_prefix for ch in "+#"):
+            return problem_details(
+                422, "Unprocessable Entity", "El prefijo del topic MQTT no puede contener caracteres comodín (+ o #).", "invalid_topic_prefix"
+            )
+        region_iata = str(body.get("region_iata") or "XXX").strip().upper()
+        if not re.match(r"^[A-Z]{3}$", region_iata):
+            return problem_details(
+                422, "Unprocessable Entity", "El código de región IATA debe contener exactamente 3 letras mayúsculas.", "invalid_region_iata"
+            )
+
         preset_id = str(body.get("id") or "").strip()
         # Verificar que no sea un preset del sistema
         system_ids = {p.id for p in SYSTEM_PRESETS}
@@ -377,8 +399,8 @@ class ServicesController(BaseController):
             downlink_enabled=bool(body.get("downlink_enabled", False)),
             location_privacy=str(body.get("location_privacy") or "fuzzed"),
             topic_mode=str(body.get("topic_mode") or "standard"),
-            topic_prefix=str(body.get("topic_prefix") or "meshcore/remote"),
-            region_iata=str(body.get("region_iata") or "XXX").upper(),
+            topic_prefix=topic_prefix,
+            region_iata=region_iata,
             payload_format=str(body.get("payload_format") or "json_canonical"),
             filter_observer_mode=bool(body.get("filter_observer_mode", False)),
             filter_public=bool(body.get("filter_public", True)),
@@ -472,6 +494,20 @@ class ServicesController(BaseController):
                 422, "Unprocessable Entity", "El host es obligatorio para realizar la prueba de conexión.", "missing_host"
             )
 
+        if host.lower() in ("169.254.169.254", "metadata.google.internal", "instance-data"):
+            return problem_details(
+                422, "Unprocessable Entity", "Host no permitido para pruebas de conectividad.", "disallowed_host"
+            )
+        try:
+            import ipaddress
+            ip = ipaddress.ip_address(host)
+            if ip.is_link_local:
+                return problem_details(
+                    422, "Unprocessable Entity", "Host de enlace local no permitido.", "disallowed_host"
+                )
+        except ValueError:
+            pass
+
         port = body.get("port", 1883)
         try:
             port_val = int(port)
@@ -481,6 +517,16 @@ class ServicesController(BaseController):
             return problem_details(
                 422, "Unprocessable Entity", "Puerto inválido.", "invalid_port"
             )
+
+        raw_ca = str(body.get("tls_ca_file") or "").strip()
+        tls_ca_file: str | None = None
+        if raw_ca:
+            import os
+            if ".." in raw_ca or not os.path.isabs(raw_ca) or not os.path.isfile(raw_ca):
+                return problem_details(
+                    422, "Unprocessable Entity", "tls_ca_file debe ser una ruta absoluta válida sin transversales (..).", "invalid_tls_ca_file"
+                )
+            tls_ca_file = raw_ca
 
         cfg = getattr(self.ctx.bridge, "services_config", None)
         cur_ext = cfg.external_mqtt if cfg else None
@@ -499,7 +545,7 @@ class ServicesController(BaseController):
             transport=str(body.get("transport") or "tcp"),
             tls_enabled=bool(body.get("tls_enabled", False)),
             tls_verify=bool(body.get("tls_verify", True)),
-            tls_ca_file=str(body.get("tls_ca_file") or "").strip() or None,
+            tls_ca_file=tls_ca_file,
             auth_type=str(body.get("auth_type") or "anonymous"),
             username=str(body.get("username") or ""),
             password=password,
@@ -514,6 +560,8 @@ class ServicesController(BaseController):
             return problem_details(
                 422, "Unprocessable Entity", "Configuración de servicios inválida.", "invalid_services_config"
             )
+        if isinstance(test_result, dict) and "error" in test_result:
+            test_result["error"] = str(test_result["error"]).split("\n")[0][:200]
         return 200, {
             "status": "ok" if test_result.get("ok") else "error",
             "data": test_result,

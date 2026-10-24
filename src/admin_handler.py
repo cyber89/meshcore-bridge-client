@@ -102,6 +102,8 @@ class AdminCommandHandler:
             handle_set_local_config=self._handle_set_local_config,
             init_time=self._init_time,
         )
+        self._last_advert_ts_zero_hop: float = 0.0
+        self._last_advert_ts_flood: float = 0.0
 
     def _publish_safe(self, topic: str, payload: str, qos: int = 1) -> None:
         """Redact executor responses at the MQTT boundary before publication."""
@@ -137,12 +139,29 @@ class AdminCommandHandler:
         """Restablece los contadores de estadísticas y airtime en el nodo local."""
         return await self._local_config_executor.clear_device_stats()
 
-    async def broadcast_advert(self, flood: bool = False) -> dict[str, Any]:
+    async def broadcast_advert(self, flood: bool = False, force: bool = False) -> dict[str, Any]:
         """Difunde un paquete de anuncio Advert por radio (0-hop o flood routed)."""
+        now = time.monotonic()
+        cooldown = 60.0 if flood else 30.0
+        last_ts = self._last_advert_ts_flood if flood else self._last_advert_ts_zero_hop
+        elapsed = now - last_ts
+        if not force and elapsed < cooldown:
+            remaining = cooldown - elapsed
+            return {
+                "status": "cooldown",
+                "code": 429,
+                "message": f"Protección de Airtime: Cooldown de anuncio activo. Espere {remaining:.1f}s.",
+                "retry_after": int(remaining) + 1,
+                "flood": flood,
+            }
         mc = self._ctx.mc_provider()
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_advert"):
             try:
                 require_success(await run_sdk_command(self._ctx, mc, "send_advert", flood=flood), "send_advert")
+                if flood:
+                    self._last_advert_ts_flood = time.monotonic()
+                else:
+                    self._last_advert_ts_zero_hop = time.monotonic()
                 mode_str = "Flood Routed (toda la malla)" if flood else "Hop 0 (vecindario directo)"
                 return {"status": "ok", "message": f"Anuncio emitido ({mode_str})", "flood": flood}
             except Exception as e:
@@ -438,6 +457,14 @@ class AdminCommandHandler:
         # 2. Comandos dirigidos a un repetidor o sensor remoto (solo si target_node no es la estación local)
         is_local_target = bool(target_node and (self._ctx.node_registry.is_local_key(str(target_node)) or str(target_node).lower() in ("local", "000000000000")))
         if target_node and not is_local_target:
+            if manual_target is None:
+                manual_target = self._manual_remote_target(target_node, action=action)
+            if manual_target is None:
+                return {
+                    "status": "error",
+                    "code": 404,
+                    "message": f"Destino remoto '{target_node}' no encontrado o no tiene rol de infraestructura válido",
+                }
             req = RemoteRepeaterRequest(
                 admin_data=admin_data,
                 action=action,
@@ -446,7 +473,8 @@ class AdminCommandHandler:
                 password=password,
                 res=res,
                 mc=mc,
-                manual=manual_target is not None,
+                manual=manual,
+                force=bool(admin_data.get("force", False)),
                 resolved_target=manual_target,
             )
             return await self._handle_remote_repeater(req)

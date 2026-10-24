@@ -222,6 +222,8 @@ def _validate_config() -> None:
         warnings.append(f"DUTY_CYCLE_WARN_THRESHOLD_PCT={DUTY_CYCLE_WARN_THRESHOLD_PCT} is non-standard (use 50-95%)")
     if not (5.0 <= AIRTIME_CUTOFF_THRESHOLD_PCT <= 95.0):
         warnings.append(f"AIRTIME_CUTOFF_THRESHOLD_PCT={AIRTIME_CUTOFF_THRESHOLD_PCT} is non-standard (recommended 20-50%)")
+    if AIRTIME_CUTOFF_RESUME_PCT >= AIRTIME_CUTOFF_THRESHOLD_PCT:
+        errors.append(f"AIRTIME_CUTOFF_RESUME_PCT ({AIRTIME_CUTOFF_RESUME_PCT}%) must be strictly less than AIRTIME_CUTOFF_THRESHOLD_PCT ({AIRTIME_CUTOFF_THRESHOLD_PCT}%)")
     if not (0.5 <= REPEATER_PRE_SEND_DELAY_S <= 15.0):
         warnings.append(f"REPEATER_PRE_SEND_DELAY_S={REPEATER_PRE_SEND_DELAY_S} is non-standard (recommended 1.5-5.0s)")
 

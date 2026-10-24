@@ -57,7 +57,13 @@ class SystemController(BaseController):
         mins = (uptime_sec % 3600) // 60
         uptime_str = f"{days}d {hours}h {mins}m" if days > 0 else (f"{hours}h {mins}m" if hours > 0 else f"{mins}m")
 
-        return 200, {
+        import os
+        web_host = os.getenv("WEB_HOST", "0.0.0.0")
+        warnings: list[str] = []
+        if web_host in ("0.0.0.0", "::"):
+            warnings.append("WEB_HOST está expuesto a todas las interfaces (0.0.0.0). Se recomienda utilizar un proxy inverso TLS (HTTPS) o restringir a 127.0.0.1.")
+
+        res: dict[str, Any] = {
             "status": "ok",
             "uptime_seconds": uptime_sec,
             "uptime_str": uptime_str,
@@ -67,6 +73,9 @@ class SystemController(BaseController):
             "error_count": getattr(self.ctx.bridge, "err_count", 0),
             "timestamp": time.time(),
         }
+        if warnings:
+            res["warnings"] = warnings
+        return 200, res
 
     async def get_health(self) -> tuple[int, dict[str, Any]]:
         """Devuelve diagnóstico de salud específico de subsistemas."""

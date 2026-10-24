@@ -969,11 +969,21 @@ export class ChatModule {
     await this.sendMessage();
   }
 
+  getMaxTextBytes() {
+    const isChannel = !this.activeDmTarget;
+    if (!isChannel) return MAX_LORA_TEXT_BYTES;
+    const cfg = this.ctx?.localConfig || {};
+    const name = String(cfg.name || "").trim();
+    const prefixBytes = name ? (getUtf8ByteLength(name) + 2) : 0;
+    return Math.max(32, MAX_LORA_TEXT_BYTES - prefixBytes);
+  }
+
   updateCharCounterFast() {
     if (!this.dom.chatInputText || !this.dom.chatCharCounter) return;
     const text = this.dom.chatInputText.value || "";
+    const maxBytes = this.getMaxTextBytes();
     const byteLen = getUtf8ByteLength(text);
-    const chunks = splitUtf8Message(text, MAX_LORA_TEXT_BYTES);
+    const chunks = splitUtf8Message(text, maxBytes);
     const pktCount = chunks.length || 1;
     this.dom.chatCharCounter.textContent = pktCount > 1 ? `${byteLen} B (${pktCount} pkts)` : `${byteLen} B`;
     this.dom.chatCharCounter.classList.remove("is-warning", "is-danger");
@@ -984,7 +994,8 @@ export class ChatModule {
     if (!this.dom.chatInputText || !this.dom.chatCharCounter) return;
     const text = this.dom.chatInputText.value || "";
     const byteLen = getUtf8ByteLength(text);
-    const chunks = splitUtf8Message(text, MAX_LORA_TEXT_BYTES);
+    const maxBytes = this.getMaxTextBytes();
+    const chunks = splitUtf8Message(text, maxBytes);
     const charCount = [...text].length;
 
     // Obtener parámetros RF de modulación en vivo del nodo
@@ -996,8 +1007,8 @@ export class ChatModule {
 
     // Tooltip informativo con ocupación estimada de espectro
     this.dom.chatCharCounter.title = chunks.length > 1
-      ? I18n.t("chat.fragmented_payload_title", { bytes: byteLen, packets: chunks.length, max: MAX_LORA_TEXT_BYTES, sf, bw, airtime: airtimeMs })
-      : I18n.t("chat.payload_title", { p0: byteLen, p1: MAX_LORA_TEXT_BYTES, p2: charCount, p3: sf, p4: bw, p5: airtimeMs });
+      ? I18n.t("chat.fragmented_payload_title", { bytes: byteLen, packets: chunks.length, max: maxBytes, sf, bw, airtime: airtimeMs })
+      : I18n.t("chat.payload_title", { p0: byteLen, p1: maxBytes, p2: charCount, p3: sf, p4: bw, p5: airtimeMs });
   }
 
   updateCharCounter() {
@@ -1865,7 +1876,8 @@ export class ChatModule {
     try {
       if (this.dom.chatInputText) this.dom.chatInputText.value = "";
       this.updateCharCounter();
-      const chunks = splitUtf8Message(rawInput, MAX_LORA_TEXT_BYTES);
+      const maxBytes = this.getMaxTextBytes();
+      const chunks = splitUtf8Message(rawInput, maxBytes);
       for (let i = 0; i < chunks.length; i++) {
         const accepted = await this._sendSingleMessageChunk(chunks[i], destination);
         if (!accepted) {

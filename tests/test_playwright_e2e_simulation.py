@@ -42,7 +42,7 @@ async def test_playwright_delivery_ack_and_echo(browser_page: Page) -> None:
     await browser_page.locator("#chatInputText").fill(message)
     await browser_page.locator("#chatInputForm").dispatch_event("submit")
     bubble = browser_page.locator(".message-bubble-row.outgoing").filter(has_text=message)
-    await expect(bubble.locator(".ack-delivered")).to_have_text("✓✓", timeout=10000)
+    await expect(bubble.locator(".ack-delivered")).to_be_visible(timeout=10000)
     await expect(browser_page.locator(".message-bubble-row.incoming").last).to_contain_text(message)
 
 

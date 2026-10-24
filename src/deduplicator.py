@@ -36,14 +36,15 @@ class PacketDeduplicator:
     def __bool__(self) -> bool:
         return True
 
-    def _check_and_insert(self, key: str) -> bool:
+    def _check_and_insert(self, key: str, window_override: float | None = None) -> bool:
         """Evalúa e inserta una clave en la ventana deslizante bajo protección de lock."""
         now = time.monotonic()
         self._prune(now)
 
+        eff_window = window_override if window_override is not None else self.window_seconds
         if key in self._cache:
             last_seen = self._cache[key]
-            if (now - last_seen) < self.window_seconds:
+            if (now - last_seen) < eff_window:
                 return True
 
         self._cache[key] = now
@@ -54,10 +55,10 @@ class PacketDeduplicator:
 
         return False
 
-    async def is_duplicate(self, key: str) -> bool:
+    async def is_duplicate(self, key: str, window_override: float | None = None) -> bool:
         """Verifica de forma asíncrona si la clave ha sido vista recientemente dentro de la ventana."""
         with self._lock:
-            return self._check_and_insert(key)
+            return self._check_and_insert(key, window_override)
 
     def _prune(self, now: float) -> None:
         """Elimina entradas expiradas desde el inicio del OrderedDict."""

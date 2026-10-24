@@ -273,15 +273,20 @@ class ChannelService:
 
             clean_name = name.strip()
             clean_psk = psk.strip()
-            if clean_psk == "••••••••" and index in self._channels:
-                clean_psk = str(self._channels[index].get("psk", ""))
+            if clean_psk == "••••••••":
+                if index in self._channels:
+                    clean_psk = str(self._channels[index].get("psk", ""))
+                else:
+                    raise ValueError("Placeholder de PSK inválido para un canal nuevo")
+            if clean_psk and not re.match(r'^[a-fA-F0-9]{32}$', clean_psk):
+                raise ValueError("El secreto de canal (PSK) debe contener exactamente 32 caracteres hexadecimales (16 bytes)")
 
             # Mutación de hardware si el adaptador serial está disponible
             if self.serial_adapter_provider:
                 ser = self.serial_adapter_provider()
                 if ser and hasattr(ser, "set_channel") and callable(ser.set_channel):
                     res = await ser.set_channel(index, clean_name, clean_psk)
-                    if isinstance(res, dict) and res.get("status") == "error":
+                    if isinstance(res, dict) and str(res.get("status", "")).upper() == "ERROR":
                         raise RuntimeError(f"Error en hardware: {res.get('message', 'Fallo al configurar canal')}")
 
             self._channels[index] = {
@@ -309,9 +314,13 @@ class ChannelService:
             if self.serial_adapter_provider:
                 ser = self.serial_adapter_provider()
                 if ser and hasattr(ser, "delete_channel") and callable(ser.delete_channel):
-                    await ser.delete_channel(index)
+                    del_res = await ser.delete_channel(index)
+                    if isinstance(del_res, dict) and str(del_res.get("status", "")).upper() == "ERROR":
+                        raise RuntimeError(f"Error en hardware al eliminar canal: {del_res.get('message', 'Fallo')}")
                 elif ser and hasattr(ser, "set_channel") and callable(ser.set_channel):
-                    await ser.set_channel(index, "", "00" * 16)
+                    del_res = await ser.set_channel(index, "", "00" * 16)
+                    if isinstance(del_res, dict) and str(del_res.get("status", "")).upper() == "ERROR":
+                        raise RuntimeError(f"Error en hardware al vaciar canal: {del_res.get('message', 'Fallo')}")
 
             self._deleted_channels.add(index)
             del self._channels[index]
@@ -326,7 +335,10 @@ class ChannelService:
                 "index": channel_idx,
                 "name": channel_name,
                 "channel_hash": channel_hash,
+                "psk": "",
+                "is_public": (channel_idx == 0),
             }
         else:
             self._channels[channel_idx]["name"] = channel_name
             self._channels[channel_idx]["channel_hash"] = channel_hash
+        self._dirty = True

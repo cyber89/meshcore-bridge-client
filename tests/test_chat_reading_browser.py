@@ -9,6 +9,10 @@ from playwright.async_api import Page, expect
 async def seed_history(page: Page) -> None:
     await expect(page.locator("#tab-analytics")).to_have_attribute("aria-busy", "false")
     await page.wait_for_load_state("networkidle")
+    chat_tab = page.locator('[data-tab="tab-chat"]')
+    if await chat_tab.is_visible():
+        await chat_tab.click()
+    await expect(page.locator("#tab-chat")).to_be_visible()
     await page.evaluate(r"""() => {
         const chat = bridgeApp.chatModule;
         chat.activeChannelIdx = 1;

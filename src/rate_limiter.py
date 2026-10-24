@@ -772,6 +772,20 @@ class TxRateLimiter:
         """Retorna la cantidad de elementos encolados esperando emisión."""
         return self.queue.qsize()
 
+    def cancel_by_request_id(self, request_id: str) -> bool:
+        """Cancela un elemento encolado por su request_id si aún no se ha transmitido."""
+        if not request_id:
+            return False
+        found = False
+        queue_items = getattr(self.queue, "_queue", None)
+        if queue_items:
+            for item in list(queue_items):
+                if isinstance(item, TxItem) and str(item.request_id) == str(request_id):
+                    if item.future and not item.future.done():
+                        item.future.cancel()
+                    found = True
+        return found
+
     async def _worker_loop(self) -> None:
         """Bucle continuo que extrae y transmite elementos según su prioridad."""
         while self._running:

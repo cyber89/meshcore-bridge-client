@@ -70,7 +70,7 @@ _COMPANION_MIN_LENGTHS = {
     34: 2, 35: 1, 36: 11, 37: 5, 38: 2, 39: 4, 40: 1, 41: 4,
     42: 34, 43: 1, 50: 34, 51: 6, 52: 34, 54: 2, 55: 2, 56: 2,
     57: 34, 58: 2, 59: 1, 60: 1, 61: 3, 62: 5, 63: 1, 64: 1,
-    65: 4, 66: 2,
+    65: 4, 66: 3,
 }
 
 
@@ -1814,12 +1814,13 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 return min(255, max(1, int(info["max_channels"])))
             except (ValueError, TypeError):
                 pass
-        return 16  # Legacy firmware without a capacity announcement.
+        return 8  # Fallback estándar canónico de capacidad de canales (8).
 
     async def set_channel(self, index: int, name: str, psk: str) -> dict[str, Any]:
         """Configura un canal en el firmware del transceptor serial."""
-        if not re.match(r'^[a-fA-F0-9]{0,64}$', psk):
-            raise ValueError("Invalid PSK format")
+        clean_psk = psk.strip() if psk else ""
+        if clean_psk and not re.match(r'^[a-fA-F0-9]{32}$', clean_psk):
+            raise ValueError("El secreto de canal (PSK) debe contener exactamente 32 caracteres hexadecimales (16 bytes)")
         if not (0 <= index < self._channel_capacity()):
             raise ValueError("Channel index outside firmware capacity")
         if len(name.encode("utf-8")) > MAX_CHANNEL_NAME_BYTES or any(ord(c) < 0x20 for c in name):

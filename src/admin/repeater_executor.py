@@ -60,6 +60,7 @@ class RemoteRepeaterRequest:
     mc: Any = None
     resolved_target_key: str | None = None
     manual: bool = False
+    force: bool = False
     resolved_target: Any = None
     preference_command: str | None = None
     preference_advert_type: int | None = None
@@ -390,7 +391,7 @@ class RepeaterAdminExecutor:
                 "message": "Base de datos de estación no disponible para suscripciones",
             }
 
-        if not req.manual:
+        if not req.force:
             can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(canonical, is_full_query=False)
             if not can_send:
                 return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
@@ -608,7 +609,7 @@ class RepeaterAdminExecutor:
 
     async def _execute_batch_config(self, req: RemoteRepeaterRequest, res: dict[str, Any]) -> dict[str, Any]:
         """Aplica múltiples parámetros de configuración remota en el repetidor."""
-        if not req.manual:
+        if not req.force:
             can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=True)
             if not can_send:
                 return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
@@ -977,7 +978,7 @@ class RepeaterAdminExecutor:
     ) -> dict[str, Any]:
         """Ejecuta un ping directo de 0 saltos y calcula RTT y métricas de señal."""
         force = bool(req.admin_data.get("force", False))
-        if not req.manual and not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_ping_cooldown"):
+        if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_ping_cooldown"):
             can_send, rem_cd = self._ctx.repeater_manager.check_ping_cooldown(str(req.target_node))
             if not can_send:
                 return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
@@ -1086,7 +1087,7 @@ class RepeaterAdminExecutor:
     ) -> dict[str, Any]:
         """Ejecuta una consulta consolidada y ordenada de telemetría remota respetando Airtime LoRa."""
         force = bool(req.admin_data.get("force", False))
-        if not req.manual and not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_airtime_cooldown"):
+        if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_airtime_cooldown"):
             can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=True)
             if not can_send:
                 return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
@@ -1329,7 +1330,7 @@ class RepeaterAdminExecutor:
                 "req_status", "status", "req_telemetry", "telemetry",
                 "bat", "get_bat", "get bat", "battery",
             ):
-                if not req.manual:
+                if not req.force:
                     allowed, remaining = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
                     if not allowed:
                         return self._ctx.repeater_manager.build_cooldown_error_response(remaining)
@@ -1384,7 +1385,7 @@ class RepeaterAdminExecutor:
             data: Any = None
             if action in ("req_neighbours", "req_neighbors", "neighbours", "neighbors"):
                 force = bool(rf_ctx.req.admin_data.get("force", False))
-                if not rf_ctx.req.manual and not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_neighbours_cooldown"):
+                if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_neighbours_cooldown"):
                     can_send, rem_cd = self._ctx.repeater_manager.check_neighbours_cooldown(str(rf_ctx.req.target_node))
                     if not can_send:
                         rf_ctx.res.update(self._ctx.repeater_manager.build_cooldown_error_response(rem_cd))
@@ -1638,7 +1639,7 @@ class RepeaterAdminExecutor:
                 "message": "Comando remoto no compatible o parámetros inválidos",
             })
             return rf_ctx.res
-        if not req.manual:
+        if not req.force:
             can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
             if not can_send:
                 return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)

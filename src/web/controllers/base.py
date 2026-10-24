@@ -85,9 +85,17 @@ class BaseController:
             status = str(result.get("status", "")).upper()
             if status in {"OK", "SUCCESS", "SENT", "DELETED", "CLEARED"} and not result.get("error"):
                 return None
-            if status in {"ERROR", "FAILED", "PARTIAL", "NOT_SUPPORTED", "LOCAL_ONLY", "LOCAL_DELETED"} or result.get("error"):
-                raw_code = result.get("code", 503 if status.startswith(("NOT_SUPPORTED", "LOCAL_")) else (400 if status in {"ERROR", "FAILED", "PARTIAL"} else 400))
+            if status in {"ERROR", "FAILED", "PARTIAL", "NOT_SUPPORTED", "LOCAL_ONLY", "LOCAL_DELETED", "COOLDOWN", "RATE_LIMITED"} or result.get("error"):
+                raw_code = result.get("code", 429 if status in {"COOLDOWN", "RATE_LIMITED"} else (503 if status.startswith(("NOT_SUPPORTED", "LOCAL_")) else (400 if status in {"ERROR", "FAILED", "PARTIAL"} else 400)))
                 code = raw_code if isinstance(raw_code, int) and not isinstance(raw_code, bool) and 400 <= raw_code <= 599 else 400
+                if code == 429 or status in {"COOLDOWN", "RATE_LIMITED"}:
+                    msg = str(result.get("message") or "Protección de Airtime LoRa activa. Operación en cooldown.")
+                    extra_429: dict[str, Any] = {}
+                    if "retry_after" in result:
+                        extra_429["retry_after"] = result["retry_after"]
+                    if "cooldown_remaining" in result:
+                        extra_429["cooldown_remaining"] = result["cooldown_remaining"]
+                    return problem_details(429, "Too Many Requests", msg, "rate_limit_cooldown", extra=extra_429)
                 msg = (
                     "El transceptor confirmó la operación parcialmente"
                     if status == "PARTIAL"

@@ -56,7 +56,7 @@ class TracerouteExecutor:
             loading = rep_mgr.load_state()
             if asyncio.iscoroutine(loading):
                 await loading
-        if not manual and not force and rep_mgr is not None and hasattr(rep_mgr, "check_traceroute_cooldown"):
+        if not force and rep_mgr is not None and hasattr(rep_mgr, "check_traceroute_cooldown"):
             chk_result = rep_mgr.check_traceroute_cooldown(target_str)
             if isinstance(chk_result, tuple) and len(chk_result) >= 2:
                 can_send, rem_cd = chk_result[0], chk_result[1]
@@ -197,10 +197,18 @@ class TracerouteExecutor:
                 clean_hex = clean_hex[2:]
 
             if clean_hex:
-                if len(clean_hex) >= 4:
-                    formatted.append(clean_hex[:4])
-                elif len(clean_hex) >= 2:
-                    formatted.append(clean_hex[:2])
+                if len(clean_hex) == 64:
+                    target_width = 4
+                    for other_p in path_list:
+                        raw_other = other_p.strip().lower().removeprefix("0x")
+                        if len(raw_other) in (2, 4, 8) and all(c in "0123456789abcdef" for c in raw_other) and not self._find_node_info(raw_other):
+                            target_width = len(raw_other)
+                            break
+                    formatted.append(clean_hex[:target_width])
+                elif len(clean_hex) in (2, 4, 8):
+                    formatted.append(clean_hex)
+                else:
+                    raise ValueError(f"Longitud de hash de traceroute inválida ({len(clean_hex)} hex): {clean_p}. Solo se admiten 2, 4 u 8 caracteres hex.")
             else:
                 raise ValueError(f"Salto de traceroute no resuelto: {clean_p}")
 

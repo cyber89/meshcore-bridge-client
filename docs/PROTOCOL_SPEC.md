@@ -558,9 +558,9 @@ Fuente en firmware 1.18: `examples/simple_sensor/SensorMesh.cpp` (`REQ_TYPE_SUBS
   - Cada tupla de umbral mínimo de cambio (`delta`) ocupa formato CayenneLPP: `[channel (1B)][lpp_type (1B)][min_delta (uint16 BE, 2B)]`.
   - **Preset equilibrado implementado**: `timeout_s = 3600` (1 hora) y deltas `b"\x01\x67\x00\x05\x01\x74\x00\x0a"` (temperatura `0x67` con cambio mínimo de $0.5\,^\circ\text{C}$, voltaje `0x74` con cambio mínimo de $0.10\,\text{V}$).
   - **Respuesta `BINARY_RESPONSE (0x8C)` a `SUBSCRIBE`**: `data` de `[actual_timeout_secs (uint16 LE, 2B)][reserved (0x0000, 2B)][scope_name]`, donde `actual_timeout_secs > 0` confirma registro/renovación y `0x0000` denota rechazo.
-- **Solicitud `BinaryReqType.UNSUBSCRIBE (0x09)`**:
-  - Layout de `request_data`: `[0x09 (1B)][push_tag (4B)]` (5 bytes, sin padding ni CRC).
-  - **Respuesta `BINARY_RESPONSE (0x8C)` a `UNSUBSCRIBE`**: `data` de 1 byte `[err_code (uint8)]` (`0x00` = cancelada).
+- **Solicitud `BinaryReqType.UNSUBSCRIBE (0x09)`** (enviada v?a `CMD_SEND_BINARY_REQ = 50`):
+  - Layout de `request_data`: `[0x09 (1B)]` (1 byte, req_type sin push_tag ni payload adicional, verificado por inspecci?n offline de tag `companion-v1.18.0` / commit `81dbae5` en `reference/meshcore`).
+  - **Respuesta `BINARY_RESPONSE (0x8C)` a `UNSUBSCRIBE`**: Tras extraer el tag de 4B (`expected_ack`), `data` contiene 10 bytes: `[8 bytes en cero (0x00 * 8)][2 bytes aleatorios (RNG)]` (confirmando cancelaci?n de suscripci?n en el sensor remoto, sin campo `err_code`).
 - **Trama Push de Muestras de Sensor (`BINARY_RESPONSE = 0x8C`)**:
   - Layout recibido desde la radio: `[0x8C (1B)][reserved (1B)][push_tag (4B)][sample_timestamp (uint32 LE, 4B)][CayenneLPP (N bytes)]`.
   - **Regla estricta de atribución**: `BINARY_RESPONSE (0x8C)` carece de clave pública en su cabecera. `RxEventRouter` nunca infiere un emisor en `_extract_normalized_meta()`. `SystemHandler._handle_binary_response()` consulta la tabla SQLite `sensor_subscriptions` por `push_tag` activo y no expirado:

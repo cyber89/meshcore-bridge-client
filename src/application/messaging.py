@@ -254,6 +254,10 @@ class MessageService:
                 res = await future
 
         except TimeoutError:
+            if hasattr(rate_limiter, "cancel_by_request_id"):
+                rate_limiter.cancel_by_request_id(req_id)
+            elif asyncio.isfuture(future) and not future.done():
+                future.cancel()
             err_msg = f"Timeout esperando turno de transmisión en cola de Airtime LoRa ({timeout:.0f}s)"
             if callable(self._log_event):
                 self._log_event("ERROR", f"Fallo en TX hacia {validation.clean_target}: {err_msg}", source="mesh_tx")

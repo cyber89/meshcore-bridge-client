@@ -13,7 +13,7 @@ import os
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 HTTP_MAX_HEADER_BYTES = 65536
 HTTP_MAX_BODY_BYTES = 1024 * 1024
@@ -23,37 +23,14 @@ WS_MAX_PAYLOAD_BYTES = 1024 * 1024
 
 DEFAULT_ALLOWED_ORIGINS = ""
 MAP_TILE_PREFIX = "/api/map/tiles/"
-PROTECTED_PREFIXES = (
-    "/api/node/reboot",
-    "/api/config/reboot",
-    "/api/admin",
-    "/api/tx",
-    "/api/repeater",
-    "/api/config/radio",
-    "/api/node/config/radio",
-)
-SENSITIVE_READ_PATHS = (
-    "/api/messages",
-    "/api/messages/history",
-    "/api/messages/conversations",
-    "/api/messages/recent",
-    "/api/logs/download",
-    "/api/logs/raw",
-    "/api/system/logs",
-    "/api/diagnostics/export",
-    "/api/diagnostics/report",
-    "/api/diagnostics/report.md",
-    "/api/channels/export",
-    "/api/packets",
-    "/api/packets/export",
-)
+# Note: All /api/ endpoints are protected by requires_api_auth apart from login/session.
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline' https://unpkg.com; "
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; "
-    "font-src 'self' https://fonts.gstatic.com data:; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "font-src 'self' data:; "
     "img-src 'self' data: blob: https: https://*.tile.openstreetmap.org "
-    "https://*.basemaps.cartocdn.com https://unpkg.com; "
+    "https://*.basemaps.cartocdn.com; "
     "connect-src 'self' ws: wss: https:; "
     "frame-ancestors 'none'"
 )
@@ -128,7 +105,7 @@ def has_valid_api_key(raw_path: str, headers: Mapping[str, str], expected_key: s
 
 def requires_api_auth(method: str, raw_path: str) -> bool:
     """Require authentication for all API reads and writes, apart from login/status."""
-    clean_path = safe_log_path(raw_path).rstrip("/") or "/"
+    clean_path = unquote(safe_log_path(raw_path)).rstrip("/") or "/"
     return (method != "OPTIONS" and clean_path.startswith("/api/")
             and clean_path not in ("/api/auth/login", "/api/auth/session"))
 
@@ -235,6 +212,7 @@ def response_headers(
     cors_origin: str = "",
     content_length: int | None = None,
     extra_headers: Sequence[RawHeader] = (),
+    scheme: str = "http",
 ) -> list[RawHeader]:
     """Build native normal-response headers in ASGI's lowercase byte-list format.
 
@@ -253,6 +231,8 @@ def response_headers(
             (b"connection", b"close"),
         )
     )
+    if scheme == "https":
+        headers.append((b"strict-transport-security", b"max-age=31536000; includeSubDomains"))
     if content_type:
         headers.insert(0, (b"content-type", content_type.encode("utf-8")))
         if "text/html" in content_type:
