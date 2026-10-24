@@ -1,6 +1,6 @@
-# Login visual y propuesta de recuperación local
+# Login visual y recuperación local
 
-Fecha: 2026-10-12. Trabajo coordinado entre un agente de diseño, un revisor de diseño/accesibilidad y un agente de seguridad. Este documento distingue cambios de interfaz implementados de la recuperación propuesta, que todavía no existe como comando ejecutable.
+Fecha: 2026-10-12. Trabajo coordinado entre un agente de diseño, un revisor de diseño/accesibilidad y un agente de seguridad. La propuesta inicial de recuperación se conserva abajo como historial. Revisión de código del 2026-10-23: existe `scripts/reset_web_password.py` y `AuthStore.recover_credentials()`; su comportamiento actual se describe antes de los requisitos propuestos.
 
 ## Diseño de login
 
@@ -10,11 +10,40 @@ Los controles conservan etiquetas visibles y foco de teclado. La contraseña pue
 
 No se modifican los contratos `/api/auth/*`, cookies, CSRF, sesiones recordadas, el botón Perfil o las restricciones de API/WebSocket. No hay una acción web para restablecer la contraseña. El diseño no añade tráfico RF, publicaciones MQTT ni servicios.
 
-## Recuperación recomendada — propuesta pendiente de implementación
+## Recuperación local implementada — revisión 2026-10-23
+
+El comando existente opera sobre una base SQLite local y una cuenta ya presentes.
+Para seleccionar inequívocamente la base de la instalación, usar `--db-path` con
+ruta absoluta y ejecutar con el Python del entorno de esa estación:
+
+```text
+python scripts/reset_web_password.py --db-path <ruta-absoluta-a-meshcore.sqlite3>
+```
+
+Solicita el nombre de usuario (Enter conserva el actual) y dos entradas de
+contraseña mediante `getpass`. Valida usuario y contraseña con la política de
+`AuthStore`; actualiza sal/hash scrypt y generación, revoca sesiones y tokens
+generados, limpia intentos y deja `must_change=0` en una transacción. No crea
+una sesión web; el operador debe iniciar sesión después. No importa el bridge,
+no arranca servicios ni conecta a radio. La clave externa `BRIDGE_API_KEY` se
+administra de forma independiente.
+
+Diferencias verificadas respecto al diseño inicial: el CLI admite `--password`
+por argumento y no bloquea el fallback con eco de `getpass`; para no exponer la
+contraseña en la línea de comandos, usar las preguntas en un terminal local.
+No compara la generación con la instantánea anterior al prompt. Sin `--db-path`
+importa la configuración del checkout del script: `--project-dir` por sí solo no
+selecciona de forma fiable el `.env` de otra instalación. Tampoco implementa
+comprobación propia de propietario/ACL o rechazo exhaustivo de symlinks antes de
+resolver rutas. Estas condiciones siguen pendientes del diseño propuesto; la
+existencia del CLI no acredita que satisfaga toda aquella propuesta. La revisión
+actual no ejecutó el comando ni cambió credenciales.
+
+## Diseño original de recuperación — requisitos propuestos (2026-10-12)
 
 Para una estación personal, usar un comando local explícito disponible sólo para quien ya puede administrar la instalación mediante el sistema operativo. La autoridad es el acceso local/SSH autorizado al servidor y los permisos sobre la base de datos, no una sesión web ni el conocimiento de una contraseña por defecto.
 
-Comando candidato, **todavía no implementado**:
+Comando propuesto originalmente (el CLI actual ya existe; véanse diferencias arriba):
 
 ```text
 python scripts/reset_web_password.py --project-dir <directorio-de-instalacion>
@@ -35,16 +64,16 @@ La clave externa `BRIDGE_API_KEY` de `.env` conserva una administración indepen
 
 No incorporar un parámetro persistente como `RESET_PASSWORD=true`: podría seguir activo en futuros reinicios y devolver la estación a una contraseña conocida. Tampoco borrar la base SQLite para recuperar acceso: perdería chat, nodos, canales y timestamps de seguridad.
 
-## Archivos previstos para implementar la recuperación
+## Archivos previstos en el diseño original
 
 - `scripts/reset_web_password.py`: CLI local explícito y entrada oculta.
 - `src/web/auth_store.py`: operación transaccional de recuperación sin sesión previa, utilizada exclusivamente por el CLI local.
 - `tests/test_web_password_recovery.py`: regresiones aisladas de revocación, concurrencia, conservación de datos, permisos e interrupción antes de confirmar.
 - Guía de despliegue y README: comandos concretos Linux/Windows y límites de recuperación.
 
-La recuperación requiere una solicitud posterior de implementación. No se creó el script candidato ni se cambió ninguna contraseña de la instalación actual.
+En la entrega original de diseño no se creó el script ni se cambiaron contraseñas. El script y el método de recuperación se incorporaron posteriormente; no existe `tests/test_web_password_recovery.py` en el checkout revisado. No se atribuye ejecución de esas regresiones a esta revisión.
 
-## Verificación de esta entrega
+## Verificación de la entrega visual original (2026-10-12)
 
 Se realiza revisión estática de HTML, referencias ARIA, traducciones, JS/CSS y activos minificados/gzip. La inspección de colores comprueba pares concretos de tokens; no acredita accesibilidad completa ni layout renderizado. Pytest, Playwright y fuzzing siguen suspendidos conforme a AGENTS.md. No se arranca una estación operativa para revisar el diseño.
 

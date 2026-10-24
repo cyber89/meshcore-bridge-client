@@ -3,11 +3,12 @@
 > **AI Context & Machine Contract**:
 > - **Domain**: Production Deployment, Environment Variables & Systemd Service
 > - **Authority Level**: Level 4 (Living SSoT for Deployment)
-> - **Root Files**: \install.sh\ (Linux), \install.ps1\ (Windows), \meshcore-bridge.service\ (systemd), \.env.example> - **Deployment Invariant**: The repository root \README.md\ and all root install scripts MUST use English exclusively.
+> - **Root Files**: `install.sh` (Linux), `install.ps1` (Windows), `meshcore-bridge.service` (systemd), `.env.example`.
+> - **Deployment Invariant**: The repository root `README.md` and all root install scripts MUST use English exclusively.
 
 Esta guía describe el procedimiento para desplegar el puente **MeshCore Bridge** en **Armbian (Orange Pi 2W)**, **Raspberry Pi**, **Debian** o **Ubuntu** con arranque automático mediante **systemd**, broker **Mosquitto** y conexión a **n8n**.
 
-Guía revisada por lectura de código el 2026-10-09 y actualizada para el baseline del 2026-10-10. Los contratos de instaladores comprobados en temporales y comandos simulados el 2026-10-05 son evidencia anterior; la auditoría inicial no ejecutó instaladores, servicios ni suites. La actualización actual tiene autorización de QA aislado. No acredita una instalación real completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
+Guía contrastada por lectura de código el 2026-10-23. Los contratos de instaladores comprobados en temporales y comandos simulados el 2026-10-05 son evidencia histórica, no una ejecución de esta revisión. La revisión actual no ejecuta instaladores, servicios ni suites y no acredita una instalación real completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md). Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
 
 ---
 
@@ -15,7 +16,7 @@ Guía revisada por lectura de código el 2026-10-09 y actualizada para el baseli
 
 El adaptador principal utiliza el SDK `meshcore==2.3.17` con firmware **MeshCore Companion**. El baseline del host es CPython estable 3.12 o superior, con 3.13.5 recomendado y sin máximo, conforme a `AGENTS.md` y [ADR 0016](adr/0016-python-3-12-baseline.md). La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
 
-| Fabricante / Familia | Modelos Soportados | Chipset USB Típico | Puerto Serial Habitual |
+| Fabricante / Familia | Ejemplos a verificar con firmware Companion | Chipset USB Típico | Puerto Serial Habitual |
 | :--- | :--- | :--- | :--- |
 | **Heltec Automation** | WiFi LoRa 32 (v2/v3/v4), Wireless Stick / Lite, Wireless Tracker, Wireless Paper, Capsule. | CP2102 / CH9102 / ESP32-S3 CDC | `/dev/ttyACM0` o `/dev/ttyUSB0` |
 | **LilyGO TTGO** | T-Beam (v1.1/v1.2/Supreme), T-Echo (nRF52840), T3S3, T-Deck, LoRa32. | CH9102 / CP2104 / CDC ACM | `/dev/ttyACM0` o `/dev/ttyUSB0` |
@@ -80,14 +81,14 @@ La verificación con el mismo intérprete del launcher comprueba imports y versi
   ```bash
   python scripts/check_runtime_dependencies.py --profile mqtt   # Perfil core + broker MQTT
   ```
-- **Perfil `core`**: Verifica únicamente los mínimos core (`meshcore`, `pyserial`, `python-dotenv`) y no importa ASGI ni MQTT durante esa comprobación:
+- **Perfil `core`**: Tiene actualmente las mismas dependencias que `mqtt`: verifica e importa `meshcore`, `pyserial`, `python-dotenv` y `paho.mqtt.client`, sin importar ASGI. El nombre del perfil no acredita un entorno sin Paho:
   ```bash
-  python scripts/check_runtime_dependencies.py --profile core   # Perfil core headless puro
+  python scripts/check_runtime_dependencies.py --profile core   # Sin ASGI; incluye Paho
   ```
 
-`MESHCORE_PROFILE` selecciona el perfil del comprobador cuando no se pasa `--profile`. Un perfil desconocido falla; no reduce silenciosamente la verificación a core. El argumento explícito tiene prioridad sobre la variable. Con la Fase F4 ([ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md)), `pyproject.toml` define extras formales de instalación granular: `pip install -e .[core]`, `pip install -e .[mqtt]`, `pip install -e .[web]`, y `pip install -e .[all]`. `WEB_ENABLED=false` o la ausencia de librerías ASGI desactiva de forma segura la construcción y arranque web mediante imports diferidos en `bridge_core.py`, operando en modo headless nativo sin excepciones no controladas.
+`MESHCORE_PROFILE` selecciona el perfil del comprobador cuando no se pasa `--profile`. Un perfil desconocido falla; no reduce silenciosamente la verificación a core. El argumento explícito tiene prioridad sobre la variable. Con la Fase F4 ([ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md)), `pyproject.toml` declara extras `core`, `mqtt`, `web` y `all`; sin embargo, `project.dependencies` conserva las diez dependencias de producción. Por ello, `pip install -e .[core]` también instala ASGI y Paho: los extras son aditivos y todavía no proporcionan una instalación mínima. La opcionalidad en runtime y la separación de paquetes son contratos distintos.
 
-Cuando `WEB_ENABLED=true`, el core crea [`AsgiWebServer`](../src/web/asgi_server.py), con FastAPI y Uvicorn embebido. No hay selector del servidor nativo ni fallback si faltan dependencias. La adopción está implementada en código; las pruebas funcionales de REST, WS, documentación offline, apagado e instalación por plataforma siguen pendientes para esta revisión. No se han medido RAM, arranque ni rendimiento en los gateways citados.
+Cuando `WEB_ENABLED=true` y las dependencias web están disponibles, el core crea [`AsgiWebServer`](../src/web/asgi_server.py), con FastAPI y Uvicorn embebido. `WEB_ENABLED=false`, la ausencia detectada de dependencias web o un `ImportError` al construirlas hacen que continúe sin servidor web; no existe un servidor HTTP alternativo. Los instaladores siguen exigiendo el perfil web completo antes de arrancar. No se han ejecutado pruebas funcionales de REST, WS, documentación offline, apagado ni instalación por plataforma durante esta revisión, ni medido RAM, arranque o rendimiento en los gateways citados.
 
 ---
 
@@ -138,13 +139,15 @@ la disponibilidad de dependencias. No sustituir el Python del sistema operativo.
 
 ### 4. Configuración del Broker Mosquitto
 
-Cree una configuración para un broker limitado al host. Este ejemplo manual usa loopback; difiere del bind abierto que escribe la instalación inicial del instalador actual. La actualización `--update` conserva Mosquitto. Para un n8n remoto, configure explícitamente una interfaz accesible, credenciales y permisos del broker.
+Cree una configuración para un broker limitado al host. Este ejemplo manual usa loopback; difiere del bind `0.0.0.0` que escribe la instalación inicial del instalador actual. La actualización `--update` conserva Mosquitto. Para un n8n remoto, configure explícitamente una interfaz accesible, credenciales y permisos del broker.
 
 ```bash
 # Crear archivo de contraseñas y ACL
 sudo touch /etc/mosquitto/conf.d/meshcore_passwd
 sudo mosquitto_passwd -b /etc/mosquitto/conf.d/meshcore_passwd meshcore_bridge <PASSWORD_BRIDGE>
 sudo mosquitto_passwd -b /etc/mosquitto/conf.d/meshcore_passwd meshcore_client <PASSWORD_CLIENT>
+sudo chown root:mosquitto /etc/mosquitto/conf.d/meshcore_passwd
+sudo chmod 640 /etc/mosquitto/conf.d/meshcore_passwd
 
 sudo tee /etc/mosquitto/conf.d/meshcore_acl << 'EOF'
 user meshcore_bridge
@@ -155,7 +158,7 @@ topic readwrite meshcore/#
 EOF
 
 sudo tee /etc/mosquitto/conf.d/meshcore_local.conf << 'EOF'
-listener 1883 0.0.0.0
+listener 1883 127.0.0.1
 allow_anonymous false
 password_file /etc/mosquitto/conf.d/meshcore_passwd
 acl_file /etc/mosquitto/conf.d/meshcore_acl
@@ -306,7 +309,7 @@ py -3.13 -m venv .venv
 # Instalación completa
 .\install.ps1
 
-# Solo instalar dependencias
+# Reinstalar dependencias y completar la configuración local
 .\install.ps1 -InstallDeps
 
 # Ejecutar el bridge
@@ -331,14 +334,16 @@ Guarde copia de `.env`, la base SQLite de estación, mapas y logs antes de una a
 
 Con el bridge activo, utilice la API de backup SQLite (`StationDatabase.backup`) para obtener una instantánea consistente; copiar sólo el archivo principal puede omitir commits del WAL. También puede detener limpiamente el servicio y respaldar la base junto con los sidecars restantes. Restrinja permisos: canales y servicios contienen credenciales. Un rollback del instalador recupera código, pero una versión JSON anterior no leerá los cambios posteriores a la migración; exporte documentos antes de volver a ella. Una ruta externa `DATABASE_PATH` requiere su propia copia de seguridad.
 
-`install.sh --update` prepara una copia independiente de los componentes de release y un entorno nuevo, instala/verifica dependencias y comprueba sintaxis antes de detener el servicio. Después cambia componentes con copias de retorno y conserva la unidad systemd anterior. Ante un fallo de cambio o arranque, restaura código/unidad e intenta arrancar el servicio previo si estaba activo. Si la recuperación falla, conserva el staging e informa su ruta para recuperación manual. `.env`, datos, mapas y logs quedan fuera de la sustitución; no se añaden variables ni se modifica Mosquitto durante update. La propiedad de archivos se ajusta a la identidad de servicio seleccionada.
+`install.sh --update` prepara una copia independiente de los componentes de release y un entorno nuevo, instala/verifica dependencias y comprueba sintaxis antes de detener el servicio. Después cambia componentes con copias de retorno y conserva la unidad systemd anterior. Ante un fallo de cambio o arranque, restaura código/unidad e intenta arrancar el servicio previo si estaba activo. Si el rollback de componentes falla, conserva el staging e informa su ruta; si sólo falla el reinicio del servicio previo, avisa y elimina el staging tras restaurar los archivos. `.env`, datos, mapas y logs quedan fuera de la sustitución; no se añaden variables ni se modifica Mosquitto durante update. La propiedad de archivos se ajusta a la identidad de servicio seleccionada.
 
 Los renames son atómicos por componente, no una transacción atómica de todo el árbol; el servicio permanece detenido durante el cambio. Las copias permiten recuperación ante errores manejados/señales y rollback manual tras interrupciones del host; no se acredita supervivencia automática a pérdida de energía. Cuando origen y destino coinciden, se prepara igualmente una copia antes de reemplazar: el retorno recupera el estado al invocar el instalador, no el código anterior a un `git pull` externo. Tras mover el venv se regenera su configuración/activación sin reinstalar paquetes ni consultar red, se actualizan los shebangs de sus scripts al destino final y se comprueban de nuevo los imports/versiones mediante `venv/bin/python`.
+
+La instalación inicial incluye también los instaladores, la demo virtual, `requirements-web.txt` y las instrucciones raíz (`README.md`, `CONTEXT.md`, `AGENTS.md`) disponibles en la release. El helper de actualización sustituye esos documentos junto con `docs/`, evitando conservar una guía raíz de una versión anterior. La instalación de producción no sustituye a un checkout completo para desarrollar o ejecutar QA.
 
 Para una identidad distinta, establezca `MESHCORE_SERVICE_USER` explícitamente al invocar el instalador. `MESHCORE_SERIAL_GROUPS` permite indicar los grupos existentes del dispositivo. Verifique su propietario con `stat`/`ls -l`; el instalador no inventa grupos o permisos USB. La instalación manual debe conceder también acceso de lectura a `.env` y escritura a datos/logs.
 
 ### QA explícito en Linux
 
-`sudo bash install.sh --dev` prepara `.venv` local, instala dependencias QA y Chromium y ejecuta el runner de pytest/cobertura, mypy, Ruff y documentación. Cualquier fallo de pip, Chromium o QA interrumpe el flujo; el mensaje final enumera únicamente esas comprobaciones. Bandit puede estar instalado como herramienta, pero no forma parte de ese runner y no se presenta como SAST aprobado. El modo `--dev` no instala paquetes globales ni reinicia el servicio de producción.
+`sudo bash install.sh --dev`, ejecutado desde un checkout de desarrollo completo con `requirements-dev.txt` y `tests/`, prepara `.venv` local, instala dependencias QA y Chromium y ejecuta el runner de pytest/cobertura, mypy, Ruff y documentación. Cualquier fallo de pip, Chromium o QA interrumpe el flujo; el mensaje final enumera únicamente esas comprobaciones. Bandit puede estar instalado como herramienta, pero no forma parte de ese runner y no se presenta como SAST aprobado. El modo `--dev` no instala paquetes globales ni reinicia el servicio de producción.
 
 La [guía n8n](N8N_WORKFLOW_GUIDE.md) describe la programación existente cada seis horas y su zona horaria a configurar. Ejecutar el bridge real, activar el workflow, enviar un TX o sondear un repetidor puede afectar hardware/RF. La lectura o edición de documentación no ejecuta esas operaciones. Para nuevas automatizaciones, intervalos o cambios de radio, aplicar el checklist de `AGENTS.md` y acordar límites con el usuario.

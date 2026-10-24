@@ -22,7 +22,7 @@ La clasificación canónica de dispositivos se determina mediante el campo de ti
 | **`REPEATER`** | `REPEATER (2)` | Nodo de infraestructura de red (router/repetidor LoRa en torre o sitio elevado). Reenvía paquetes en la malla. **No posee interfaz de usuario ni procesa texto**. Gestionado exclusivamente por `RepeaterManager` (`🎛️ Administrar`, pings, telemetría, traceroutes). |
 | **`ROOM`** | `ROOM (3)` | Servidor comunitario / BBS (Bulletin Board System) que almacena y reenvía mensajes o temas grupales. |
 | **`SENSOR`** | `SENSOR (4)` | Nodo de telemetría autónomo (temperatura, batería, ambiental). Emite lecturas periódicas unidireccionales. |
-| **`LOCAL`** | *N/A (Identidad del Host)* | La propia estación base conectada por puerto serie. Posee su propio par de claves criptográficas y no debe duplicarse como vecino. |
+| **`LOCAL`** | *N/A (Identidad del Host)* | La propia estación base conectada por puerto serie o TCP Companion. Posee su propio par de claves criptográficas y no debe duplicarse como vecino. |
 
 ---
 
@@ -66,9 +66,10 @@ El sistema sigue la filosofía de **Deep Modules** (John Ousterhout, *A Philosop
 - **`TxRateLimiter`**: Cola de prioridades y worker con espaciado y estimador de airtime. Puede descartar elementos `LOW` cuando el duty cycle estimado es crítico; no es Token Bucket ni bloqueo absoluto de todo TX.
 - **`PacketDeduplicator`**: Filtro de idempotencia para eventos entrantes y salientes.
 - **`AsyncBridgeMQTTClient`**: Conector asíncrono MQTT con soporte LWT (*Last Will and Testament*) y reconexión automática.
+- **Servicios de aplicación**: `ChannelService`, `MessageService` y `ContactService` poseen casos de uso compartidos por REST/MQTT y operación headless. `CapabilityRegistry` registra disponibilidad/configuración/arranque de servicios opcionales; `StableMqttPort` conserva el punto de publicación durante recargas. Véanse [ADR 0023](docs/adr/0023-messaging-and-contact-application-services.md) y [ADR 0024](docs/adr/0024-capability-registry-and-runtime-optionality.md).
 - **`AsgiWebServer`**: Servidor web asíncrono de producción basado en FastAPI y Uvicorn (ASGI) con REST, WebSockets, servicio de teselas cartográficas, documentación interactiva OpenAPI 3.1 y difusión de eventos.
 
-El core selecciona `AsgiWebServer` cuando `WEB_ENABLED` está activo; el servidor HTTP nativo fue retirado. Los contratos REST mantienen los controladores y sus validaciones: los DTO web describen campos para OpenAPI y no sustituyen los tipos de dominio ni aplican validación Pydantic en ejecución. `/docs` y `/redoc` muestran el mismo visor local propio de consulta, con esquema en `/openapi.json`. La selección del backend no certifica paridad o rendimiento. La auditoría inicial del 2026-10-09 no ejecutó suites; la actualización actual tiene autorización de QA aislado, cuyos resultados se registran por separado.
+El core selecciona `AsgiWebServer` cuando `WEB_ENABLED` está activo; el servidor HTTP nativo fue retirado. Los contratos REST mantienen los controladores y sus validaciones: los DTO web describen campos para OpenAPI y no sustituyen los tipos de dominio ni aplican validación Pydantic en ejecución. `/docs` y `/redoc` muestran el mismo visor local propio de consulta, con esquema en `/openapi.json`. La selección del backend no certifica paridad o rendimiento. Las autorizaciones y resultados de QA pertenecen a cada entrega fechada; no constituyen permiso permanente para ejecutar suites en tareas posteriores.
 
 ---
 

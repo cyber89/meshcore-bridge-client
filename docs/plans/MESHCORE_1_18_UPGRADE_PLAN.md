@@ -12,6 +12,10 @@ Evolución: [capas 2/3 y verificación](../audits/2026-10-16-meshcore-1.18-layer
 [WiFi Companion](../audits/2026-10-17-firmware-wifi.md) y
 [suscripciones de sensores](../audits/2026-10-17-sensor-subscriptions.md).
 
+## Nota de vigencia — 2026-10-23
+
+La matriz y las afirmaciones de QA siguientes registran las entregas del 15–17 de octubre; no son una autorización vigente para ejecutar suites. La revisión documental actual confirma por lectura las capacidades en código y preserva su evidencia histórica. La implementación actual y sus límites se consultan en [PROTOCOL_SPEC.md](../PROTOCOL_SPEC.md) y [ARCHITECTURE.md](../ARCHITECTURE.md); no se realizó interoperabilidad física durante esta revisión.
+
 ## Objetivo y alcance verificable
 
 Conservar las funciones actuales de la estación con companion 1.17.1/protocolo13

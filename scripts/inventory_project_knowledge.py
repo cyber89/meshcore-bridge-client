@@ -51,14 +51,19 @@ def relative(path: Path) -> str:
 
 def documents() -> list[dict[str, object]]:
     paths = sorted((ROOT / "docs").rglob("*.md"))
-    paths += [ROOT / name for name in ("README.md", "AGENTS.md", "CONTEXT.md")]
-    paths += [ROOT / "data/maps/README.md", ROOT / ".agents/README.md"]
+    paths += [ROOT / name for name in ("README.md", "AGENTS.md", "CONTEXT.md", "nuevo.md")]
+    paths += [ROOT / name for name in (
+        "data/maps/README.md", ".agents/README.md", "tools/ssh_mcp/README.md",
+        "tools/ssh_mcp/QA_REPORT.md", "src/web/docs_ui/README.md",
+        "src/web/static/VENDOR_PROVENANCE.md",
+    )]
     result: list[dict[str, object]] = []
     for path in paths:
         if not path.is_file():
             continue
         content = path.read_bytes()
-        historical = path.name in {
+        historical = "audits" in path.parts or path.name.startswith("PHASE_") or path.name in {
+            "HISTORICAL_PROPOSAL.md", "QA_REPORT.md",
             "AUDIT_REPORT_2026-08-17.md", "FINAL_PROJECT_REPORT.md"
         }
         result.append({
@@ -68,6 +73,25 @@ def documents() -> list[dict[str, object]]:
             "lines": len(content.splitlines()),
         })
     return result
+
+
+def scripts() -> list[dict[str, object]]:
+    """Hash maintained helpers and entrypoints without running their code."""
+    paths = {path for path in (ROOT / "scripts").rglob("*")
+             if path.is_file() and path.suffix in {".py", ".cjs", ".js", ".sh", ".ps1"}}
+    paths.update(path for path in ROOT.iterdir()
+                 if path.is_file() and path.suffix in {".py", ".sh", ".ps1", ".service"})
+    paths.update((ROOT / ".github/workflows").glob("*.yml"))
+    paths.update((ROOT / ".github/workflows").glob("*.yaml"))
+    paths.update((ROOT / "tools/ssh_mcp").glob("*.py"))
+    for directory in (ROOT / ".agents/skills").iterdir():
+        if directory.is_dir() and directory.name not in VENDORS:
+            paths.update(directory.glob("scripts/*.py"))
+    return [
+        {"path": relative(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+         "review_scope": "static inventory only; inspect side effects before execution"}
+        for path in sorted(paths)
+    ]
 
 
 def references() -> list[dict[str, object]]:
@@ -132,6 +156,7 @@ def inventory() -> dict[str, object]:
     docs = documents()
     refs = references()
     catalogue = skills()
+    helpers = scripts()
     source = [relative(path) for path in sorted((ROOT / "src").rglob("*"))
               if path.is_file() and path.suffix in {".py", ".js", ".css", ".html"}
               and "__pycache__" not in path.parts]
@@ -145,14 +170,16 @@ def inventory() -> dict[str, object]:
                      "reference updates", "remote HEAD comparisons", "vendor code execution"],
         "counts": {"documents": len(docs), "references": len(refs), "source_files": len(source),
                    "project_skills": sum(skill["ownership"] == "project" for skill in catalogue),
-                   "vendor_skills": sum(skill["ownership"] == "vendor" for skill in catalogue)},
+                   "vendor_skills": sum(skill["ownership"] == "vendor" for skill in catalogue),
+                   "scripts_and_entrypoints": len(helpers)},
         "documents": docs,
         "references": refs,
         "skills": catalogue,
         "source_files": source,
-        "root_entrypoints": [name for name in ("config.py", ".env.example", "meshcore_bridge.py",
+        "scripts_and_entrypoints": helpers,
+        "root_entrypoints": [name for name in ("config.py", "runtime_requirements.py", "run_interactive_demo.py", ".env.example", "meshcore_bridge.py",
                               "install.sh", "install.ps1", "meshcore-bridge.service", "requirements.txt",
-                              "requirements-dev.txt", "pyproject.toml", "n8n_workflow_meshcore.json",
+                              "requirements-dev.txt", "requirements-web.txt", "pyproject.toml", "n8n_workflow_meshcore.json",
                               "opencode.json", "skills-lock.json") if (ROOT / name).is_file()],
     }
 

@@ -7,7 +7,7 @@
 
 ---
 
-## Contexto y Discrepancia Histórica
+## Contexto y Problema
 
 El [ADR 0006](0006-tcp-companion-server-proxy.md) describía originalmente un modelo de proxy TCP puramente difusor (*broadcast*) de todas las tramas recibidas desde la radio hacia todos los clientes TCP conectados, con un tamaño máximo de buffer de 512 bytes.
 
@@ -23,6 +23,12 @@ La evolución del código de producción en `src/tcp_companion_server.py` y `src
    - La implementación actual en `src/tcp_companion_server.py:154–157` clasifica el tráfico:
      - Trama con `opcode < 0x80`: Si existe un `response_owner` asignado a la transacción activa, la trama se envía **únicamente** a ese cliente.
      - Trama con `opcode >= 0x80` (eventos asíncronos de la malla, beacons, mensajes LoRa recibidos): Se difunde en broadcast a todos los clientes TCP activos.
+
+## Factores de Decisión
+
+1. Compatibilidad con el límite del parser Companion oficial.
+2. Aislamiento de respuestas entre clientes que comparten una única radio.
+3. Conservación de la decisión histórica y trazabilidad de su enmienda.
 
 ## Decisión
 

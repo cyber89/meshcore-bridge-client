@@ -3,13 +3,13 @@
 > **AI Context & Machine Contract**:
 > - **Domain**: Core System Architecture & Concurrency Model ([ADR 0003](adr/0003-asyncio-serial-resilience.md), [ADR 0011](adr/0011-staged-asgi-migration.md), [ADR 0016](adr/0016-python-3-12-baseline.md))
 > - **Authority Level**: Level 3 (Living SSoT for System Architecture)
-> - **Core Symbols**: \src/bridge_core.py\ (\BridgeCore\), \src/web/asgi_server.py\ (\create_asgi_app\), \src/rx_router.py\ (\RxRouter\)
+> - **Core Symbols**: `src/bridge_core.py` (`MeshCoreBridge`), `src/web/asgi_server.py` (`create_asgi_app`, `AsgiWebServer`), `src/rx_router.py` (`RxEventRouter`)
 > - **Concurrency Invariant**: Zero blocking calls on the asyncio event loop. Dedicated threadpool for SQLite and synchronous SDK operations.
 
 ## 1. Resumen Ejecutivo
 MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante CPython estable 3.12+ (3.13.5 recomendado, sin máximo) y `asyncio`, conforme a [ADR 0016](adr/0016-python-3-12-baseline.md). El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa una pila de producción basada en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) para REST, WebSocket, teselas MBTiles y SPA.
 
-Documento revisado por inspección de código el 2026-10-09 y actualizado para la decisión de runtime del 2026-10-10. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
+Documento revisado por inspección estática de código el 2026-10-23; conserva los registros fechados de entregas anteriores. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
 
 Actualización de arquitectura (Octubre 2026): El bridge opera con un servidor de producción
 basado en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`). Las fases de migración
@@ -135,17 +135,18 @@ Conforme a las fases F1 y F3.1 del plan de evolución (`nuevo.md`, [ADR 0020](ad
 2. **Resolvedor Unificado de Tópicos (`src/integrations/mqtt/topics.py`)**:
    - `MqttTopics` actúa como autoridad central para construir dinámicamente todos los tópicos MQTT a partir del prefijo activo (`TOPIC_PREFIX`).
    - Se eliminaron las dependencias de constantes globales estáticas en `rx_router`, `bridge_core`, `system_handler` y `admin_handlers`.
-3. **Idempotencia y Ledger Transaccional (`src/application/command_policy.py`)**:
-   - Las órdenes MQTT que contienen `command_id` son registradas atómicamente en la tabla `command_ledger` de SQLite (`StationDatabase`) antes de cruzar la frontera de transmisión RF.
-   - Si se recibe una orden idéntica con el mismo `command_id`, se devuelve el estado previo sin emitir un duplicado por radio LoRa. Solicitudes con el mismo ID pero diferente huella producen conflicto (`conflict`).
-   - Las órdenes sin `command_id` se aceptan en modo legado con advertencia estructurada.
-   - La tabla aplica una poda determinista acotada a 10 000 filas en el momento de la inserción, sin timers en segundo plano.
+3. **Ledger de órdenes y alcance de deduplicación (`src/application/command_policy.py`)**:
+   - `StationDatabase.reserve_command()` reserva en una transacción SQLite por `(station_id, integration_scope, command_id)`. En `_handle_tx_request`, el ámbito `mqtt` rechaza una reserva no admitida antes de encolar TX: devuelve conflicto o el estado/resultado previo, incluso si todavía no hay resultado final.
+   - `_handle_admin_request` (`{prefix}/admin/cmd`, ámbito `mqtt_admin`) evita repetir cuando ya existe un resultado no vacío, y rechaza conflictos. Si la reserva no fue admitida pero aún carece de resultado, el handler continúa: duplicados concurrentes o reintentos de una orden administrativa en curso pueden volver a ejecutarse.
+   - La ruta `{prefix}/admin/repeater/{target}/cmd` llama directamente a `handle_admin` sin reservar en el ledger. No tiene esta deduplicación aunque el payload incluya `command_id`.
+   - Sin identificador se conserva el modo legado. `CommandLedgerPolicy.reserve()` también admite ejecución en modo legado si falta la base o falla su consulta/reserva. Los fallos al marcar despacho o registrar resultado se registran en logs y no revierten una operación RF.
+   - La reserva, el despacho RF y el registro del resultado no forman una única transacción. La tabla se poda a 10 000 filas al insertar; una entrada eliminada o revertida por restauración puede admitirse de nuevo. Este mecanismo parcial no garantiza ejecución exactamente una vez ni constituye una cola durable de reintentos.
 4. **Rechazo Estricto de Mensajes Retenidos**:
-   - Los adaptadores MQTT (`MeshCoreMqttClient` y `ExternalMqttClient`) inspeccionan la bandera `retain`. Cualquier mensaje con `retain=True` dirigido a tópicos de acción (`/tx`, `/send`, `/admin/*`) es descartado inmediatamente para prevenir ráfagas involuntarias tras reconexiones.
+   - Los adaptadores MQTT (`AsyncBridgeMQTTClient` y `ExternalBridgeMQTTClient`) inspeccionan la bandera `retain`. Cualquier mensaje con `retain=True` dirigido a tópicos de acción (`/tx`, `/send`, `/admin/*`) es descartado inmediatamente para prevenir ráfagas involuntarias tras reconexiones.
 5. **Extracción de `MessageService` (`src/application/messaging.py`)**:
    - Centraliza la validación (`validate_tx_request`), ejecución (`submit_chat`), consulta de historial y conversaciones (`get_history`, `get_conversations`), e importación masiva de mensajes de chat.
-   - Aplica de forma unificada las invariantes de red LoRa: prohíbe el envío de mensajería hacia repetidores o hacia la estación local tanto desde la Web REST como desde MQTT y scripts headless.
-   - Integra rate limiting de transmisión (`TxRateLimiter`) y persistencia directa en SQLite (`StationDatabase`).
+   - Centraliza las validaciones de chat compartidas por REST y MQTT: prohíbe el envío de mensajería hacia repetidores o hacia la estación local tanto desde la Web REST como desde MQTT y scripts headless.
+   - Encola a través de `TxRateLimiter` y consulta/importa historial mediante `StationDatabase`; el bridge conserva la captura durable de RX/TX/ACK en el pipeline.
 6. **Extracción de `ContactService` (`src/application/contacts.py`)**:
    - Centraliza la libreta de contactos (clientes LoRa), validaciones de nombres de firmware (31 bytes UTF-8) y claves públicas (32 bytes / 64 hex).
    - Aplica de forma obligatoria las Reglas 1.1 y 1.2: prohíbe la inclusión de nodos de infraestructura (`REPEATER` / `ROUTER`) o de la estación local (`LOCAL`) en contactos.
@@ -157,11 +158,11 @@ Conforme a las fases F1 y F3.1 del plan de evolución (`nuevo.md`, [ADR 0020](ad
    - Se desacopla `ChatModule` de `SettingsModule`: la vista de chat ya no depende de que el módulo de ajustes haya cargado previamente la lista de canales para renderizar la barra lateral ni para compartir canales.
    - Sincronización en vivo mediante eventos WebSocket desacoplados: `meshcore:channels_updated` y `meshcore:config_updated`.
 8. **Registro de Capacidades y Opcionalidad en Runtime (Fase F4 / [ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md))**:
-   - `CapabilityRegistry` (`src/application/capabilities.py`) gestiona un modelo de ciclo de vida en 5 niveles (`installed`, `configured`, `instantiated`, `started`, `operational`) para cada capacidad de la estación (`core`, `web`, `companion`, `mqtt_local`, `mqtt_external`).
-   - Diferencia la liveness del proceso (estación viva y comunicando por radio) de la readiness de subsistemas opcionales. La ausencia o deshabilitación de Web o MQTT no marca la estación como degradada.
+   - `CapabilityRegistry` (`src/application/capabilities.py`) gestiona un modelo de ciclo de vida en 5 niveles (`installed`, `configured`, `instantiated`, `started`, `operational`) para cada capacidad de la estación (`core`, `web`, `companion`, `local_mqtt`, `external_mqtt`).
+   - Diferencia la liveness del proceso (`alive` y uptime) de la readiness del core y de los subsistemas opcionales; `alive` no acredita comunicación RF. La ausencia o deshabilitación de Web o MQTT no marca la estación como degradada.
    - `StableMqttPort` actúa como fachada perenne para publicación segura y tópicos dinámicos, eliminando la invalidación de referencias internas durante el hot-reload de `ServicesManager`.
    - Soporte headless nativo: el bridge detecta la ausencia de dependencias web sin lanzar excepciones no controladas.
-   - Perfiles explícitos de instalación en `pyproject.toml` (`core`, `web`, `mqtt`, `all`, `dev`).
+   - Extras declarados en `pyproject.toml` (`core`, `web`, `mqtt`, `all`, `dev`). Actualmente las dependencias base también incluyen web y MQTT: instalar el extra `core` no los excluye. La opcionalidad de runtime no equivale a empaquetado mínimo.
    - Endpoint de introspección `GET /api/capabilities`.
 
 ## 2. Modelo Canónico de Arquitectura en 5 Capas
@@ -191,7 +192,7 @@ flowchart TB
         RateLimiter["TxRateLimiter & AirtimeTracker"]
         Managers["NodeRegistry & RepeaterManager"]
         Engines["LinkQualityEngine & PacketDeduplicator"]
-        Decoders["SensorDecoder & CayenneLPP"]
+        Decoders["CayenneLPPDecoder & extract_telemetry_fields"]
     end
 
     subgraph L4 ["Capa 4: Dominio Puro y Protocolo Canónico (Domain Core / SSoT)"]
@@ -386,7 +387,7 @@ flowchart TB
 
     subgraph Capa de Telemetría
         Cayenne[CayenneLPPDecoder]
-        Sens[SensorDecoder]
+        Sens[CayenneLPPDecoder]
         Diag[DiagnosticManager]
         Health[HealthReporter]
     end
@@ -514,7 +515,7 @@ sequenceDiagram
     participant RouterHandlers
     participant Database as StationDatabase (Worker SQLite)
     participant MQTT as MQTT Client (Async)
-    participant AuxQueue as BridgeCore (_bg_queue Auxiliar)
+    participant AuxQueue as MeshCoreBridge (_bg_queue Auxiliar)
     participant WebSocket as WebSocket Hub (Browsers)
 
     Radio->>SerialDriver: Trama binaria / evento Companion
@@ -529,7 +530,7 @@ sequenceDiagram
 ```
 
 > **Aislamiento de Consumidores (ADR 0022)**:
-> 1. **Cola RF Pura**: `rx_router._pending_rx` procesa exclusivamente paquetes de radio LoRa y eventos decodificados. Tareas diagnósticas, logs de sistema (`_broadcast_system_log`), tramas crudas TCP Companion y eventos del sniffer (`rf_packet`) son despachadas a través de `BridgeCore._bg_queue`, impidiendo que ráfagas de logs o navegadores lentos provoquen desbordamiento (`RX-OVERFLOW`) y pérdida de tráfico LoRa.
+> 1. **Cola RF Pura**: `rx_router._pending_rx` procesa exclusivamente paquetes de radio LoRa y eventos decodificados. Tareas diagnósticas, logs de sistema (`_broadcast_system_log`), tramas crudas TCP Companion y eventos del sniffer (`rf_packet`) son despachadas a través de `MeshCoreBridge._bg_queue`, impidiendo que ráfagas de logs o navegadores lentos provoquen desbordamiento (`RX-OVERFLOW`) y pérdida de tráfico LoRa.
 > 2. **Persistencia Garantizada antes de Fanout**: `publish_chat_event` efectúa el commit en SQLite antes de notificar a clientes WebSockets. La notificación web se agenda de forma asíncrona no bloqueante; clientes lentos o brokers desconectados nunca retrasan el hilo de persistencia.
 > 3. **Admisión Acotada Inter-Hilos**: Las llamadas `call_soon_threadsafe` en `AsyncBridgeMQTTClient` y `ExternalBridgeMQTTClient` implementan contadores atómicos protegidos por cerrojo con rechazo medido ante saturación (`[MQTT-INGRESS-OVERFLOW]`).
 
@@ -617,7 +618,7 @@ sequenceDiagram
 | `WebAPIRouter` | `web/api_router.py` | Enrutador HTTP que dirige el tráfico a módulos tipo API de dominio. | Router / Dispatcher | `controllers/*` |
 | `LogsController` | `web/controllers/logs_controller.py` | Controlador REST dedicado para mensajes, telemetría y logs del sistema. | Controller (MVC) | `diagnostics`, `PacketBuffer` |
 | `VirtualMeshAdapter` | `virtual_mesh_adapter.py` | Simula la interfaz de radio completa para pruebas de integración continua. | Mock / Adapter | Ninguna |
-| `MeshCoreCompanionServer` | `tcp_companion_server.py`| Permite conectar radios remotamente mediante un túnel TCP (Proxy). | Server | Ninguna |
+| `MeshCoreCompanionServer` | `tcp_companion_server.py`| Recibe clientes Companion IP y comparte el transceptor conectado al bridge. Es distinto del cliente SDK hacia una radio remota. | Server | Ninguna |
 | `PacketBuffer` | `packet_buffer.py` | Búfer rotatorio (Ring Buffer) que registra temporalmente los paquetes TX/RX. | Buffer | Ninguna |
 | `TargetResolver` | `target_resolver.py` | Convierte nombres lógicos, alias o strings cortos de ID en las pubkeys verdaderas de la malla. | Resolver | `NodeRegistry` |
 
@@ -634,6 +635,7 @@ sequenceDiagram
 
 | Método HTTP | Ruta | Controller | Descripción |
 | --- | --- | --- | --- |
+| GET | `/api/capabilities` | `ServicesController` | Snapshot de capacidades, liveness del proceso y readiness; requiere autenticación. También `/api/services/capabilities`; despacho por fallback, aún fuera del catálogo OpenAPI. |
 | GET | `/api/status` | `SystemController` | Estado físico y lógico del nodo local y del bridge. |
 | GET | `/api/health` | `SystemController` | Reporta subsistemas, contadores, uptime y último error mediante DiagnosticManager; sin métricas RAM/disco/CPU del OS. |
 | GET | `/api/diagnostics` | `SystemController` | Idéntico a `/api/health`. |
@@ -658,7 +660,10 @@ sequenceDiagram
 | GET, POST... | `/api/channels/*` | `ChannelsController` | CRUD/sincronización de índices, nombres y PSK de canales lógicos; no configuran una frecuencia RF distinta por canal. |
 | POST | `/api/tx` | `TxController` | Comando de inyección directa de un mensaje de texto para salida al aire. |
 | GET | `/api/messages` | `LogsController` | Consulta paginada y filtrada de mensajes textuales almacenados. |
-| GET | `/api/messages/recent` | `TxController` | Consulta mensajes recientes en RAM. |
+| GET | `/api/messages/recent` | `TxController` / `MessageService` | Consulta mensajes recientes de SQLite en producción; conserva el envelope de compatibilidad. |
+| GET | `/api/messages/history` | `HistoryController` / `MessageService` | Historial durable por feed con cursor `before` y límite 1–200. |
+| GET | `/api/messages/conversations` | `HistoryController` / `MessageService` | Resúmenes de conversaciones y UUID de estación. |
+| POST | `/api/messages/import` | `HistoryController` / `MessageService` | Importación histórica explícita, sin transmisión RF. |
 | POST | `/api/admin` | `RepeaterController` | Entrada de administración; `/api/admin/command` es alias. |
 | POST | `/api/admin/repeater` | `RepeaterController` | Invocador base que interactúa con la lógica central de repetición remota en el aire. |
 | POST | `/api/repeater/remote/login` | `RepeaterController` | Solicita autenticación administrativa al repetidor remoto. |
@@ -729,13 +734,13 @@ sequenceDiagram
 | Servicios y cooldowns | Documentos SQLite; incluye presets, credenciales y timestamps de protección. |
 | Chat y ACKs correlacionados | Tablas SQLite; IDs estables, cursores, estado de entrega monotónico y correlaciones con caducidad existente. |
 | Capturas de paquetes, deduplicación, colas y buffers Web | RAM; no garantizan supervivencia a reinicios. |
-| Navegador | IndexedDB: caché por UUID de estación; LocalStorage: preferencias; SessionStorage: credenciales de pestaña. |
+| Navegador | IndexedDB: caché por UUID de estación; LocalStorage: preferencias; cookie HttpOnly para sesión y CSRF en memoria. No se guardan credenciales en SessionStorage. |
 | Logs | Archivos rotados y buffer de visualización en RAM. |
 | Cartografía | Archivos XYZ o lectura de SQLite MBTiles, independiente de nodos/mensajes. |
 
 SQLite es autoritativo para el estado de estación; no hay cola MQTT/TX durable ni replay de envíos históricos. La inicialización importa cada JSON una vez sin borrarlo. Las consultas y escrituras asíncronas usan workers; WAL/FULL y esquema versionado conservan transacciones. El código separa el parser raw propio del transporte SDK; los diagramas raw no representan un pipeline obligatorio del Companion. `TxRateLimiter` mantiene sus límites existentes. Véanse [STORAGE.md](STORAGE.md) y [ADR 0017](adr/0017-sqlite-station-browser-cache.md).
 
-`HistoryController` expone GET `/api/messages/history` (feed, limit 1–200, cursor before), GET `/api/messages/conversations` y POST `/api/messages/import` (1–200 mensajes). Requieren la clave configurada; el import no ejecuta RF ni replay MQTT. `/api/messages/recent` conserva su envelope y lee SQLite en producción. El bridge persiste RX/TX/ACK antes de difundirlos, independiente de navegadores abiertos. Borrar caché no elimina historial de estación.
+`HistoryController` expone GET `/api/messages/history` (feed, limit 1–200, cursor before), GET `/api/messages/conversations` y POST `/api/messages/import` (1–200 mensajes). Requieren sesión autenticada o credencial de integración por cabecera; el import no ejecuta RF ni replay MQTT. `/api/messages/recent` conserva su envelope y lee SQLite en producción. El bridge persiste RX/TX/ACK antes de difundirlos, independiente de navegadores abiertos. Borrar caché no elimina historial de estación.
 
 El mapa REST es una selección de rutas: `ROUTE_ALIASES` y los dispatchers de `src/web/api_router.py` son la autoridad de implementación, con métodos/validación en los controladores. El estado `sent` de TX describe el resultado del envío; entrega DM/ACK y recepción en otros nodos son hechos distintos. Configuración de firmware, temporizadores, sondeos y reintentos pueden consumir RF: aplicar el checklist de `AGENTS.md` antes de introducir cambios y acordar umbrales/intervalos con el usuario.
 
@@ -820,9 +825,11 @@ de su propio log. MQTT reserva capacidad con lock antes de publicar callbacks
 entre hilos, libera cada token al completar/cancelar y cierra sus propios handles.
 Se mantiene el presupuesto existente que ya contaba tareas externas.
 
-RepeaterManager persiste cinco categorías de timestamps UTC en
-DATA_DIR/repeater_cooldowns.json. Carga/escritura usan to_thread y reemplazo
-atómico; la reserva se guarda antes del paquete. El reloj monotónico se
+RepeaterManager persiste cinco categorías de timestamps UTC en el documento
+SQLite `repeater_cooldowns` cuando el bridge inyecta `StationDatabase`.
+`DATA_DIR/repeater_cooldowns.json` es fuente de migración inicial conservada;
+el uso sin base mantiene el helper JSON de compatibilidad. Carga/escritura
+asíncronas usan workers; la reserva se guarda antes del paquete. El reloj monotónico se
 reconstruye al reiniciar, conservando cooldown completo si UTC retrocede.
 Guardar configuración no rearma timers; no hay sondeo RF nuevo. Cierre intenta
 flush bajo el límite existente y hace visible un fallo, sin prometer durabilidad

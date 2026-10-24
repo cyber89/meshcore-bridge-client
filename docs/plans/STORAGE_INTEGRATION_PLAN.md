@@ -5,6 +5,8 @@ entrega y estado actualmente persistido en JSON. IndexedDB es caché de mensajes
 LocalStorage conserva preferencias visuales, idioma y paneles. CPython mínimo
 3.12 estable; recomendado 3.13.5.
 
+Actualización documental 2026-10-23: la implementación usa SQLite y autenticación de cuenta personal ([STORAGE.md](../STORAGE.md), [ADR 0018](../adr/0018-personal-station-authentication.md)). Las referencias siguientes a credenciales de pestaña describen la entrega original, sustituida por cookie HttpOnly y CSRF en memoria; no se guardan secretos en SessionStorage. Los resultados y restricciones de QA siguientes pertenecen a esa entrega fechada.
+
 ## Alcance y secuencia
 
 1. Inventariar las rutas actuales y definir un adaptador SQLite común usando la

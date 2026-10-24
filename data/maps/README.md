@@ -1,6 +1,6 @@
 # 🗺️ Almacenamiento de Mapas Offline para MeshCore Bridge
 
-Este directorio permite almacenar mapas cartográficos para operar **100% fuera de línea (sin conexión a Internet)**.
+Este directorio permite servir teselas cartográficas locales sin descargarlas de Internet. La interfaz actual carga Leaflet desde un CDN; disponer de teselas locales no garantiza un arranque completo de la SPA sin conexión.
 
 ---
 
@@ -15,7 +15,7 @@ data/
     ├── cuba_osm.mbtiles
     └── mi_region.mbtiles
 ```
-*El bridge detectará, indexará y servirá automáticamente todas las bases de datos `.mbtiles` sin necesidad de reiniciar el servidor.*
+*El bridge indexa las bases de datos `.mbtiles` al iniciar el servicio de mapas. Tras añadir o sustituir archivos, solicita `POST /api/map/reload` con la autenticación y protección CSRF correspondientes, o reinicia el bridge; no hay un observador automático de archivos.*
 
 ---
 

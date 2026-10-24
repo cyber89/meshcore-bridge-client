@@ -1,7 +1,8 @@
 """Check maintained Markdown links, ADR metadata and project-owned skill entrypoints.
 
 This structural check does not prove that prose matches firmware or implementation.
-Historical reports and third-party skill bundles are excluded.
+Legacy top-level reports and third-party skill bundles are excluded. Dated
+reports under docs/ are checked for links without recertifying their contents.
 """
 
 from __future__ import annotations
@@ -52,6 +53,12 @@ def skill_issues(path: Path, root: Path) -> list[str]:
 
 def validate(root: Path) -> tuple[int, list[str]]:
     documents = [root / "README.md", root / "CONTEXT.md", root / "AGENTS.md"]
+    documents.extend(
+        root / name
+        for name in ("nuevo.md", "data/maps/README.md", "src/web/docs_ui/README.md",
+                     "src/web/static/VENDOR_PROVENANCE.md", "tools/ssh_mcp/README.md")
+        if (root / name).is_file()
+    )
     documents.extend(path for path in (root / "docs").rglob("*.md") if path.name not in HISTORICAL)
     if (root / ".agents" / "README.md").exists():
         documents.append(root / ".agents" / "README.md")

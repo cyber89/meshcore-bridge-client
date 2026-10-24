@@ -79,11 +79,11 @@ async def check_frontend_health() -> None:
                 print(" ", log_line)
 
             # Check chat message input presence
-            chat_input = page.locator("#chatMessageInput")
+            chat_input = page.locator("#chatInputText")
             print("\n=== DOM ELEMENT CHECKS ===")
-            print(f"#chatMessageInput exists: {await chat_input.count() > 0}")
+            print(f"#chatInputText exists: {await chat_input.count() > 0}")
             if await chat_input.count() > 0:
-                print(f"#chatMessageInput is_visible: {await chat_input.is_visible()}")
+                print(f"#chatInputText is_visible: {await chat_input.is_visible()}")
 
             # Check theme toggle
             theme_btn = page.locator("#themeToggleBtn")

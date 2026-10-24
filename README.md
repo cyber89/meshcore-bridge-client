@@ -18,6 +18,7 @@ Run it on a Linux gateway or a Windows computer, open the dashboard from your br
 | **Radio administration** | Local station settings and remote repeater administration, including supported radio parameters, identity, telemetry, neighbors, and command consoles. |
 | **Maps and analytics** | Node positions, link quality, RF activity, airtime estimates, health metrics, logs, and packet inspection. Local MBTiles and XYZ tile storage support map use without downloading each tile. |
 | **Automation** | Structured MQTT receive events, outgoing message requests, transmission status, and administrative commands. Optional external broker forwarding includes event filters and location privacy settings. |
+| **Modular services** | Shared application services for channels, messaging and contacts, bounded consumer queues, and capability reports for core, web, Companion and MQTT. Runtime enablement and installed dependencies are separate concerns. |
 | **Companion access** | A TCP Companion endpoint for compatible MeshCore mobile applications and CLI tools, with command arbitration for the shared radio. |
 | **Web experience** | Compact, aligned node/contact cards and statistics/settings panels, responsive navigation, light and dark themes, keyboard selection for conversations, map nodes and subtabs, field-linked channel/contact validation, live WebSocket updates, and a REST API with a locally served OpenAPI viewer. |
 
@@ -159,6 +160,8 @@ The local broker interface exposes JSON events for incoming traffic and accepts 
 | `meshcore/admin/cmd` / `meshcore/admin/repeater` | Automation → bridge | Administrative requests. |
 | `meshcore/admin/status` | Bridge → broker | Administrative results. |
 
+For a particular repeater, publish to `meshcore/admin/repeater/<target>/cmd` and receive results on `meshcore/admin/repeater/<target>/status`. Topic names follow the active prefix. Send command messages without MQTT retain. For TX retries, include a stable `command_id`: with a working SQLite ledger, repetitions and conflicting payloads are detected while the entry is retained. Administrative deduplication has additional gaps, including the per-repeater path, and storage errors can admit legacy execution. See the [integration guide](docs/N8N_WORKFLOW_GUIDE.md) for status semantics and limits.
+
 Start with receive-only subscriptions, then add deliberate outgoing actions. Avoid feeding every received message back into `meshcore/tx`; outgoing messages and administrative operations consume shared radio airtime.
 
 ## API and live events
@@ -200,6 +203,8 @@ Some detailed technical guides are currently written in Spanish. **The root READ
 ## Development
 
 Production code is under `src/`, browser sources under `src/web/static/`, and maintained tests under `tests/`. Official firmware, SDK, and CLI snapshots under `reference/` are read-only protocol references. The root `requirements.txt` contains production dependencies; development tools are listed separately in `requirements-dev.txt`.
+
+The dependency checker accepts `--profile core`, `mqtt`, `web` and `all`; `MESHCORE_PROFILE` selects its default and does not enable or disable runtime services. Currently, `core` and `mqtt` checks both require Paho, MeshCore, pyserial and python-dotenv. The `web` and `all` checks also require the pinned ASGI stack. Although packaging declares optional extras, its base dependencies still include web and MQTT, so `pip install '.[core]'` does not produce a minimal installation. Configure runtime services separately as described in the [deployment guide](docs/DEPLOYMENT_GUIDE.md).
 
 For frontend changes, rebuild the committed artifacts before publishing:
 

@@ -24,7 +24,7 @@ docs/
 │   ├── TEST_INVENTORY.md           <- Inventario catalogado de pruebas automatizadas
 │   ├── PROJECT_KNOWLEDGE.md        <- Mapa de conocimiento y procedencia de referencias
 │   └── PROJECT_INVENTORY.json      <- Snapshot reproducible de hashes e inventario
-├── adr/                            <- Registros de Decisiones de Arquitectura (0001 - 0022)
+├── adr/                            <- Registros de Decisiones de Arquitectura (0001 - 0024)
 ├── evolution/                      <- Especificaciones y contratos de evolución por fases (nuevo.md)
 
 ├── audits/                         <- Informes de auditoría fechados (YYYY-MM-DD-*.md)
@@ -120,6 +120,8 @@ Documentos de planificación paso a paso para la adopción de nuevas capacidades
 
 ## 🛡️ 4. Historial de Auditorías y Revisiones (`docs/audits/`)
 
+- [Revisión de documentación y scripts 2026-10-23](audits/2026-10-23-documentation-scripts-review.md): conciliación con el checkout, inventarios regenerados, verificaciones estáticas y límites pendientes.
+- [Comparación con clientes oficiales 2026-10-21](audits/2026-10-21-official-clients-comparison.md).
 - [Validación y remediación de auditoría 2026-10-20](audits/2026-10-20-remediation-validation.md): matriz de 69 hallazgos, decisiones del usuario, cambios y límites de verificación estática.
 
 Informes técnicos fechados que documentan la verificación estática, hallazgos de seguridad y evolución del código:

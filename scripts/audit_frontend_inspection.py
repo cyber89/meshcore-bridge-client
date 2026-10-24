@@ -1,7 +1,8 @@
 """
-Comprehensive Frontend QA, Layout, Alignment and Console Debugger for MeshCore Bridge.
-Runs the station in an isolated virtual environment and inspects every view, tab,
-subtab, modal, theme, and viewport with Playwright Chromium.
+Historical partial frontend inspection for MeshCore Bridge.
+Uses fixed port 8096 and partially temporary state after importing operator config;
+it is not the maintained isolation fixture. For explicitly authorized inspection use
+inspect_all_views.py or check_frontend_health.py; browser regressions live in tests/.
 """
 
 from __future__ import annotations

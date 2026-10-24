@@ -2,6 +2,10 @@
 
 **Status: implementation started; runtime acceptance pending.** The original meeting and follow-up audit were proposals based on static source inspection. The implementation record below distinguishes delivered source changes from remaining work. No browser, suites, operational services or radio were used. The audited visual baseline is commit `eb99232`.
 
+## Current-source note — 2026-10-23
+
+This document retains the original plan and its dated evidence. Subsequent source changes include the shared `core/api_client.js`, reactive channel/station state in `core/store.js`, and application services behind REST. Later visual, dialog and chat deliveries are recorded in [the audit index](../README.md). The original status and baseline below are historical; they do not assert that every proposed item remains open or that browser acceptance ran during this documentation review.
+
 ## Participants and agreement
 
 Three delegated agents reviewed UI/UX, components/accessibility, and frontend architecture. The lead compared their findings with the source and circulated the findings for discussion. All three agreed to prioritize truthful states, request coordination and dialog ownership before further visual restructuring.

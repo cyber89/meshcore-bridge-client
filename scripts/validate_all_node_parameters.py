@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Script de Validación Integral de Parámetros por Tipo de Nodo para MeshCore Bridge.
-Verifica que el 100% de los parámetros definidos en la especificación oficial de MeshCore
-(firmware C++, SDK Python y CLI) para cada tipo de nodo (LOCAL, CLIENT, REPEATER, SENSOR, ROOM)
-sean alcanzables, parseados, almacenados en NodeRegistry y exportados a REST, WebSockets y MQTT.
+Escenario auxiliar histórico de parámetros por tipo de nodo para MeshCore Bridge.
+Comprueba una selección de parámetros con mocks; no demuestra cobertura del 100%
+del firmware, SDK, CLI ni contratos REST/WebSocket/MQTT completos. No usa las
+fixtures temporales mantenidas. Requiere petición explícita; ver docs/TESTING.md.
 """
 
 import logging

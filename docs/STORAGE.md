@@ -3,9 +3,9 @@
 > **AI Context & Machine Contract**:
 > - **Domain**: Station State & Chat Persistence ([ADR 0017](adr/0017-sqlite-station-browser-cache.md))
 > - **Authority Level**: Level 4 (Living SSoT for SQLite Storage)
-> - **Core Symbols**: \src/station_database.py\ (\StationDatabase\)
-> - **Primary Invariant**: SQLite mutations \MUST\ execute off the asyncio event loop (\syncio.to_thread\). WAL mode enabled.
-> - **Database File**: \data/meshcore.sqlite3\ (\DATABASE_PATH\)
+> - **Core Symbols**: `src/station_database.py` (`StationDatabase`)
+> - **Primary Invariant**: SQLite mutations `MUST` execute off the asyncio event loop (`asyncio.to_thread`). WAL mode enabled.
+> - **Database File**: `data/meshcore.sqlite3` (`DATABASE_PATH`)
 
 SQLite is the authoritative store for station state and chat history. Browser storage improves the interface and does not replace the station database.
 
@@ -48,11 +48,30 @@ Feeds use `ch_<channel index>` or `dm_<public key>`. Messages include stable `ms
 
 ## Command idempotency ledger (`command_ledger`)
 
-To guarantee strict command idempotency for LAN/n8n MQTT commands ([ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)), SQLite maintains the `command_ledger` table:
+SQLite maintains `command_ledger` for command reservations and results ([ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)). The implemented deduplication scope is partial, as detailed below:
 - **Schema**: `(id INTEGER PRIMARY KEY AUTOINCREMENT, station_id TEXT NOT NULL, integration_scope TEXT NOT NULL, command_id TEXT NOT NULL, fingerprint TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL, UNIQUE (station_id, integration_scope, command_id))`
 - **Index**: `idx_command_ledger_lookup` on `(station_id, integration_scope, command_id)`
 - **Capacity Policy**: Strictly bounded to 10 000 rows. Pruning executes inline during insertion (retaining the most recent entries) without requiring background timers.
+- **Retention limit**: A matching reservation is available only while its entry remains in the ledger; after pruning an old identifier can be admitted again. Retention alone does not guarantee that every dispatcher path enforces that reservation.
 - **Rollback Note**: Restoring an older SQLite backup also reverts the ledger; incoming requests with previously reserved command IDs during the gap must be reconciled by the integration.
+
+
+`MqttInboundDispatcher._handle_tx_request()` uses the `mqtt` scope and returns
+without enqueueing TX whenever reservation is denied, including when the prior
+command has no final result yet. The `{prefix}/admin/cmd` handler uses
+`mqtt_admin`, rejects conflicts and returns an existing nonempty result. However,
+a denied admin reservation with no stored result still proceeds to execution:
+concurrent duplicates or retries during an unfinished command can dispatch again.
+`{prefix}/admin/repeater/{target}/cmd` bypasses reservation and calls the admin
+handler directly, even when an identifier is supplied.
+
+`CommandLedgerPolicy.reserve()` admits legacy execution when no ID is supplied,
+when no database is injected, or when the database reservation raises an error.
+Marking dispatch and recording results are separate operations whose failures are
+logged. SQLite reservation, RF dispatch and result recording are not one atomic
+transaction; a crash or storage error can leave an admitted/dispatching command
+without a result. The ledger is neither an exactly-once guarantee nor a durable
+retry queue, and integrations must not assume global administrative deduplication.
 
 ## Backup, restore and rollback
 

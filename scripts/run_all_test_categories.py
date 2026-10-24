@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-Master Test Verification Runner for MeshCore Bridge.
-Ejecuta y verifica la matriz completa de las 10 disciplinas de prueba requeridas:
+Historical partial test-category runner for MeshCore Bridge.
+Requires explicit user authorization, just like the full pytest suite.
+The fixed selection omits newer suites. Use run_quality_checks.py for the full gate.
+Category names group existing regressions; they do not run a mutation engine,
+benchmark, physical hardware, or certify ten independent testing disciplines:
 1. Unit test
 2. E2E test
 3. Contract test
@@ -108,7 +111,8 @@ def run_category(category_name: str, test_files: list[str]) -> tuple[bool, int, 
 
 def main() -> int:
     print("=" * 80, flush=True)
-    print("🚀 EJECUTANDO MATRIZ DE VERIFICACIÓN DE LAS 10 DISCIPLINAS DE PRUEBA", flush=True)
+    print("🚀 EJECUTANDO SELECCIÓN PARCIAL HISTÓRICA POR CATEGORÍAS", flush=True)
+    print("Para la suite completa: python scripts/run_quality_checks.py", flush=True)
     print("=" * 80, flush=True)
 
     summary_results = []
@@ -116,7 +120,7 @@ def main() -> int:
     start_all = time.time()
 
     for idx, (cat_name, files) in enumerate(TEST_CATEGORIES.items(), 1):
-        print(f"\n[{idx}/10] Ejecutando: {cat_name} ({len(files)} suites)...", flush=True)
+        print(f"\n[{idx}/{len(TEST_CATEGORIES)}] Ejecutando: {cat_name} ({len(files)} suites)...", flush=True)
         passed, count, ret_code, elapsed, output = run_category(cat_name, files)
 
         status_str = "✅ PASÓ" if passed else "❌ FALLÓ"

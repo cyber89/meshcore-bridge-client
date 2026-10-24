@@ -4,7 +4,9 @@
 
 **Base examinada:** `5a0c0614c922773699e7ee982b5d1b84ee05ee7f`, rama `main`.
 
-**Estado:** investigación y propuesta de implementación; las mejoras descritas todavía no están implementadas.
+**Estado original (2026-10-21):** investigación y propuesta de implementación.
+
+**Conciliación del 2026-10-23:** este documento conserva el diagnóstico de su base original; ya no describe por sí solo el estado del checkout. Los commits posteriores implementaron contratos F0/F1, aislamiento F2, servicios de aplicación F3, registro de capacidades F4, precompilación de expresiones F5 y documentación F7. Véanse [los contratos de evolución](docs/evolution/F0_CONTRACTS_AND_PROFILES.md), [ADRs 0020–0024](docs/README.md) y la [revisión actual](docs/audits/2026-10-23-documentation-scripts-review.md). La separación física de despliegues y las mediciones de rendimiento siguen requiriendo evidencia propia; las dependencias base de `pyproject.toml` todavía incluyen web y MQTT. Los hallazgos y números de línea siguientes son históricos, no una lista de fallos actuales.
 
 **Autoría:** revisión coordinada entre especialistas de arquitectura y diseño, integraciones y despliegue, resiliencia y calidad, con integración y contraste del agente principal.
 

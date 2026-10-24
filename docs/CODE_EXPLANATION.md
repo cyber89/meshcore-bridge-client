@@ -1,12 +1,12 @@
 # Explicación técnica del código de MeshCore Bridge
 
-Guía conciliada el 2026-10-09 mediante lectura del código y actualizada el 2026-10-10 para el baseline CPython estable 3.12+ (3.13.5 recomendado, sin máximo) de [ADR 0016](adr/0016-python-3-12-baseline.md). No acredita medidas de rendimiento ni resultados de QA. Las decisiones de runtime y las verificaciones ejecutadas se registran por separado. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
+Guía revisada por lectura estática el 2026-10-23; conserva el baseline CPython estable 3.12+ (3.13.5 recomendado, sin máximo) de [ADR 0016](adr/0016-python-3-12-baseline.md). No acredita medidas de rendimiento ni resultados de QA. Las decisiones de runtime y las verificaciones ejecutadas se registran por separado. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
 
 ## 1. Entrada, configuración y composición
 
 `meshcore_bridge.py` y `python -m src` arrancan el servicio. `config.py` carga `.env` sin sobrescribir variables ya presentes en el entorno, convierte valores y valida parámetros seleccionados. El puerto por defecto es `AUTO` en Windows y `/dev/ttyACM0` en otros sistemas; también se admite `tcp://host:port` en el adaptador SDK.
 
-`src/bridge_core.py::MeshCoreBridge` compone registro de nodos, cola TX, adaptador serial, watchdog, MQTT, router RX, administración, salud, diagnósticos, Web y Companion TCP. Conserva métodos públicos de delegación para compatibilidad; el procesamiento especializado vive en los componentes descritos abajo.
+`src/bridge_core.py::MeshCoreBridge` compone registro de nodos, cola TX, adaptador serial, watchdog, MQTT, router RX, administración, salud, diagnósticos, Web y Companion TCP. Conserva métodos públicos de delegación para compatibilidad. Los casos de uso de canales, mensajería/historial y contactos residen en `src/application/` (`ChannelService`, `MessageService`, `ContactService`); REST y MQTT delegan en esos servicios sin importar adaptadores web desde la aplicación.
 
 ## 2. Transporte de radio y formatos
 
@@ -56,14 +56,19 @@ El apagado detiene tareas, servidor Web, conexiones Companion, watchdog, adaptad
 
 | Estado | Ubicación | Alcance |
 | --- | --- | --- |
-| Registro de nodos | `NODE_REGISTRY_STORAGE_PATH`, normalmente `data/node_registry.json` | JSON mediante archivo temporal/reemplazo; escritura async disponible con `asyncio.to_thread`. |
-| Canales | `CHANNELS_JSON_PATH`, normalmente `data/channels.json` | JSON local y sincronización con el Companion. |
-| Contactos de radio | Memoria/flash del Companion | Sincronizados con el registro del host; capacidad depende del firmware. |
-| Airtime estimado | `AIRTIME_HISTORY_FILE`, normalmente `data/airtime_history.json` | Historial JSON restaurado al arrancar; no mide directamente ocupación real del espectro. |
+| Registro de nodos | RAM y documento SQLite `nodes` | `NODE_REGISTRY_STORAGE_PATH` selecciona la fuente JSON de migración inicial. |
+| Canales | Documento SQLite `channels` y Companion | `CHANNELS_JSON_PATH` selecciona la fuente JSON anterior; sincronización mediante `ChannelService`. |
+| Contactos de radio | Memoria/flash del Companion y registro del host | `ContactService` coordina validación y sincronización; capacidad depende del firmware. |
+| Airtime estimado | Documento SQLite `airtime` | `AIRTIME_HISTORY_FILE` selecciona la fuente de migración; no mide directamente ocupación del espectro. |
+| Servicios y cooldowns | Documentos SQLite `services` y `repeater_cooldowns` | Conserva presets, credenciales y timestamps; JSON anterior conservado como snapshot. |
+| Chat y ACKs | Tablas SQLite `messages`, `pending_acks`, `delivery_events` | Historial autoritativo incluso sin web; entrega confirmada monotónica. |
+| Suscripciones de sensores | Tabla SQLite `sensor_subscriptions` | Estado, vencimiento y `push_tag` privado; sin renovación automática. |
+| Idempotencia MQTT | Tabla SQLite `command_ledger` | Reservas y resultados acotados; no reproduce transmisiones después de reiniciar. |
 | Capturas RX/TX | `PacketBuffer` en RAM | Buffer circular; exporta JSON, CSV y PCAP. Se pierde al reiniciar. |
-| Deduplicación, ACKs y buffers Web | RAM del proceso | No son un almacenamiento durable. |
-| Chat del navegador | IndexedDB | Persistencia del cliente, independiente de otros navegadores y del servidor. |
-| Logs del servicio | `LOG_DIR` y rutas configuradas | Archivos rotados; distintos del buffer Web de logs en RAM. |
+| Deduplicación, colas y buffers Web | RAM del proceso | No son almacenamiento durable. |
+| Caché de chat del navegador | IndexedDB por UUID de estación | SQLite sigue siendo la autoridad compartida entre navegadores. |
+| Autenticación | Tablas `auth_*` en SQLite; cookie HttpOnly | Hash scrypt y digests; CSRF en memoria del navegador, sin secretos en LocalStorage/SessionStorage. |
+| Logs del servicio | `LOG_DIR` y rutas configuradas | Archivos rotados; distintos del buffer Web en RAM. |
 
 SQLite (`src/station_database.py`, `data/meshcore.sqlite3`) es el almacén autoritativo de estado de estación, historial de chat, entregas y documentos sincronizados ([ADR 0017](adr/0017-sqlite-station-browser-cache.md), [STORAGE.md](STORAGE.md)). `MapTileService` utiliza SQLite para la cartografía MBTiles. No existe una cola MQTT durable SQLite.
 
@@ -86,5 +91,7 @@ los nombres desconocidos y el texto de excepciones SDK no se reflejan en ese det
 Las respuestas parciales siguen informando sólo los cambios confirmados.
 
 La cuenta personal protege toda la API y el handshake WebSocket. El navegador usa cookie HttpOnly; las integraciones usan token Bearer o `BRIDGE_API_KEY` explícita por cabecera. No se aceptan secretos en query. Companion TCP tiene controles independientes (`COMPANION_ALLOWED_IPS`, `COMPANION_TOKEN`, límite de clientes). La política HTTP no autentica las conexiones MQTT; éstas dependen del broker.
+
+`CapabilityRegistry` (`src/application/capabilities.py`) publica los estados de `core`, `web`, `companion`, `local_mqtt` y `external_mqtt` en `GET /api/capabilities`. `StableMqttPort` conserva la fachada de publicación durante recargas. Los servicios opcionales pueden deshabilitarse en runtime; los extras de `pyproject.toml` todavía se suman a unas dependencias base que incluyen web y MQTT, por lo que `pip install ".[core]"` no produce por sí solo una instalación mínima.
 
 El workflow n8n se describe en su [guía vigente](N8N_WORKFLOW_GUIDE.md). Las pruebas se ejecutan bajo autorización del usuario, con las herramientas del [protocolo de agentes](../AGENTS.md). Para cualquier cambio que emita RF, notifique automáticamente, cree timers o modifique radio, responder y documentar el checklist de impacto en malla antes de implementar.

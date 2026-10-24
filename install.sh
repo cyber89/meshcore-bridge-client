@@ -424,6 +424,12 @@ cp -f "$CURRENT_DIR/runtime_requirements.py" "$INSTALL_DIR/"
 cp -f "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
 cp -f "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
 cp -f "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
+# Keep release instructions and maintenance entry points with the application.
+for release_file in README.md CONTEXT.md AGENTS.md install.sh install.ps1 requirements-web.txt run_interactive_demo.py; do
+    if [[ -f "$CURRENT_DIR/$release_file" ]]; then
+        cp -f "$CURRENT_DIR/$release_file" "$INSTALL_DIR/"
+    fi
+done
 if [[ -f "$CURRENT_DIR/.env.example" ]]; then
     cp -f "$CURRENT_DIR/.env.example" "$INSTALL_DIR/" 2>/dev/null || true
 fi

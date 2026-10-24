@@ -1,12 +1,12 @@
 # Conocimiento y verificación del proyecto
 
-Mapa de implementación conciliado el 2026-10-09 y decisión de runtime actualizada el 2026-10-10; procedencia e inventario conservan
-su revisión histórica del 2026-09-30. Este documento reúne el mapa de información,
-la procedencia de las referencias y las divergencias comprobadas. No constituye
-una certificación de interoperabilidad, seguridad, rendimiento o funcionamiento
-del checkout completo. La revisión incluye cambios locales anteriores que siguen
-sin publicarse en aquella revisión; el inventario identifica su propio HEAD como base
-y sus hashes no representan automáticamente el checkout actual.
+Mapa de implementación y procedencia conciliados por lectura el 2026-10-23,
+con base en `4ea20bf8080003ea3bd5ebed2c603450052189b9`. Este documento conserva
+también hallazgos históricos de septiembre y octubre, identificados más abajo.
+El [informe actual](audits/2026-10-23-documentation-scripts-review.md) registra
+correcciones, comandos y límites. El inventario identifica su HEAD de base y
+los hashes del árbol revisado; no certifica interoperabilidad, seguridad,
+rendimiento ni funcionamiento del checkout completo.
 
 ## Autoridad y navegación
 
@@ -43,6 +43,14 @@ posteriores incluyen [capas Companion](adr/0009-official-companion-protocol-laye
 [Bootstrap](adr/0012-bootstrap-5-frontend-architecture.md) y
 [mínimo Python 3.12 y recomendación 3.13.5](adr/0016-python-3-12-baseline.md). Los [ADR 0013](adr/0013-python-3-14-modernization.md),
 [ADR 0014](adr/0014-python-3-15-baseline.md) y [ADR 0015](adr/0015-python-3-14-8-baseline.md) se conservan como decisiones históricas sustituidas.
+Las decisiones vigentes posteriores cubren [SQLite](adr/0017-sqlite-station-browser-cache.md),
+[autenticación](adr/0018-personal-station-authentication.md),
+[arbitraje TCP](adr/0019-tcp-companion-server-amendment.md),
+[canales](adr/0020-application-service-boundaries-and-channels.md),
+[seguridad MQTT](adr/0021-mqtt-security-idempotency-and-unified-topics.md),
+[aislamiento RX](adr/0022-consumer-isolation-and-bounded-admission.md),
+[mensajería/contactos](adr/0023-messaging-and-contact-application-services.md) y
+[capacidades](adr/0024-capability-registry-and-runtime-optionality.md).
 
 ## Mapa de implementación
 
@@ -51,13 +59,14 @@ posteriores incluyen [capas Companion](adr/0009-official-companion-protocol-laye
 | Arranque/composición | `meshcore_bridge.py`, `src/__main__.py`, `src/bridge_core.py`, `src/preflight.py` | Compone serie, MQTT, web, workers y registros; importar/arrancar puede leer configuración o consultar servicios. |
 | Serie | `src/serial/sdk_adapter.py`, `serial_base.py`, `watchdog.py`, `raw_framing.py` | Companion lo gestiona el SDK. El raw propio es parser en memoria, sin transporte UART físico. |
 | Protocolo | `src/protocol_types.py`, `sensor_decoder.py` | Enums oficiales y tipos del bridge; CayenneLPP tiene endian por campo, no LE universal. |
-| RX | `src/rx_router.py`, `src/routers/`, `event_utils.py`, `deduplicator.py` | Normalización, clasificación y publicación; deduplicación vive en RAM. |
+| RX | `src/rx_router.py`, `src/routers/`, `event_utils.py`, `deduplicator.py`, `bridge_core.py` | Normalización y clasificación con admisión acotada; salidas observacionales aisladas por consumidor. Deduplicación vive en RAM. |
 | TX/airtime | `src/rate_limiter.py`, `packet_buffer.py`, `target_resolver.py` | Cola/prioridades/pacing y estimación de airtime; `sent` no acredita entrega remota. |
-| Nodos/contactos | `src/contact_manager.py`, `lqi_engine.py` | Registro JSON y caché; LQI calcula RSSI/SNR/saltos con EMA/decaimiento. Las invariantes excluyen repetidor y nodo local de chat/contactos. |
+| Nodos/contactos | `src/contact_manager.py`, `lqi_engine.py`, `src/application/contacts.py` | Registro inyectado con SQLite en producción y JSON como migración; LQI calcula RSSI/SNR/saltos con EMA/decaimiento. Las invariantes excluyen repetidor y nodo local de chat/contactos. |
+| Aplicación/capacidades | `src/application/`, `src/capabilities.py` | Servicios compartidos de canales, mensajería y contactos; informes de instalación, configuración, construcción, arranque y disponibilidad de servicios. |
 | Administración | `src/admin_handler.py`, `admin/`, `repeater_manager.py` | Operaciones SDK y comandos remotos bajo demanda; cualquier cambio RF requiere checklist y límites acordados. |
-| MQTT | `src/mqtt_client.py`, `mqtt_dispatcher.py`, `health_reporter.py` | Paho y adaptador asyncio; sin cola MQTT durable en disco. Salud MQTT no publica RAM/CPU del OS. |
+| MQTT | `src/mqtt_client.py`, `mqtt_dispatcher.py`, `health_reporter.py`, `src/integrations/mqtt/topics.py` | Tópicos derivados del prefijo activo y admisión acotada; ledger SQLite de órdenes identificadas, distinto de una cola MQTT durable. Salud MQTT no publica RAM/CPU del OS. |
 | TCP Companion | `src/tcp_companion_server.py` | Proxy Companion con controles de conexión; no equivale a una segunda radio física. |
-| REST/WebSocket | `src/web/asgi_server.py`, `asgi_routes.py`, `asgi_ws_hub.py`, `api_router.py`, `controllers/` | ASGI es el backend seleccionado por el core; REST conserva dispatcher/controladores, WS usa el hub. Servidor HTTP nativo retirado, sin fallback. |
+| REST/WebSocket | `src/web/asgi_server.py`, `asgi_routes.py`, `asgi_ws_hub.py`, `api_router.py`, `controllers/` | ASGI es el backend web seleccionado; REST conserva dispatcher/controladores, WS usa el hub. No hay servidor HTTP nativo alternativo; `_create_web_server` permite operar sin web si faltan dependencias/imports. Un fallo posterior de arranque no queda cubierto por esa tolerancia. |
 | Contrato/documentación API | `src/web/asgi_docs.py`, `asgi_openapi.py`, `request_models.py`, `docs_ui/` | Visor propio de consulta `/docs` y alias `/redoc`; esquema `/openapi.json`. DTO abiertos para documentación, sin validación de solicitudes en ejecución; sin paquetes Swagger UI/ReDoc. |
 | SPA | `src/web/static/`, `src/web/static/index.html` | HTML, Vanilla CSS/JS, WebSocket y almacenamiento IndexedDB del navegador. |
 | Persistencia/cartografía | `src/station_database.py` (ADR 0017), registros/canales/airtime JSON (migración), `src/web/map_tile_service.py` | SQLite transaccional como backend autoritativo de chat, nodos, canales, airtime y entregas; JSON para migración inicial y MBTiles para cartografía. |
@@ -69,16 +78,21 @@ esta política; el cambio de baseline no acredita ejecución por sí solo.
 Dependencias directas fijadas para esta actualización: Paho MQTT 2.1.0, MeshCore SDK 2.3.17,
 pyserial 3.5 y python-dotenv 1.2.4. La pila web añade FastAPI 0.143.0, Uvicorn 0.54.0,
 Pydantic 2.14.1, websockets 17.3, Starlette 1.7.0 y h11 0.16.0.
-El checker distingue `web` y `core` (headless). Esto describe dependencias declaradas,
-no acredita paquetes instalados, funcionamiento o recursos medidos.
+El checker acepta `core`, `mqtt`, `web` y `all`; `core`/`mqtt` comprueban los cuatro
+paquetes base (incluido Paho), y `web`/`all` añaden la pila ASGI fijada. Los extras
+de `pyproject.toml` son aditivos: sus dependencias base aún incluyen web/MQTT.
+Los perfiles del checker no activan servicios. Esto describe declaraciones y
+código, no acredita paquetes instalados, funcionamiento o recursos medidos.
 
 ## Referencias y procedencia
 
 Las páginas primarias de [firmware](https://github.com/meshcore-dev/MeshCore),
 [SDK](https://github.com/meshcore-dev/meshcore_py) y
 [CLI](https://github.com/meshcore-dev/meshcore-cli) fueron consultadas en la web
-durante la revisión de septiembre. Su disponibilidad no demuestra que las copias locales sean
-el último upstream. No se hizo fetch/pull ni se modificó `reference/`.
+durante la revisión de septiembre y se volvieron a consultar el 2026-10-23.
+Los SHA locales siguientes se comprobaron de nuevo. La disponibilidad web no
+demuestra que las copias locales sean el último upstream; no se compararon HEAD
+remotos ni se hizo fetch/pull o modificó `reference/`.
 
 | Referencia | Revisión Git local | Autoridad |
 | --- | --- | --- |
@@ -87,7 +101,7 @@ el último upstream. No se hizo fetch/pull ni se modificó `reference/`.
 | `reference/meshcore_cli/` | `0856c723cdea3438811c62c190bbec3059e2dc48` | CLI oficial; paquete local 1.6.0. |
 | `reference/meshmonitor/` | `d9ade72f6d32de420d18c4d9838af00ddda4c6e9` | Tercero, comparación; no autoridad del protocolo. |
 
-Los cuatro árboles con Git propio estaban limpios. Hay once copias adicionales
+Los cuatro árboles con Git propio están limpios en la consulta del 2026-10-23. Hay once copias adicionales
 sin `.git` propio; su revisión no se puede acreditar con Git. Ejecutar `git -C`
 en ellas sin comprobar ese marcador devuelve el repositorio padre por ascenso.
 
@@ -110,7 +124,7 @@ Este inventario corrige la clasificación sin modificar las referencias de sólo
 lectura. Encontrar un archivo LICENSE tampoco certifica compatibilidad de licencia
 para copiar código; las licencias completas no se auditaron.
 
-## Divergencias históricas y conciliación actual
+## Divergencias históricas (septiembre y revisión del 2026-10-09)
 
 La tabla siguiente conserva hallazgos de septiembre; sus estados "pendiente" son
 históricos. Por lectura del 2026-10-09, `_handle_admin_request` ya conserva mappings
@@ -119,7 +133,7 @@ de defines evita absorber saltos. Linux update usa `staged_update.py`, el modo d
 propaga fallos y Windows selecciona/verifica su entorno. La ejecución histórica de
 reproducciones no valida estas correcciones en el checkout actual.
 
-La auditoría actual corrigió credenciales sin enmascarar en `custom_presets`, valores
+La auditoría del 2026-10-09 corrigió credenciales sin enmascarar en `custom_presets`, valores
 de excepciones en logs/eventos de controladores y seis sinks HTML de métricas del mapa.
 `all_presets` y `custom_presets` comparten la proyección pública sanitizada sin cambiar
 credenciales operativas. Origin conserva la admisión amplia de LAN privada; no es
@@ -150,7 +164,22 @@ cuatro bits bajos de flags), `MyMesh.cpp` (errores y serialización de contactos
 Companion serializa contactos como 147 bytes de datos más un opcode; esto no es
 `sizeof(ContactInfo)` ni implica packing C++ idéntico.
 
-## Skills y agentes
+## Conciliación del 2026-10-23
+
+La revisión actualiza documentación de instalación, servicios de aplicación,
+capacidades, persistencia y recuperación de credenciales. Corrige el índice de
+ADRs y las secciones del ADR 0019, y distingue el plan original `nuevo.md` del
+estado implementado. El inventario registra también hashes de scripts, launchers,
+helpers propios y workflows, sin ejecutarlos.
+
+Permanecen pendientes la separación real de paquetes mínimos (dependencias base
+completas), la evaluación operativa del broker instalado y la aceptación en
+hardware de las rutas de instalación. Los scripts históricos de simulación y
+navegador siguen requiriendo inspección antes de ejecutarse. Véanse la
+[guía QA](TESTING.md), el [inventario de verificación](TEST_INVENTORY.md) y el
+[informe de esta revisión](audits/2026-10-23-documentation-scripts-review.md).
+
+## Skills y agentes (historia de incorporación)
 
 El catálogo inicial contenía 20 skills propias y los paquetes externos Archify y
 ui-ux-pro-max. Se agregan dos skills propias; no se actualizan vendors ni herramientas
@@ -171,9 +200,10 @@ evitando instrucciones de frameworks ajenos a esta SPA.
 AGENTS.md conserva los roles 0–5 y agrega Agente 6 (documentación/procedencia) y
 Agente 7 (instalación/publicación). Los perfiles son contratos de delegación, no
 daemons ni agentes persistentes instalados. El principal asigna archivos y mantiene
-el ledger; las tareas paralelas de esta revisión fueron de sólo lectura.
+el ledger. En la revisión del 2026-10-23 se asignaron áreas de edición separadas
+para instalación, arquitectura y scripts/QA documental.
 
-## Evidencia y reproducción
+## Evidencia y reproducción histórica
 
 Entorno histórico de septiembre: `.venv/Scripts/python.exe`, Python 3.12.14; `python` y
 `tgrep` no estaban en PATH, se utilizó `rg`. No se modificó el intérprete.
@@ -187,7 +217,8 @@ Entorno histórico de septiembre: `.venv/Scripts/python.exe`, Python 3.12.14; `p
 El inventariador imprime JSON sin importar el bridge, leer `.env`, escribir estado
 operativo, actualizar repositorios o ejecutar suites. El snapshot publicado se
 guarda deliberadamente como `docs/PROJECT_INVENTORY.json`; regenerarlo después de
-cambios para actualizar hashes. No se incluye a sí mismo en el listado documental.
+cambios para actualizar hashes. No incluye el propio JSON en el listado documental;
+su script sí figura entre los helpers con hash.
 
 La primera comprobación estructural revisó 44 documentos/skills con cero incidencias;
 los ocho ADRs pasaron secuencia y secciones. La evidencia final, la validación de

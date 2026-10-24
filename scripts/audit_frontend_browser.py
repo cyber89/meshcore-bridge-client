@@ -1,6 +1,8 @@
 """
-Automated Browser Console and Frontend QA Auditor for MeshCore Bridge.
-Tests all tabs, subtabs, modals, toggles and listens for console logs, errors and page exceptions.
+Historical partial browser console audit for MeshCore Bridge.
+Uses operator config/state and fixed port 8095 without the current login fixture.
+For authorized isolated inspection use check_frontend_health.py or inspect_all_views.py;
+maintained browser regressions live in tests/. Never run this against a live station.
 """
 
 from __future__ import annotations

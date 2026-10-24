@@ -62,8 +62,10 @@ node --version
 python -m pytest tests/test_frontend_i18n_audit.py tests/test_remaining_mqtt_tls.py -ra
 ```
 
-Registrar la versión real del binario; el incluido en Playwright 1.63.0 durante
-esta revisión es Node.js 24.21.0. Las pruebas de navegador requieren también las
+Registrar la versión real del binario. El perfil dev vigente fija Playwright
+1.64.0 en `requirements-dev.txt` y `pyproject.toml`; el registro anterior de
+Playwright 1.63.0 / Node.js 24.21.0 es histórico y no describe el entorno actual.
+Las pruebas de navegador requieren también las
 bibliotecas del sistema de Chromium. En QA WSL se extrajeron paquetes oficiales
 Ubuntu dentro de `artifacts` y se usó `LD_LIBRARY_PATH` del proceso; eso no instala
 dependencias globales ni acredita otro destino. Los temporales de pytest en WSL
@@ -77,10 +79,13 @@ de la suite; los módulos E2E no deben depender de una estación ya activa en
 `localhost:8080`. Las fixtures deben usar configuración y datos temporales,
 adaptadores virtuales, mocks de MQTT/SDK y servicios propios en loopback.
 
-El argumento `MeshCoreBridge(db_path=..., data_dir=...)` aísla explícitamente la base de datos SQLite y el directorio de almacenamiento (`src/bridge_core.py:80–106`). Las fixtures deben configurar rutas actuales de datos temporales. Cerrar servidores, navegadores, tareas
+Los argumentos `db_path` y `data_dir` de `MeshCoreBridge` aíslan SQLite y el
+directorio de almacenamiento. Desde código asíncrono, usar
+`await MeshCoreBridge.create(db_path=..., data_dir=...)` para inicializar fuera
+del event loop. Las fixtures deben configurar rutas actuales de datos temporales. Cerrar servidores, navegadores, tareas
 y archivos aun cuando falle una expectativa.
 
-Áreas verificadas: framing y CRC del fallback, enums oficiales, CayenneLPP,
+Áreas cubiertas por módulos de la suite (su existencia no acredita una ejecución): framing y CRC del fallback, enums oficiales, CayenneLPP,
 registro de nodos/roles, deduplicación, cola TX y airtime, SDK/watchdog,
 administración/autenticación, MQTT, handlers RX, REST, HTTP/WebSocket, mapas
 MBTiles, simulación y frontend. Las regresiones deben comprobar comportamiento
@@ -135,6 +140,21 @@ node scripts/check_frontend_syntax.cjs
 node scripts/build_frontend.cjs --check
 python -m pip check
 ```
+
+`python scripts/inventory_verification.py` regenera el inventario Python y
+CommonJS sin importar la aplicación ni ejecutar escenarios. Distingue scripts
+operativos, inspecciones aisladas e históricos. Los XML/coberturas que encuentre
+en `tests/artifacts/` son evidencia local existente: no los atribuye al checkout
+actual ni acredita que las suites pasen.
+
+`generate_sample_mbtiles.py` crea teselas sintéticas de zoom 0–2 en
+`tests/artifacts/maps/overview_sample.mbtiles`, sin sobrescribir archivos.
+No genera cartografía real ni escribe en `data/maps/`. Los helpers
+`setup_auth.py`, `reset_web_password.py` y `staged_update.py` modifican la
+instalación o su estado; no son comprobaciones y no se ejecutan por una auditoría.
+`audit_frontend_browser.py` y `audit_frontend_inspection.py` conservan puertos
+fijos y aislamiento parcial; usar las fixtures mantenidas o los dos inspectores
+que comparten `isolated_frontend_station.py` para una revisión aislada autorizada.
 
 El comprobador de imports recorre ASTs e imports locales transitivos para los
 contratos `forbidden` declarados en `pyproject.toml`, sin importar la aplicación.

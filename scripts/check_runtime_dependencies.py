@@ -74,7 +74,7 @@ def check_dependencies(
         ).strip().lower()
         dependencies = PROFILES.get(selected_profile)
         if dependencies is None:
-            failures.append("Invalid dependency profile; use core or web")
+            failures.append("Invalid dependency profile; use core, mqtt, web or all")
             return failures
     for distribution, module, minimum in dependencies:
         try:
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         "--profile",
         choices=["core", "mqtt", "web", "all"],
         default=os.getenv("MESHCORE_PROFILE", "web"),
-        help="Dependency profile to check (core: minimal headless; mqtt: core + paho-mqtt; web/all: complete stack).",
+        help="Dependency profile to check (core/mqtt: core packages including Paho; web/all: complete stack).",
     )
     args = parser.parse_args(argv)
     failures = check_dependencies(profile=args.profile)

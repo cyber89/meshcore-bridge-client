@@ -1,7 +1,7 @@
 # F0 — Contratos, Perfiles e Invariantes de MeshCore Bridge
 
 **Fecha:** 2026-10-21  
-**Estado:** Canónico (Fase F0 del Plan de Evolución `nuevo.md`)  
+**Estado:** Contratos F0; rutas y alcance conciliados con el checkout el 2026-10-23. Las decisiones de diseño se distinguen de la implementación y del empaquetado pendiente.
 **Autor:** Agente Lead Orchestrator & System Architect  
 
 ---
@@ -14,27 +14,30 @@ El análisis del código fuente en producción identifica cinco familias de cons
 - **Canales (`src/web/controllers/channels_controller.py`)**:
   - `GET /api/channels`: Lista de canales configurados.
   - `POST /api/channels`: Creación / actualización de canal.
-  - `DELETE /api/channels/{idx}`: Eliminación de canal por índice.
+  - `DELETE /api/channels`: Eliminación de canal con índice en el cuerpo de solicitud.
   - `POST /api/channels/sync`: Solicitud de sincronización de canales desde la radio física.
-- **Mensajería y Chat (`src/web/controllers/chat_controller.py`, `messages_controller.py`)**:
-  - `GET /api/chat/history`: Consulta paginada con cursor temporal y límite.
-  - `POST /api/chat/send`: Envío de mensaje (canal público, canal secundario o mensaje directo).
+- **Mensajería y Chat (`src/web/controllers/history_controller.py`, `tx_controller.py`)**:
+  - `GET /api/messages/history`: Consulta paginada del historial.
+  - `POST /api/tx`: Envío de mensaje (canal público, canal secundario o mensaje directo).
 - **Contactos y Nodos (`src/web/controllers/contacts_controller.py`, `nodes_controller.py`)**:
   - `GET /api/contacts`: Lista de contactos de usuario (exclusivamente roles `CLIENT`/`ROOM`/`SENSOR`, nunca `REPEATER`).
   - `GET /api/nodes`: Lista unificada de todos los nodos de la malla (incluyendo repetidores).
-- **Administración y Telemetría (`src/web/controllers/admin_controller.py`, `system_controller.py`)**:
-  - `POST /api/admin/ping_zero`: Ping hop 0 a repetidor.
-  - `POST /api/admin/traceroute`: Traceroute hacia nodo destino.
-  - `POST /api/admin/command`: Ejecución de comandos remotos en repetidores.
-  - `GET /api/system/status`, `GET /api/system/health`: Telemetría y estado operativo de la estación.
+- **Administración y Telemetría (`src/web/controllers/repeater_controller.py`, `system_controller.py`)**:
+  - `POST /api/admin`: Acciones administrativas generales.
+  - `POST /api/admin/repeater`: Operaciones remotas por `action`, destino y parámetros.
+  - `GET /api/status`, `GET /api/health`: Estado y salud de la estación.
+
+El catálogo de método/ruta está en `src/web/asgi_route_catalog.py`; el esquema publicado en `/openapi.json` documenta esas operaciones. El fallback de compatibilidad también despacha rutas del router que aún no figuran en el catálogo, como `GET /api/capabilities` y `/api/services/capabilities` (`ServicesController`). No debe interpretarse el catálogo como inventario exhaustivo de endpoints implementados. No existen los controladores `chat_controller.py`, `messages_controller.py` ni `admin_controller.py` descritos en la versión inicial de este documento.
 
 ### 1.2 Eventos WebSocket (`src/web/asgi_ws_hub.py`)
-- Flujo en tiempo real sobre `/ws`:
-  - `chat_message`: Nuevo mensaje de chat recibido por radio (con LQI, SNR, RSSI).
-  - `chat_delivery_update`: Actualización de estado de entrega (`queued`, `sent`, `delivered`, `failed`).
-  - `node_discovered`: Anuncio o beacon recibido de un nodo en la malla.
-  - `telemetry_update`: Lectura de telemetría o estado de canal.
-  - `admin_event`: Respuesta a comando administrativo o traceroute.
+- Flujo en tiempo real sobre `/ws`, gestionado por `WebSocketHub`:
+  - `public`, `channel`, `direct`: Mensajería, con payload normalizado por los routers RX y el core.
+  - `message_delivered`: Confirmación de entrega recibida.
+  - `contact_discovered`, `contact_updated`: Cambios observados de nodos/contactos.
+  - `telemetry`, `repeater_response`, `trace_data`, `binary_response`: Eventos de administración y telemetría.
+  - `metrics_update`, `rf_packet`: Métricas y actividad RF.
+
+Los nombres anteriores son los valores `type` de los productores actuales, no nombres nuevos de eventos. El hub conserva los envelopes del router; consultar también el consumidor `src/web/static/js/core/websocket.js`.
 
 ### 1.3 Tópicos MQTT (Local y Comunitario / Externo)
 - **Tópicos Derivados del Prefijo (`src/mqtt_client.py:87–94`)**:
@@ -54,6 +57,8 @@ El análisis del código fuente en producción identifica cinco familias de cons
   - `TOPIC_ADMIN_REPEATER` (`src/admin/*`).
   - *Mitigación F1.3*: Centralización en un resolvedor único `MqttTopics`.
 
+  **Estado al 2026-10-23:** `src/integrations/mqtt/topics.py` contiene el resolvedor implementado. La lista anterior conserva el diagnóstico F0 y sus líneas históricas; no afirma que esos productores sigan usando prefijos globales.
+
 ### 1.4 Servidor Proxy TCP Companion (`src/tcp_companion_server.py`)
 - Puerto por defecto `5000` (configurable con `TCP_SERVER_PORT`).
 - Framing binario oficial MeshCore: `<` (`0x3C`, App a Radio) y `>` (`0x3E`, Radio a App) + uint16 LE length + payload.
@@ -71,6 +76,8 @@ El análisis del código fuente en producción identifica cinco familias de cons
 | **`companion`** | `core` + `MeshCoreCompanionServer` (TCP 5000). | Servidor web ASGI. | `MeshCoreCompanionServer._client_tasks`, `_writer_tasks`. |
 | **`mqtt`** | `core` + `MeshCoreMqttClient` (local) y/o `ExternalMqttClient` (comunitario). | Servidor web ASGI, proxy Companion. | `MeshCoreMqttClient._loop`, `MqttDispatcher._inbound_tasks`. |
 | **Combinado** | Unión de las capacidades habilitadas. | Cada subsistema se inicia solo si su flag (`*_ENABLED`) es verdadero. | `ServicesManager` supervisa la salud y recarga con rollback. |
+
+Esta matriz describe composición objetivo/runtime; no son cuatro instalaciones mínimas de `pip`. `pyproject.toml` aún declara web y Paho en dependencias base y los extras las añaden, sin retirarlas. El checker `--profile core`/`mqtt` requiere Paho, MeshCore, pyserial y dotenv; `web`/`all` añade ASGI. `MESHCORE_PROFILE` selecciona comprobaciones, no configura servicios. Los nombres privados de tareas de esta matriz son orientativos; los propietarios actuales se describen en [arquitectura](../ARCHITECTURE.md).
 
 ---
 
@@ -96,11 +103,12 @@ El análisis del código fuente en producción identifica cinco familias de cons
 ## 4. Decisiones Registradas del Usuario (Sesión 2026-10-21)
 
 1. **Consumidores MQTT y n8n Remotos en LAN**:
-   - El broker local Mosquitto gestionado por los instaladores (`install.sh`, `install.ps1`) NO utilizará acceso anónimo ni escuchará sin control.
+   - El broker local Mosquitto gestionado por `install.sh` NO utilizará acceso anónimo ni escuchará sin control. `install.ps1` no instala un broker.
    - Se configurará bind explícito en la interfaz LAN o `0.0.0.0` con autenticación obligatoria mediante usuario y contraseña (`allow_anonymous false`) y listas de control de acceso (ACL).
 2. **Política de `command_id` en Workflows MQTT (Idempotencia)**:
-   - **Modo Legado**: Órdenes sin `command_id` o `id` se aceptan con garantías limitadas (sin deduplicación), emitiendo advertencia estructurada en logs.
+   - **Modo Legado**: Órdenes sin `command_id`, `request_id` o `id` se aceptan con garantías limitadas (sin deduplicación), emitiendo advertencia estructurada en logs.
    - **Modo Idempotente**: Órdenes con `command_id` son registradas atómicamente en un ledger persistido en SQLite antes de su despacho a la radio. Solicitudes con el mismo ID y misma huella semántica devuelven el estado registrado sin retransmitir por RF. Solicitudes con el mismo ID pero diferente huella producen conflicto (`CONFLICT`).
+   - **Diferencia de implementación (2026-10-23)**: la política anterior es el contrato de diseño. TX detiene las reservas rechazadas; `admin/cmd` puede continuar si aún no hay resultado guardado y `admin/repeater/{target}/cmd` omite el ledger. Sin BD o ante error de reserva se admite modo legado. La poda limita la deduplicación a las entradas retenidas. Véanse [arquitectura](../ARCHITECTURE.md) y [guía MQTT](../N8N_WORKFLOW_GUIDE.md); no hay garantía global de ejecución única.
 3. **Retención del Ledger de Comandos**:
    - No se añadirá ningún timer periódico ni hilo de limpieza en segundo plano (prevención de fugas y cumplimiento de la regla de timers).
    - Se aplicará un tope estricto de **10 000 filas** verificado y podado en el momento de la inserción transaccional (`DELETE FROM command_ledger WHERE id IN (SELECT id FROM command_ledger ORDER BY created_at ASC LIMIT MAX(0, count - 10000))`).

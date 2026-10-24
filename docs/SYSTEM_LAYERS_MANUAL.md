@@ -2,7 +2,7 @@
 
 > **Audiencia**: Ingenieros de software, desarrolladores de sistemas embebidos, arquitectos de integración y técnicos de soporte que requieran comprender en profundidad el diseño modular, contratos de interfaz, clases, métodos y flujos de datos de **MeshCore Bridge**.
 
-Conciliado con el código el 2026-10-09 mediante lectura estática y actualizado para la decisión de runtime del 2026-10-10. Las capas organizan responsabilidades; no acreditan aislamiento absoluto, medidas de recursos o paridad operativa. El usuario autorizó posteriormente QA aislado; sus resultados se reportan por separado.
+Revisado con el código el 2026-10-23 mediante lectura estática, incluida la extracción de servicios de aplicación y el registro de capacidades. Las capas organizan responsabilidades; no acreditan aislamiento absoluto, medidas de recursos o paridad operativa. Las autorizaciones y resultados de QA pertenecen a sus entregas fechadas; esta revisión no ejecuta suites.
 
 ---
 
@@ -53,7 +53,7 @@ flowchart TB
         RateLimiter["Control de Transmisión\n(TxRateLimiter & AirtimeTracker)"]
         Registry["Registro de Red\n(NodeRegistry & RepeaterManager)"]
         Signal["Calidad e Idempotencia\n(LinkQualityEngine & PacketDeduplicator)"]
-        Decoders["Decodificadores de Carga\n(SensorDecoder & CayenneLPP)"]
+        Decoders["Decodificadores de Carga\n(CayenneLPPDecoder & normalización)"]
     end
 
     subgraph L4 ["Capa 4: Dominio Puro y Protocolo Canónico (Domain Core / SSoT)"]
@@ -69,7 +69,7 @@ flowchart TB
         RawAdapter["RawSerialFramingAdapter (Parser Raw en memoria)"]
         SimAdapter["VirtualMeshAdapter (Simulador en memoria)"]
         Watchdog["SerialWatchdog & TCPCompanionServer"]
-        Storage["Persistencia JSON Atómica (data/*.json)"]
+        Storage["SQLite: estado e historial de estación"]
     end
 
     L1 --> L2
@@ -183,13 +183,35 @@ Fachada maestra (*System Facade*) que actúa como punto central de integración 
   2. Detiene el servidor web y desconecta clientes WebSocket.
   3. Cierra el puerto serie o socket de radio de forma segura.
   4. Publica el estado explícito `offline` en MQTT y desconecta del broker.
-  5. Sincroniza y vuelca el estado persistente a disco (archivos JSON atómicos).
+  5. Drena las escrituras aceptadas y guarda el estado en SQLite; los helpers JSON quedan para migración y uso sin base inyectada.
 - **`on_mesh_event(event: dict[str, Any]) -> None`**: Callback registrado en el adaptador serie. Recibe eventos crudos normalizados y los pasa directamente al `RxEventRouter.handle_event()`.
 - **`rate_limiter.submit(payload: str, target: str | None = None, channel_idx: int = 0, priority: TxPriority = TxPriority.NORMAL, request_id: str | None = None) -> asyncio.Future`**:
   - Aplica validaciones de destino (prohíbe envíos de chat a repetidores y a la pubkey del nodo local).
   - Encola la transmisión en `TxRateLimiter.submit()` retornando un future de seguimiento correlacionable con futuros eventos de confirmación (ACK).
 - **`register_pending_ack(expected_ack: str, req_id: str, target: str) -> None`** y **`resolve_pending_ack(ack_code: str) -> dict | None`**:
   - Registra y resuelve códigos ACK (de 4 bytes hexadecimales) recibidos por RF para calcular tiempos de ida y vuelta (*Round-Trip Time*, RTT) y correlacionar estados de entrega con mensajes específicos.
+
+#### Servicios de aplicación (`src/application/`)
+
+`ChannelService` posee canales, locks, tombstones y persistencia, también sin web.
+`MessageService` centraliza validación y envío de chat a través del rate limiter,
+lecturas de historial e importación. `ContactService` coordina validación,
+mutaciones y sincronización con radio; `ChannelsController`, `TxController`,
+`HistoryController` y `ContactsController` delegan en estos casos de uso.
+La capa de aplicación no depende de `src/web`.
+
+`CommandLedgerPolicy` reserva órdenes MQTT identificadas en SQLite en las rutas
+que lo invocan. Su aplicación es parcial: el handler administrativo por repetidor
+no reserva, el general puede continuar sin resultado previo y un error de reserva
+admite modo legado. El ledger conserva hasta 10 000 entradas y no es una cola de
+replay; véase el alcance detallado en [STORAGE.md](STORAGE.md).
+
+`CapabilityRegistry` registra `core`, `web`, `companion`, `local_mqtt` y
+`external_mqtt` con indicadores `installed`, `configured`, `instantiated`,
+`started`, `operational`; `GET /api/capabilities` expone el snapshot autenticado.
+`StableMqttPort` mantiene la fachada durante recargas. La opcionalidad de runtime
+no garantiza instalación mínima: las dependencias base actuales de `pyproject.toml`
+incluyen paquetes web/MQTT además de declararlos en extras.
 
 #### `AdminCommandHandler` (`src/admin_handler.py`)
 Punto de despacho unificado para operaciones administrativas generadas desde REST o MQTT.
@@ -347,7 +369,7 @@ El almacenamiento autoritativo de la estación reside en la base de datos transa
 1. **Base de Datos SQLite (`StationDatabase`)**:
    - Modo WAL activado con `synchronous=FULL`.
    - Todas las mutaciones corren fuera del event loop principal (`asyncio.to_thread`).
-   - Almacena tablas indexadas de `messages`, `conversations`, `station_auth` y `station_documents`.
+   - Almacena `metadata`, `documents`, `legacy_imports`, `messages`, `delivery_events`, `pending_acks`, `sensor_subscriptions` y `command_ledger`. `AuthStore` mantiene las tablas `auth_owner`, `auth_sessions`, `auth_api_tokens` y `auth_login_attempts` en el mismo archivo. Las conversaciones se derivan de mensajes; no existe tabla `conversations`.
 2. **Fuentes de Migración Inicial (JSON)**:
    - `data/node_registry.json`: Registro de nodos y métricas.
    - `data/channels.json`: Configuración y PSK de canales lógicos.

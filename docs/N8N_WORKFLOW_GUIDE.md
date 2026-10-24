@@ -27,7 +27,7 @@ El Schedule Trigger usa `0 0,6,12,18 * * *`: cuatro ejecuciones al día. El expo
 
 ## 2. Contratos MQTT
 
-El bridge publica el stream normalizado en `meshcore/rx/all`; los tópicos específicos incluyen `meshcore/rx/public`, `meshcore/rx/channel/ch_<idx>`, `meshcore/rx/direct/<sender_id>`, `meshcore/rx/telemetry`, `meshcore/rx/nodes` y `meshcore/rx/log`. Un evento advert puede tener tipo `node_advert` sin que exista un tópico literal `meshcore/rx/advert`.
+Los ejemplos usan el prefijo predeterminado `meshcore`; `MqttTopics` resuelve el prefijo activo del bridge. El export n8n contiene tópicos literales y debe ajustarse si se cambia ese prefijo. El bridge publica el stream normalizado en `meshcore/rx/all`; los tópicos específicos incluyen `meshcore/rx/public`, `meshcore/rx/channel/ch_<idx>`, `meshcore/rx/direct/<sender_id>`, `meshcore/rx/telemetry`, `meshcore/rx/nodes` y `meshcore/rx/log`. Un evento advert puede tener tipo `node_advert` sin que exista un tópico literal `meshcore/rx/advert`.
 
 Un TX de chat tiene este formato, con aliases dobles conservados por el workflow:
 
@@ -58,11 +58,12 @@ El bridge publica resultados TX en `meshcore/tx/status` y resultados administrat
 
 ### Idempotencia, `command_id` y Reglas de Seguridad (ADR 0021)
 
-1. **Idempotencia con `command_id`**:
-   Para transmisiones salientes hacia `meshcore/tx`, el payload admite un identificador único `command_id` (o `request_id` / `id`). Cuando se incluye este campo, el bridge registra la orden en un ledger transaccional en SQLite:
-   - Si n8n o un cliente reintenta la misma orden con idéntico payload, el bridge devuelve el resultado previo sin retransmitir por RF.
-   - Si se detecta el mismo `command_id` con contenido diferente, el bridge rechaza la operación con estado `conflict`.
-   - Las órdenes sin `command_id` se aceptan en modo legado (sin deduplicación garantizada) emitiendo una advertencia en los logs.
+1. **Ledger con `command_id`: alcance real y límites**:
+   Para TX hacia `meshcore/tx`, el payload admite `command_id` (o `request_id` / `id`). Con SQLite disponible y una reserva exitosa, el ámbito `mqtt` impide encolar otra transmisión con ese identificador mientras se conserve la entrada: devuelve el estado/resultado previo o `conflict` si cambia la huella. También detiene duplicados cuyo primer intento aún no tiene resultado.
+
+   Administración tiene dos rutas diferentes. `meshcore/admin/cmd` usa el ámbito `mqtt_admin`: rechaza conflictos y reutiliza un resultado previo no vacío, pero continúa si la reserva no se admitió y todavía no tiene resultado. Por tanto, un duplicado concurrente o un reintento administrativo en curso puede volver a ejecutar comandos. `meshcore/admin/repeater/<id>/cmd`, usado por el ejemplo de repetidores, llama directamente al handler sin reservar en el ledger; incluir `command_id` no añade deduplicación a esa ruta.
+
+   La política admite modo legado si falta el identificador, no hay base inyectada o falla la reserva SQLite. La tabla se poda a 10 000 entradas; una entrada podada o una restauración anterior puede volver a admitir la orden. Reserva, despacho RF y registro del resultado son pasos separados: un fallo o caída puede dejar la orden sin resultado. Los fallos al registrar estado se anotan en logs, sin deshacer RF. No hay replay durable ni garantía de ejecución exactamente una vez; la integración no debe asumir deduplicación global de órdenes administrativas.
 2. **Rechazo de Mensajes Retenidos (`retain=True`)**:
    El bridge descarta automáticamente cualquier mensaje publicado con el flag `retain=True` en tópicos de transmisión o administración (`/tx`, `/send`, `/admin/*`). Esto evita ráfagas involuntarias en la malla LoRa tras reinicios o reconexiones de n8n.
 3. **Autenticación en Broker Local / LAN**:

@@ -1,5 +1,6 @@
 """
-Genera una base de datos MBTiles de ejemplo con metadatos estándar y teselas de vista general.
+Genera MBTiles sintéticos en tests/artifacts/maps sin sobrescribir archivos.
+No contiene cartografía geográfica real ni modifica los mapas de la estación.
 """
 
 import sqlite3
@@ -7,12 +8,12 @@ from pathlib import Path
 
 
 def create_sample_mbtiles():
-    maps_dir = Path(r"c:\Users\Ruby\Desktop\meshcore-bridge\data\maps")
+    maps_dir = Path(__file__).resolve().parents[1] / "tests" / "artifacts" / "maps"
     maps_dir.mkdir(parents=True, exist_ok=True)
     db_path = maps_dir / "overview_sample.mbtiles"
 
     if db_path.exists():
-        db_path.unlink()
+        raise FileExistsError(f"Sample already exists; refusing to overwrite: {db_path}")
 
     conn = sqlite3.connect(str(db_path))
     c = conn.cursor()
@@ -35,7 +36,7 @@ def create_sample_mbtiles():
         ("description", "Mosaico base offline para navegación local sin conexión"),
         ("format", "png"),
         ("minzoom", "0"),
-        ("maxzoom", "5"),
+        ("maxzoom", "2"),
         ("attribution", "MeshCore Bridge Tactical Maps"),
     ]
     c.executemany("INSERT INTO metadata VALUES (?, ?)", metadata)

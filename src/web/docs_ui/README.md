@@ -1,7 +1,7 @@
-# Visor OpenAPI local del candidato
+# Visor OpenAPI local
 
 Recursos propios Vanilla HTML/CSS/JS, sin paquetes Swagger UI/ReDoc ni CDN. El
-servidor candidato sirve el shell en `/docs` y el alias `/redoc`, con estos recursos
+servidor ASGI de producción sirve el shell en `/docs` y el alias `/redoc`, con estos recursos
 exactos en `/docs/assets/docs.css` y `/docs/assets/docs.js`. El alias no afirma que
 ReDoc esté instalado. Ninguna operación del catálogo está incrustada en el HTML.
 
@@ -19,10 +19,10 @@ Descripciones, extensiones `x-*`, ejemplos y referencias se representan como
 texto. Solo se resuelven referencias JSON Pointer locales, a un nivel, sin
 descargar URLs externas. Se consultan rutas, métodos, grupos, autorización,
 parámetros, cuerpos, respuestas, ejemplos, aliases documentados en extensiones y
-componentes del JSON publicado por el candidato. La política efectiva de acceso
+componentes del JSON publicado por el servidor. La política efectiva de acceso
 pertenece al middleware y a la ruta del esquema; un requisito OpenAPI representa
 documentación, no autoriza una operación.
 
-La inspección de esta fase es estática. No se ha abierto un navegador ni ejecutado
-suites; accesibilidad, renderizado y flujo real de autenticación permanecen
-pendientes de aceptación aislada autorizada.
+La revisión documental del 2026-10-23 es estática y no ejecuta navegador ni suites.
+Los informes de fases anteriores conservan su alcance histórico; la guía de
+[pruebas](../../../docs/TESTING.md) describe la verificación aislada autorizable.

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-MeshCore Bridge - Comprobación y Validación Simulada Integral (v3.0).
-Verifica de forma simulada y determinista todas las fases implementadas:
+MeshCore Bridge - Comprobaciones simuladas auxiliares (v3.0).
+Selección histórica de aserciones, fuera del gate mantenido y sin aislamiento
+completo del estado del operador. No acredita todas las capacidades actuales.
+Requiere petición explícita; consultar docs/TESTING.md antes de ejecutar.
+Áreas del escenario:
 1. Seguridad (API Key, TCP Companion limits/token, CORS, CSP, PSK regex).
 2. Concurrencia (Deduplicator locks, Queue maxsize, RX semaphore, timeouts).
 3. Calidad & Robustez (NodeRegistry persistence, SSoT name resolution, tuple neighbors, MQTT size limit, watchdog).

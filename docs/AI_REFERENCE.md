@@ -20,12 +20,17 @@ Nivel 3: docs/ARCHITECTURE.md (Arquitectura del sistema en 5 capas y concurrency
    ↓
 Nivel 4: Manuales Vivos de Subsistema (docs/STORAGE.md, DEPLOYMENT_GUIDE.md, FRONTEND_DELIVERY.md, etc.)
    ↓
-Nivel 5: Registros de Decisiones de Arquitectura Vigentes (docs/adr/0001 al 0018)
+Nivel 5: Registros de Decisiones de Arquitectura Vigentes (consultar índice docs/README.md; hasta ADR 0024)
    ↓
 Nivel 6: Planes de Modernización (docs/plans/)
    ↓
 Nivel 7: Historial de Auditorías y Decisiones Sustituidas (docs/audits/, docs/fastapi/)
 ```
+
+Esta jerarquía organiza autoridad documental: el código determina las capacidades
+implementadas y las fuentes oficiales determinan el protocolo. Una propuesta o
+una regla normativa no acredita su implementación. Revisión de navegación y
+persistencia: 2026-10-23, mediante lectura estática.
 
 ---
 
@@ -45,8 +50,8 @@ Nivel 7: Historial de Auditorías y Decisiones Sustituidas (docs/audits/, docs/f
    Los timestamps de enfriamiento y límites de tasa deben persistirse en disco (`repeater_cooldowns.json` o SQLite). Nunca deben residir exclusivamente en variables de instancia volátiles.
 7. **`MUST` Diferenciar Tipos de Framing**:  
    El framing Companion oficial (`<`/`>`, longitud LE `uint16` y payload) es gestionado por el SDK. El framing raw propio (`0xAA/0x55` + CRC16 de `MeshcoreFrame`) es un parser en memoria, no transporte físico UART.
-8. **`MUST NOT` Activar Repetición en Servidores ROOM en MeshCore 1.18+**:  
-   El comando `set repeat on` está explícitamente bloqueado para dispositivos con rol `ROOM` (`FirmwareAdvertType.ROOM = 3`).
+8. **`MUST NOT` Activar Repetición en Servidores ROOM**:
+   El bridge bloquea `set repeat on` para todo rol `ROOM` (`FirmwareAdvertType.ROOM = 3`), también con versiones anteriores o desconocidas. El firmware 1.18 también lo rechaza.
 9. **`MUST NOT` Ejecutar Suites de Pruebas Automáticamente**:  
    Está terminantemente prohibido ejecutar `pytest`, Playwright o herramientas de fuzzing salvo que el usuario lo solicite explícitamente en su mensaje.
 
@@ -60,7 +65,7 @@ Basada estrictamente en la especificación binaria de MeshCore (`AdvertDataHelpe
 |:---:|:---:|:---:|---|---|
 | `NONE` / `CHAT` | `0` / `1` | `CLIENT` | Mensajería de texto (Canal / DM), telemetría, ping | Acceso a comandos admin de repetidor |
 | `REPEATER` | `2` | `REPEATER` | Comandos remotos admin, telemetría, traceroute, ping hop 0 | **Chat de texto (DM o broadcast)** |
-| `ROOM` | `3` | `ROOM` | BBS, telemetría, administración de sala | **`set repeat on` (rechazado en v1.18+)** |
+| `ROOM` | `3` | `ROOM` | BBS, telemetría, administración de sala | **`set repeat on` (bloqueado por el bridge para cualquier versión)** |
 | `SENSOR` | `4` | `SENSOR` | Telemetría periódica Cayenne LPP / Custom, suscripciones `0x08`/`0x09` | Mensajería interactiva |
 | — | — | `LOCAL` | Estación base host conectada por UART/TCP | **Automensajería (bucle local)** |
 
@@ -70,75 +75,67 @@ Basada estrictamente en la especificación binaria de MeshCore (`AdvertDataHelpe
 
 | Dominio / Subsistema | Archivo Principal | Clase / Función Clave | Responsabilidad |
 |---|---|---|---|
-| **Punto de Entrada** | `meshcore_bridge.py` | `MeshCoreBridge` | Arranque, composición de dependencias y orquestación |
-| **Núcleo Asíncrono** | `src/bridge_core.py` | `BridgeCore` | Inicialización de colas, suscripción a eventos y shutdown |
-| **Driver de Radio** | `src/serial_driver.py` | `SerialDriver` | Ciclo de vida UART, reconexión con backoff exponencial |
+| **Punto de Entrada** | `meshcore_bridge.py` | `main` | Validación de runtime y arranque |
+| **Núcleo Asíncrono** | `src/bridge_core.py` | `MeshCoreBridge` | Composición, inicialización de colas, suscripción a eventos y shutdown |
+| **Fachada de Radio** | `src/serial_driver.py` | `BaseSerialAdapter`, `SerialWatchdog` | Reexporta las implementaciones de `src/serial/` |
 | **Adaptador SDK** | `src/serial/sdk_adapter.py` | `MeshcoreSDKAdapter` | Enlace con SDK oficial Companion (`meshcore_py`) |
-| **Enrutador de Entrada** | `src/rx_router.py` | `RxRouter` | Deserialización, clasificación por opcode y entrega a bus |
+| **Enrutador de Entrada** | `src/rx_router.py` | `RxEventRouter` | Normalización, clasificación por opcode y entrega a handlers |
 | **Deduplicador** | `src/deduplicator.py` | `PacketDeduplicator` | Filtrado de duplicados RF mediante ventana deslizante en RAM |
-| **Control de Airtime** | `src/rate_limiter.py` | `TxRateLimiter`, `AirtimeTracker` | Medición de duty cycle (1%), espaciado y límite de transmisión |
+| **Control de Airtime** | `src/rate_limiter.py` | `TxRateLimiter`, `AirtimeTracker` | Estimación de duty cycle frente al límite configurado, espaciado y prioridades TX |
 | **Resolución de Destinos** | `src/target_resolver.py` | `TargetResolver` | Mapeo de prefijos, apodos y claves públicas de 64 caracteres |
 | **Registro de Nodos** | `src/contact_manager.py` | `NodeRegistry` | Registro de vecinos LoRa, telemetría y libreta de contactos |
-| **Calidad de Enlace** | `src/lqi_engine.py` | `LQIEngine` | Cálculo de Link Quality Index mediante SNR, RSSI y saltos |
+| **Calidad de Enlace** | `src/lqi_engine.py` | `LinkQualityEngine` | Estimación de calidad mediante SNR, RSSI y saltos |
 | **Gestión de Infraestructura** | `src/repeater_manager.py` | `RepeaterManager` | Envío de comandos remotos y persistencia de cooldowns |
-| **Manejador de Sensores** | `src/sensor_decoder.py` | `decode_sensor_packet` | Decodificación binaria de tramas Cayenne LPP y custom |
-| **Broker MQTT** | `src/mqtt_client.py` | `AsyncMQTTClient` | Conexión Paho MQTT asíncrona hacia automatizaciones n8n |
-| **MQTT Externo** | `src/external_mqtt.py` | `ExternalMQTTBridge` | Puente hacia brokers MQTT públicos/externos con TLS |
+| **Manejador de Sensores** | `src/sensor_decoder.py` | `CayenneLPPDecoder`, `extract_telemetry_fields` | Decodificación CayenneLPP y normalización de telemetría |
+| **Cliente MQTT Local** | `src/mqtt_client.py` | `AsyncBridgeMQTTClient` | Conexión Paho MQTT hacia automatizaciones n8n |
+| **MQTT Externo** | `src/external_mqtt_client.py` | `ExternalBridgeMQTTClient` | Puente hacia brokers externos con TLS configurable |
 | **Persistencia Autorizada** | `src/station_database.py` | `StationDatabase` | SQLite en modo WAL: chat, sesiones, canales y airtime |
 | **Servidor Web ASGI** | `src/web/asgi_server.py` | `create_asgi_app` | Servidor FastAPI + Uvicorn embebido en el event loop |
 | **Despachador REST** | `src/web/api_router.py` | `WebAPIRouter` | Mapeo modular de rutas hacia controladores de negocio |
 | **WebSocket Hub** | `src/web/asgi_ws_hub.py` | `WebSocketHub` | Emisión bidireccional reactiva y gestión de conexiones |
-| **Autenticación** | `src/web/authentication.py` | `AuthService` | Hasheo PBKDF2, cookies HttpOnly y protección CSRF |
+| **Autenticación HTTP** | `src/web/authentication.py` | `AuthenticationService` | Cookies HttpOnly, protección CSRF y autorización HTTP/WebSocket |
+| **Credenciales** | `src/web/auth_store.py` | `AuthStore` | Hash scrypt, sesiones/tokens y recuperación local transaccional |
+| **Casos de uso** | `src/application/` | `ChannelService`, `MessageService`, `ContactService` | Canales, chat/historial y sincronización de contactos sin depender del adaptador web |
+| **Ledger MQTT** | `src/application/command_policy.py` | `CommandLedgerPolicy` | Reserva y resultado en SQLite; aplicación parcial según la ruta del dispatcher |
+| **Capacidades** | `src/application/capabilities.py` | `CapabilityRegistry`, `StableMqttPort` | Estado de servicios opcionales y fachada MQTT estable |
 
 ---
 
-## 5. Esquema Canónico de Base de Datos SQLite (`meshcore.sqlite3`)
+## 5. Persistencia SQLite implementada (`meshcore.sqlite3`)
 
-El backend de persistencia (`src/station_database.py`, [ADR 0017](adr/0017-sqlite-station-browser-cache.md)) opera en modo WAL (`synchronous=FULL`):
+El DDL ejecutable reside en `StationDatabase.initialize()`
+(`src/station_database.py`, esquema `user_version=2`) y `AuthStore.initialize()`
+(`src/web/auth_store.py`). Ambos comparten el archivo de estación; las operaciones
+síncronas deben invocarse desde workers cuando el llamador use asyncio.
+La estación configura WAL y `synchronous=FULL`.
 
-```sql
--- Historial completo de mensajería (Canales y DMs)
-CREATE TABLE messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    msg_id TEXT UNIQUE NOT NULL,
-    seq INTEGER NOT NULL,
-    station_id TEXT NOT NULL,
-    feed_key TEXT NOT NULL,           -- 'ch_0', 'dm_<pubkey_64>'
-    direction TEXT NOT NULL,          -- 'incoming', 'outgoing'
-    sender_pubkey TEXT NOT NULL,
-    recipient_pubkey TEXT,
-    text TEXT NOT NULL,
-    timestamp INTEGER NOT NULL,       -- Epoch en segundos
-    delivery_state TEXT NOT NULL,     -- 'pending', 'sent', 'delivered', 'failed'
-    ack_timestamp INTEGER,
-    source TEXT NOT NULL              -- 'radio', 'web', 'mqtt', 'browser_import'
-);
+| Tabla real | Contenido / claves principales |
+| --- | --- |
+| `metadata` | Pares `key`/`value`; incluye el UUID `station_id`. |
+| `documents` | `name`, `payload` JSON, `updated_at`; nombres permitidos: `nodes`, `channels`, `services`, `airtime`, `repeater_cooldowns`. |
+| `legacy_imports` | Fuente, digest y fecha de cada dominio JSON importado una vez. |
+| `messages` | `seq INTEGER PRIMARY KEY AUTOINCREMENT`, `msg_id UNIQUE`, `feed_key`, `timestamp TEXT`, `direction`, `status`, `expected_ack`, `payload` JSON. |
+| `delivery_events` | `event_key` único y payload del evento de entrega. |
+| `pending_acks` | `ack_code`, `req_id`, `target`, `timestamp REAL`. |
+| `sensor_subscriptions` | Clave pública, `push_tag` único, timeout, deltas LPP, vencimiento y estado de suscripción. |
+| `command_ledger` | Reserva por `(station_id, integration_scope, command_id)`, huella, estado y resultado; poda al insertar a 10 000 filas. |
+| `auth_owner` | Cuenta única, sal/hash scrypt, cambio obligatorio y generación. |
+| `auth_sessions` | Digest, CSRF, vencimiento, recordar sesión y generación. |
+| `auth_api_tokens` | Digest del token de integración. |
+| `auth_login_attempts` | Contadores persistidos de intentos por peer y globales. |
 
--- Estado de conversaciones
-CREATE TABLE conversations (
-    feed_key TEXT PRIMARY KEY,
-    last_msg_id TEXT NOT NULL,
-    unread_count INTEGER DEFAULT 0,
-    updated_at INTEGER NOT NULL
-);
-
--- Documentos de configuración y estado sincronizado
-CREATE TABLE station_documents (
-    domain TEXT PRIMARY KEY,          -- 'node_registry', 'channels', 'airtime_history', 'services_config'
-    document_json TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
-);
-
--- Autenticación y credenciales de estación
-CREATE TABLE station_auth (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    username TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    salt TEXT NOT NULL,
-    requires_initial_setup INTEGER DEFAULT 1,
-    updated_at INTEGER NOT NULL
-);
-```
+Las conversaciones se calculan a partir de mensajes; no hay tablas
+`conversations`, `station_documents` o `station_auth`. El UUID se guarda en
+`metadata`, no en una columna `station_id` de cada fila de `messages`.
+Los estados admitidos son `received`, `queued`, `sent`, `failed`, `delivered`;
+`sent` no acredita entrega RF. El ledger conserva hasta 10 000 entradas y no
+es una cola durable de reintentos. Su aplicación es parcial: TX (`mqtt`) detiene
+reservas no admitidas; `/admin/cmd` (`mqtt_admin`) detiene conflictos y reutiliza
+resultados no vacíos, pero puede ejecutar otra vez una reserva en curso sin
+resultado. `/admin/repeater/{target}/cmd` no usa reserva. La política admite modo
+legado si falta la base o falla la reserva, incluso con identificador. Reserva,
+RF y registro de resultado son pasos separados: no hay transacción conjunta ni
+garantía global de ejecución exactamente una vez. Véase [STORAGE.md](STORAGE.md).
 
 ---
 
