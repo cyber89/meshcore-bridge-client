@@ -27,7 +27,7 @@ El análisis del código fuente en producción identifica cinco familias de cons
   - `POST /api/admin/repeater`: Operaciones remotas por `action`, destino y parámetros.
   - `GET /api/status`, `GET /api/health`: Estado y salud de la estación.
 
-El catálogo de método/ruta está en `src/web/asgi_route_catalog.py`; el esquema publicado en `/openapi.json` documenta esas operaciones. El fallback de compatibilidad también despacha rutas del router que aún no figuran en el catálogo, como `GET /api/capabilities` y `/api/services/capabilities` (`ServicesController`). No debe interpretarse el catálogo como inventario exhaustivo de endpoints implementados. No existen los controladores `chat_controller.py`, `messages_controller.py` ni `admin_controller.py` descritos en la versión inicial de este documento.
+El catálogo de método/ruta está en `src/web/asgi_route_catalog.py`; el esquema publicado en `/openapi.json` documenta esas operaciones, incluidas `GET /api/capabilities` y `/api/services/capabilities` (`ServicesController`). El fallback conserva variantes/errores del router y no sustituye la actualización del catálogo. No existen los controladores `chat_controller.py`, `messages_controller.py` ni `admin_controller.py` descritos en la versión inicial de este documento.
 
 ### 1.2 Eventos WebSocket (`src/web/asgi_ws_hub.py`)
 - Flujo en tiempo real sobre `/ws`, gestionado por `WebSocketHub`:
@@ -77,7 +77,7 @@ Los nombres anteriores son los valores `type` de los productores actuales, no no
 | **`mqtt`** | `core` + `MeshCoreMqttClient` (local) y/o `ExternalMqttClient` (comunitario). | Servidor web ASGI, proxy Companion. | `MeshCoreMqttClient._loop`, `MqttDispatcher._inbound_tasks`. |
 | **Combinado** | Unión de las capacidades habilitadas. | Cada subsistema se inicia solo si su flag (`*_ENABLED`) es verdadero. | `ServicesManager` supervisa la salud y recarga con rollback. |
 
-Esta matriz describe composición objetivo/runtime; no son cuatro instalaciones mínimas de `pip`. `pyproject.toml` aún declara web y Paho en dependencias base y los extras las añaden, sin retirarlas. El checker `--profile core`/`mqtt` requiere Paho, MeshCore, pyserial y dotenv; `web`/`all` añade ASGI. `MESHCORE_PROFILE` selecciona comprobaciones, no configura servicios. Los nombres privados de tareas de esta matriz son orientativos; los propietarios actuales se describen en [arquitectura](../ARCHITECTURE.md).
+Esta matriz describe composición runtime. Desde la corrección del 2026-10-24, `pyproject.toml` ofrece core mínimo (MeshCore, pyserial y dotenv), `mqtt` añade Paho, `web` añade ASGI y `all` reúne ambos. Los perfiles del checker siguen esa separación; `MESHCORE_PROFILE` selecciona comprobaciones, no configura servicios. Los nombres privados de tareas de esta matriz son orientativos; los propietarios actuales se describen en [arquitectura](../ARCHITECTURE.md).
 
 ---
 
@@ -108,7 +108,7 @@ Esta matriz describe composición objetivo/runtime; no son cuatro instalaciones 
 2. **Política de `command_id` en Workflows MQTT (Idempotencia)**:
    - **Modo Legado**: Órdenes sin `command_id`, `request_id` o `id` se aceptan con garantías limitadas (sin deduplicación), emitiendo advertencia estructurada en logs.
    - **Modo Idempotente**: Órdenes con `command_id` son registradas atómicamente en un ledger persistido en SQLite antes de su despacho a la radio. Solicitudes con el mismo ID y misma huella semántica devuelven el estado registrado sin retransmitir por RF. Solicitudes con el mismo ID pero diferente huella producen conflicto (`CONFLICT`).
-   - **Diferencia de implementación (2026-10-23)**: la política anterior es el contrato de diseño. TX detiene las reservas rechazadas; `admin/cmd` puede continuar si aún no hay resultado guardado y `admin/repeater/{target}/cmd` omite el ledger. Sin BD o ante error de reserva se admite modo legado. La poda limita la deduplicación a las entradas retenidas. Véanse [arquitectura](../ARCHITECTURE.md) y [guía MQTT](../N8N_WORKFLOW_GUIDE.md); no hay garantía global de ejecución única.
+   - **Conciliación (2026-10-24)**: TX y ambas rutas administrativas detienen toda reserva rechazada, incluso sin resultado guardado. Con ID, ausencia/error de BD impide despacho; sólo sin ID se admite modo legado. El ledger se ejecuta en workers. La poda limita la deduplicación a las entradas retenidas y RF no forma parte de la transacción SQLite. Véanse [arquitectura](../ARCHITECTURE.md) y [guía MQTT](../N8N_WORKFLOW_GUIDE.md); no hay garantía global de ejecución exactamente una vez.
 3. **Retención del Ledger de Comandos**:
    - No se añadirá ningún timer periódico ni hilo de limpieza en segundo plano (prevención de fugas y cumplimiento de la regla de timers).
    - Se aplicará un tope estricto de **10 000 filas** verificado y podado en el momento de la inserción transaccional (`DELETE FROM command_ledger WHERE id IN (SELECT id FROM command_ledger ORDER BY created_at ASC LIMIT MAX(0, count - 10000))`).

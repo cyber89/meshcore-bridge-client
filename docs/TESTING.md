@@ -156,7 +156,29 @@ instalación o su estado; no son comprobaciones y no se ejecutan por una auditor
 fijos y aislamiento parcial; usar las fixtures mantenidas o los dos inspectores
 que comparten `isolated_frontend_station.py` para una revisión aislada autorizada.
 
-El comprobador de imports recorre ASTs e imports locales transitivos para los
+`check_frontend_health.py` devuelve código 1 ante excepciones JS, errores de
+consola, respuestas HTTP 4xx/5xx, peticiones fallidas o controles/paneles
+obligatorios ausentes. Su código 0 requiere completar la inspección sin esos
+fallos; no certifica accesibilidad o rendimiento.
+
+`inspect_web.py` inspecciona un destino elegido explícitamente; no crea una
+estación temporal. La autorización de navegador y el destino seguro deben
+resolverse antes de ejecutarlo. Para una SPA autenticada admite
+`--storage-state <archivo-local>` con una sesión Playwright ya autorizada; el
+archivo contiene cookies y debe tratarse como secreto, fuera de Git. No crea
+cuentas ni convierte tokens Bearer en sesiones de navegador. Cada viewport
+comprueba sesión, estación visible, componentes obligatorios, consola y red;
+una pantalla de login o un fallo móvil hace fallar el resultado global.
+
+`export_logs.py --json` devuelve código 1 si no obtiene diagnósticos válidos y
+conserva un archivo de salida anterior; no guarda un objeto de error como si
+fuera una exportación válida. `build_diagrams.py` falla si falta cualquiera de
+sus fuentes JSON requeridas o no completa todas las entregas. Las regresiones
+de estos contratos están en `tests/test_deep_tools_fixes.py`; no se ejecutan
+automáticamente por modificar las herramientas.
+
+El comprobador de imports expande los orígenes de paquete a todos sus módulos
+descendientes, aunque no se exporten desde `__init__.py`, y recorre ASTs e imports locales transitivos para los
 contratos `forbidden` declarados en `pyproject.toml`, sin importar la aplicación.
 No sustituye una verificación completa de cinco capas ni detecta imports
 dinámicos. El diagrama vigente permite que L3 use persistencia L5; ese import

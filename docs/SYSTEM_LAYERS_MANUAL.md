@@ -2,7 +2,7 @@
 
 > **Audiencia**: Ingenieros de software, desarrolladores de sistemas embebidos, arquitectos de integración y técnicos de soporte que requieran comprender en profundidad el diseño modular, contratos de interfaz, clases, métodos y flujos de datos de **MeshCore Bridge**.
 
-Revisado con el código el 2026-10-23 mediante lectura estática, incluida la extracción de servicios de aplicación y el registro de capacidades. Las capas organizan responsabilidades; no acreditan aislamiento absoluto, medidas de recursos o paridad operativa. Las autorizaciones y resultados de QA pertenecen a sus entregas fechadas; esta revisión no ejecuta suites.
+Revisado con el código el 2026-10-24 mediante lectura estática, incluida la extracción de servicios de aplicación y el registro de capacidades. Las capas organizan responsabilidades; no acreditan aislamiento absoluto, medidas de recursos o paridad operativa. Las autorizaciones y resultados de QA pertenecen a sus entregas fechadas; esta revisión no ejecuta suites.
 
 ---
 
@@ -201,17 +201,18 @@ mutaciones y sincronización con radio; `ChannelsController`, `TxController`,
 La capa de aplicación no depende de `src/web`.
 
 `CommandLedgerPolicy` reserva órdenes MQTT identificadas en SQLite en las rutas
-que lo invocan. Su aplicación es parcial: el handler administrativo por repetidor
-no reserva, el general puede continuar sin resultado previo y un error de reserva
-admite modo legado. El ledger conserva hasta 10 000 entradas y no es una cola de
-replay; véase el alcance detallado en [STORAGE.md](STORAGE.md).
+de TX y ambas rutas administrativas. Las llamadas se ejecutan en workers propios;
+toda reserva rechazada detiene el despacho, también sin resultado previo. Con ID,
+un error de reserva impide RF; sólo la ausencia de ID admite modo legado. El ledger
+conserva hasta 10 000 entradas y no es una cola de replay; véase [STORAGE.md](STORAGE.md).
 
 `CapabilityRegistry` registra `core`, `web`, `companion`, `local_mqtt` y
 `external_mqtt` con indicadores `installed`, `configured`, `instantiated`,
 `started`, `operational`; `GET /api/capabilities` expone el snapshot autenticado.
 `StableMqttPort` mantiene la fachada durante recargas. La opcionalidad de runtime
-no garantiza instalación mínima: las dependencias base actuales de `pyproject.toml`
-incluyen paquetes web/MQTT además de declararlos en extras.
+se separa del empaquetado: el paquete base sólo requiere MeshCore, pyserial y
+dotenv; extras `mqtt`, `web` y `all` agregan las integraciones elegidas. `dev`
+incluye la pila completa y QA. Los instaladores estándar siguen instalando todo.
 
 #### `AdminCommandHandler` (`src/admin_handler.py`)
 Punto de despacho unificado para operaciones administrativas generadas desde REST o MQTT.

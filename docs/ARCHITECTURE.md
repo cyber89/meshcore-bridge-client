@@ -9,7 +9,7 @@
 ## 1. Resumen Ejecutivo
 MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante CPython estable 3.12+ (3.13.5 recomendado, sin máximo) y `asyncio`, conforme a [ADR 0016](adr/0016-python-3-12-baseline.md). El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa una pila de producción basada en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`) para REST, WebSocket, teselas MBTiles y SPA.
 
-Documento revisado por inspección estática de código el 2026-10-23; conserva los registros fechados de entregas anteriores. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
+Documento revisado por inspección estática de código el 2026-10-24; conserva los registros fechados de entregas anteriores. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
 
 Actualización de arquitectura (Octubre 2026): El bridge opera con un servidor de producción
 basado en **FastAPI 0.143 / Uvicorn 0.54 (ASGI)** (`src/web/asgi_server.py`). Las fases de migración
@@ -137,9 +137,8 @@ Conforme a las fases F1 y F3.1 del plan de evolución (`nuevo.md`, [ADR 0020](ad
    - Se eliminaron las dependencias de constantes globales estáticas en `rx_router`, `bridge_core`, `system_handler` y `admin_handlers`.
 3. **Ledger de órdenes y alcance de deduplicación (`src/application/command_policy.py`)**:
    - `StationDatabase.reserve_command()` reserva en una transacción SQLite por `(station_id, integration_scope, command_id)`. En `_handle_tx_request`, el ámbito `mqtt` rechaza una reserva no admitida antes de encolar TX: devuelve conflicto o el estado/resultado previo, incluso si todavía no hay resultado final.
-   - `_handle_admin_request` (`{prefix}/admin/cmd`, ámbito `mqtt_admin`) evita repetir cuando ya existe un resultado no vacío, y rechaza conflictos. Si la reserva no fue admitida pero aún carece de resultado, el handler continúa: duplicados concurrentes o reintentos de una orden administrativa en curso pueden volver a ejecutarse.
-   - La ruta `{prefix}/admin/repeater/{target}/cmd` llama directamente a `handle_admin` sin reservar en el ledger. No tiene esta deduplicación aunque el payload incluya `command_id`.
-   - Sin identificador se conserva el modo legado. `CommandLedgerPolicy.reserve()` también admite ejecución en modo legado si falta la base o falla su consulta/reserva. Los fallos al marcar despacho o registrar resultado se registran en logs y no revierten una operación RF.
+   - Ambas rutas administrativas, `{prefix}/admin/cmd` y `{prefix}/admin/repeater/{target}/cmd`, pasan por `_dispatch_admin_command` y el ámbito `mqtt_admin`. Una reserva rechazada detiene el despacho aunque aún no tenga resultado; el consumidor recibe el estado previo o el conflicto.
+   - Las operaciones SQLite del ledger se ejecutan en workers propios protegidos ante cancelación, que se drenan durante cierre. Sin identificador se conserva el modo legado; con ID, la ausencia/error de BD o el fallo al marcar despacho rechaza la operación antes de RF. Un fallo al guardar el resultado no deshace una transmisión ya realizada.
    - La reserva, el despacho RF y el registro del resultado no forman una única transacción. La tabla se poda a 10 000 filas al insertar; una entrada eliminada o revertida por restauración puede admitirse de nuevo. Este mecanismo parcial no garantiza ejecución exactamente una vez ni constituye una cola durable de reintentos.
 4. **Rechazo Estricto de Mensajes Retenidos**:
    - Los adaptadores MQTT (`AsyncBridgeMQTTClient` y `ExternalBridgeMQTTClient`) inspeccionan la bandera `retain`. Cualquier mensaje con `retain=True` dirigido a tópicos de acción (`/tx`, `/send`, `/admin/*`) es descartado inmediatamente para prevenir ráfagas involuntarias tras reconexiones.
@@ -162,7 +161,7 @@ Conforme a las fases F1 y F3.1 del plan de evolución (`nuevo.md`, [ADR 0020](ad
    - Diferencia la liveness del proceso (`alive` y uptime) de la readiness del core y de los subsistemas opcionales; `alive` no acredita comunicación RF. La ausencia o deshabilitación de Web o MQTT no marca la estación como degradada.
    - `StableMqttPort` actúa como fachada perenne para publicación segura y tópicos dinámicos, eliminando la invalidación de referencias internas durante el hot-reload de `ServicesManager`.
    - Soporte headless nativo: el bridge detecta la ausencia de dependencias web sin lanzar excepciones no controladas.
-   - Extras declarados en `pyproject.toml` (`core`, `web`, `mqtt`, `all`, `dev`). Actualmente las dependencias base también incluyen web y MQTT: instalar el extra `core` no los excluye. La opcionalidad de runtime no equivale a empaquetado mínimo.
+   - El paquete base y el extra `core` sólo requieren MeshCore, pyserial y dotenv. `mqtt` añade Paho; `web`, ASGI; `all` reúne ambos y `dev` añade QA sobre la pila completa. `requirements.txt` conserva el despliegue completo. Los servicios MQTT desactivados o sin Paho usan una fachada inerte sin cargar TLS ni abrir conexiones; las capacidades distinguen ausencia y desactivación.
    - Endpoint de introspección `GET /api/capabilities`.
 
 ## 2. Modelo Canónico de Arquitectura en 5 Capas
@@ -635,7 +634,7 @@ sequenceDiagram
 
 | Método HTTP | Ruta | Controller | Descripción |
 | --- | --- | --- | --- |
-| GET | `/api/capabilities` | `ServicesController` | Snapshot de capacidades, liveness del proceso y readiness; requiere autenticación. También `/api/services/capabilities`; despacho por fallback, aún fuera del catálogo OpenAPI. |
+| GET | `/api/capabilities` | `ServicesController` | Snapshot de capacidades, liveness del proceso y readiness; requiere autenticación. También `/api/services/capabilities`; ambas operaciones figuran en OpenAPI. |
 | GET | `/api/status` | `SystemController` | Estado físico y lógico del nodo local y del bridge. |
 | GET | `/api/health` | `SystemController` | Reporta subsistemas, contadores, uptime y último error mediante DiagnosticManager; sin métricas RAM/disco/CPU del OS. |
 | GET | `/api/diagnostics` | `SystemController` | Idéntico a `/api/health`. |

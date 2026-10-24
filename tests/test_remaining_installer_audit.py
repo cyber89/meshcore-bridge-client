@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import NamedTuple
@@ -49,7 +50,7 @@ def test_partial_environment_does_not_pass_with_paho_alone(missing: str) -> None
         return object()
 
     versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.DEPENDENCIES}
-    failures = dependencies.check_dependencies(importer, versions.__getitem__, profile='core')
+    failures = dependencies.check_dependencies(importer, versions.__getitem__, profile='mqtt')
     assert len(failures) == 1
     assert 'ModuleNotFoundError' in failures[0]
 
@@ -58,11 +59,11 @@ def test_partial_environment_does_not_pass_with_paho_alone(missing: str) -> None
 def test_dependency_minimum_version_is_verified(old: str) -> None:
     versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.DEPENDENCIES}
     versions[old] = '0.1.0'
-    failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='core')
+    failures = dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile='mqtt')
     assert len(failures) == 1 and old in failures[0]
 
 
-@pytest.mark.parametrize('profile', ['core', 'web'])
+@pytest.mark.parametrize('profile', ['core', 'mqtt', 'web', 'all'])
 def test_complete_environment_passes(profile: str) -> None:
     versions = {entry[0]: '.'.join(map(str, entry[2])) for entry in dependencies.PROFILES[profile]}
     assert dependencies.check_dependencies(lambda module: object(), versions.__getitem__, profile=profile) == []
@@ -181,7 +182,7 @@ def test_dependency_import_failure_does_not_disclose_exception_values() -> None:
         raise RuntimeError('synthetic-api-key=do-not-log')
 
     failures = dependencies.check_dependencies(importer, profile='core')
-    assert len(failures) == len(dependencies.DEPENDENCIES)
+    assert len(failures) == len(dependencies.CORE_DEPENDENCIES)
     assert all('RuntimeError' in failure and 'do-not-log' not in failure for failure in failures)
 
 
@@ -194,7 +195,7 @@ def test_installers_always_verify_the_production_web_profile() -> None:
     for filename in ('install.sh', 'install.ps1'):
         probes = [line for line in source(filename).splitlines() if 'check_runtime_dependencies.py' in line]
         assert probes
-        assert all('--profile web' in line for line in probes)
+        assert all('--profile all' in line for line in probes)
 
 
 def create_release(path: Path, value: str) -> None:
@@ -417,12 +418,18 @@ def test_complete_install_configures_identity_before_ownership_and_service(
     (project / 'docs').mkdir()
     (project / 'docs/sample.md').write_text('fixture')
     (project / 'pyproject.toml').write_text('fixture')
-    (project / '.env.example').write_text('SERIAL_PORT=AUTO\n')
+    (project / '.env.example').write_text('SERIAL_PORT=AUTO\nSYNTHETIC_PREF=unchanged\n')
     (project / 'meshcore-bridge.service').write_text(source('meshcore-bridge.service'))
-    (installed / 'venv/bin').mkdir(parents=True)
-    (installed / '.env').write_text('SYNTHETIC_PREF=unchanged\n')
-    interpreter = installed / 'venv/bin/python'
-    interpreter.write_text('#!/usr/bin/env bash\nexit 0\n')
+    interpreter = tmp_path / 'mock-python'
+    interpreter.write_text('''#!/usr/bin/env bash
+if [[ "${1:-}" == "-c" || "${1:-}" == "-" ]]; then exec "$REAL_PYTHON" "$@"; fi
+if [[ "$*" == "-m venv "* ]]; then
+    mkdir -p "$3/bin"
+    cp "$0" "$3/bin/python"
+    chmod +x "$3/bin/python"
+fi
+exit 0
+''', encoding='utf-8', newline='\n')
     interpreter.chmod(0o755)
     systemd = tmp_path / 'systemd'
     systemd.mkdir()
@@ -432,6 +439,7 @@ def test_complete_install_configures_identity_before_ownership_and_service(
 ACCOUNT_CREATED=0
 apt-get() { :; }
 systemctl() { :; }
+mosquitto_passwd() { :; }
 sudo() {
     [[ "${1:-}" == "-u" && "${2:-}" == "$SERVICE_USER" ]] || return 19
     shift 2
@@ -453,22 +461,29 @@ id() {
 }
 chown() {
     echo "chown $*" >> "$CALL_LOG"
+    if [[ "${1:-}" == "root:mosquitto" ]]; then return 0; fi
     [[ -n "$SERVICE_GROUP" ]] || return 19
     if [[ "$SERVICE_USER" == "meshcore" ]]; then [[ "$ACCOUNT_CREATED" == "1" ]] || return 19; fi
 }
 '''
     runner = tmp_path / 'fresh-contract.sh'
-    runner.write_text('set -Eeuo pipefail\nSERVICE_GROUP=""\n' + shell_presentation(text) + mocks + runtime_definitions + definitions + block, encoding='utf-8')
+    runner.write_text('set -Eeuo pipefail\nSERVICE_GROUP=""\n' + shell_presentation(text) + mocks + runtime_definitions + definitions + block, encoding='utf-8', newline='\n')
     service_user = 'meshcore' if invoker == 'root' else invoker
     env = dict(os.environ, CURRENT_DIR=project.as_posix(), INSTALL_DIR=installed.as_posix(),
                TARGET_USER=invoker, SERVICE_USER=service_user, SYSTEMD_DIR=systemd.as_posix(),
                SERVICE_NAME='meshcore-bridge.service', CALL_LOG=(tmp_path / 'calls.log').as_posix(),
+               REAL_PYTHON=Path(sys.executable).as_posix(),
                MESHCORE_PYTHON=interpreter.as_posix())
     result = subprocess.run([str(BASH), str(runner)], env=env, capture_output=True, encoding='utf-8', errors='replace', timeout=20)
     assert result.returncode == 0, result.stdout + result.stderr
     unit = (systemd / 'meshcore-bridge.service').read_text()
     assert f'User={service_user}\n' in unit and f'Group={service_user}\n' in unit
-    assert (installed / '.env').read_text() == 'SYNTHETIC_PREF=unchanged\n'
+    configuration = (installed / '.env').read_text()
+    assert 'SYNTHETIC_PREF=unchanged\n' in configuration
+    assert 'MQTT_USER=meshcore_bridge\n' in configuration
+    assert 'MQTT_PASSWORD=' in configuration
+    if os.name != 'nt':
+        assert (installed / '.env').stat().st_mode & 0o777 == 0o600
 
 
 def test_service_identity_and_shutdown_contract() -> None:

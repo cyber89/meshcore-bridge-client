@@ -120,6 +120,7 @@ Documentos de planificación paso a paso para la adopción de nuevas capacidades
 
 ## 🛡️ 4. Historial de Auditorías y Revisiones (`docs/audits/`)
 
+- [Corrección conjunta 2026-10-24](audits/2026-10-24-remediation-validation.md): implementación de los 15 hallazgos y pendientes iniciales, checklist RF, regresiones escritas y verificaciones estáticas.
 - [Segunda revisión profunda 2026-10-23](audits/2026-10-23-deep-script-contract-review.md): 15 hallazgos adicionales en instalación, locks, contratos, persistencia y verificadores; evidencia estática, sin cambios de código ni suites.
 - [Revisión de documentación y scripts 2026-10-23](audits/2026-10-23-documentation-scripts-review.md): conciliación con el checkout, inventarios regenerados, verificaciones estáticas y límites pendientes.
 - [Comparación con clientes oficiales 2026-10-21](audits/2026-10-21-official-clients-comparison.md).

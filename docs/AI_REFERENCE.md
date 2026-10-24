@@ -30,7 +30,7 @@ Nivel 7: Historial de Auditorías y Decisiones Sustituidas (docs/audits/, docs/f
 Esta jerarquía organiza autoridad documental: el código determina las capacidades
 implementadas y las fuentes oficiales determinan el protocolo. Una propuesta o
 una regla normativa no acredita su implementación. Revisión de navegación y
-persistencia: 2026-10-23, mediante lectura estática.
+persistencia: 2026-10-24, mediante lectura estática.
 
 ---
 
@@ -129,11 +129,10 @@ Las conversaciones se calculan a partir de mensajes; no hay tablas
 `metadata`, no en una columna `station_id` de cada fila de `messages`.
 Los estados admitidos son `received`, `queued`, `sent`, `failed`, `delivered`;
 `sent` no acredita entrega RF. El ledger conserva hasta 10 000 entradas y no
-es una cola durable de reintentos. Su aplicación es parcial: TX (`mqtt`) detiene
-reservas no admitidas; `/admin/cmd` (`mqtt_admin`) detiene conflictos y reutiliza
-resultados no vacíos, pero puede ejecutar otra vez una reserva en curso sin
-resultado. `/admin/repeater/{target}/cmd` no usa reserva. La política admite modo
-legado si falta la base o falla la reserva, incluso con identificador. Reserva,
+es una cola durable de reintentos. TX (`mqtt`) y ambas rutas de administración
+(`mqtt_admin`) detienen toda reserva no admitida, también las que siguen en curso
+sin resultado. El ledger usa workers propios; sólo las órdenes sin ID admiten
+modo legado. Con ID, ausencia/error de BD o fallo al marcar despacho impide RF. Reserva,
 RF y registro de resultado son pasos separados: no hay transacción conjunta ni
 garantía global de ejecución exactamente una vez. Véase [STORAGE.md](STORAGE.md).
 

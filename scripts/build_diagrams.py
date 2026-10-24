@@ -49,7 +49,7 @@ def run_step(cmd: list[str], desc: str) -> bool:
     print(f"[OK]   {desc}")
     return True
 
-def main():
+def main() -> int:
     archify = resolve_archify()
     print("=" * 70)
     print("MeshCore Bridge - Compilador de Diagramas Interactivos con Archify")
@@ -57,10 +57,12 @@ def main():
     print("=" * 70)
 
     all_ok = True
+    completed = 0
     for item in DIAGRAMS:
         print(f"\n--- {item['label']} ---")
         if not item["json"].exists():
             print(f"[WARN] Archivo no encontrado: {item['json']}")
+            all_ok = False
             continue
 
         val_cmd = ["node", str(archify), "validate", item["type"], str(item["json"]), "--quality", "showcase", "--json"]
@@ -72,17 +74,19 @@ def main():
         del_cmd = ["node", str(archify), "deliver", item["type"], str(item["json"]), str(item["html"]), "--quality", "showcase", "--json"]
         ok = run_step(del_cmd, f"Entrega HTML ({item['html'].name})")
         if ok and item["html"].exists():
+            completed += 1
             size_kb = item["html"].stat().st_size / 1024.0
             print(f"       -> Artefacto generado: {item['html'].name} [{size_kb:.1f} KB]")
         else:
             all_ok = False
 
     print("\n" + "=" * 70)
-    if all_ok:
+    if all_ok and completed == len(DIAGRAMS) and completed > 0:
         print("[SUCCESS] Todos los diagramas de Archify fueron compilados y verificados.")
+        return 0
     else:
         print("[ERROR] Ocurrieron fallos durante la compilacion.")
-        sys.exit(1)
+        return 1
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

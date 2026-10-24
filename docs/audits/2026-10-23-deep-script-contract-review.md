@@ -1,5 +1,9 @@
 # Segunda revisión: scripts y contratos funcionales — 2026-10-23
 
+Actualización del 2026-10-24: las correcciones y su verificación están en la
+[entrega de remediación](2026-10-24-remediation-validation.md). Este informe
+conserva el diagnóstico y los números de línea de su base original.
+
 ## Alcance y criterio de evidencia
 
 Base revisada: `bbeccd5b63cba4b4d8e8404efe00d987bc8b4bef`, rama `main`.

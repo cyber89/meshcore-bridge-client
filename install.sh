@@ -108,13 +108,10 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # A fresh installation must have an independent source before any changes.
-if [[ -z "$ACTION" && -d "$INSTALL_DIR" ]]; then
-    INSTALL_ROOT="$(cd "$INSTALL_DIR" && pwd -P)"
-    if [[ "$CURRENT_DIR" -ef "$INSTALL_DIR" || "$CURRENT_DIR" == "$INSTALL_ROOT/"* ]]; then
-        print_fail "The source checkout is inside the installation directory."
-        print_info "Use --update, or run a fresh installation from a separate checkout."
-        exit 1
-    fi
+if [[ -z "$ACTION" && ( -e "$INSTALL_DIR" || -L "$INSTALL_DIR" ) ]]; then
+    print_fail "The installation destination already exists: $INSTALL_DIR"
+    print_info "Use --update to preserve an existing station and apply transactional rollback."
+    exit 1
 fi
 
 # 2. Uninstall (--uninstall)
@@ -162,6 +159,103 @@ select_runtime_python() {
     local py_ver
     py_ver="$("$PYTHON_RUNTIME" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")')"
     print_ok "Python runtime: Python ${py_ver} ($("$PYTHON_RUNTIME" -c 'import sys; print(sys.executable)'))"
+}
+
+generate_mqtt_password() {
+    local password
+    password="$("$PYTHON_RUNTIME" -c 'import secrets; print(secrets.token_hex(12))')" || return
+    if [[ ! "$password" =~ ^[0-9a-f]{24}$ ]]; then
+        print_fail "Secure MQTT password generation failed."
+        return 1
+    fi
+    printf '%s' "$password"
+}
+
+configure_local_broker() {
+    (
+        # An isolated trap removes only our temporary password file on failure.
+        set -Eeuo pipefail
+        mkdir -p "$MOSQUITTO_CONF_DIR"
+        getent group mosquitto >/dev/null || {
+            print_fail "The Mosquitto service group is unavailable."
+            exit 1
+        }
+        for broker_file in meshcore_passwd meshcore_acl meshcore_local.conf; do
+            if [[ -L "$MOSQUITTO_CONF_DIR/$broker_file" ]]; then
+                print_fail "Broker configuration must not be a symbolic link: $broker_file"
+                exit 1
+            fi
+        done
+        password_stage="$(mktemp "$MOSQUITTO_CONF_DIR/.meshcore-passwd.XXXXXX")"
+        trap 'rm -f -- "$password_stage"' EXIT
+        chmod 600 "$password_stage"
+        if [[ -f "$MOSQUITTO_CONF_DIR/meshcore_passwd" ]]; then
+            cat "$MOSQUITTO_CONF_DIR/meshcore_passwd" > "$password_stage"
+        fi
+        mosquitto_passwd -b "$password_stage" "$MQTT_BRIDGE_USER" "$MQTT_BRIDGE_PASS"
+        mosquitto_passwd -b "$password_stage" "$MQTT_CLIENT_USER" "$MQTT_CLIENT_PASS"
+        chown root:mosquitto "$password_stage"
+        chmod 640 "$password_stage"
+        mv -f -- "$password_stage" "$MOSQUITTO_CONF_DIR/meshcore_passwd"
+
+        cat << 'EOF' > "$MOSQUITTO_CONF_DIR/meshcore_acl"
+# MeshCore Bridge internal service user permissions
+user meshcore_bridge
+topic readwrite #
+
+# LAN client integration permissions (n8n, Home Assistant, etc.)
+user meshcore_client
+topic readwrite meshcore/#
+EOF
+        chmod 644 "$MOSQUITTO_CONF_DIR/meshcore_acl"
+        cat << EOF > "$MOSQUITTO_CONF_DIR/meshcore_local.conf"
+# Secure access configuration for MeshCore Bridge and LAN integrations
+listener 1883 0.0.0.0
+allow_anonymous false
+password_file $MOSQUITTO_CONF_DIR/meshcore_passwd
+acl_file $MOSQUITTO_CONF_DIR/meshcore_acl
+EOF
+        systemctl enable mosquitto
+        systemctl restart mosquitto
+        systemctl is-active --quiet mosquitto || {
+            print_fail "Mosquitto did not start; inspect its service logs before retrying."
+            exit 1
+        }
+        print_ok "Mosquitto is active on port 1883 with authentication and ACL enabled."
+    )
+}
+
+# Create a private initial configuration, inserting keys absent from the template.
+write_initial_configuration() {
+    MESHCORE_INSTALL_MQTT_PASSWORD="$MQTT_BRIDGE_PASS" "$PYTHON_RUNTIME" - "$1" "$2" "$DETECTED_PORT" "$MQTT_BRIDGE_USER" << 'PY'
+import os
+import re
+import sys
+from pathlib import Path
+
+template, destination, serial_port, mqtt_user = sys.argv[1:]
+updates = {
+    "SERIAL_PORT": serial_port,
+    "MQTT_USER": mqtt_user,
+    "MQTT_PASSWORD": os.environ["MESHCORE_INSTALL_MQTT_PASSWORD"],
+}
+lines = Path(template).read_text(encoding="utf-8-sig").splitlines()
+result = []
+written = set()
+for line in lines:
+    match = re.match(r"^\s*(?:export\s+)?([A-Z_]+)\s*=", line)
+    key = match.group(1) if match else None
+    if key in updates:
+        if key not in written:
+            result.append(f"{key}={updates[key]}")
+            written.add(key)
+    else:
+        result.append(line)
+result.extend(f"{key}={value}" for key, value in updates.items() if key not in written)
+descriptor = os.open(destination, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+    stream.write("\n".join(result) + "\n")
+PY
 }
 
 # Service identity and serial access
@@ -235,6 +329,8 @@ if [[ "$ACTION" == "--update" ]]; then
     print_step "1/5" "Check update prerequisites"
     select_runtime_python
     [[ -d "$INSTALL_DIR" ]] || { print_fail "Installation directory does not exist: $INSTALL_DIR"; exit 1; }
+    [[ ! -L "$INSTALL_DIR/.env" ]] || { print_fail "Station configuration must not be a symbolic link."; exit 1; }
+    [[ ! -e "$INSTALL_DIR/.env" || -f "$INSTALL_DIR/.env" ]] || { print_fail "Station configuration must be a regular file."; exit 1; }
     UPDATE_HELPER="$CURRENT_DIR/scripts/staged_update.py"
     [[ -f "$UPDATE_HELPER" ]] || { print_fail "Update helper not found: $UPDATE_HELPER"; exit 1; }
 
@@ -276,7 +372,7 @@ if [[ "$ACTION" == "--update" ]]; then
     STAGED_PYTHON="$STAGE_DIR/release/venv/bin/python"
     "$STAGED_PYTHON" -m pip install --upgrade pip setuptools wheel -q
     "$STAGED_PYTHON" -m pip install -r "$STAGE_DIR/release/requirements.txt"
-    "$STAGED_PYTHON" "$STAGE_DIR/release/scripts/check_runtime_dependencies.py" --profile web
+    "$STAGED_PYTHON" "$STAGE_DIR/release/scripts/check_runtime_dependencies.py" --profile all
     "$STAGED_PYTHON" -m compileall -q "$STAGE_DIR/release/src" "$STAGE_DIR/release/config.py"
     print_ok "Staged dependencies verified and source syntax compiled."
 
@@ -293,9 +389,10 @@ if [[ "$ACTION" == "--update" ]]; then
     STAGE_APPLIED=1
     "$PYTHON_RUNTIME" "$UPDATE_HELPER" apply "$STAGE_DIR"
     "$PYTHON_RUNTIME" "$UPDATE_HELPER" relocate "$STAGE_DIR"
-    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
+    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile all
     mkdir -p "$INSTALL_DIR/logs" "$INSTALL_DIR/data"
     chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
+    if [[ -f "$INSTALL_DIR/.env" ]]; then chmod 600 "$INSTALL_DIR/.env"; fi
     print_info "Initialize web account (preserve existing credentials)"
     sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/setup_auth.py" --project-dir "$INSTALL_DIR"
     cp -f "$STAGE_DIR/systemd.next" "$SYSTEMD_DIR/$SERVICE_NAME"
@@ -344,52 +441,11 @@ select_runtime_python
 # Step 3: Local MQTT broker
 print_step "3/7" "Configure and start Mosquitto with authentication"
 MOSQUITTO_CONF_DIR="/etc/mosquitto/conf.d"
-mkdir -p "$MOSQUITTO_CONF_DIR"
-
 MQTT_BRIDGE_USER="meshcore_bridge"
 MQTT_CLIENT_USER="meshcore_client"
-EXISTING_ENV="$INSTALL_DIR/.env"
-MQTT_BRIDGE_PASS=""
-if [[ -f "$EXISTING_ENV" ]]; then
-    MQTT_BRIDGE_PASS="$(grep '^MQTT_PASSWORD=' "$EXISTING_ENV" 2>/dev/null | cut -d'=' -f2- | tr -d "'\"" || true)"
-fi
-if [[ -z "$MQTT_BRIDGE_PASS" ]]; then
-    MQTT_BRIDGE_PASS="$(python3 -c 'import secrets; print(secrets.token_hex(12))' 2>/dev/null || openssl rand -hex 12 2>/dev/null || echo 'MeshCore_Secured_2026!')"
-fi
-MQTT_CLIENT_PASS="$(python3 -c 'import secrets; print(secrets.token_hex(12))' 2>/dev/null || openssl rand -hex 12 2>/dev/null || echo 'Client_Secured_2026!')"
-
-touch "$MOSQUITTO_CONF_DIR/meshcore_passwd"
-chmod 600 "$MOSQUITTO_CONF_DIR/meshcore_passwd"
-mosquitto_passwd -b "$MOSQUITTO_CONF_DIR/meshcore_passwd" "$MQTT_BRIDGE_USER" "$MQTT_BRIDGE_PASS" >/dev/null 2>&1 || true
-mosquitto_passwd -b "$MOSQUITTO_CONF_DIR/meshcore_passwd" "$MQTT_CLIENT_USER" "$MQTT_CLIENT_PASS" >/dev/null 2>&1 || true
-
-cat << 'EOF' > "$MOSQUITTO_CONF_DIR/meshcore_acl"
-# MeshCore Bridge internal service user permissions
-user meshcore_bridge
-topic readwrite #
-
-# LAN client integration permissions (n8n, Home Assistant, etc.)
-user meshcore_client
-topic readwrite meshcore/#
-EOF
-chmod 644 "$MOSQUITTO_CONF_DIR/meshcore_acl"
-
-cat << EOF > "$MOSQUITTO_CONF_DIR/meshcore_local.conf"
-# Secure access configuration for MeshCore Bridge and LAN integrations
-listener 1883 0.0.0.0
-allow_anonymous false
-password_file $MOSQUITTO_CONF_DIR/meshcore_passwd
-acl_file $MOSQUITTO_CONF_DIR/meshcore_acl
-EOF
-
-systemctl enable mosquitto >/dev/null 2>&1 || true
-systemctl restart mosquitto >/dev/null 2>&1 || true
-
-if systemctl is-active --quiet mosquitto; then
-    print_ok "Mosquitto is active on port 1883 with authentication and ACL enabled."
-else
-    print_warn "Mosquitto did not start. Check: sudo systemctl status mosquitto"
-fi
+MQTT_BRIDGE_PASS="$(generate_mqtt_password)"
+MQTT_CLIENT_PASS="$(generate_mqtt_password)"
+configure_local_broker
 
 # Step 4: Service identity and serial access
 print_step "4/7" "Configure service identity and serial access"
@@ -416,7 +472,7 @@ fi
 
 # Step 6: Deploy production files
 print_step "6/7" "Deploy files to ${INSTALL_DIR}"
-mkdir -p "$INSTALL_DIR"
+mkdir "$INSTALL_DIR"
 
 cp -f "$CURRENT_DIR/config.py" "$INSTALL_DIR/"
 cp -f "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
@@ -425,7 +481,7 @@ cp -f "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
 cp -f "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
 cp -f "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
 # Keep release instructions and maintenance entry points with the application.
-for release_file in README.md CONTEXT.md AGENTS.md install.sh install.ps1 requirements-web.txt run_interactive_demo.py; do
+for release_file in README.md CONTEXT.md AGENTS.md install.sh install.ps1 requirements-web.txt requirements-core.txt requirements-mqtt.txt run_interactive_demo.py; do
     if [[ -f "$CURRENT_DIR/$release_file" ]]; then
         cp -f "$CURRENT_DIR/$release_file" "$INSTALL_DIR/"
     fi
@@ -434,7 +490,6 @@ if [[ -f "$CURRENT_DIR/.env.example" ]]; then
     cp -f "$CURRENT_DIR/.env.example" "$INSTALL_DIR/" 2>/dev/null || true
 fi
 
-rm -rf "$INSTALL_DIR/src"
 cp -rf "$CURRENT_DIR/src" "$INSTALL_DIR/"
 
 if [[ -d "$CURRENT_DIR/scripts" ]]; then
@@ -448,20 +503,9 @@ cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/logs"
 mkdir -p "$INSTALL_DIR/data"
 
-# Create configuration if missing
-if [[ ! -f "$INSTALL_DIR/.env" ]]; then
-    cp -f "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
-    sed -i "s|^SERIAL_PORT=AUTO|SERIAL_PORT=${DETECTED_PORT}|" "$INSTALL_DIR/.env"
-    sed -i "s|^MQTT_USER=.*|MQTT_USER=${MQTT_BRIDGE_USER}|" "$INSTALL_DIR/.env"
-    sed -i "s|^MQTT_PASSWORD=.*|MQTT_PASSWORD=${MQTT_BRIDGE_PASS}|" "$INSTALL_DIR/.env"
-    print_ok "Created .env with SERIAL_PORT=${DETECTED_PORT} and configured MQTT credentials."
-else
-    if ! grep -q '^MQTT_USER=' "$INSTALL_DIR/.env" || [[ -z "$(grep '^MQTT_USER=' "$INSTALL_DIR/.env" | cut -d'=' -f2-)" ]]; then
-        sed -i "s|^MQTT_USER=.*|MQTT_USER=${MQTT_BRIDGE_USER}|" "$INSTALL_DIR/.env"
-        sed -i "s|^MQTT_PASSWORD=.*|MQTT_PASSWORD=${MQTT_BRIDGE_PASS}|" "$INSTALL_DIR/.env"
-    fi
-    print_ok "Existing .env preserved."
-fi
+# Initial credentials match the managed broker even when template keys are absent.
+write_initial_configuration "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
+print_ok "Created private .env with SERIAL_PORT=${DETECTED_PORT} and configured MQTT credentials."
 
 # Create the Python environment and install production dependencies
 print_info "Create isolated Python environment in ${INSTALL_DIR}/venv"
@@ -469,8 +513,8 @@ print_info "Create isolated Python environment in ${INSTALL_DIR}/venv"
 "$INSTALL_DIR/venv/bin/python" -m pip install --upgrade pip setuptools wheel -q
 print_info "Install production dependencies from requirements.txt"
 "$INSTALL_DIR/venv/bin/python" -m pip install -r "$INSTALL_DIR/requirements.txt" -q
-print_info "Check installed dependencies for the web profile"
-"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile web
+print_info "Check installed dependencies for the complete profile"
+"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py" --profile all
 
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
 print_info "Initialize default web account (admin:admin; change required at first login)"

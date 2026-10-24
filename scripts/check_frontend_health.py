@@ -16,14 +16,23 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from isolated_frontend_station import isolated_frontend_station, login_inspection_context
 from playwright.async_api import async_playwright
 
+from scripts.isolated_frontend_station import isolated_frontend_station, login_inspection_context
 
-async def check_frontend_health() -> None:
+
+def health_exit_code(
+    errors: list[str], failed_requests: list[str], console_errors: list[str], missing: list[str],
+) -> int:
+    """Return failure for a completed inspection with broken station behavior."""
+    return int(bool(errors or failed_requests or console_errors or missing))
+
+
+async def check_frontend_health() -> int:
     errors: list[str] = []
     logs: list[str] = []
     failed_requests: list[str] = []
+    missing: list[str] = []
 
     async with isolated_frontend_station() as (_bridge, base_url):
         async with async_playwright() as p, AsyncExitStack() as cleanup:
@@ -35,6 +44,9 @@ async def check_frontend_health() -> None:
 
             page.on("console", lambda msg: logs.append(f"[{msg.type}] {msg.text}"))
             page.on("pageerror", lambda exc: errors.append(str(exc)))
+            page.on("response", lambda response: failed_requests.append(
+                f"HTTP {response.status}: {response.url}"
+            ) if response.status >= 400 else None)
             page.on(
                 "requestfailed",
                 lambda req: failed_requests.append(
@@ -60,6 +72,14 @@ async def check_frontend_health() -> None:
                 if await btn.count() > 0:
                     await btn.click()
                     await page.wait_for_timeout(400)
+                    if not await page.locator(f"#{t}").is_visible():
+                        missing.append(f"Visible panel #{t}")
+                else:
+                    missing.append(f"Navigation button for #{t}")
+
+            chat_button = page.locator('.nav-btn[data-tab="tab-chat"]')
+            if await chat_button.count() > 0:
+                await chat_button.click()
 
             print(f"=== PAGE EXCEPTIONS ({len(errors)}) ===")
             for e in errors:
@@ -84,12 +104,22 @@ async def check_frontend_health() -> None:
             print(f"#chatInputText exists: {await chat_input.count() > 0}")
             if await chat_input.count() > 0:
                 print(f"#chatInputText is_visible: {await chat_input.is_visible()}")
+                if not await chat_input.is_visible():
+                    missing.append("Visible #chatInputText")
+            else:
+                missing.append("#chatInputText")
 
             # Check theme toggle
             theme_btn = page.locator("#themeToggleBtn")
             print(f"#themeToggleBtn exists: {await theme_btn.count() > 0}")
+            if await theme_btn.count() == 0:
+                missing.append("#themeToggleBtn")
+            for issue in missing:
+                print("  MISSING:", issue)
 
-            await browser.close()
+            console_errors = [line for line in logs if line.startswith("[error]")]
+            return health_exit_code(errors, failed_requests, console_errors, missing)
+    return 1
 
 if __name__ == "__main__":
-    asyncio.run(check_frontend_health())
+    raise SystemExit(asyncio.run(check_frontend_health()))

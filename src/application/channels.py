@@ -114,15 +114,40 @@ class ChannelService:
                 logging.error("Channel persistence failed: %s", type(error).__name__)
                 raise
 
+    async def wait_for_pending_write(self) -> None:
+        """Join an owned writer without letting an old failure poison new work."""
+        task = self._write_task
+        if task is None:
+            return
+        try:
+            await asyncio.shield(task)
+        except Exception:
+            # The original save caller receives the failure. A later operation
+            # must be able to read state or retry after storage recovers.
+            logging.warning("Previous channel write failed; a later operation may retry")
+        finally:
+            if task.done() and self._write_task is task:
+                self._write_task = None
+
+    @staticmethod
+    def _observe_write(task: asyncio.Task[None]) -> None:
+        if not task.cancelled() and task.exception() is not None:
+            logging.error("Channel persistence failed: %s", type(task.exception()).__name__)
+
     async def save_channels_async(self, force: bool = False) -> None:
-        """Persistencia asíncrona no bloqueante."""
-        if self._write_task is not None:
-            await asyncio.shield(self._write_task)
-        self._write_task = asyncio.create_task(
+        """Keep writes owned through cancellation and surface this save's error."""
+        await self.wait_for_pending_write()
+        task = asyncio.create_task(
             asyncio.to_thread(self._save_channels_sync, force),
             name="ChannelsPersistence",
         )
-        await asyncio.shield(self._write_task)
+        self._write_task = task
+        task.add_done_callback(self._observe_write)
+        try:
+            await asyncio.shield(task)
+        finally:
+            if task.done() and self._write_task is task:
+                self._write_task = None
 
     def mask_channel(self, ch: dict[str, Any]) -> dict[str, Any]:
         """Enmascara la PSK para vistas públicas/REST/WebSocket."""
@@ -190,6 +215,7 @@ class ChannelService:
         Si node_channels es provisto, usa esos datos; en otro caso consulta al serial_adapter.
         """
         async with self._mutation_lock:
+            await self.wait_for_pending_write()
             if node_channels is None:
                 if not self.serial_adapter_provider:
                     raise ConnectionError("Transceptor serial no configurado")
@@ -241,6 +267,7 @@ class ChannelService:
             raise ValueError("El nombre debe caber en 31 bytes UTF-8 sin caracteres de control")
 
         async with self._mutation_lock:
+            await self.wait_for_pending_write()
             if index in self._channels and not overwrite:
                 raise FileExistsError(f"El canal {index} ya existe")
 
@@ -275,6 +302,7 @@ class ChannelService:
             raise ValueError("No se puede eliminar el canal público 0")
 
         async with self._mutation_lock:
+            await self.wait_for_pending_write()
             if index not in self._channels:
                 raise KeyError(f"Canal {index} no encontrado")
 

@@ -1,5 +1,9 @@
 # Revisión de documentación y scripts — 2026-10-23
 
+Actualización del 2026-10-24: véase la [corrección conjunta](2026-10-24-remediation-validation.md)
+para los pendientes de esta revisión. El texto siguiente conserva la evidencia
+y el estado de la primera pasada.
+
 ## Alcance y base
 
 Solicitud: comprobar que la documentación y los scripts estén actualizados.

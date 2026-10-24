@@ -27,6 +27,7 @@ from src.services_config import (
     ServicesConfig,
     save_services_config_async,
     to_redacted_dict,
+    validate_services_config,
 )
 from src.web.controllers.base import ApiContext, BaseController, problem_details
 
@@ -82,7 +83,7 @@ class ServicesController(BaseController):
         manager = getattr(self.ctx.bridge, "services_manager", None)
         persist = getattr(manager, "persist_configuration", None)
         if callable(persist):
-            await persist()
+            await persist(cfg)
             return
         await self._await_configuration_write()
         snapshot = copy.deepcopy(cfg)
@@ -91,6 +92,25 @@ class ServicesController(BaseController):
         )
         self._configuration_write_task.add_done_callback(self._observe_configuration_write)
         await self._await_configuration_write()
+
+    async def _commit_presets(self, current: ServicesConfig, candidate: ServicesConfig) -> None:
+        """Publish a validated snapshot only after its owned disk write commits."""
+        validate_services_config(candidate)
+
+        async def commit() -> None:
+            await self._persist_configuration(candidate)
+            current.custom_presets = candidate.custom_presets
+
+        transaction = asyncio.create_task(commit(), name="PresetConfigurationCommit")
+        cancelled = False
+        while not transaction.done():
+            try:
+                await asyncio.shield(transaction)
+            except asyncio.CancelledError:
+                cancelled = True
+        transaction.result()
+        if cancelled:
+            raise asyncio.CancelledError
 
     async def get_services_config(self) -> tuple[int, dict[str, Any]]:
         """Devuelve la configuración consolidada de servicios de red con credenciales enmascaradas."""
@@ -108,11 +128,22 @@ class ServicesController(BaseController):
             data["external_mqtt_connected"] = False
         caps = getattr(self.ctx.bridge, "capabilities", None)
         if caps is not None:
+            self._refresh_runtime_capabilities()
             data["capabilities"] = caps.to_dict()
         return 200, {"status": "ok", "data": data}
 
+    def _refresh_runtime_capabilities(self) -> None:
+        refresh_core = getattr(self.ctx.bridge, "refresh_core_capability", None)
+        if callable(refresh_core):
+            refresh_core()
+        manager = getattr(self.ctx.bridge, "services_manager", None)
+        refresh_network = getattr(manager, "refresh_capabilities", None)
+        if callable(refresh_network):
+            refresh_network()
+
     async def get_capabilities(self) -> tuple[int, dict[str, Any]]:
         """Devuelve el inventario dinámico de capacidades de runtime y su estado de opcionalidad."""
+        self._refresh_runtime_capabilities()
         caps = getattr(self.ctx.bridge, "capabilities", None)
         if caps is not None:
             return 200, {"status": "ok", "data": caps.to_dict()}
@@ -281,12 +312,25 @@ class ServicesController(BaseController):
 
         port = body.get("port", 1883)
         try:
+            if isinstance(port, (bool, float)):
+                raise ValueError()
             port_val = int(port)
             if not (1 <= port_val <= 65535):
                 raise ValueError()
         except (ValueError, TypeError):
             return problem_details(
                 422, "Unprocessable Entity", "El puerto debe ser un entero entre 1 y 65535.", "invalid_port"
+            )
+        try:
+            raw_keepalive = body.get("keepalive", 60)
+            raw_qos = body.get("qos", 0)
+            if isinstance(raw_keepalive, (bool, float)) or isinstance(raw_qos, (bool, float)):
+                raise ValueError()
+            keepalive = int(raw_keepalive)
+            qos = int(raw_qos)
+        except (ValueError, TypeError):
+            return problem_details(
+                422, "Unprocessable Entity", "Keepalive y QoS deben ser enteros válidos.", "invalid_preset_number"
             )
 
         preset_id = str(body.get("id") or "").strip()
@@ -343,17 +387,23 @@ class ServicesController(BaseController):
             filter_telemetry=bool(body.get("filter_telemetry", True)),
             filter_nodes=bool(body.get("filter_nodes", True)),
             filter_raw=bool(body.get("filter_raw", False)),
-            keepalive=int(body.get("keepalive") or 60),
-            qos=int(body.get("qos") or 0),
+            keepalive=keepalive,
+            qos=qos,
             is_system=False,
         )
 
         # Reemplazar o añadir a la lista
         new_presets = [p for p in cfg.custom_presets if p.id != preset_id]
         new_presets.append(preset)
-        cfg.custom_presets = new_presets
-
-        await self._persist_configuration(cfg)
+        candidate = copy.deepcopy(cfg)
+        candidate.custom_presets = new_presets
+        try:
+            await self._commit_presets(cfg, candidate)
+        except ValueError:
+            return problem_details(422, "Unprocessable Entity", "Configuración del preset inválida.", "invalid_preset")
+        except Exception as error:
+            logger.error("Preset commit failed: %s", type(error).__name__)
+            return problem_details(503, "Service Unavailable", "No se pudo guardar el preset.", "preset_persistence_failed")
 
         preset_dict = asdict(preset)
         preset_dict["has_password"] = bool(preset.password)
@@ -393,8 +443,13 @@ class ServicesController(BaseController):
                 404, "Not Found", f"Preset '{clean_id}' no encontrado.", "preset_not_found"
             )
 
-        cfg.custom_presets = [p for p in cfg.custom_presets if p.id != clean_id]
-        await self._persist_configuration(cfg)
+        candidate = copy.deepcopy(cfg)
+        candidate.custom_presets = [p for p in cfg.custom_presets if p.id != clean_id]
+        try:
+            await self._commit_presets(cfg, candidate)
+        except Exception as error:
+            logger.error("Preset deletion commit failed: %s", type(error).__name__)
+            return problem_details(503, "Service Unavailable", "No se pudo eliminar el preset.", "preset_persistence_failed")
 
         self.ctx.log_system_event(
             "INFO", f"Preset personalizado '{target.name}' eliminado.", source="services_mgr"

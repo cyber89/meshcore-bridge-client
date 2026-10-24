@@ -13,8 +13,9 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
-from playwright.async_api import ConsoleMessage, Response, async_playwright
+from playwright.async_api import async_playwright
 
 # Configurar salida UTF-8 en terminal de Windows
 if sys.platform == "win32":
@@ -25,154 +26,137 @@ if sys.platform == "win32":
         pass
 
 
-class WebInspector:
-    """Inspector visual y funcional automatizado con Playwright."""
+REQUIRED_COMPONENTS = {
+    "header_bar": "header.app-header",
+    "tab_navigation_buttons": ".nav-btn[role='tab']",
+    "chat_panel": "#tab-chat",
+    "chat_message_feed": "#chatMessageFeed",
+    "chat_input": "#chatInputText",
+    "map_container": "#tab-map",
+    "nodes_panel": "#tab-nodes",
+    "logs_panel": "#tab-logs",
+    "settings_panel": "#tab-settings",
+}
 
-    def __init__(self, target_url: str, output_dir: str | Path = "tests/artifacts") -> None:
+
+def viewport_passed(result: dict[str, Any]) -> bool:
+    """Require an authorized station and all checks, not merely an HTTP 200."""
+    components = result.get("components_detected", {})
+    errors = result.get("errors", {})
+    status = result.get("http_status", 0)
+    return bool(
+        isinstance(status, int) and 200 <= status < 300
+        and result.get("authenticated") is True
+        and result.get("station_visible") is True
+        and all(components.get(name) for name in REQUIRED_COMPONENTS)
+        and not any(errors.get(name) for name in ("console", "page_exceptions", "failed_network", "inspection"))
+    )
+
+
+class WebInspector:
+    """Inspect both viewports using an existing, explicitly supplied session."""
+
+    def __init__(
+        self, target_url: str, output_dir: str | Path = "tests/artifacts", *,
+        storage_state: str | Path | None = None,
+    ) -> None:
+        parsed = urlsplit(target_url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("Inspection requires an HTTP(S) URL without embedded credentials")
         self.target_url = target_url
+        self.origin = f"{parsed.scheme}://{parsed.netloc}"
         self.output_dir = Path(output_dir).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
+        self.storage_state = str(Path(storage_state).resolve()) if storage_state else None
+        if self.storage_state and not Path(self.storage_state).is_file():
+            raise ValueError("Browser storage state must be an existing authorized session file")
         self.console_errors: list[str] = []
         self.page_errors: list[str] = []
         self.failed_requests: list[dict[str, Any]] = []
 
-    def _handle_console_message(self, msg: ConsoleMessage) -> None:
-        if msg.type in ("error", "warning"):
-            self.console_errors.append(f"[{msg.type.upper()}] {msg.text}")
-
-    def _handle_page_error(self, exc: Any) -> None:
-        self.page_errors.append(str(exc))
-
-    def _handle_response(self, response: Response) -> None:
-        if response.status >= 400:
-            self.failed_requests.append({
-                "url": response.url,
-                "status": response.status,
-                "status_text": response.status_text,
-            })
+    async def _inspect_viewport(
+        self, browser: Any, name: str, viewport: dict[str, int], mobile: bool,
+    ) -> dict[str, Any]:
+        errors: dict[str, list[Any]] = {key: [] for key in ("console", "page_exceptions", "failed_network", "inspection")}
+        result: dict[str, Any] = {
+            "status": "FAIL", "authenticated": False, "station_visible": False,
+            "components_detected": {}, "errors": errors, "http_status": 0,
+        }
+        options: dict[str, Any] = {"viewport": viewport, "is_mobile": mobile, "has_touch": mobile}
+        if self.storage_state:
+            options["storage_state"] = self.storage_state
+        context = await browser.new_context(**options)
+        try:
+            page = await context.new_page()
+            page.on("console", lambda message: errors["console"].append(f"[{message.type}] {message.text}")
+                    if message.type in ("error", "warning") else None)
+            page.on("pageerror", lambda error: errors["page_exceptions"].append(str(error)))
+            page.on("response", lambda response: errors["failed_network"].append({
+                "url": response.url, "status": response.status,
+            }) if response.status >= 400 else None)
+            page.on("requestfailed", lambda request: errors["failed_network"].append({
+                "url": request.url, "status": 0, "failure": request.failure or "failed",
+            }))
+            session_response = await context.request.get(self.origin + "/api/auth/session")
+            session = await session_response.json() if session_response.status == 200 else {}
+            result["authenticated"] = bool(isinstance(session, dict) and session.get("authenticated")
+                                            and not session.get("must_change_credentials"))
+            if not result["authenticated"]:
+                errors["inspection"].append("An authorized browser session is required; provide --storage-state. A Bearer token does not sign in the SPA.")
+            response = await page.goto(self.target_url, wait_until="domcontentloaded", timeout=15000)
+            result["http_status"] = response.status if response is not None else 0
+            if result["authenticated"]:
+                await page.locator("body:not(.auth-pending) header.app-header").wait_for(state="visible", timeout=15000)
+            await page.wait_for_timeout(1500)
+            result["page_title"] = await page.title()
+            result["components_detected"] = {key: await page.locator(selector).count() > 0
+                                                for key, selector in REQUIRED_COMPONENTS.items()}
+            result["station_visible"] = bool(await page.locator("header.app-header").is_visible()
+                                              and await page.locator("body.auth-pending").count() == 0)
+            await page.screenshot(path=str(self.output_dir / f"{name}.png"), full_page=True)
+            if name == "desktop":
+                # Authenticated DOM may contain station data; artifacts stay local.
+                (self.output_dir / "dom_dump.html").write_text(await page.content(), encoding="utf-8")
+        except Exception as error:
+            errors["inspection"].append(f"Inspection failed: {type(error).__name__}")
+        finally:
+            await context.close()
+        result["status"] = "PASS" if viewport_passed(result) else "FAIL"
+        return result
 
     async def inspect(self) -> dict[str, Any]:
-        """Ejecuta la inspección completa en Desktop y Mobile."""
-        desktop_png = self.output_dir / "desktop.png"
-        mobile_png = self.output_dir / "mobile.png"
-        dom_dump_file = self.output_dir / "dom_dump.html"
-
+        """Keep per-viewport evidence and fail if either inspection fails."""
         results: dict[str, Any] = {
-            "target_url": self.target_url,
-            "status": "UNKNOWN",
-            "page_title": "",
-            "components_detected": {},
-            "console_errors_count": 0,
-            "page_errors_count": 0,
-            "failed_requests_count": 0,
-            "screenshots": {
-                "desktop": str(desktop_png),
-                "mobile": str(mobile_png),
-            },
-            "dom_dump": str(dom_dump_file),
-            "errors": {
-                "console": [],
-                "page_exceptions": [],
-                "failed_network": [],
-            },
+            "target_url": self.target_url, "status": "ERROR", "viewports": {},
+            "screenshots": {name: str(self.output_dir / f"{name}.png") for name in ("desktop", "mobile")},
+            "dom_dump": str(self.output_dir / "dom_dump.html"),
         }
-
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
             try:
-                # -------------------------------------------------------------
-                # 1. Inspección en Vista Desktop (1920 x 1080)
-                # -------------------------------------------------------------
-                desktop_ctx = await browser.new_context(
-                    viewport={"width": 1920, "height": 1080},
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                )
-                page = await desktop_ctx.new_page()
-
-                page.on("console", self._handle_console_message)
-                page.on("pageerror", self._handle_page_error)
-                page.on("response", self._handle_response)
-
-                try:
-                    resp = await page.goto(self.target_url, wait_until="networkidle", timeout=15000)
-                    http_status = resp.status if resp else 200
-                except Exception:
-                    # Fallback si WebSocket mantiene networkidle activo
-                    resp = await page.goto(self.target_url, wait_until="domcontentloaded", timeout=15000)
-                    http_status = resp.status if resp else 200
-
-                # Esperar 1.5 segundos para renderizado dinámico y WebSocket handshake
-                await page.wait_for_timeout(1500)
-
-                results["page_title"] = await page.title()
-                results["http_status"] = http_status
-
-                # Captura Desktop
-                await page.screenshot(path=str(desktop_png), full_page=True)
-
-                # Volcado del DOM
-                dom_html = await page.content()
-                with open(dom_dump_file, "w", encoding="utf-8") as f:
-                    f.write(dom_html)
-
-                # Detección y validación de componentes clave en el DOM
-                results["components_detected"] = {
-                    "header_bar": await page.locator("header.app-header").count() > 0,
-                    "h1_title": await page.locator("h1, .logo-title").count() > 0,
-                    "tab_navigation_buttons": await page.locator(".nav-btn[role='tab']").count(),
-                    "chat_panel (#tab-chat)": await page.locator("#tab-chat").count() > 0,
-                    "chat_message_feed": await page.locator("#chatMessageFeed").count() > 0,
-                    "map_container (#tab-map)": await page.locator("#tab-map, #liveGpsMap").count() > 0,
-                    "nodes_panel (#tab-nodes)": await page.locator("#tab-nodes").count() > 0,
-                    "sniffer_panel (#tab-sniffer)": await page.locator("#tab-sniffer").count() > 0,
-                    "analytics_panel (#tab-analytics)": await page.locator("#tab-analytics").count() > 0,
-                    "telemetry_panel (#tab-telemetry)": await page.locator("#tab-telemetry").count() > 0,
-                    "logs_panel (#tab-logs)": await page.locator("#tab-logs").count() > 0,
-                }
-
-                await desktop_ctx.close()
-
-                # -------------------------------------------------------------
-                # 2. Inspección en Vista Móvil (390 x 844 - iPhone 14/15)
-                # -------------------------------------------------------------
-                mobile_ctx = await browser.new_context(
-                    viewport={"width": 390, "height": 844},
-                    is_mobile=True,
-                    has_touch=True,
-                    user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-                )
-                mobile_page = await mobile_ctx.new_page()
-
-                try:
-                    await mobile_page.goto(self.target_url, wait_until="domcontentloaded", timeout=15000)
-                except Exception:
-                    pass
-
-                await mobile_page.wait_for_timeout(1000)
-                await mobile_page.screenshot(path=str(mobile_png), full_page=True)
-                await mobile_ctx.close()
-
-                # Consolidar resultados
-                results["console_errors_count"] = len(self.console_errors)
-                results["page_errors_count"] = len(self.page_errors)
-                results["failed_requests_count"] = len(self.failed_requests)
-                results["errors"]["console"] = self.console_errors
-                results["errors"]["page_exceptions"] = self.page_errors
-                results["errors"]["failed_network"] = self.failed_requests
-
-                if len(self.page_errors) == 0 and len(self.failed_requests) == 0:
-                    results["status"] = "PASS"
-                else:
-                    results["status"] = "FAIL"
-
-            except Exception as e:
-                results["status"] = "ERROR"
-                results["error_message"] = str(e)
+                for name, viewport, mobile in (
+                    ("desktop", {"width": 1920, "height": 1080}, False),
+                    ("mobile", {"width": 390, "height": 844}, True),
+                ):
+                    try:
+                        results["viewports"][name] = await self._inspect_viewport(browser, name, viewport, mobile)
+                    except Exception as error:
+                        results["viewports"][name] = {"status": "ERROR", "errors": {"inspection": [type(error).__name__]}}
             finally:
                 await browser.close()
-
+        views = results["viewports"]
+        desktop = views.get("desktop", {})
+        results.update(page_title=desktop.get("page_title", ""), http_status=desktop.get("http_status", 0),
+                       components_detected=desktop.get("components_detected", {}))
+        self.console_errors = [error for view in views.values() for error in view.get("errors", {}).get("console", [])]
+        self.page_errors = [error for view in views.values() for error in view.get("errors", {}).get("page_exceptions", [])]
+        self.failed_requests = [error for view in views.values() for error in view.get("errors", {}).get("failed_network", [])]
+        results.update(console_errors_count=len(self.console_errors), page_errors_count=len(self.page_errors),
+                       failed_requests_count=len(self.failed_requests), errors={
+                           "console": self.console_errors, "page_exceptions": self.page_errors,
+                           "failed_network": self.failed_requests,
+                       })
+        results["status"] = "PASS" if len(views) == 2 and all(view.get("status") == "PASS" for view in views.values()) else "FAIL"
         return results
 
 
@@ -187,6 +171,10 @@ def print_report(results: dict[str, Any]) -> None:
     print(f" • URL Inspeccionada:   {results.get('target_url')}")
     print(f" • Título de Página:    {results.get('page_title')}")
     print(f" • Estado HTTP:         {results.get('http_status', 'N/A')}")
+    for name, view in results.get("viewports", {}).items():
+        print(f" • {name}: {view.get('status', 'ERROR')}")
+        for issue in view.get("errors", {}).get("inspection", []):
+            print(f"   {issue}")
     print("-" * 74)
     print(" 📸 CAPTURAS DE PANTALLA GENERADAS:")
     print(f"   🖥️ Desktop (1920x1080): {results.get('screenshots', {}).get('desktop')}")
@@ -222,9 +210,13 @@ async def main() -> int:
     parser.add_argument("--output", default="tests/artifacts", help="Output directory for screenshots and DOM dump")
     parser.add_argument("--json", action="store_true", help="Output results strictly in JSON format")
 
+    parser.add_argument("--storage-state", help="Existing Playwright storage state for an authorized browser session")
     args = parser.parse_args()
-
-    inspector = WebInspector(target_url=args.url, output_dir=args.output)
+    try:
+        inspector = WebInspector(target_url=args.url, output_dir=args.output,
+                                 storage_state=args.storage_state)
+    except ValueError as error:
+        parser.error(str(error))
     results = await inspector.inspect()
 
     if args.json:

@@ -160,7 +160,7 @@ The local broker interface exposes JSON events for incoming traffic and accepts 
 | `meshcore/admin/cmd` / `meshcore/admin/repeater` | Automation → bridge | Administrative requests. |
 | `meshcore/admin/status` | Bridge → broker | Administrative results. |
 
-For a particular repeater, publish to `meshcore/admin/repeater/<target>/cmd` and receive results on `meshcore/admin/repeater/<target>/status`. Topic names follow the active prefix. Send command messages without MQTT retain. For TX retries, include a stable `command_id`: with a working SQLite ledger, repetitions and conflicting payloads are detected while the entry is retained. Administrative deduplication has additional gaps, including the per-repeater path, and storage errors can admit legacy execution. See the [integration guide](docs/N8N_WORKFLOW_GUIDE.md) for status semantics and limits.
+For a particular repeater, publish to `meshcore/admin/repeater/<target>/cmd` and receive results on `meshcore/admin/repeater/<target>/status`. Topic names follow the active prefix. Send command messages without MQTT retain. Include a stable `command_id` for TX and administrative retries: both administrative routes reserve commands in the SQLite ledger, including requests still in progress. Identified requests are rejected if their reservation cannot be persisted. Deduplication lasts while the entry is retained; it is not an exactly-once delivery guarantee. See the [integration guide](docs/N8N_WORKFLOW_GUIDE.md) for status semantics and limits.
 
 Start with receive-only subscriptions, then add deliberate outgoing actions. Avoid feeding every received message back into `meshcore/tx`; outgoing messages and administrative operations consume shared radio airtime.
 
@@ -204,7 +204,7 @@ Some detailed technical guides are currently written in Spanish. **The root READ
 
 Production code is under `src/`, browser sources under `src/web/static/`, and maintained tests under `tests/`. Official firmware, SDK, and CLI snapshots under `reference/` are read-only protocol references. The root `requirements.txt` contains production dependencies; development tools are listed separately in `requirements-dev.txt`.
 
-The dependency checker accepts `--profile core`, `mqtt`, `web` and `all`; `MESHCORE_PROFILE` selects its default and does not enable or disable runtime services. Currently, `core` and `mqtt` checks both require Paho, MeshCore, pyserial and python-dotenv. The `web` and `all` checks also require the pinned ASGI stack. Although packaging declares optional extras, its base dependencies still include web and MQTT, so `pip install '.[core]'` does not produce a minimal installation. Configure runtime services separately as described in the [deployment guide](docs/DEPLOYMENT_GUIDE.md).
+The dependency checker accepts `--profile core`, `mqtt`, `web` and `all`; `MESHCORE_PROFILE` selects its default and does not enable or disable runtime services. The base package and `pip install '.[core]'` require MeshCore, pyserial and python-dotenv. The `mqtt` extra adds Paho, `web` adds the pinned ASGI stack, and `all` combines both. The `dev` extra includes the complete stack and QA tools. `requirements.txt` and the standard installers retain the complete installation; minimal manifests are available as `requirements-core.txt` and `requirements-mqtt.txt`. Configure runtime services separately as described in the [deployment guide](docs/DEPLOYMENT_GUIDE.md).
 
 For frontend changes, rebuild the committed artifacts before publishing:
 

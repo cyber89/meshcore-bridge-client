@@ -28,16 +28,18 @@ una sesión web; el operador debe iniciar sesión después. No importa el bridge
 no arranca servicios ni conecta a radio. La clave externa `BRIDGE_API_KEY` se
 administra de forma independiente.
 
-Diferencias verificadas respecto al diseño inicial: el CLI admite `--password`
-por argumento y no bloquea el fallback con eco de `getpass`; para no exponer la
-contraseña en la línea de comandos, usar las preguntas en un terminal local.
-No compara la generación con la instantánea anterior al prompt. Sin `--db-path`
-importa la configuración del checkout del script: `--project-dir` por sí solo no
-selecciona de forma fiable el `.env` de otra instalación. Tampoco implementa
-comprobación propia de propietario/ACL o rechazo exhaustivo de symlinks antes de
-resolver rutas. Estas condiciones siguen pendientes del diseño propuesto; la
-existencia del CLI no acredita que satisfaga toda aquella propuesta. La revisión
-actual no ejecutó el comando ni cambió credenciales.
+La remediación posterior rechaza `--password`, exige terminal interactivo y
+convierte `GetPassWarning` en error antes de que getpass pueda usar entrada con
+eco. `--project-dir` selecciona el `.env` de esa instalación sin importar el
+`config.py` de otro checkout; las variables de proceso conservan precedencia.
+El CLI rechaza symlinks en base, sidecars y antecesores, exige un archivo existente,
+comprueba propietario/directorio en POSIX y vuelve a comprobar identidad del
+archivo después del prompt. `AuthStore.recover_credentials(expected_generation=...)`
+compara dentro de la transacción la generación capturada antes del prompt y
+aborta si hubo un cambio concurrente o desapareció la cuenta. Windows conserva
+la autoridad del acceso local mediante NTFS; el helper no modifica sus ACLs.
+Se añadieron regresiones aisladas, sin ejecutarlas en esta tarea; tampoco se
+ejecutó el CLI ni se cambiaron credenciales de una estación.
 
 ## Diseño original de recuperación — requisitos propuestos (2026-10-12)
 

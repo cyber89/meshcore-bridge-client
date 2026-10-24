@@ -116,7 +116,9 @@ ROUTE_CONTRACTS: tuple[RouteContract, ...] = (
     RouteContract("GET", "/api/telemetry", MapsBodyDTO, "history_maps"),
     RouteContract("GET", "/api/logs/download", MapsBodyDTO, "history_maps"),
     RouteContract("GET", "/api/logs/raw", MapsBodyDTO, "history_maps"),
-    # Network-service configuration/presets: 6 operations.
+    # Network-service capabilities/configuration/presets: 8 operations.
+    RouteContract("GET", "/api/capabilities", ServicesBodyDTO, "services"),
+    RouteContract("GET", "/api/services/capabilities", ServicesBodyDTO, "services"),
     RouteContract("GET", "/api/services/config", ServicesBodyDTO, "services"),
     RouteContract("POST", "/api/services/config", ServicesConfigBodyDTO, "services"),
     RouteContract("GET", "/api/services/presets", ServicesBodyDTO, "services"),

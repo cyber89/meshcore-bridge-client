@@ -347,3 +347,43 @@ class AsyncBridgeMQTTClient:
                         logging.error(f"MQTT callback error: {e}")
         except Exception as e:
             logging.error(f"Error procesando mensaje MQTT entrante: {e}")
+
+
+class DisabledMQTTClient(AsyncBridgeMQTTClient):
+    """Inert MQTT port: no Paho client, TLS files, sockets or background tasks."""
+
+    def __init__(self, config: MQTTConfig) -> None:
+        self.config = config
+        self.broker = config.broker
+        self.port = config.port
+        self.username = config.username
+        self.password = config.password
+        self.keepalive = config.keepalive
+        self.topic_prefix = config.topic_prefix.strip("/")
+        self.topics = MqttTopics.from_prefix(self.topic_prefix)
+        self.topic_state = self.topics.state
+        self.topic_health = self.topics.health
+        self.topic_alert = self.topics.alert
+        self.topic_tx = self.topics.tx
+        self.topic_tx_status = self.topics.tx_status
+        self.topic_admin_cmd = self.topics.admin_cmd
+        self.topic_admin_stat = self.topics.admin_status
+        self.topic_admin_repeater = self.topics.admin_repeater
+        self.is_connected = False
+        self.reconnect_count = 0
+        self.total_published = 0
+        self.total_received = 0
+        self.client = None
+        self._loop = None
+
+    def start(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
+        """A disabled integration cannot open a connection."""
+
+    def stop(self) -> None:
+        self.is_connected = False
+
+    def publish_safe(
+        self, topic: str, payload_str: str, qos: int = 0,
+        retain: bool = False, ttl_seconds: float | None = None,
+    ) -> bool:
+        return False

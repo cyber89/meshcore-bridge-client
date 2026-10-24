@@ -93,9 +93,11 @@ class ChannelsController(BaseController):
     async def handle_channels_route(
         self, path: str, method: str, req_body: dict[str, Any]
     ) -> tuple[int, dict[str, Any]]:
+        # sync_from_radio owns the same service lock. Do not acquire it twice.
+        if path == "/api/channels/sync":
+            return await self._handle_channels_route(path, method, req_body)
         async with self._mutation_lock:
-            if isinstance(self._write_task, (asyncio.Future, asyncio.Task)):
-                await asyncio.shield(self._write_task)
+            await self.channel_service.wait_for_pending_write()
             return await self._handle_channels_route(path, method, req_body)
 
     async def _handle_channels_route(

@@ -9,16 +9,9 @@ description = "Deterministic and Resilient Async USB/Serial to MQTT Bridge for M
 authors = [{ name = "MeshCore Dev Team" }]
 requires-python = ">=3.12"
 dependencies = [
-    "paho-mqtt==2.1.0",
     "meshcore==2.3.17",
     "pyserial==3.5",
     "python-dotenv==1.2.4",
-    "fastapi==0.143.0",
-    "uvicorn==0.54.0",
-    "pydantic==2.14.1",
-    "websockets==17.3",
-    "starlette==1.7.0",
-    "h11==0.16.0",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +38,13 @@ all = [
     "h11==0.16.0",
 ]
 dev = [
+    "paho-mqtt==2.1.0",
+    "fastapi==0.143.0",
+    "uvicorn==0.54.0",
+    "pydantic==2.14.1",
+    "websockets==17.3",
+    "starlette==1.7.0",
+    "h11==0.16.0",
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
     "pytest-cov==7.1.0",

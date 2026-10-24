@@ -24,6 +24,18 @@ class ObservedOperation:
 
 
 OBSERVED_OPERATIONS: dict[tuple[str, str], ObservedOperation] = {
+    ('GET', '/api/capabilities'): ObservedOperation(
+        (), (200,), 'router_merged', 'No inputs.',
+        'status ok; data healthy, liveness, readiness and per-service capabilities.',
+        ('src/web/controllers/services_controller.py:get_capabilities',),
+        'Passive current capability snapshot; no RF.', False,
+    ),
+    ('GET', '/api/services/capabilities'): ObservedOperation(
+        (), (200,), 'router_merged', 'No inputs.',
+        'status ok; same capability snapshot as /api/capabilities.',
+        ('src/web/controllers/services_controller.py:get_capabilities',),
+        'Passive current capability snapshot; no RF.', False,
+    ),
     ('GET', '/api/messages/history'): ObservedOperation(
         ('feed_key', 'limit', 'before'), (200, 422, 503, 500), 'router_merged',
         'Optional feed_key ch_N/dm_hex; limit 1..200 (default 100); positive integer before cursor.',

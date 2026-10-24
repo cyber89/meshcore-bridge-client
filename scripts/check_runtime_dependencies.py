@@ -17,7 +17,7 @@ DEPENDENCIES = (
     ("python-dotenv", "dotenv", (1, 2, 4)),
 )
 
-CORE_DEPENDENCIES = DEPENDENCIES
+CORE_DEPENDENCIES = tuple(dependency for dependency in DEPENDENCIES if dependency[0] != "paho-mqtt")
 MQTT_DEPENDENCIES = (
     ("paho-mqtt", "paho.mqtt.client", (2, 1, 0)),
 )
@@ -39,9 +39,9 @@ WEB_PINNED_VERSIONS = {
 }
 
 PROFILES: dict[str, tuple[tuple[str, str, tuple[int, ...]], ...]] = {
-    "core": DEPENDENCIES,
-    "mqtt": DEPENDENCIES,
-    "web": DEPENDENCIES + WEB_DEPENDENCIES,
+    "core": CORE_DEPENDENCIES,
+    "mqtt": CORE_DEPENDENCIES + MQTT_DEPENDENCIES,
+    "web": CORE_DEPENDENCIES + WEB_DEPENDENCIES,
     "all": DEPENDENCIES + WEB_DEPENDENCIES,
 }
 
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         "--profile",
         choices=["core", "mqtt", "web", "all"],
         default=os.getenv("MESHCORE_PROFILE", "web"),
-        help="Dependency profile to check (core/mqtt: core packages including Paho; web/all: complete stack).",
+        help="Dependency profile (core: radio packages; mqtt: core + Paho; web: core + ASGI; all: complete stack).",
     )
     args = parser.parse_args(argv)
     failures = check_dependencies(profile=args.profile)

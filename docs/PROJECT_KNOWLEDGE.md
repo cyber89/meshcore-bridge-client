@@ -78,9 +78,9 @@ esta política; el cambio de baseline no acredita ejecución por sí solo.
 Dependencias directas fijadas para esta actualización: Paho MQTT 2.1.0, MeshCore SDK 2.3.17,
 pyserial 3.5 y python-dotenv 1.2.4. La pila web añade FastAPI 0.143.0, Uvicorn 0.54.0,
 Pydantic 2.14.1, websockets 17.3, Starlette 1.7.0 y h11 0.16.0.
-El checker acepta `core`, `mqtt`, `web` y `all`; `core`/`mqtt` comprueban los cuatro
-paquetes base (incluido Paho), y `web`/`all` añaden la pila ASGI fijada. Los extras
-de `pyproject.toml` son aditivos: sus dependencias base aún incluyen web/MQTT.
+El checker acepta `core` (MeshCore, pyserial, dotenv), `mqtt` (core más Paho),
+`web` (core más ASGI) y `all` (ambos). La corrección del 2026-10-24 separa las
+dependencias base de `pyproject.toml` y los extras; `dev` conserva pila completa y QA.
 Los perfiles del checker no activan servicios. Esto describe declaraciones y
 código, no acredita paquetes instalados, funcionamiento o recursos medidos.
 
@@ -166,6 +166,11 @@ Companion serializa contactos como 147 bytes de datos más un opcode; esto no es
 
 ## Conciliación del 2026-10-23
 
+La [corrección del 2026-10-24](audits/2026-10-24-remediation-validation.md)
+registra la implementación de los 15 hallazgos y los pendientes de la primera
+pasada, con sus regresiones escritas y comprobaciones estáticas ejecutadas.
+Las listas de pendientes de las dos revisiones conservan su estado histórico.
+
 La [segunda revisión profunda](audits/2026-10-23-deep-script-contract-review.md)
 registra 15 hallazgos adicionales de instalación, locks, identidades DM,
 validación, persistencia y códigos de salida. Son conclusiones de trazado estático
@@ -177,8 +182,8 @@ ADRs y las secciones del ADR 0019, y distingue el plan original `nuevo.md` del
 estado implementado. El inventario registra también hashes de scripts, launchers,
 helpers propios y workflows, sin ejecutarlos.
 
-Permanecen pendientes la separación real de paquetes mínimos (dependencias base
-completas), la evaluación operativa del broker instalado y la aceptación en
+La corrección posterior separa paquetes mínimos y endurece el aprovisionamiento
+del broker. Permanecen pendientes su validación operativa y la aceptación en
 hardware de las rutas de instalación. Los scripts históricos de simulación y
 navegador siguen requiriendo inspección antes de ejecutarse. Véanse la
 [guía QA](TESTING.md), el [inventario de verificación](TEST_INVENTORY.md) y el

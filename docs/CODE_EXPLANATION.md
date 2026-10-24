@@ -1,6 +1,6 @@
 # Explicación técnica del código de MeshCore Bridge
 
-Guía revisada por lectura estática el 2026-10-23; conserva el baseline CPython estable 3.12+ (3.13.5 recomendado, sin máximo) de [ADR 0016](adr/0016-python-3-12-baseline.md). No acredita medidas de rendimiento ni resultados de QA. Las decisiones de runtime y las verificaciones ejecutadas se registran por separado. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
+Guía revisada por lectura estática el 2026-10-24; conserva el baseline CPython estable 3.12+ (3.13.5 recomendado, sin máximo) de [ADR 0016](adr/0016-python-3-12-baseline.md). No acredita medidas de rendimiento ni resultados de QA. Las decisiones de runtime y las verificaciones ejecutadas se registran por separado. Para fuentes, contratos y snapshots, consultar el [índice documental](README.md).
 
 ## 1. Entrada, configuración y composición
 
@@ -92,6 +92,6 @@ Las respuestas parciales siguen informando sólo los cambios confirmados.
 
 La cuenta personal protege toda la API y el handshake WebSocket. El navegador usa cookie HttpOnly; las integraciones usan token Bearer o `BRIDGE_API_KEY` explícita por cabecera. No se aceptan secretos en query. Companion TCP tiene controles independientes (`COMPANION_ALLOWED_IPS`, `COMPANION_TOKEN`, límite de clientes). La política HTTP no autentica las conexiones MQTT; éstas dependen del broker.
 
-`CapabilityRegistry` (`src/application/capabilities.py`) publica los estados de `core`, `web`, `companion`, `local_mqtt` y `external_mqtt` en `GET /api/capabilities`. `StableMqttPort` conserva la fachada de publicación durante recargas. Los servicios opcionales pueden deshabilitarse en runtime; los extras de `pyproject.toml` todavía se suman a unas dependencias base que incluyen web y MQTT, por lo que `pip install ".[core]"` no produce por sí solo una instalación mínima.
+`CapabilityRegistry` (`src/application/capabilities.py`) publica los estados de `core`, `web`, `companion`, `local_mqtt` y `external_mqtt` en `GET /api/capabilities`. El core actualiza su disponibilidad con el arranque y el estado observado de radio, sin sondeo nuevo; la consulta refresca también el estado de los clientes de red. `StableMqttPort` conserva la fachada de publicación durante recargas. `pip install '.[core]'` sólo instala MeshCore, pyserial y dotenv; extras `mqtt`, `web` y `all` añaden las integraciones. Los servicios desactivados no construyen clientes MQTT/TLS.
 
 El workflow n8n se describe en su [guía vigente](N8N_WORKFLOW_GUIDE.md). Las pruebas se ejecutan bajo autorización del usuario, con las herramientas del [protocolo de agentes](../AGENTS.md). Para cualquier cambio que emita RF, notifique automáticamente, cree timers o modifique radio, responder y documentar el checklist de impacto en malla antes de implementar.

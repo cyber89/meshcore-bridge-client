@@ -112,7 +112,7 @@ function Test-RuntimeDependencies {
     $prevEAP = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        $null = & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" --profile web 2>&1
+        $null = & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" --profile all 2>&1
         return ($LASTEXITCODE -eq 0)
     } catch {
         return $false
@@ -244,8 +244,8 @@ if ($InstallDeps -or -not $DepsValid) {
 
     Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements.txt" } "Could not install requirements.txt."
 
-    Write-Info "Verify dependency imports and versions for the web profile"
-    Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" --profile web } "Dependencies are missing or incompatible after installation."
+    Write-Info "Verify dependency imports and versions for the complete profile"
+    Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" --profile all } "Dependencies are missing or incompatible after installation."
     Write-Success "Production dependencies installed; imports and versions verified."
 } else {
     Write-Success "Production dependencies are already available; imports and versions verified."
@@ -273,7 +273,7 @@ $DetectedPorts = @()
 try {
     $Ports = [System.IO.Ports.SerialPort]::GetPortNames()
     if ($Ports -and $Ports.Count -gt 0) {
-        $DetectedPorts = $Ports | Sort-Object -Unique
+        $DetectedPorts = @($Ports | Sort-Object -Unique)
     }
 } catch {}
 

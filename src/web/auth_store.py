@@ -334,17 +334,23 @@ class AuthStore:
             )
         return value
 
-    def recover_credentials(self, username: str, password: str) -> None:
+    def recover_credentials(self, username: str, password: str, *, expected_generation: int | None = None) -> None:
         """Administrative credential reset from local authority.
 
         Revokes all active browser sessions and API tokens, clears attempt rate limits,
-        and sets must_change=0.
+        and sets must_change=0. An expected generation guards prompts against
+        concurrent owner changes.
         """
         validate_credentials(username, password)
         salt = secrets.token_bytes(16)
         with self._hash_lock:
             password_hash = _hash(password, salt)
         with self._connection() as connection:
+            current = connection.execute("SELECT generation FROM auth_owner WHERE id=1").fetchone()
+            if current is None:
+                raise ValueError("account_missing")
+            if expected_generation is not None and current[0] != expected_generation:
+                raise ValueError("account_changed")
             connection.execute(
                 "UPDATE auth_owner SET username=?,salt=?,password_hash=?,must_change=0,generation=generation+1 WHERE id=1",
                 (username, salt.hex(), password_hash),

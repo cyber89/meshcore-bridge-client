@@ -63,6 +63,12 @@ class HealthReporter:
         mqtt_required = True
         capabilities_dict: dict[str, Any] | None = None
         bridge_obj = getattr(self._ctx, "bridge", None)
+        refresh_core = getattr(bridge_obj, "refresh_core_capability", None)
+        if callable(refresh_core):
+            refresh_core()
+        refresh_network = getattr(getattr(bridge_obj, "services_manager", None), "refresh_capabilities", None)
+        if callable(refresh_network):
+            refresh_network()
         if bridge_obj is not None and hasattr(bridge_obj, "capabilities") and bridge_obj.capabilities is not None:
             caps = bridge_obj.capabilities
             capabilities_dict = caps.to_dict()

@@ -220,6 +220,7 @@ class MeshCoreBridge:
             node_registry=self.node_registry,
             rate_limiter=self.rate_limiter,
             database=self.database,
+            mc_provider=lambda: getattr(getattr(self, "serial_adapter", None), "mc", None),
         )
         self.repeater_manager.is_cutoff_active_callback = self.rate_limiter.is_cutoff_active
         self.capabilities = CapabilityRegistry(web_enabled=bool(getattr(config, "WEB_ENABLED", True)))
@@ -809,8 +810,25 @@ class MeshCoreBridge:
             return res
         return {"status": "error", "message": "ServicesManager no disponible"}
 
+    def refresh_core_capability(self) -> None:
+        """Observe current radio readiness without a timer or an RF query."""
+        capabilities = getattr(self, "capabilities", None)
+        if capabilities is None:
+            return
+        if not getattr(self, "running", False) or getattr(self, "_is_stopped", False):
+            capabilities.core.mark_stopped()
+        elif getattr(self, "_started", False):
+            if bool(getattr(getattr(self, "serial_adapter", None), "is_connected", False)):
+                capabilities.core.mark_operational()
+            else:
+                capabilities.core.mark_failed("Radio is disconnected", "radio_disconnected")
+
     def get_health(self) -> dict[str, Any]:
         """Devuelve un snapshot consolidado de la salud de todos los subsistemas del bridge."""
+        self.refresh_core_capability()
+        manager = getattr(self, "services_manager", None)
+        if manager is not None:
+            manager.refresh_capabilities()
         if hasattr(self, "diagnostics") and hasattr(self.diagnostics, "collect_health_snapshot"):
             return self.diagnostics.collect_health_snapshot()
         serial_adapter = getattr(self, "serial_adapter", None)
@@ -880,10 +898,13 @@ class MeshCoreBridge:
             try:
                 await self._start_subsystems()
             except BaseException:
+                if hasattr(self, "capabilities"):
+                    self.capabilities.core.mark_failed("Station startup failed", "core_startup_failed")
                 # Already inside the lifecycle lock; avoid re-entering public stop().
                 await self._stop_subsystems()
                 raise
             self._started = True
+            self.refresh_core_capability()
 
     async def _start_subsystems(self) -> None:
         self.running = True
@@ -924,6 +945,8 @@ class MeshCoreBridge:
 
         # Conectar con hardware serial
         await self.serial_adapter.connect()
+        if hasattr(self, "capabilities"):
+            self.capabilities.core.mark_started()
         self.watchdog.start()
 
         # Iniciar servidor web si está habilitado
@@ -952,6 +975,8 @@ class MeshCoreBridge:
         if getattr(self, "_is_stopped", False):
             return
         self._started = False
+        if hasattr(self, "capabilities"):
+            self.capabilities.core.mark_stopped()
         logging.info("Deteniendo MeshCore Bridge (deadline global: %.1fs)...", timeout)
         self.running = False
         self._draining_storage = True
@@ -1278,6 +1303,16 @@ class MeshCoreBridge:
         clean_txt = text.strip().lower()
         first_token = clean_txt.split()[0] if clean_txt.split() else ""
         is_admin_cmd = first_token in ("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info")
+
+        if not is_admin_cmd and not is_broadcast:
+            service = getattr(self, "message_service", None) or MessageService(
+                node_registry=self.node_registry,
+                mc_provider=lambda: getattr(getattr(self, "serial_adapter", None), "mc", None),
+            )
+            validation = service.validate_tx_request(text, target_str, ch_idx)
+            if not validation.is_valid:
+                return {"status": "error", "error": validation.error, "request_id": req_id}
+            target = target_str = validation.clean_target
 
         err_msg = self._validate_tx_target(target_str, text, is_broadcast)
         if err_msg:

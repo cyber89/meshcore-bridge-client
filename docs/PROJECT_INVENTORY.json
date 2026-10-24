@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-24T00:25:19.516889+00:00",
-  "project_head": "4ea20bf8080003ea3bd5ebed2c603450052189b9",
+  "generated_at_utc": "2026-10-24T17:52:27.849429+00:00",
+  "project_head": "c3b114cf9a8458a8959fe31b412838384e9bb487",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,7 +14,7 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 103,
+    "documents": 105,
     "references": 15,
     "source_files": 161,
     "project_skills": 22,
@@ -169,14 +169,14 @@
     {
       "path": "docs/AI_REFERENCE.md",
       "category": "maintained-or-decision",
-      "sha256": "c107efaed6531a39801eb346e44368caa1ae8ca05228c460acc2b4ce3645a186",
-      "lines": 159
+      "sha256": "48141d0da6edba47c1d5cb93a826bfd3b2a3f3292133fe8fe43521cf3082a532",
+      "lines": 158
     },
     {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "62198fe070d360a0a12aebec4fb77a53184655458e9048b651df0c2acffb58d6",
-      "lines": 947
+      "sha256": "81df329869e9efea643a7856f69ccdaf211e7dc63968e3c0e2ae2ecec60b9b0b",
+      "lines": 946
     },
     {
       "path": "docs/audits/2026-10-09-layer-audit.md",
@@ -323,10 +323,22 @@
       "lines": 282
     },
     {
+      "path": "docs/audits/2026-10-23-deep-script-contract-review.md",
+      "category": "historical-ledger-or-report",
+      "sha256": "4541845d0d33f8492cfcdc5700513828bedb1ff12327fdb170992860d8df4bf0",
+      "lines": 271
+    },
+    {
       "path": "docs/audits/2026-10-23-documentation-scripts-review.md",
       "category": "historical-ledger-or-report",
-      "sha256": "7bfe929b311622921e76407b501830e9fdfd12ddd822710375c2a72a9b97560b",
-      "lines": 108
+      "sha256": "7a42e690b887b155c2bba860349c063a1f66ff37266f4227fa52c183e77279b6",
+      "lines": 112
+    },
+    {
+      "path": "docs/audits/2026-10-24-remediation-validation.md",
+      "category": "historical-ledger-or-report",
+      "sha256": "af0508fb78a7f2cb407612ba793d144f8faa5683f59a6ab652ee270a23ab6a98",
+      "lines": 124
     },
     {
       "path": "docs/audits/node-config-2026-10-03/backend/README.md",
@@ -379,19 +391,19 @@
     {
       "path": "docs/CODE_EXPLANATION.md",
       "category": "maintained-or-decision",
-      "sha256": "1a2bea6239e7326e4d610aefd367d45d0f3cc5feecdd267afe59c6b77e19a132",
+      "sha256": "5571fbf08780c3956140c099652d821d41c26102a96321642968efb40304c0e0",
       "lines": 97
     },
     {
       "path": "docs/DEPLOYMENT_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "aad0d90d19a6c4b9b81fe49ad6d1e600fd6161206c1eb5836191ec324483c716",
-      "lines": 349
+      "sha256": "4dd1f90ee2cefb7c66f867af6ec07629596a58975637f32adaf0d2fbe379f6e8",
+      "lines": 367
     },
     {
       "path": "docs/evolution/F0_CONTRACTS_AND_PROFILES.md",
       "category": "maintained-or-decision",
-      "sha256": "0601a4ce7b3bc24242b11b7a71c72d0121e49a649cbeb583fb363751eb4f06d3",
+      "sha256": "c9eef8ab7a1dfdb351f780780b6e712ec87b759ca7c2c55cf3af63b016aae321",
       "lines": 142
     },
     {
@@ -481,7 +493,7 @@
     {
       "path": "docs/N8N_WORKFLOW_GUIDE.md",
       "category": "maintained-or-decision",
-      "sha256": "ae6f37f57264850ee16ee2b4b18d47ee2eabb024ceb21f373a80209ededccbe7",
+      "sha256": "48f96d50b0857a377865a4ae767266dadfe91c14f24040771ad329b0aac6038d",
       "lines": 98
     },
     {
@@ -499,8 +511,8 @@
     {
       "path": "docs/plans/LOGIN_DESIGN_AND_RECOVERY.md",
       "category": "maintained-or-decision",
-      "sha256": "1ca51f6a2c2f06a82bd54dcb65aaf09c320967c11e5a9d421f1e82ecc126dace",
-      "lines": 93
+      "sha256": "e34e1772f088b55f257fa28e916ab6951bf98dd7fdd8ffe4ef9c9be82e91d77c",
+      "lines": 95
     },
     {
       "path": "docs/plans/MESHCORE_1_18_UPGRADE_PLAN.md",
@@ -517,8 +529,8 @@
     {
       "path": "docs/PROJECT_KNOWLEDGE.md",
       "category": "maintained-or-decision",
-      "sha256": "c69b1b460ec3cc0f5458a08acc1755d9289c4e5a3a63c92880d7f45474d032fc",
-      "lines": 234
+      "sha256": "608360a7a56291fd5394ff5c4389a6f371a15eab63e77f62e796dac613d94c57",
+      "lines": 244
     },
     {
       "path": "docs/PROTOCOL_SPEC.md",
@@ -529,8 +541,8 @@
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "e283f836e5047a396aa756772b2b195ab83ae254148b73bb1321e87cfb1c2ad6",
-      "lines": 184
+      "sha256": "3b6c774a88d97091b4a889b39d6091c4d75174b2517e28b70f8e5b18a65a600e",
+      "lines": 186
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",
@@ -559,31 +571,31 @@
     {
       "path": "docs/STORAGE.md",
       "category": "maintained-or-decision",
-      "sha256": "a20ed56ed36f83bce8ce253a88d8a211a1de6821bae262b1d362490e6d2ed8fb",
-      "lines": 86
+      "sha256": "fef02b7b733812c4cd2c922f1a1cc3927b908436f870df024af73fbc74129124",
+      "lines": 84
     },
     {
       "path": "docs/SYSTEM_LAYERS_MANUAL.md",
       "category": "maintained-or-decision",
-      "sha256": "f21d9d7d1be8adfeaa785d0b373c40efc5ff2da3d879f13cfc37dcda6bdca4e3",
-      "lines": 511
+      "sha256": "cd54b8ac96607dee74dd8c9c15c1d049555c4ead93114ccbb6281f233e999a60",
+      "lines": 512
     },
     {
       "path": "docs/TEST_INVENTORY.md",
       "category": "maintained-or-decision",
-      "sha256": "3cdb7cbe6a3fb55fae9eca5efd25a750b411074259b5e3a39bbb5329669a76fa",
-      "lines": 198
+      "sha256": "2be422e980e0fdd2d0bbeec4d4869687467e1f98251a4868811668e81fc57300",
+      "lines": 203
     },
     {
       "path": "docs/TESTING.md",
       "category": "maintained-or-decision",
-      "sha256": "a8f6b741dc337217046bfc17090cefb8ab7d7ba9133a1cbb12dcb8ab6d5319ed",
-      "lines": 190
+      "sha256": "3c6403236b582b02bc53aa7fc833313ffea5186900d55df021b6fe1d4956c59b",
+      "lines": 212
     },
     {
       "path": "README.md",
       "category": "maintained-or-decision",
-      "sha256": "fb529bf40e692c6b3b22e785d45b84e63c3aa5008b1b9ec8e34e1f29a7d5e67e",
+      "sha256": "0e9504d70e8444f4ccb87c69e0fc311e06454c895cb784d969be9c12fdd35220",
       "lines": 221
     },
     {
@@ -2013,12 +2025,12 @@
     },
     {
       "path": "install.ps1",
-      "sha256": "31adae37d57b969378006a605e1ec49e8e7181643d603e41af9983c044eb471a",
+      "sha256": "74d54264dbac79f3d78d486c0dccd502db2a29cd9e8d5bec1894a2966ce42597",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
       "path": "install.sh",
-      "sha256": "b00df7c59dd461f9fb80e00484a779b0e2c50a766781fe2ef3ee00dddaca89ea",
+      "sha256": "93ee13673e5cda3d3832b30e73a0e017cda10820593d9685c26b2d0e554bf1a3",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2073,7 +2085,7 @@
     },
     {
       "path": "scripts/build_diagrams.py",
-      "sha256": "be7548800ddb8bef0a4f7c0c075c5e57f9fca9634ea3a3550c719d5c9d331fb9",
+      "sha256": "8dbebc13d81e76ecedb2e2dbd5e15e6bb5b52d8152eca5c266e78a746475a5b1",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2083,7 +2095,7 @@
     },
     {
       "path": "scripts/check_frontend_health.py",
-      "sha256": "15b103fa0ec579ecbed686b4a3d805b92e15a720f397e5efd64bd6b9fdcb14a2",
+      "sha256": "7c05ff5b8513c4710b566e5fb336521c3971f1852acb2fb2cc12b192066d8245",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2093,12 +2105,12 @@
     },
     {
       "path": "scripts/check_layer_contracts.py",
-      "sha256": "14d51de1286e408c50d824d98f5b5b080d0981388ff248165fb8ed2a2fa208a1",
+      "sha256": "090e87a6874956328dd4b18bd3478b0a1605a55373a5b7d09f9f33f66e217784",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
       "path": "scripts/check_runtime_dependencies.py",
-      "sha256": "04ef1a0d29b60d14f50bd3b8ef1858738f2c55c9222e65d3e7641fa65784b632",
+      "sha256": "8431bba67740f73c01641d4c680256298a871d1f2f378d08054d457e01557472",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2108,7 +2120,7 @@
     },
     {
       "path": "scripts/export_logs.py",
-      "sha256": "b6de16ce86f5aa9c83d732b834495e088d6094d2dc7ccaf4a89d02a3e7619df6",
+      "sha256": "a260ecedcfe63550445e13e35567345d02548fe025bbb61e490ce2ed1f4ee553",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2123,17 +2135,17 @@
     },
     {
       "path": "scripts/inspect_web.py",
-      "sha256": "4d092e079a1997d252caaccc3bbc55cfb83894c48c7f0ad91b124f7367f5f9df",
+      "sha256": "64b1d43f3b504d57464d6023cdadd960472b9a6814293cc72a8b914662d418cc",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
       "path": "scripts/inventory_project_knowledge.py",
-      "sha256": "4cee35881471ba77139ec5efa4800022e28937602d65babcacc7eb5efb52acaa",
+      "sha256": "ae0a16adf550d2f58f0519b2811cb2569e96e7b1507788584b438dc8cb6e89c6",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
       "path": "scripts/inventory_verification.py",
-      "sha256": "e142615d69a440cc81bb1a3a4aba8a107dbe9f3a5c3799f9d950c43efafb8fb9",
+      "sha256": "85dc8f867ac05ef429d6eeeb97c70e9b3c82a0a31dfcf0b3f2387f2b61c6a970",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2148,7 +2160,7 @@
     },
     {
       "path": "scripts/reset_web_password.py",
-      "sha256": "b5e7aedf5734f0af958345efeca7d42a46142b305b6c0b9a949e04a3b1e70900",
+      "sha256": "02b633a55f8cf6903ebd45aa08cfcd8a56a760928014f0c29110a54999551a08",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2203,7 +2215,7 @@
     },
     {
       "path": "scripts/staged_update.py",
-      "sha256": "16ec06d8cff414c25a97c4e6e13eeafb1ecde38bff9691e1bee0a3790c343f5d",
+      "sha256": "26c5eba0bf1f7b2bd30570183628528cb3f416238440a0e5ebb4dc5cac1270be",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2249,6 +2261,8 @@
     "requirements.txt",
     "requirements-dev.txt",
     "requirements-web.txt",
+    "requirements-core.txt",
+    "requirements-mqtt.txt",
     "pyproject.toml",
     "n8n_workflow_meshcore.json",
     "opencode.json",

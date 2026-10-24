@@ -242,6 +242,8 @@ class CapabilityRegistry:
             derived_state = CapabilityState.FAILED if current.essential else CapabilityState.DEGRADED
         elif new_started:
             derived_state = CapabilityState.STARTING
+        elif started is False or operational is False:
+            derived_state = CapabilityState.STARTING
         else:
             derived_state = current.state
 
@@ -273,7 +275,7 @@ class CapabilityRegistry:
         self.update_capability(name, operational=False, state=CapabilityState.FAILED, error=error, error_code=error_code)
 
     def set_disabled(self, name: str | CapabilityName) -> None:
-        self.update_capability(name, configured=False, operational=False, state=CapabilityState.DISABLED, error=None)
+        self.update_capability(name, configured=False, started=False, operational=False, state=CapabilityState.DISABLED, error=None)
 
     def get_report(self, name: str | CapabilityName) -> CapabilityReport:
         key = str(name)
@@ -294,9 +296,7 @@ class CapabilityRegistry:
     def is_healthy(self) -> bool:
         """Determina la salud global: el Core DEBE estar disponible; opcionales degradados no derriban la estación."""
         core = self.get_report(CapabilityName.CORE)
-        if not core.operational and core.state != CapabilityState.AVAILABLE:
-            return False
-        return True
+        return bool(core.operational)
 
     def get_liveness(self) -> dict[str, Any]:
         """Reporte de liveness del proceso (proceso vivo y bucle respondiendo)."""

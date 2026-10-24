@@ -8,13 +8,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from src.contact_manager import NodeRegistry, PacketRecord
 from src.rate_limiter import TxPriority, TxRateLimiter
+from src.shared_utils import classify_device_role
 from src.station_database import StationDatabase
+from src.target_resolver import TargetResolver
 
 logger = logging.getLogger("meshcore.application.messaging")
 
@@ -62,11 +66,13 @@ class MessageService:
         rate_limiter: TxRateLimiter | RateLimiterProtocol | None = None,
         database: StationDatabase | None = None,
         log_system_event: Any | None = None,
+        mc_provider: Callable[[], Any] | None = None,
     ) -> None:
         self.node_registry = node_registry if node_registry is not None else NodeRegistry()
         self.rate_limiter = rate_limiter
         self.database = database
         self._log_event = log_system_event
+        self._mc_provider = mc_provider
 
     def validate_tx_request(
         self,
@@ -115,8 +121,10 @@ class MessageService:
             )
 
         try:
-            if isinstance(channel_idx, bool):
-                raise ValueError("Channel index cannot be boolean")
+            if isinstance(channel_idx, bool) or not isinstance(channel_idx, (str, int)):
+                raise ValueError("Channel index must be an integer")
+            if isinstance(channel_idx, str) and re.fullmatch(r"[+-]?[0-9]+", channel_idx.strip()) is None:
+                raise ValueError("Channel index must be an integer")
             ch_val = int(channel_idx)
             if ch_val < 0 or ch_val > 255:
                 raise ValueError("Channel index out of bounds")
@@ -134,6 +142,26 @@ class MessageService:
         )
 
         if not is_broadcast:
+            resolved_role = ""
+            try:
+                resolved = TargetResolver(
+                    mc_provider=self._mc_provider, node_registry=self.node_registry,
+                ).resolve(clean_target, raise_on_not_found=True)
+                key = resolved.get("public_key", "") if isinstance(resolved, dict) else getattr(resolved, "public_key", resolved)
+                if isinstance(resolved, dict):
+                    advert_type = resolved.get("adv_type", resolved.get("type"))
+                    resolved_role = (classify_device_role(int(advert_type)) if advert_type is not None
+                                     else str(resolved.get("role", "")).upper())
+                else:
+                    resolved_role = str(getattr(resolved, "role", "")).upper()
+                clean_target = str(key).lower().strip()
+                if re.fullmatch(r"[0-9a-f]{64}", clean_target) is None:
+                    raise ValueError("A complete public key is required")
+            except (ValueError, TypeError):
+                return ValidationResult(
+                    is_valid=False, error="Destino desconocido, incompleto o ambiguo",
+                    error_code="invalid_target_destination", http_code=422,
+                )
             # Regla 1.2: Prohibido enviar chat a la propia estación local
             if self.node_registry.is_local_key(clean_target):
                 return ValidationResult(
@@ -149,7 +177,8 @@ class MessageService:
 
             # Regla 1.1: Prohibido enviar chat hacia repetidores de infraestructura
             dest_node = self.node_registry.get_by_key_or_prefix(clean_target)
-            if (dest_node and dest_node.role in ("REPEATER", "ROUTER")) or self.node_registry.is_repeater_key(clean_target):
+            if (resolved_role in ("REPEATER", "ROUTER") or
+                (dest_node and dest_node.role in ("REPEATER", "ROUTER")) or self.node_registry.is_repeater_key(clean_target)):
                 return ValidationResult(
                     is_valid=False,
                     error="Los repetidores son nodos de infraestructura y no procesan mensajes de chat",

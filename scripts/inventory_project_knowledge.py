@@ -179,7 +179,7 @@ def inventory() -> dict[str, object]:
         "scripts_and_entrypoints": helpers,
         "root_entrypoints": [name for name in ("config.py", "runtime_requirements.py", "run_interactive_demo.py", ".env.example", "meshcore_bridge.py",
                               "install.sh", "install.ps1", "meshcore-bridge.service", "requirements.txt",
-                              "requirements-dev.txt", "requirements-web.txt", "pyproject.toml", "n8n_workflow_meshcore.json",
+                              "requirements-dev.txt", "requirements-web.txt", "requirements-core.txt", "requirements-mqtt.txt", "pyproject.toml", "n8n_workflow_meshcore.json",
                               "opencode.json", "skills-lock.json") if (ROOT / name).is_file()],
     }
 

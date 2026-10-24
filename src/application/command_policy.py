@@ -5,9 +5,11 @@ Handles command idempotency, conflict detection, and state tracking for integrat
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -22,6 +24,7 @@ class CommandStatus(StrEnum):
     FAILED = "failed"
     UNCERTAIN = "uncertain"
     CONFLICT = "conflict"
+    UNAVAILABLE = "unavailable"
 
 
 @dataclass(frozen=True)
@@ -42,18 +45,47 @@ class CommandLedgerPolicy:
     def __init__(self, database: StationDatabase | None, station_id: str | None = None) -> None:
         self.database = database
         self._station_id = station_id
+        self._workers: set[asyncio.Task[Any]] = set()
 
     @property
     def station_id(self) -> str:
         if self._station_id:
             return self._station_id
-        if self.database:
-            try:
-                self._station_id = self.database.get_station_id()
-                return self._station_id
-            except Exception:
-                pass
-        return "default_station"
+        if self.database is None:
+            raise RuntimeError("Command ledger is unavailable")
+        self._station_id = self.database.get_station_id()
+        return self._station_id
+
+    async def _in_worker[T](self, callback: Callable[..., T], *args: Any) -> T:
+        task = asyncio.create_task(asyncio.to_thread(callback, *args), name="CommandLedgerPersistence")
+        self._workers.add(task)
+        task.add_done_callback(self._worker_done)
+        return await asyncio.shield(task)
+
+    def _worker_done(self, task: asyncio.Task[Any]) -> None:
+        self._workers.discard(task)
+        if not task.cancelled():
+            task.exception()
+
+    async def drain(self) -> None:
+        """Keep admitted SQLite workers owned through caller cancellation."""
+        while self._workers:
+            await asyncio.gather(*(asyncio.shield(task) for task in list(self._workers)), return_exceptions=True)
+
+    async def reserve_async(
+        self, integration_scope: str, command_id: str | None, action_type: str,
+        semantic_payload: dict[str, Any],
+    ) -> CommandReservation:
+        return await self._in_worker(self.reserve, integration_scope, command_id, action_type, semantic_payload)
+
+    async def mark_dispatching_async(self, integration_scope: str, command_id: str | None) -> None:
+        await self._in_worker(self.mark_dispatching, integration_scope, command_id)
+
+    async def record_result_async(
+        self, integration_scope: str, command_id: str | None, status: CommandStatus,
+        result_payload: dict[str, Any] | None = None,
+    ) -> None:
+        await self._in_worker(self.record_result, integration_scope, command_id, status, result_payload)
 
     @staticmethod
     def compute_fingerprint(action_type: str, semantic_payload: dict[str, Any]) -> str:
@@ -85,8 +117,7 @@ class CommandLedgerPolicy:
         """
         if not command_id or not str(command_id).strip():
             logging.warning(
-                "[MQTT-COMMAND] Processing %s command in legacy mode without command_id (no deduplication guarantee)",
-                action_type,
+                "[MQTT-COMMAND] Legacy command without command_id (no deduplication guarantee)",
             )
             return CommandReservation(
                 admitted=True,
@@ -98,10 +129,11 @@ class CommandLedgerPolicy:
         cid = str(command_id).strip()
         if not self.database:
             return CommandReservation(
-                admitted=True,
-                status=CommandStatus.ADMITTED,
-                is_legacy=True,
+                admitted=False,
+                status=CommandStatus.UNAVAILABLE,
+                is_legacy=False,
                 command_id=cid,
+                error_message="Command ledger is unavailable; command was not dispatched",
             )
 
         fingerprint = self.compute_fingerprint(action_type, semantic_payload)
@@ -113,12 +145,13 @@ class CommandLedgerPolicy:
                 fingerprint=fingerprint,
             )
         except Exception as e:
-            logging.error("[MQTT-COMMAND] Error accessing command ledger for id=%s: %s", cid, e)
+            logging.error("[MQTT-COMMAND] Command ledger reservation failed: %s", type(e).__name__)
             return CommandReservation(
-                admitted=True,
-                status=CommandStatus.ADMITTED,
-                is_legacy=True,
+                admitted=False,
+                status=CommandStatus.UNAVAILABLE,
+                is_legacy=False,
                 command_id=cid,
+                error_message="Command ledger is unavailable; command was not dispatched",
             )
 
         try:
@@ -164,8 +197,10 @@ class CommandLedgerPolicy:
 
     def mark_dispatching(self, integration_scope: str, command_id: str | None) -> None:
         """Mark command as actively dispatching across the RF/SDK boundary."""
-        if not command_id or not self.database:
+        if not command_id:
             return
+        if self.database is None:
+            raise RuntimeError("Command ledger is unavailable")
         try:
             self.database.update_command_status(
                 station_id=self.station_id,
@@ -174,7 +209,8 @@ class CommandLedgerPolicy:
                 status=CommandStatus.DISPATCHING.value,
             )
         except Exception as e:
-            logging.error("[MQTT-COMMAND] Error marking command as dispatching: %s", e)
+            logging.error("[MQTT-COMMAND] Dispatch reservation failed: %s", type(e).__name__)
+            raise RuntimeError("Command dispatch reservation failed") from None
 
     def record_result(
         self,
@@ -195,4 +231,4 @@ class CommandLedgerPolicy:
                 result_payload=result_payload,
             )
         except Exception as e:
-            logging.error("[MQTT-COMMAND] Error recording command result: %s", e)
+            logging.error("[MQTT-COMMAND] Result persistence failed: %s", type(e).__name__)

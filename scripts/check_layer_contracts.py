@@ -50,7 +50,10 @@ def main() -> int:
             if source not in graph:
                 errors.append(f"Missing contract source: {source}")
                 continue
-            pending = [(source, [source])]
+            # A package source denotes its whole subtree, including modules
+            # that its __init__ does not export or import.
+            roots = [module for module in graph if module == source or module.startswith(source + ".")]
+            pending = [(module, [module]) for module in roots]
             seen: set[str] = set()
             while pending:
                 module, trail = pending.pop()

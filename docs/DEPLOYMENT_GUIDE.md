@@ -49,6 +49,15 @@ sudo bash install.sh
 sudo bash install.sh --update
 ```
 
+El modo sin opción exige que `/opt/meshcore-bridge` no exista y lo rechaza antes
+de modificar paquetes o servicios si ya hay un destino. Una instalación existente,
+incluso desde otro checkout, utiliza `--update` y su staging con rollback. La
+instalación inicial crea `.env` de forma exclusiva con modo POSIX `0600`, inserta
+`SERIAL_PORT`, `MQTT_USER` y `MQTT_PASSWORD` aunque no estuvieran en la plantilla y
+no sobrescribe una configuración que aparezca durante la operación. Las
+actualizaciones conservan sus valores, rechazan `.env` simbólico/no regular y
+restringen sus permisos a `0600` antes de iniciar la estación.
+
 **El instalador realiza estas tareas si dispone de los permisos, paquetes y servicios necesarios:**
 1. Instala herramientas de compilación, bibliotecas SSL/ffi y servicios/herramientas del sistema (`mosquitto`, `git`, `curl`, `udev`, `sudo`); el intérprete CPython compatible debe existir previamente.
 2. Configura e inicia **Mosquitto** en `0.0.0.0:1883` con autenticación (`allow_anonymous false`), credenciales dedicadas para el bridge y credenciales con ACL para integraciones LAN (n8n, Home Assistant). El servicio systemd incluye un drop-in de dependencia (`meshcore-bridge.service.d/mosquitto.conf`).
@@ -59,20 +68,29 @@ sudo bash install.sh --update
 7. Antes de arrancar el bridge, crea la cuenta inicial **`admin:admin`** sin solicitar credenciales durante la instalación ni esperar entrada del usuario. El primer inicio de sesión exige cambiar inmediatamente las credenciales en **Perfil** antes de acceder a la estación. Las actualizaciones conservan las cuentas existentes.
 8. Registra, habilita y arranca el servicio **`meshcore-bridge.service`** en systemd.
 
+Las contraseñas nuevas MQTT se generan con `secrets` del intérprete seleccionado;
+un fallo de generación aborta sin usar credenciales fijas. El archivo de
+contraseñas se prepara temporalmente y se publica con propietario `root:mosquitto`
+y modo `0640`, para lectura por el daemon. Un fallo de `mosquitto_passwd`,
+habilitación, reinicio o comprobación de estado aborta la instalación. Este flujo
+no se ejecuta durante `--update`, que conserva el broker existente. La corrección
+está contrastada estáticamente; no acredita instalación en un gateway real.
+
 ### 📦 Dependencias y Perfiles de Verificación
 
-El archivo [`requirements.txt`](../requirements.txt) y las dependencias principales de [`pyproject.toml`](../pyproject.toml) incluyen el stack completo de producción:
+El archivo [`requirements.txt`](../requirements.txt) conserva el stack completo de producción utilizado por los instaladores. Las dependencias base de [`pyproject.toml`](../pyproject.toml) contienen sólo el core; los extras añaden MQTT o ASGI:
 
 | Grupo | Distribuciones y política de versión |
 | --- | --- |
-| Core | `paho-mqtt==2.1.0`, `meshcore==2.3.17`, `pyserial==3.5`, `python-dotenv==1.2.4` |
+| Core | `meshcore==2.3.17`, `pyserial==3.5`, `python-dotenv==1.2.4` |
+| MQTT | `paho-mqtt==2.1.0` |
 | ASGI | `fastapi==0.143.0`, `uvicorn==0.54.0`, `pydantic==2.14.1`, `websockets==17.3`, `starlette==1.7.0`, `h11==0.16.0` |
 
-Los pins core y ASGI fijan las versiones de esta actualización. La resolución e imports deben comprobarse con el intérprete y plataforma elegidos en un entorno aislado; no se deducen del manifiesto ni se acreditan por el cambio de baseline. El comprobador aplica mínimos a las cuatro dependencias core y versiones exactas a las seis ASGI; para estas últimas rechaza pre-releases, post-releases y builds locales. Las demás transitivas siguen las restricciones de sus paquetes padres; estos manifests no son un lock completo con hashes. `requirements-web.txt` conserva un punto de entrada compatible mediante `-r requirements.txt`, y el extra `web` conserva los mismos seis pins para comandos existentes.
+Los pins core, MQTT y ASGI fijan las versiones de esta actualización. La resolución e imports deben comprobarse con el intérprete y plataforma elegidos en un entorno aislado; no se deducen del manifiesto ni se acreditan por el cambio de baseline. El comprobador aplica mínimos a core/MQTT y versiones exactas a las seis ASGI; para estas últimas rechaza pre-releases, post-releases y builds locales. Las demás transitivas siguen las restricciones de sus paquetes padres; estos manifests no son un lock completo con hashes. `requirements-web.txt` conserva un punto de entrada completo compatible mediante `-r requirements.txt`; para instalaciones reducidas existen `requirements-core.txt`, `requirements-mqtt.txt` y los extras descritos abajo.
 
 La verificación con el mismo intérprete del launcher comprueba imports y versiones; no ejecuta endpoints ni acredita el comportamiento de la estación:
 
-- **Perfil `web` / `all`**: Verifica dependencias core, cliente MQTT y los seis pins ASGI. Es el default sin variable `MESHCORE_PROFILE`; ambos instaladores lo seleccionan explícitamente con `--profile web`:
+- **Perfil `web`**: Verifica core y los seis pins ASGI. Es el default sin variable `MESHCORE_PROFILE`. **Perfil `all`** añade MQTT y es el seleccionado explícitamente por ambos instaladores completos:
   ```bash
   python scripts/check_runtime_dependencies.py                  # Por defecto (perfil web)
   python scripts/check_runtime_dependencies.py --profile web    # Explícito
@@ -81,14 +99,14 @@ La verificación con el mismo intérprete del launcher comprueba imports y versi
   ```bash
   python scripts/check_runtime_dependencies.py --profile mqtt   # Perfil core + broker MQTT
   ```
-- **Perfil `core`**: Tiene actualmente las mismas dependencias que `mqtt`: verifica e importa `meshcore`, `pyserial`, `python-dotenv` y `paho.mqtt.client`, sin importar ASGI. El nombre del perfil no acredita un entorno sin Paho:
+- **Perfil `core`**: Verifica e importa `meshcore`, `pyserial` y `python-dotenv`, sin importar Paho ni ASGI:
   ```bash
-  python scripts/check_runtime_dependencies.py --profile core   # Sin ASGI; incluye Paho
+  python scripts/check_runtime_dependencies.py --profile core   # Sin ASGI ni Paho
   ```
 
-`MESHCORE_PROFILE` selecciona el perfil del comprobador cuando no se pasa `--profile`. Un perfil desconocido falla; no reduce silenciosamente la verificación a core. El argumento explícito tiene prioridad sobre la variable. Con la Fase F4 ([ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md)), `pyproject.toml` declara extras `core`, `mqtt`, `web` y `all`; sin embargo, `project.dependencies` conserva las diez dependencias de producción. Por ello, `pip install -e .[core]` también instala ASGI y Paho: los extras son aditivos y todavía no proporcionan una instalación mínima. La opcionalidad en runtime y la separación de paquetes son contratos distintos.
+`MESHCORE_PROFILE` selecciona el perfil del comprobador cuando no se pasa `--profile`. Un perfil desconocido falla; no reduce silenciosamente la verificación a core. El argumento explícito tiene prioridad sobre la variable. `pip install -e '.[core]'` instala las tres dependencias base; `'.[mqtt]'` añade Paho, `'.[web]'` añade ASGI y `'.[all]'` reúne ambos. El extra `dev` añade la pila completa y las herramientas QA. La configuración runtime sigue siendo independiente: seleccione qué servicios arrancan y sus endpoints en la configuración de estación. Los instaladores conservan el entorno completo de `requirements.txt` por compatibilidad.
 
-Cuando `WEB_ENABLED=true` y las dependencias web están disponibles, el core crea [`AsgiWebServer`](../src/web/asgi_server.py), con FastAPI y Uvicorn embebido. `WEB_ENABLED=false`, la ausencia detectada de dependencias web o un `ImportError` al construirlas hacen que continúe sin servidor web; no existe un servidor HTTP alternativo. Los instaladores siguen exigiendo el perfil web completo antes de arrancar. No se han ejecutado pruebas funcionales de REST, WS, documentación offline, apagado ni instalación por plataforma durante esta revisión, ni medido RAM, arranque o rendimiento en los gateways citados.
+Cuando `WEB_ENABLED=true` y las dependencias web están disponibles, el core crea [`AsgiWebServer`](../src/web/asgi_server.py), con FastAPI y Uvicorn embebido. `WEB_ENABLED=false`, la ausencia detectada de dependencias web o un `ImportError` al construirlas hacen que continúe sin servidor web; no existe un servidor HTTP alternativo. Los instaladores completos exigen `--profile all` antes de arrancar. No se han ejecutado pruebas funcionales de REST, WS, documentación offline, apagado ni instalación por plataforma durante esta corrección, ni medido RAM, arranque o rendimiento en los gateways citados.
 
 ---
 
@@ -192,7 +210,7 @@ Para un broker remoto con TLS, configure `MQTT_TLS=true`, `MQTT_BROKER` con el n
 
 3. Configura el archivo de variables de entorno `.env`:
     ```bash
-    cp .env.example .env
+    install -m 600 .env.example .env
     nano .env
     ```
     *Verifique `SERIAL_PORT` (`/dev/ttyACM0`, `/dev/ttyUSB0`, `AUTO` o `tcp://host:port`) y `DATA_DIR`. Para USB puede utilizar una ruta persistente de `/dev/serial/by-id/`. El default de `config.py` es `/dev/ttyACM0` fuera de Windows y `AUTO` en Windows; `.env` puede sobrescribirlo.*
@@ -302,7 +320,7 @@ curl -s -H 'Authorization: Bearer <token_creado_en_perfil>' http://127.0.0.1:808
 
 ### Instalación en Windows (PowerShell)
 
-Para ejecutar en Windows, `install.ps1` crea o reutiliza `.venv` y ejecuta pip mediante el Python de ese entorno. Antes de cualquier `-Run`, el helper crea la cuenta restringida `admin:admin` sin pedir credenciales ni esperar tres minutos; el primer inicio de sesión exige cambiar inmediatamente las credenciales desde **Perfil**. Los siguientes usos conservan la cuenta existente. Exige CPython estable 3.12 o superior (3.13.5 recomendado, sin máximo) y comprueba mínimos core/pins ASGI mediante `--profile web`, con independencia de `MESHCORE_PROFILE`. Para una venv nueva admite una ruta en `$env:MESHCORE_PYTHON`; sin ella inspecciona `python3.13`, `python3.12`, `python3.15`, `python3.14`, `python3`, `python` y los intérpretes instalados que enumera `py -0p`, comprobando su versión completa. Una venv antigua no cambia de intérprete al activar o actualizar paquetes; crear otra con un intérprete compatible, por ejemplo la rama 3.13 recomendada:
+Para ejecutar en Windows, `install.ps1` crea o reutiliza `.venv` y ejecuta pip mediante el Python de ese entorno. Antes de cualquier `-Run`, el helper crea la cuenta restringida `admin:admin` sin pedir credenciales ni esperar tres minutos; el primer inicio de sesión exige cambiar inmediatamente las credenciales desde **Perfil**. Los siguientes usos conservan la cuenta existente. Exige CPython estable 3.12 o superior (3.13.5 recomendado, sin máximo) y comprueba core, MQTT y los pins ASGI mediante `--profile all`, con independencia de `MESHCORE_PROFILE`. Para una venv nueva admite una ruta en `$env:MESHCORE_PYTHON`; sin ella inspecciona `python3.13`, `python3.12`, `python3.15`, `python3.14`, `python3`, `python` y los intérpretes instalados que enumera `py -0p`, comprobando su versión completa. Una venv antigua no cambia de intérprete al activar o actualizar paquetes; crear otra con un intérprete compatible, por ejemplo la rama 3.13 recomendada:
 ```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1

@@ -1,0 +1,3 @@
+# Headless station with MQTT support, without ASGI.
+-r requirements-core.txt
+paho-mqtt==2.1.0

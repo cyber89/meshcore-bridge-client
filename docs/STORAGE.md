@@ -48,7 +48,7 @@ Feeds use `ch_<channel index>` or `dm_<public key>`. Messages include stable `ms
 
 ## Command idempotency ledger (`command_ledger`)
 
-SQLite maintains `command_ledger` for command reservations and results ([ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)). The implemented deduplication scope is partial, as detailed below:
+SQLite maintains `command_ledger` for TX and administrative command reservations/results ([ADR 0021](adr/0021-mqtt-security-idempotency-and-unified-topics.md)):
 - **Schema**: `(id INTEGER PRIMARY KEY AUTOINCREMENT, station_id TEXT NOT NULL, integration_scope TEXT NOT NULL, command_id TEXT NOT NULL, fingerprint TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL, UNIQUE (station_id, integration_scope, command_id))`
 - **Index**: `idx_command_ledger_lookup` on `(station_id, integration_scope, command_id)`
 - **Capacity Policy**: Strictly bounded to 10 000 rows. Pruning executes inline during insertion (retaining the most recent entries) without requiring background timers.
@@ -56,22 +56,20 @@ SQLite maintains `command_ledger` for command reservations and results ([ADR 002
 - **Rollback Note**: Restoring an older SQLite backup also reverts the ledger; incoming requests with previously reserved command IDs during the gap must be reconciled by the integration.
 
 
-`MqttInboundDispatcher._handle_tx_request()` uses the `mqtt` scope and returns
-without enqueueing TX whenever reservation is denied, including when the prior
-command has no final result yet. The `{prefix}/admin/cmd` handler uses
-`mqtt_admin`, rejects conflicts and returns an existing nonempty result. However,
-a denied admin reservation with no stored result still proceeds to execution:
-concurrent duplicates or retries during an unfinished command can dispatch again.
-`{prefix}/admin/repeater/{target}/cmd` bypasses reservation and calls the admin
-handler directly, even when an identifier is supplied.
+`MqttInboundDispatcher._handle_tx_request()` uses the `mqtt` scope. Both
+`{prefix}/admin/cmd` and `{prefix}/admin/repeater/{target}/cmd` use `mqtt_admin`.
+All three stop before dispatch whenever a reservation is denied, including when
+the prior command has no final result. Existing results or pending states are
+returned without another RF operation. Ledger calls run in owned worker tasks,
+outside the event loop, and the dispatcher drains those workers on shutdown.
 
-`CommandLedgerPolicy.reserve()` admits legacy execution when no ID is supplied,
-when no database is injected, or when the database reservation raises an error.
-Marking dispatch and recording results are separate operations whose failures are
-logged. SQLite reservation, RF dispatch and result recording are not one atomic
-transaction; a crash or storage error can leave an admitted/dispatching command
-without a result. The ledger is neither an exactly-once guarantee nor a durable
-retry queue, and integrations must not assume global administrative deduplication.
+`CommandLedgerPolicy.reserve()` admits legacy execution only when no ID is
+supplied. Identified commands fail closed if the database is absent, reservation
+fails or the dispatch marker cannot be stored. SQLite reservation, RF dispatch
+and result recording remain separate operations; a crash or storage error can
+leave an admitted/dispatching command without a result. A failed result write
+does not undo RF. The ledger is neither an exactly-once guarantee nor a durable
+retry queue, and its existing retention/backup limits still apply.
 
 ## Backup, restore and rollback
 

@@ -74,14 +74,14 @@ def generate_local_report() -> str:
     return f"# Reporte de Emergencia MeshCore Bridge\n\n```log\n{content[-2000:]}\n```"
 
 
-def show_tail(lines: int = 50) -> None:
+def show_tail(lines: int = 50) -> bool:
     """Imprime las últimas N líneas del archivo de logs."""
     import config
     log_file = getattr(config, "LOG_FILE_PATH", "logs/meshcore-bridge.log")
     p = Path(log_file)
     if not p.exists():
         print(f"❌ Archivo de logs no encontrado en: {p}")
-        return
+        return False
 
     try:
         with open(p, encoding="utf-8", errors="ignore") as f:
@@ -89,11 +89,13 @@ def show_tail(lines: int = 50) -> None:
             tail = "".join(all_lines[-lines:])
             print(f"--- Últimas {lines} líneas de {p} ---")
             print(tail)
+        return True
     except Exception as e:
         print(f"❌ Error leyendo archivo de logs: {e}")
+        return False
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="MeshCore Bridge - Diagnósticos y Exportador de Logs para IA / Soporte")
     parser.add_argument("--markdown", "-m", action="store_true", help="Genera reporte estructurado en Markdown")
     parser.add_argument("--json", "-j", action="store_true", help="Genera reporte completo en JSON")
@@ -101,28 +103,28 @@ def main() -> None:
     parser.add_argument("--output", "-o", type=str, help="Guarda el reporte generado en el archivo indicado")
     parser.add_argument("--live-url", type=str, default="http://127.0.0.1:8080", help="URL base del servidor web del bridge")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # 1. Caso Tail
     if args.tail > 0:
-        show_tail(args.tail)
-        return
+        return 0 if show_tail(args.tail) else 1
 
     # 2. Caso JSON
     if args.json:
         # Intentar API REST primero
         api_data = fetch_from_api(args.live_url, "/api/diagnostics/export")
-        if api_data and isinstance(api_data, dict):
-            out = json.dumps(api_data, indent=2)
-        else:
-            out = json.dumps({"error": "Live diagnostics unavailable; set MESHCORE_API_TOKEN for authenticated access."}, indent=2)
+        if (not isinstance(api_data, dict) or not api_data or "error" in api_data
+                or api_data.get("status") in ("error", "failed")):
+            print(json.dumps({"error": "Live diagnostics unavailable; set MESHCORE_API_TOKEN for authenticated access."}), file=sys.stderr)
+            return 1
+        out = json.dumps(api_data, indent=2)
 
         if args.output:
             Path(args.output).write_text(out, encoding="utf-8")
             print(f"✓ Reporte JSON guardado en: {args.output}")
         else:
             print(out)
-        return
+        return 0
 
     # 3. Caso Markdown (por defecto)
     api_md = fetch_from_api(args.live_url, "/api/diagnostics/report.md")
@@ -138,7 +140,8 @@ def main() -> None:
         print(f"✓ Reporte Markdown para IA guardado en: {args.output}")
     else:
         print(report_text)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

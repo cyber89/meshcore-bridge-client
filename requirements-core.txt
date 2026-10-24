@@ -1,0 +1,4 @@
+# Minimal radio station runtime, without MQTT or the web server.
+meshcore==2.3.17
+pyserial==3.5
+python-dotenv==1.2.4
