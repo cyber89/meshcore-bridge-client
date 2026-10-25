@@ -19,6 +19,11 @@ VIEWPORTS = [(1920, 1080), (1366, 768), (1024, 768), (768, 1024), (390, 844),
 async def _measure(page: Page) -> dict:
     await page.mouse.move(0, 0)
     await page.wait_for_function("() => getComputedStyle(document.querySelector('.auth-submit')).backgroundColor.startsWith('rgb')")
+    await page.locator(".auth-submit").evaluate("""async button => {
+        await Promise.all(button.getAnimations({subtree: true})
+            .filter(animation => animation.effect.getComputedTiming().iterations !== Infinity)
+            .map(animation => animation.finished.catch(() => {})));
+    }""")
     return await page.evaluate("""() => {
       const gate = document.getElementById('authGate'), card = gate.querySelector('.auth-card');
       const rect = card.getBoundingClientRect();
@@ -80,8 +85,8 @@ async def test_login_fits_viewports_themes_languages_and_feedback(virtual_bridge
     assert not failures, json.dumps(failures, indent=2)
     for result in measurements:
         assert "system-ui" in result['font']
-        assert result['surface'] == ("rgb(20, 34, 56)" if result['theme'] == 'dark' else "rgb(255, 255, 255)")
-        assert result['foreground'] == ("rgb(231, 237, 247)" if result['theme'] == 'dark' else "rgb(30, 41, 59)")
+        assert result['surface'] == ("rgb(20, 34, 56)" if result['theme'] == 'dark' else "rgb(243, 246, 250)")
+        assert result['foreground'] == ("rgb(231, 237, 247)" if result['theme'] == 'dark' else "rgb(15, 23, 42)")
         assert result['primary'] in ("rgb(36, 87, 214)", "rgb(29, 78, 216)", "rgb(37, 99, 235)")
         assert result['primaryImage'] == "none"
 

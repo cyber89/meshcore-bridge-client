@@ -3,6 +3,10 @@
 Fecha: 2026-10-17. Base: `9e40b4e`. Siguiente paso de capa4 del
 [plan MeshCore1.18](../plans/MESHCORE_1_18_UPGRADE_PLAN.md).
 
+**Actualización de política:** el usuario eligió conservar los cooldowns actuales
+también para administración manual el 2026-10-25. Las menciones de pausa 0 de
+este informe son históricas; véase la [decisión vigente](2026-10-25-ci-repair.md).
+
 ## Plan de implementación y alcance acordado
 
 Se extiende a infraestructura remota el alcance ya elegido por el usuario:

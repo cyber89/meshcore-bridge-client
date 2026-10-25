@@ -33,6 +33,14 @@ esta tarea. Esa autorización no se extiende a tareas futuras.
    de sockets; documentar excepciones de esas dos líneas exclusivamente.
 9. Revisar diff, publicar únicamente los archivos propios en `origin/main` y
    comprobar el resultado de la nueva ejecución en Linux con ambas versiones Python.
+10. Revisar las áreas que la ejecución original no alcanzó: actualizar el selector
+    de icono del modal al DOM vigente e instalar las herramientas frontend fijadas
+    también en los jobs Python, para ejecutar las regresiones de build sin skips
+    por ausencia de esbuild.
+11. Conciliar la política de administración manual con el usuario. El 2026-10-25
+    eligió mantener los cooldowns actuales también para las acciones manuales.
+    Actualizar las regresiones y registrar la [decisión](../audits/2026-10-25-ci-repair.md)
+    conservando el documento histórico de pausa 0.
 
 ## Verificación y límites
 

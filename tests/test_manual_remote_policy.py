@@ -1,4 +1,4 @@
-"""Only authenticated web administration of identified infrastructure skips pauses."""
+"""Manual remote administration preserves role, authentication and persisted cooldown guards."""
 
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def station(tmp_path: Path, role: str = "REPEATER") -> RemoteStation:
     ("ping_zero", {}, "ping"),
     ("traceroute", {}, "traceroute"),
 ])
-async def test_two_manual_infrastructure_actions_have_no_minimum_pause_but_persist(
+async def test_manual_infrastructure_actions_enforce_and_persist_cooldowns(
     tmp_path: Path, role: str, action: str, params: dict[str, Any], category: str,
 ) -> None:
     remote = station(tmp_path, role)
@@ -104,9 +104,10 @@ async def test_two_manual_infrastructure_actions_have_no_minimum_pause_but_persi
     first_code, _ = await remote.controller.execute_admin_command(body)
     assert first_code == 200
     second_code, second = await remote.controller.execute_admin_command(body)
-    assert second_code == 200, second
-    assert len(remote.sent) == 2
-    # A separate process/domain instance still protects automated operations.
+    assert second_code == 429, second
+    assert second["cooldown_remaining"] > 0
+    assert len(remote.sent) == 1
+    # A separate process/domain instance retains the same cooldown protection.
     restored = RepeaterManager(storage_path=tmp_path / "cooldowns.json")
     await restored.load_state()
     checks: dict[str, Callable[[str], tuple[bool, float]]] = {"command": restored.check_airtime_cooldown,
@@ -126,12 +127,12 @@ async def test_payload_cannot_remove_automatic_cooldown(tmp_path: Path, untruste
 
 
 @pytest.mark.parametrize("role", ["CLIENT", "UNKNOWN"])
-async def test_web_client_and_unknown_diagnostics_keep_pause(tmp_path: Path, role: str) -> None:
+async def test_web_client_and_unknown_remote_diagnostics_are_rejected(tmp_path: Path, role: str) -> None:
     remote = station(tmp_path, role)
     payload = {"target_node": REMOTE, "action": "ping_zero"}
-    assert (await remote.controller.execute_admin_command(payload))[0] == 200
-    assert (await remote.controller.execute_admin_command(payload))[0] == 429
-    assert len(remote.sent) == 1
+    assert (await remote.controller.execute_admin_command(payload))[0] == 404
+    assert (await remote.controller.execute_admin_command(payload))[0] == 404
+    assert remote.sent == []
 
 
 async def test_manual_room_guard_still_rejects_repeat_before_any_send(tmp_path: Path) -> None:
@@ -144,7 +145,7 @@ async def test_manual_room_guard_still_rejects_repeat_before_any_send(tmp_path: 
     assert remote.sent == []
 
 
-async def test_manual_local_trace_cannot_acquire_remote_pause_exception(tmp_path: Path) -> None:
+async def test_manual_local_trace_retains_existing_cooldown(tmp_path: Path) -> None:
     remote = station(tmp_path)
     sdk = remote.admin._ctx.mc_provider()
     sdk.contacts[LOCAL] = {"public_key": LOCAL, "type": 2, "adv_name": "Local"}
@@ -179,12 +180,12 @@ async def test_manual_trace_path_is_frozen_before_async_state_loading(tmp_path: 
     assert remote.sent[0][1]["path"] == "11"
 
 
-async def test_conflicting_client_registry_cannot_borrow_sdk_repeater_pause_exception(tmp_path: Path) -> None:
+async def test_conflicting_client_registry_cannot_borrow_sdk_repeater_role(tmp_path: Path) -> None:
     remote = station(tmp_path, "CLIENT")
     remote.admin._ctx.mc_provider().contacts[REMOTE]["type"] = 2
     remote.manager.record_ping_sent(REMOTE)
     code, _ = await remote.controller.execute_admin_command({"target_node": REMOTE, "action": "ping_zero"})
-    assert code == 429
+    assert code == 404
     assert remote.sent == []
 
 
@@ -222,7 +223,7 @@ async def test_manual_destination_is_frozen_before_async_persistence(tmp_path: P
     assert remote.manager.check_airtime_cooldown("remote-alias")[0] is False
 
 
-async def test_real_http_authentication_and_csrf_gate_manual_pause_exception(tmp_path: Path) -> None:
+async def test_real_http_authentication_csrf_and_cooldown_gate_manual_actions(tmp_path: Path) -> None:
     remote = station(tmp_path)
     database = StationDatabase(tmp_path / "station.sqlite3")
     await asyncio.to_thread(database.initialize)
@@ -245,8 +246,9 @@ async def test_real_http_authentication_and_csrf_gate_manual_pause_exception(tmp
             headers = {"Origin": "http://localhost", "X-CSRF-Token": login.json()["csrf_token"]}
             assert (await client.post("/api/admin/repeater", json=body, headers=headers)).status_code == 200
             second = await client.post("/api/admin/repeater", json=body, headers=headers)
-            assert second.status_code == 200, second.text
-            assert len(remote.sent) == 2
+            assert second.status_code == 429, second.text
+            assert second.json()["cooldown_remaining"] > 0
+            assert len(remote.sent) == 1
     finally:
         router.cancel_notifications()
         await asyncio.gather(*router.owned_notification_tasks(), return_exceptions=True)

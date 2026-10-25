@@ -94,6 +94,13 @@ jobs:
         run: python -m playwright install --with-deps chromium
       - name: Prepare required pinned map fixtures
         run: python scripts/prepare_browser_assets.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/frontend/package-lock.json
+      - name: Install locked frontend tools for build regressions
+        run: npm ci --prefix tools/frontend
       - name: Run maintained tests and coverage
         run: python -m pytest tests --junitxml=tests/artifacts/junit.xml --cov-report=xml:tests/artifacts/coverage.xml
       - name: Upload test evidence

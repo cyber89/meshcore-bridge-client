@@ -144,7 +144,7 @@ async def test_language_changes_preserve_form_data_and_icons(browser_page: Page)
     await expect(browser_page.locator("#chatInputText")).to_have_value(
         "Mensaje propio / user draft <b>literal</b>"
     )
-    icon = browser_page.locator("#createChannelTitle .modal-title-icon")
+    icon = browser_page.locator("#createChannelModal .system-dialog-title-group .modal-title-icon")
     await expect(icon).to_have_count(1)
     await expect(icon).to_be_visible()
     await expect(icon).to_have_attribute("aria-hidden", "true")

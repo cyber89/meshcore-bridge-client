@@ -905,23 +905,24 @@ caminos existentes; contactos y chat mantienen las restricciones por rol.
 Los controles avanzados de administración remota son la siguiente prioridad;
 su diseño y decisiones pendientes están en el [plan remoto](audits/2026-10-16-meshcore-1.18-remote-plan.md).
 
-## Administración manual sin pausa mínima (2026-10-17)
+## Administración manual y cooldowns (revisado 2026-10-25)
 
-Por decisión del usuario, los destinos REPEATER/ROOM identificados de forma
-inequívoca omiten las pausas administrativas cuando el controlador HTTP invoca
-`handle_admin(..., manual=True)`. La bandera es keyword interno, sin equivalencia
-en JSON. El defaultFalse conserva las llamadas MQTT/internas y la política de
-CLIENT/destino desconocido; los bypasses históricos force permanecen intactos.
-La autenticación y CSRF se comprueban antes del controlador. Un cliente externo
-autenticado que use esas rutas HTTP comparte la excepción; no se infiere
-presencia humana por el transporte.
+Por decisión expresa del usuario del 2026-10-25, los destinos REPEATER/ROOM
+identificados de forma inequívoca conservan los cooldowns administrativos
+también cuando el controlador HTTP invoca `handle_admin(..., manual=True)`.
+La bandera es keyword interno, sin equivalencia en JSON, y no elimina la pausa.
+Las llamadas MQTT/internas conservan sus protecciones; los bypasses históricos
+`force` mantienen el alcance existente. La autenticación y CSRF se comprueban
+antes del controlador. Los destinos CLIENT/desconocidos o con metadatos de rol
+conflictivos se rechazan antes de enviar administración remota.
 
 El destino se copia antes de awaits y traceroute congela la ruta canónica antes
 de cargar estado. Se conservan timestamps/flush, claves de cooldown, guardas
 locales y ROOM, locks, timeouts y delays de protocolo. El gateway administrativo
 usa serialización SDK; la cola TxRateLimiter de chat no es un gateway universal
 de administración. No se incorporan sondeos, timers, setters nuevos, migraciones
-ni emisiones durante QA. [Contrato y resultados](audits/2026-10-17-meshcore-1.18-manual-admin.md).
+ni emisiones durante QA. La [decisión vigente](audits/2026-10-25-ci-repair.md)
+sustituye la [excepción histórica de pausa 0](audits/2026-10-17-meshcore-1.18-manual-admin.md).
 
 ## Entrada web y estado de instalación inicial (2026-10-18)
 
