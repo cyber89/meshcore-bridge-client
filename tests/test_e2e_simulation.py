@@ -12,6 +12,9 @@ from unittest.mock import AsyncMock, MagicMock
 from meshcore_bridge import MeshCoreBridge
 from src.contact_manager import NodeContactUpdate
 
+LOCAL_KEY = "feedfacecafe0001" * 4
+REMOTE_KEY = "aabbccdd11223344" * 4
+
 
 class MockEventType:
     def __init__(self, name: str):
@@ -69,17 +72,17 @@ class TestE2ESimulation(unittest.TestCase):
             "name": "Heltec_Router_E2E",
             "radio_freq": 915.0,
             "tx_power": 22,
-            "public_key": "feedfacecafe0001"
+            "public_key": LOCAL_KEY
         }
         self.bridge.mc.contacts = [
-            MockContact("Nodo_Remoto_1", "aabbccdd11223344")
+            MockContact("Nodo_Remoto_1", REMOTE_KEY)
         ]
         self.bridge.node_registry.add_or_update(
-            "aabbccdd11223344",
+            REMOTE_KEY,
             NodeContactUpdate(name="Nodo_Remoto_1", alias="Nodo_Remoto_1")
         )
-        self.bridge.mc.get_contact_by_key_prefix = MagicMock(return_value={"adv_name": "Nodo_Remoto_1", "name": "Nodo_Remoto_1", "public_key": "aabbccdd11223344"})
-        self.bridge.mc.get_contact_by_name = MagicMock(return_value={"adv_name": "Nodo_Remoto_1", "name": "Nodo_Remoto_1", "public_key": "aabbccdd11223344"})
+        self.bridge.mc.get_contact_by_key_prefix = MagicMock(return_value={"adv_name": "Nodo_Remoto_1", "name": "Nodo_Remoto_1", "public_key": REMOTE_KEY})
+        self.bridge.mc.get_contact_by_name = MagicMock(return_value={"adv_name": "Nodo_Remoto_1", "name": "Nodo_Remoto_1", "public_key": REMOTE_KEY})
         self.bridge.serial_adapter.is_connected = True
         self.bridge.serial_adapter.send_message = AsyncMock(return_value={"status": "SENT"})
 
@@ -99,7 +102,7 @@ class TestE2ESimulation(unittest.TestCase):
             # ============================================================
             rx_pub_event = MockEvent("CHANNEL_MSG_RECV", {
                 "channel_idx": 0,
-                "sender": "aabbccdd11223344",
+                "sender": REMOTE_KEY,
                 "sender_name": "Nodo_Remoto_1",
                 "text": "/time",
                 "rssi": -82,
@@ -107,7 +110,7 @@ class TestE2ESimulation(unittest.TestCase):
                 "hop_count": 1
             })
             self.bridge.on_mesh_event(rx_pub_event)
-            await asyncio.sleep(0.05)
+            await self.bridge.rx_router.drain()
 
             # Validar que se publicó en meshcore/rx/public y meshcore/rx/all
             pub_topics = [m["topic"] for m in self.published_messages]
@@ -139,30 +142,30 @@ class TestE2ESimulation(unittest.TestCase):
             # Paso 3: Recepción de Mensaje Directo (DM /status)
             # ============================================================
             rx_dm_event = MockEvent("DIRECT_MSG_RECV", {
-                "pubkey_prefix": "aabbccdd11223344",
+                "pubkey_prefix": REMOTE_KEY[:12],
                 "sender_name": "Nodo_Remoto_1",
                 "text": "/status",
                 "rssi": -78,
                 "snr": 11.2
             })
             self.bridge.on_mesh_event(rx_dm_event)
-            await asyncio.sleep(0.05)
+            await self.bridge.rx_router.drain()
 
             dm_topics = [m["topic"] for m in self.published_messages]
-            self.assertIn("meshcore/rx/direct/aabbccdd11223344", dm_topics)
+            self.assertIn(f"meshcore/rx/direct/{REMOTE_KEY}", dm_topics)
 
             # ============================================================
             # Paso 4: Recepción de Telemetría (Batería de Nodo)
             # ============================================================
             rx_telem_event = MockEvent("TELEMETRY_RECV", {
-                "node_id": "aabbccdd11223344",
+                "node_id": REMOTE_KEY,
                 "battery": 88,
                 "voltage": 4.05,
                 "rssi": -80,
                 "snr": 9.0
             })
             self.bridge.on_mesh_event(rx_telem_event)
-            await asyncio.sleep(0.05)
+            await self.bridge.rx_router.drain()
             self.assertIn("meshcore/rx/telemetry", [m["topic"] for m in self.published_messages])
 
             # ============================================================

@@ -216,7 +216,7 @@ def test_traceroute_executor_path_parsing(admin_context: Any) -> None:
 def test_traceroute_executor_format_trace_hops(admin_context: Any) -> None:
     ctx, mock_mc, registry, published = admin_context
     # Add a node to registry to test prefix matching
-    registry.add_or_update("abcdef1234567890", NodeContactUpdate(name="Relay1"))
+    registry.add_or_update("abcdef1234567890" * 4, NodeContactUpdate(name="Relay1"))
 
     executor = TracerouteExecutor(
         ctx=ctx,
@@ -233,7 +233,7 @@ def test_traceroute_executor_format_trace_hops(admin_context: Any) -> None:
     # Registry lookup fallback
     hops_str2, flags2 = executor._format_trace_hops(["abcdef12"])
     assert hops_str2 is not None
-    assert "abcd" in hops_str2
+    assert hops_str2 == "abcd"
     assert flags2 == 1
 
     # Empty path

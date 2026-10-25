@@ -86,13 +86,20 @@ async def test_new_messages_jump_preserves_count_across_language_change(browser_
     assert bounds and composer and bounds["y"] + bounds["height"] <= composer["y"]
     after = await browser_page.locator("#chatMessageFeed").evaluate("el => el.scrollTop")
     assert abs(after - before) <= 1
+    page_top = await browser_page.evaluate("window.scrollY")
     await button.focus()
     await button.press("Enter")
     await expect(button).not_to_be_visible()
     await expect(browser_page.locator("#chatMessageFeed")).to_be_focused()
-    assert await browser_page.locator("#chatMessageFeed").evaluate(
-        "el => el.scrollHeight - el.clientHeight - el.scrollTop <= 1"
+    # Check after rendering too: estimated row heights can appear correct inside the click.
+    await browser_page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
+    state = await browser_page.locator("#chatMessageFeed").evaluate(
+        "el => ({top:el.scrollTop,client:el.clientHeight,height:el.scrollHeight})"
+    )
+    assert state["height"] - state["client"] - state["top"] <= 1, state
+    assert await browser_page.evaluate("window.scrollY") == page_top
 
 
 async def test_refresh_keeps_notice_and_explicit_send_follows_tail(browser_page: Page) -> None:

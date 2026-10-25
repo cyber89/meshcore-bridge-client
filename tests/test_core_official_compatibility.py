@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -20,6 +21,7 @@ from src.health_reporter import HealthReporter
 from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
 from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
 from src.rate_limiter import CustomTxQueue, TxItem, TxRateLimiter
+from src.station_database import StationDatabase
 
 
 def admin() -> tuple[AdminCommandHandler, Any, AdminContext]:
@@ -29,10 +31,17 @@ def admin() -> tuple[AdminCommandHandler, Any, AdminContext]:
 
 
 @pytest.mark.parametrize("payload", ['{"action":"set_config","params":{"name":"Casa"},"request_id":"req"}', '"get_config"', 'get_config'])
-async def test_mqtt_admin_retains_action_and_request_envelope(payload: str) -> None:
-    handle = AsyncMock()
-    ctx = MqttInboundContext(asyncio.get_running_loop(), set(), MagicMock(), MagicMock(), handle)
-    await MqttInboundDispatcher(ctx)._handle_admin_request(payload)
+async def test_mqtt_admin_retains_action_and_request_envelope(payload: str, tmp_path: Path) -> None:
+    database = StationDatabase(tmp_path / "station.sqlite3")
+    await asyncio.to_thread(database.initialize)
+    handle = AsyncMock(return_value={"status": "ok"})
+    ctx = MqttInboundContext(asyncio.get_running_loop(), set(), MagicMock(), MagicMock(), handle, database=database)
+    dispatcher = MqttInboundDispatcher(ctx)
+    try:
+        await dispatcher._handle_admin_request(payload)
+    finally:
+        await dispatcher.close()
+    handle.assert_awaited_once()
     data = handle.await_args.args[0]
     assert data["action"] in ("set_config", "get_config")
     if data["action"] == "set_config":

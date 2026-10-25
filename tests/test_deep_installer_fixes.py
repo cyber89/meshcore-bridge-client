@@ -53,10 +53,13 @@ def test_initial_configuration_inserts_missing_keys_with_private_permissions(tmp
         + '\nwrite_initial_configuration "$TEMPLATE" "$DESTINATION"\n',
         encoding="utf-8", newline="\n",
     )
+    # Git Bash must preserve this synthetic Linux device path for native Windows Python.
     result = subprocess.run(
         [str(BASH), str(script)], capture_output=True, text=True, timeout=15,
         env=dict(os.environ, PYTHON_RUNTIME=Path(sys.executable).as_posix(), TEMPLATE=template.as_posix(),
                  DESTINATION=destination.as_posix(), DETECTED_PORT="/dev/ttyUSB0",
+                 MSYS2_ENV_CONV_EXCL="DETECTED_PORT",
+                 MSYS2_ARG_CONV_EXCL="/dev/ttyUSB",
                  MQTT_BRIDGE_USER="meshcore_bridge", MQTT_BRIDGE_PASS="synthetic-secret"),
     )
     assert result.returncode == 0, result.stderr
@@ -72,6 +75,8 @@ def test_initial_configuration_inserts_missing_keys_with_private_permissions(tmp
         [str(BASH), str(script)], capture_output=True, text=True, timeout=15,
         env=dict(os.environ, PYTHON_RUNTIME=Path(sys.executable).as_posix(), TEMPLATE=template.as_posix(),
                  DESTINATION=destination.as_posix(), DETECTED_PORT="/dev/ttyUSB1",
+                 MSYS2_ENV_CONV_EXCL="DETECTED_PORT",
+                 MSYS2_ARG_CONV_EXCL="/dev/ttyUSB",
                  MQTT_BRIDGE_USER="replacement", MQTT_BRIDGE_PASS="replacement"),
     )
     assert second.returncode != 0

@@ -20,6 +20,8 @@ Referencias: [plan](HISTORICAL_PROPOSAL.md), [dominio](../../CONTEXT.md),
 Skills aplicadas: `async-concurrency-engineering`,
 `software-architecture-patterns`, `domain-adr-keeper`.
 
+Las citas de firmware enlazan la revisión oficial `d92964352441e53b93e8667b802e04f6e072b39e`, registrada en el gitlink de `reference/meshcore`. Los enlaces no requieren esa copia local ni actualizan las conclusiones históricas del inventario.
+
 ## 1. Frontera actual: sustituir transporte no sustituye estado
 
 `MeshCoreWebServer` (servidor nativo original en `src/web/http_server.py`), líneas 61–86, creaba un
@@ -263,11 +265,11 @@ son condiciones futuras a comprobar, **no resultados de esta fase documental**.
 
 | Invariante/observación | Fuente | Tratamiento |
 |---|---|---|
-| Advert NONE/CHAT→CLIENT, REPEATER/ROOM/SENSOR 2/3/4 | [AdvertDataHelpers.h](../../reference/meshcore/src/helpers/AdvertDataHelpers.h), 7–11; [protocol_types.py](../../src/protocol_types.py), 115–122 | Rol por protocolo; LOCAL por identidad propia, no nombre |
+| Advert NONE/CHAT→CLIENT, REPEATER/ROOM/SENSOR 2/3/4 | [AdvertDataHelpers.h](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/helpers/AdvertDataHelpers.h), 7–11; [protocol_types.py](../../src/protocol_types.py), 115–122 | Rol por protocolo; LOCAL por identidad propia, no nombre |
 | REPEATER/ROUTER y LOCAL excluidos de contactos/chat | [contact_manager.py](../../src/contact_manager.py), 962, 1594–1607; ContactsController 31–43; [TxController](../../src/web/controllers/tx_controller.py), 49–59 | Mantener guarda en dominio/SDK, incluyendo prefijos y resolución |
 | Crear contactos permite ROOM/SENSOR; listado sólo CLIENT | ContactsController 42; NodeRegistry 1600–1607 | Divergencia previa; política requiere decisión expresa, no normalizar con DTO por accidente |
 | Texto DM ≤160 bytes UTF-8, NUL prohibido; canal descuenta nombre y `: ` | SDK 1044–1050, 1101–1104 | `max_length=160` de caracteres no acredita bytes |
-| Autoadd 0..64, raw hop_limit 0..15; path firmware buffer 64 y modos hash | [ConfigController](../../src/web/controllers/config_controller.py), 416–458; protocol_types 281–282; [MeshCore.h](../../reference/meshcore/src/MeshCore.h), 22; [Packet.h](../../reference/meshcore/src/Packet.h), 79–83 | Ningún hops 0..7 universal ni TTL común |
+| Autoadd 0..64, raw hop_limit 0..15; path firmware buffer 64 y modos hash | [ConfigController](../../src/web/controllers/config_controller.py), 416–458; protocol_types 281–282; [MeshCore.h](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/MeshCore.h), 22; [Packet.h](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/Packet.h), 79–83 | Ningún hops 0..7 universal ni TTL común |
 | TX submit/future hasta 30 s; respuesta 200 resultado, 408/429/503 según fallo | TxController 65–111 | 202/pending sería rediseño propio con consumidores y ACK |
 | Admin/config usan fachadas y lock Companion, no toda llamada pasa por TxRateLimiter | SDK 236–267; Config/RepeaterController | No reenrutar/duplicar RF como parte de cambiar servidor |
 | Tasks del router se descartan sin consumir excepción/drain en stop servidor | Router 167–175; servidor 95–149 | Deuda previa de lifecycle que debe resolverse explícitamente |

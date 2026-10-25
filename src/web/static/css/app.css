@@ -2134,8 +2134,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   margin-bottom: 0.5rem;
   width: 100%;
   min-width: 0;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 64px;
+  /* Keep real row heights available so jumping to the tail cannot stop at
+     deferred-layout size estimates. */
 }
 
 .message-bubble-row.outgoing {

@@ -14,6 +14,8 @@ La [auditoría por capas](../audits/2026-10-09-layer-audit.md) concilia el check
 
 ## 1. Dictamen y autoridad
 
+Las citas de firmware y SDK usan enlaces oficiales fijados a las revisiones registradas en los gitlinks: MeshCore `d92964352441e53b93e8667b802e04f6e072b39e` y meshcore_py `c487efbe187f4b000020afdfc0349c4cdf503c5a`. Así se conservan las fuentes sin exigir las copias locales de `reference/`; esta corrección de enlaces no actualiza las conclusiones históricas.
+
 La recomendación técnica es **FastAPI modular con Uvicorn embebido**, manteniendo una instancia del bridge y su event loop. Puede mejorar la declaración de contratos REST, la validación y el mantenimiento del transporte HTTP/WebSocket. Su adopción queda condicionada a cerrar la fase 0 y demostrar paridad, ciclo de vida y viabilidad en las plataformas seleccionadas.
 
 La revisión documental inicial no aprobaba la migración. El usuario autorizó después comenzar las fases; esta autorización permite su preparación, manteniendo las condiciones de adopción. El plan inicial contenía interfaces incompletas, rutas inexistentes, límites de protocolo incorrectos y cifras sin medición. Esta revisión los corrige y registra las decisiones abiertas.
@@ -55,7 +57,7 @@ Se resolvieron tres tensiones: reutilizar controladores frente a reescribirlos t
 | Responder sólo request_id al encolar | TX actual espera resultado; admisión asíncrona sería una función nueva |
 | Calendario de 21 días desde el 9 de octubre | Sin compromiso sustentado; sustituido por puertas de aceptación |
 
-Evidencia: servidor ([asgi_server.py](../../src/web/asgi_server.py)), [router](../../src/web/api_router.py), [manifiesto](../../pyproject.toml), [dependencias directas](../../requirements.txt) y [SDK de referencia](../../reference/meshcore_py/pyproject.toml). Los conteos físicos no son mediciones de complejidad ni ahorro futuro.
+Evidencia: servidor ([asgi_server.py](../../src/web/asgi_server.py)), [router](../../src/web/api_router.py), [manifiesto](../../pyproject.toml), [dependencias directas](../../requirements.txt) y [SDK de referencia](https://github.com/meshcore-dev/meshcore_py/blob/c487efbe187f4b000020afdfc0349c4cdf503c5a/pyproject.toml). Los conteos físicos no son mediciones de complejidad ni ahorro futuro.
 
 ## 2. Alternativas y futuro recomendado
 
@@ -209,8 +211,8 @@ compartidas, con límites de redacción documentados.
 Esquemas web por familia, convirtiendo a servicios/controladores existentes. No imponer strict=True ni rechazo global de extras: documentar coerciones, incluidas cadenas query. La política debe elegirse por operación. [Modo estricto Pydantic](https://pydantic.dev/docs/validation/latest/concepts/strict_mode/).
 
 - Contactos: clave completa 32 bytes/64 hex. TX acepta variantes de destino; no regex global de clave completa a target. Resolver identidad/ambigüedad antes de rol/localidad.
-- DM: máximo actual 160 **bytes UTF-8**, sin NUL; canal descuenta nombre local y ': '. max_length=160 cuenta caracteres y no basta. Conservar protección del adaptador. [sdk_adapter.py](../../src/serial/sdk_adapter.py), [BaseChatMesh.h](../../reference/meshcore/src/helpers/BaseChatMesh.h), [BaseChatMesh.cpp](../../reference/meshcore/src/helpers/BaseChatMesh.cpp).
-- No hops 0..7 universal: autoadd max_hops 0..64; raw propio hop_limit 0..15; ruta RF con buffer de 64 bytes y modos de hash. Bytes/saltos/TTL no son equivalentes. [config_controller.py](../../src/web/controllers/config_controller.py), [protocol_types.py](../../src/protocol_types.py), [MeshCore.h](../../reference/meshcore/src/MeshCore.h), [Packet.h](../../reference/meshcore/src/Packet.h).
+- DM: máximo actual 160 **bytes UTF-8**, sin NUL; canal descuenta nombre local y ': '. max_length=160 cuenta caracteres y no basta. Conservar protección del adaptador. [sdk_adapter.py](../../src/serial/sdk_adapter.py), [BaseChatMesh.h](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/helpers/BaseChatMesh.h), [BaseChatMesh.cpp](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/helpers/BaseChatMesh.cpp).
+- No hops 0..7 universal: autoadd max_hops 0..64; raw propio hop_limit 0..15; ruta RF con buffer de 64 bytes y modos de hash. Bytes/saltos/TTL no son equivalentes. [config_controller.py](../../src/web/controllers/config_controller.py), [protocol_types.py](../../src/protocol_types.py), [MeshCore.h](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/MeshCore.h), [Packet.h](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/Packet.h).
 - `/api/packets`: `limit` por defecto 100, rango 1..500; `offset` por defecto 0, rango 0..100000; `order` asc/desc y filtros. Retirar el ejemplo con valores 50/1000. Firmas Python: parámetros requeridos antes de defaults o sólo por palabra clave.
 - Respuestas: wrappers/campos actuales, incluidos partial/applied/config/action/dispatched_commands/target_node. No activar response_model incompleto que los filtre.
 
@@ -391,7 +393,7 @@ Las ubicaciones siguientes permiten reproducir los hallazgos principales por lec
 
 | Hallazgo | Ubicación de evidencia local |
 |---|---|
-| Roles de advert oficiales | [AdvertDataHelpers.h](../../reference/meshcore/src/helpers/AdvertDataHelpers.h), líneas 7–11; [protocol_types.py](../../src/protocol_types.py), 115–122 |
+| Roles de advert oficiales | [AdvertDataHelpers.h](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/helpers/AdvertDataHelpers.h), líneas 7–11; [protocol_types.py](../../src/protocol_types.py), 115–122 |
 | Imports headless y fábrica | [bridge_core.py](../../src/bridge_core.py), 45 y 364–372; [exports web](../../src/web/__init__.py), 7–8 |
 | Estado y diez controladores | [api_router.py](../../src/web/api_router.py), 119–152 |
 | Contrato interno de canales | [bridge_core.py](../../src/bridge_core.py), 745; [rx_router.py](../../src/rx_router.py), 419–420; [system_handler.py](../../src/routers/system_handler.py), 63–64 |

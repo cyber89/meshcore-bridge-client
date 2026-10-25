@@ -138,6 +138,9 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
         cleanup.push_async_callback(browser.close)
         context = await browser.new_context(viewport={"width": 1920, "height": 1080})
         cleanup.push_async_callback(context.close)
+        # Report a stalled browser action before pytest's process-wide watchdog
+        # terminates the suite and loses the remaining failures and JUnit report.
+        context.set_default_timeout(10_000)
         # Application E2E tests start as an owner through the real account API;
         # virtual_bridge itself stays anonymous for authentication regressions.
         login = await context.request.post(
@@ -242,7 +245,7 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
         observed_aborts = await page.evaluate("window.__qaFetchAborts || []")
         failures.extend(unexpected_request_failures(request_failures, observed_aborts))
         assert not errors, f"Uncaught JavaScript errors: {errors}"
-        assert not console_errors, f"Browser console errors: {console_errors}"
+        assert not console_errors, f"Browser console errors: {console_errors}; HTTP failures: {failures}"
         assert not failures, f"Failed local HTTP responses: {failures}"
         assert not external_requests, f"Unexpected external requests: {external_requests}"
 

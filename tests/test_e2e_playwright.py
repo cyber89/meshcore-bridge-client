@@ -8,7 +8,12 @@ from playwright.async_api import Page, expect
 
 async def send_message(page: Page, text: str) -> None:
     await page.locator("#chatInputText").fill(text)
-    await page.locator("#chatInputForm").dispatch_event("submit")
+    async with page.expect_response(
+        lambda response: response.request.method == "POST" and response.url.endswith("/api/tx")
+    ) as submitted:
+        await page.locator("#chatInputForm").dispatch_event("submit")
+    response = await submitted.value
+    assert response.status == 200, await response.text()
     await expect(page.locator("#chatMessageFeed")).to_contain_text(text)
 
 

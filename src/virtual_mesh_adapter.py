@@ -210,9 +210,10 @@ class VirtualMeshCoreMock:
 
 
 # Definición canónica de Nodos y Repetidores de la Malla Simulada
+# Synthetic 32-byte identities retain their six-byte prefixes across SDK and wire views.
 DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
-    "a1b2c3d4e5f6": {
-        "key": "a1b2c3d4e5f6",
+    "a1b2c3d4e5f60000000000000000000000000000000000000000000000000000": {
+        "key": "a1b2c3d4e5f60000000000000000000000000000000000000000000000000000",
         "name": "Node_Alpha",
         "alias": "Alpha Field Sensor",
         "role": "REPEATER",
@@ -229,8 +230,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 12.4,
         "hops": 0,
     },
-    "d7e8f9012345": {
-        "key": "d7e8f9012345",
+    "d7e8f90123450000000000000000000000000000000000000000000000000000": {
+        "key": "d7e8f90123450000000000000000000000000000000000000000000000000000",
         "name": "Node_Bravo",
         "alias": "Bravo Scout Rover",
         "role": "CLIENT",
@@ -247,8 +248,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 8.5,
         "hops": 1,
     },
-    "c3d4e5f6a7b8": {
-        "key": "c3d4e5f6a7b8",
+    "c3d4e5f6a7b80000000000000000000000000000000000000000000000000000": {
+        "key": "c3d4e5f6a7b80000000000000000000000000000000000000000000000000000",
         "name": "Node_Charlie",
         "alias": "⛅ Charlie Weather Station",
         "role": "SENSOR",
@@ -265,8 +266,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 10.1,
         "hops": 1,
     },
-    "e9f012345678": {
-        "key": "e9f012345678",
+    "e9f0123456780000000000000000000000000000000000000000000000000000": {
+        "key": "e9f0123456780000000000000000000000000000000000000000000000000000",
         "name": "Node_Delta",
         "alias": "📱 Delta Field Operative",
         "role": "CLIENT",
@@ -283,8 +284,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 11.2,
         "hops": 0,
     },
-    "5a6b7c8d9e0f": {
-        "key": "5a6b7c8d9e0f",
+    "5a6b7c8d9e0f0000000000000000000000000000000000000000000000000000": {
+        "key": "5a6b7c8d9e0f0000000000000000000000000000000000000000000000000000",
         "name": "Node_Echo",
         "alias": "⚡ Echo Gateway Repeater",
         "role": "REPEATER",
@@ -301,8 +302,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 13.1,
         "hops": 0,
     },
-    "6f7e8d9c0b1a": {
-        "key": "6f7e8d9c0b1a",
+    "6f7e8d9c0b1a0000000000000000000000000000000000000000000000000000": {
+        "key": "6f7e8d9c0b1a0000000000000000000000000000000000000000000000000000",
         "name": "Node_Foxtrot",
         "alias": "🏥 Foxtrot Base HQ",
         "role": "ROOM",
@@ -319,8 +320,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 14.2,
         "hops": 0,
     },
-    "7a8b9c0d1e2f": {
-        "key": "7a8b9c0d1e2f",
+    "7a8b9c0d1e2f0000000000000000000000000000000000000000000000000000": {
+        "key": "7a8b9c0d1e2f0000000000000000000000000000000000000000000000000000",
         "name": "Node_Golf",
         "alias": "🚁 Golf Drone Scout",
         "role": "CLIENT",
@@ -337,8 +338,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 9.4,
         "hops": 1,
     },
-    "8b9c0d1e2f3a": {
-        "key": "8b9c0d1e2f3a",
+    "8b9c0d1e2f3a0000000000000000000000000000000000000000000000000000": {
+        "key": "8b9c0d1e2f3a0000000000000000000000000000000000000000000000000000",
         "name": "Node_Hotel",
         "alias": "🌲 Hotel Forest Sensor",
         "role": "SENSOR",
@@ -355,8 +356,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 6.8,
         "hops": 2,
     },
-    "aabbccddeeff": {
-        "key": "aabbccddeeff",
+    "aabbccddeeff0000000000000000000000000000000000000000000000000000": {
+        "key": "aabbccddeeff0000000000000000000000000000000000000000000000000000",
         "name": "Node_Ridge",
         "alias": "⛰️ R3-Ridge Solar Repeater",
         "role": "REPEATER",
@@ -373,8 +374,8 @@ DEFAULT_VIRTUAL_NODES: dict[str, dict[str, Any]] = {
         "snr": 12.0,
         "hops": 1,
     },
-    "334455667788": {
-        "key": "334455667788",
+    "3344556677880000000000000000000000000000000000000000000000000000": {
+        "key": "3344556677880000000000000000000000000000000000000000000000000000",
         "name": "Node_Emergency",
         "alias": "🚨 Emergency Bulletin Mailbox",
         "role": "ROOM",
@@ -429,8 +430,8 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         self.channels: dict[int, dict[str, Any]] = {k: dict(v) for k, v in DEFAULT_VIRTUAL_CHANNELS.items()}
 
         # Referencias directas para compatibilidad
-        self.node_alpha = self.nodes["a1b2c3d4e5f6"]
-        self.node_bravo = self.nodes["d7e8f9012345"]
+        self.node_alpha = self.nodes["a1b2c3d4e5f60000000000000000000000000000000000000000000000000000"]
+        self.node_bravo = self.nodes["d7e8f90123450000000000000000000000000000000000000000000000000000"]
 
     def device_time(self) -> int:
         """RTC propio de la estación virtual; no modifica el reloj del host."""

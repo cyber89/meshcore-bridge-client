@@ -36,8 +36,8 @@ class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
         """Comprueba que los nodos Alpha y Bravo sean descubiertos automáticamente."""
         nodes = self.bridge.node_registry.list_nodes()
         keys = [n["public_key"] for n in nodes]
-        self.assertIn("a1b2c3d4e5f6", keys)
-        self.assertIn("d7e8f9012345", keys)
+        self.assertIn("a1b2c3d4e5f6" + "0" * 52, keys)
+        self.assertIn("d7e8f9012345" + "0" * 52, keys)
 
     async def test_alpha_echo_response_on_dm(self) -> None:
         """Comprueba que enviar un mensaje privado a Alpha dispare una respuesta Echo."""
@@ -68,11 +68,12 @@ class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
         tx_item = {
             "to": "d7e8f9012345",
             "channel_index": 0,
-            "text": "Status check rover",
+            "text": "Hello rover",
             "request_id": "test_req_2",
         }
         res = await self.bridge._execute_tx(tx_item)
-        self.assertTrue(res)
+        self.assertEqual(res["status"], "sent")
+        self.assertEqual(res["target"], self.v_adapter.node_bravo["key"])
 
         await asyncio.sleep(1.0)
 

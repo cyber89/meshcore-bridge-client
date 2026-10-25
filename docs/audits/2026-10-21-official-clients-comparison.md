@@ -22,6 +22,8 @@ No se implementaron correcciones, funciones nuevas ni cambios de dependencias. S
 
 ## 2. Referencias correctas y alcance de la comparación
 
+Las citas de código del firmware enlazan la revisión oficial `d92964352441e53b93e8667b802e04f6e072b39e`, registrada en el gitlink local. Los enlaces permanecen consultables sin descargar los repositorios anidados de `reference/`; no describen necesariamente el último firmware disponible.
+
 ### Cliente web oficial actual
 
 El [repositorio de firmware oficial](https://github.com/meshcore-dev/MeshCore#-meshcore-clients) enlaza [app.meshcore.nz](https://app.meshcore.nz/). Se leyó su [version.json público](https://app.meshcore.nz/version.json): versión **1.50.0**, build **78**, aplicación `meshcore_flutter`. Las [notas oficiales](https://app.meshcore.nz/assets/CHANGELOG.md) fechan esa versión el **25 de septiembre de 2026**.
@@ -111,7 +113,7 @@ La matriz siguiente compara capacidades de la familia oficial documentada con el
 
 El compositor usa `MAX_LORA_TEXT_BYTES = 160` y fragmenta con ese valor ([utils.js](../../src/web/static/js/core/utils.js), 408/441; [chat.js](../../src/web/static/js/modules/chat.js), 1860). El adaptador descuenta el nombre UTF-8 del remitente más `": "` antes de admitir canales ([sdk_adapter.py](../../src/serial/sdk_adapter.py), 1599–1605).
 
-La fuente [BaseChatMesh.cpp](../../reference/meshcore/src/helpers/BaseChatMesh.cpp), 487–496, confirma que el prefijo ocupa el presupuesto del mensaje grupal. No debe interpretarse el límite de un cliente como cantidad universal de caracteres.
+La fuente [BaseChatMesh.cpp](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/src/helpers/BaseChatMesh.cpp), 487–496, confirma que el prefijo ocupa el presupuesto del mensaje grupal. No debe interpretarse el límite de un cliente como cantidad universal de caracteres.
 
 **Sonda sintética ejecutada:** el splitter real recibe 160 caracteres ASCII y produce un bloque de 160 bytes. El adaptador real, con transporte/SDK simulado y nombre `Estacion`, produce:
 
@@ -140,7 +142,7 @@ Esto acredita la discrepancia entre componentes; no mide una emisión RF ni afir
 | `get home safely` | No. | 0 |
 | `set de herramientas` | No. | 0 |
 
-La referencia [MyMesh.cpp](../../reference/meshcore/examples/companion_radio/MyMesh.cpp), 432–534, diferencia texto normal y datos CLI mediante el tipo. No se ejecutó el cliente oficial con esas frases: la comparación de clasificación se sustenta en firmware y en la sonda local.
+La referencia [MyMesh.cpp](https://github.com/meshcore-dev/MeshCore/blob/d92964352441e53b93e8667b802e04f6e072b39e/examples/companion_radio/MyMesh.cpp), 432–534, diferencia texto normal y datos CLI mediante el tipo. No se ejecutó el cliente oficial con esas frases: la comparación de clasificación se sustenta en firmware y en la sonda local.
 
 Para un remitente conocido, la ruta del router puede publicar a MQTT y después descartar persistencia/WS. Por tanto, no se afirma desaparición de toda salida: el riesgo es que los consumidores discrepen y falte historial en la estación. En emisores desconocidos hay filtrado más temprano.
 

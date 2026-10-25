@@ -58,9 +58,10 @@ class SystemController(BaseController):
         uptime_str = f"{days}d {hours}h {mins}m" if days > 0 else (f"{hours}h {mins}m" if hours > 0 else f"{mins}m")
 
         import os
-        web_host = os.getenv("WEB_HOST", "0.0.0.0")
+        # Inspect the configured host to warn about exposure; this code never binds a socket.
+        web_host = os.getenv("WEB_HOST", "0.0.0.0")  # nosec B104
         warnings: list[str] = []
-        if web_host in ("0.0.0.0", "::"):
+        if web_host in ("0.0.0.0", "::"):  # nosec B104
             warnings.append("WEB_HOST está expuesto a todas las interfaces (0.0.0.0). Se recomienda utilizar un proxy inverso TLS (HTTPS) o restringir a 127.0.0.1.")
 
         res: dict[str, Any] = {

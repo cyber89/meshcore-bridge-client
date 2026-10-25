@@ -61,20 +61,20 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
 
                 # Actualizar movimiento GPS del Rover y Drone
                 angle = step * 0.2
-                if "d7e8f9012345" in self.nodes:
-                    self.nodes["d7e8f9012345"]["lat"] = 20.1850 + round(math.sin(angle) * 0.006, 4)
-                    self.nodes["d7e8f9012345"]["lon"] = -75.2420 + round(math.cos(angle) * 0.006, 4)
-                if "7a8b9c0d1e2f" in self.nodes:
-                    self.nodes["7a8b9c0d1e2f"]["lat"] = 20.1920 + round(math.cos(angle * 1.5) * 0.010, 4)
-                    self.nodes["7a8b9c0d1e2f"]["lon"] = -75.2110 + round(math.sin(angle * 1.5) * 0.010, 4)
+                if "d7e8f90123450000000000000000000000000000000000000000000000000000" in self.nodes:
+                    self.nodes["d7e8f90123450000000000000000000000000000000000000000000000000000"]["lat"] = 20.1850 + round(math.sin(angle) * 0.006, 4)
+                    self.nodes["d7e8f90123450000000000000000000000000000000000000000000000000000"]["lon"] = -75.2420 + round(math.cos(angle) * 0.006, 4)
+                if "7a8b9c0d1e2f0000000000000000000000000000000000000000000000000000" in self.nodes:
+                    self.nodes["7a8b9c0d1e2f0000000000000000000000000000000000000000000000000000"]["lat"] = 20.1920 + round(math.cos(angle * 1.5) * 0.010, 4)
+                    self.nodes["7a8b9c0d1e2f0000000000000000000000000000000000000000000000000000"]["lon"] = -75.2110 + round(math.sin(angle * 1.5) * 0.010, 4)
 
                 # 1. Tráfico Canal 0 (Público / Broadcast comunitario)
                 if step % 2 == 1:
                     messages_ch0 = [
-                        ("e9f012345678", "¡Saludos equipo! Enlace de radio Heltec v4 LoRa 915MHz excelente."),
-                        ("a1b2c3d4e5f6", "[Anuncio Router]: Malla operativa en SF11 BW250. 5 nodos conectados."),
-                        ("d7e8f9012345", "Rover en patrulla de exploración sector norte. Coordenadas GPS transmitidas."),
-                        ("6f7e8d9c0b1a", "[Base HQ]: Estación central en escucha activa. Todos los enlaces verdes."),
+                        ("e9f0123456780000000000000000000000000000000000000000000000000000", "¡Saludos equipo! Enlace de radio Heltec v4 LoRa 915MHz excelente."),
+                        ("a1b2c3d4e5f60000000000000000000000000000000000000000000000000000", "[Anuncio Router]: Malla operativa en SF11 BW250. 5 nodos conectados."),
+                        ("d7e8f90123450000000000000000000000000000000000000000000000000000", "Rover en patrulla de exploración sector norte. Coordenadas GPS transmitidas."),
+                        ("6f7e8d9c0b1a0000000000000000000000000000000000000000000000000000", "[Base HQ]: Estación central en escucha activa. Todos los enlaces verdes."),
                     ]
                     sender_key, txt = messages_ch0[(step // 2) % len(messages_ch0)]
                     node = self.nodes[sender_key]
@@ -98,8 +98,8 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
                 # 2. Tráfico Canal 1 (Operaciones Tácticas - Cifrado AES)
                 if step % 3 == 0:
                     messages_ch1 = [
-                        ("d7e8f9012345", f"Reporte Táctico: Punto de control alcanzado ({self.nodes['d7e8f9012345']['lat']}, {self.nodes['d7e8f9012345']['lon']}) - Batería {self.nodes['d7e8f9012345']['battery']}%"),
-                        ("7a8b9c0d1e2f", "🚁 Reconocimiento aéreo completado. Perímetro este despejado."),
+                        ("d7e8f90123450000000000000000000000000000000000000000000000000000", f"Reporte Táctico: Punto de control alcanzado ({self.nodes['d7e8f90123450000000000000000000000000000000000000000000000000000']['lat']}, {self.nodes['d7e8f90123450000000000000000000000000000000000000000000000000000']['lon']}) - Batería {self.nodes['d7e8f90123450000000000000000000000000000000000000000000000000000']['battery']}%"),
+                        ("7a8b9c0d1e2f0000000000000000000000000000000000000000000000000000", "🚁 Reconocimiento aéreo completado. Perímetro este despejado."),
                     ]
                     sender_key, txt = messages_ch1[(step // 3) % len(messages_ch1)]
                     node = self.nodes[sender_key]
@@ -121,7 +121,7 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
 
                 # 3. Tráfico Canal 3 (Emergencias Malla - Cifrado)
                 if step % 5 == 0:
-                    node = self.nodes["5a6b7c8d9e0f"]
+                    node = self.nodes["5a6b7c8d9e0f0000000000000000000000000000000000000000000000000000"]
                     self._dispatch_event({
                         "type": "CHANNEL_MSG",
                         "event_type": "channel",
@@ -141,9 +141,9 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
                 # 4. Mensajes Directos Punto a Punto (DMs)
                 if step % 4 == 0:
                     dm_samples = [
-                        ("a1b2c3d4e5f6", "Alpha Sensor: Telemetría ambiental sincronizada. Nivel de señal óptimo."),
-                        ("e9f012345678", "Delta Operative: Recibido enlace base. Listo para transmisión."),
-                        ("7a8b9c0d1e2f", "Golf Drone: Transmitiendo datos de vuelo y altitud de patrulla."),
+                        ("a1b2c3d4e5f60000000000000000000000000000000000000000000000000000", "Alpha Sensor: Telemetría ambiental sincronizada. Nivel de señal óptimo."),
+                        ("e9f0123456780000000000000000000000000000000000000000000000000000", "Delta Operative: Recibido enlace base. Listo para transmisión."),
+                        ("7a8b9c0d1e2f0000000000000000000000000000000000000000000000000000", "Golf Drone: Transmitiendo datos de vuelo y altitud de patrulla."),
                     ]
                     sender_key, dm_txt = dm_samples[(step // 4) % len(dm_samples)]
                     node = self.nodes[sender_key]
@@ -163,7 +163,7 @@ class SimulatedHeltecV4MeshCoreAdapter(VirtualMeshAdapter):
 
                 # 5. Telemetría Ambiental CayenneLPP (Canal 2 / Sensores)
                 if step % 2 == 0:
-                    sensor_node = self.nodes["c3d4e5f6a7b8"]
+                    sensor_node = self.nodes["c3d4e5f6a7b80000000000000000000000000000000000000000000000000000"]
                     self._emit_cayennelpp_telemetry(sensor_node)
 
                 # 6. Sniffer de Tramas RF Wire (0x88 / Raw Frame Interception)
@@ -288,13 +288,13 @@ async def run_simulation(duration_sec: int = 15) -> None:
 
         await asyncio.sleep(1.5)
         print("\n💬 [TX DM] Enviando Mensaje Directo (DM) a 🏔️ Alpha Mountain Repeater...")
-        dm_res = await bridge._execute_tx({"to": "a1b2c3d4e5f6", "channel_index": 0, "text": "Reporte de estado de repetidor y calidad de enlace", "request_id": "sim_tx_2"})
+        dm_res = await bridge._execute_tx({"to": "a1b2c3d4e5f60000000000000000000000000000000000000000000000000000", "channel_index": 0, "text": "Reporte de estado de repetidor y calidad de enlace", "request_id": "sim_tx_2"})
         print(f"  ✓ Expected ACK code: {dm_res.get('expected_ack')}")
 
         await asyncio.sleep(1.5)
         print("\n🎯 [PING ZERO] Ejecutando Ping Zero a 🏔️ Alpha Mountain Repeater...")
         ping_res = await bridge.admin_handler.handle({
-            "target_node": "a1b2c3d4e5f6",
+            "target_node": "a1b2c3d4e5f60000000000000000000000000000000000000000000000000000",
             "action": "ping_zero",
         })
         print(f"  ✓ Ping Zero Result: Duration={ping_res.get('rtt_ms')} ms, SNR there={ping_res.get('snr_there')}, SNR back={ping_res.get('snr_back')}, RSSI={ping_res.get('rssi')} dBm")
@@ -302,7 +302,7 @@ async def run_simulation(duration_sec: int = 15) -> None:
         await asyncio.sleep(1.5)
         print("\n🎛️ [REPEATER CMD] Enviando comando 'stats-radio' a repetidor Alpha...")
         stats_reply = await bridge.admin_handler.handle({
-            "target_node": "a1b2c3d4e5f6",
+            "target_node": "a1b2c3d4e5f60000000000000000000000000000000000000000000000000000",
             "action": "stats-radio",
         })
         print(f"✓ [REPEATER DISPATCH]: {json.dumps(stats_reply)}")

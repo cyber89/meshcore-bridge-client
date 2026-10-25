@@ -7,8 +7,43 @@ import pytest
 from meshcore import EventType
 from meshcore.reader import MessageReader
 
+from src.application.messaging import MessageService
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.serial.raw_framing import RawSerialFramingAdapter
 from src.virtual_mesh_adapter import VirtualMeshAdapter
+
+
+@pytest.mark.asyncio
+async def test_virtual_sync_uses_complete_consistent_public_keys():
+    adapter = VirtualMeshAdapter()
+    contacts = await adapter.sync_all_contacts()
+    assert {contact["public_key"] for contact in contacts} == set(adapter.nodes)
+    for contact in contacts:
+        key = contact["public_key"]
+        assert len(key) == 64
+        assert len(bytes.fromhex(key)) == 32
+        assert adapter.nodes[key]["key"] == key
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", ["d7e8f9012345", "d7e8f9012345" + "0" * 52, "Node_Bravo", "Bravo Scout Rover"])
+async def test_virtual_client_dm_passes_real_message_service(target):
+    adapter = VirtualMeshAdapter()
+    adapter.is_connected = True
+    registry = NodeRegistry()
+    for contact in await adapter.sync_all_contacts():
+        registry.add_or_update(contact["public_key"], NodeContactUpdate.from_dict(contact))
+    service = MessageService(node_registry=registry)
+    try:
+        validation = service.validate_tx_request("hello rover", target)
+        assert validation.is_valid, validation.error
+        assert validation.clean_target == adapter.node_bravo["key"]
+        assert len(validation.clean_target) == 64
+        response = await adapter.send_message(validation.clean_text, validation.clean_target)
+        assert response["status"] == "ok"
+        assert response["target"] == validation.clean_target
+    finally:
+        await adapter.disconnect()
 
 
 @pytest.mark.asyncio
@@ -119,6 +154,7 @@ async def test_virtual_wire_can_be_parsed_by_official_sdk(command, event_type):
     assert matches
     if event_type == EventType.CONTACTS:
         assert len(matches[0].payload) == len(adapter.nodes)
+        assert set(matches[0].payload) == set(adapter.nodes)
         by_prefix = {key[:12]: contact for key, contact in matches[0].payload.items()}
         assert by_prefix["a1b2c3d4e5f6"]["type"] == 2
         assert by_prefix["d7e8f9012345"]["type"] == 1

@@ -72,6 +72,14 @@ dependencias globales ni acredita otro destino. Los temporales de pytest en WSL
 deben estar en su filesystem nativo: la captura sobre DrvFS produjo un fallo
 `tmpfile.truncate()` en esta revisión.
 
+La fixture compartida `browser_page` limita las acciones de Playwright a diez
+segundos, antes del watchdog global de pytest de treinta segundos. Así, un
+control bloqueado produce un fallo de prueba con diagnóstico y permite continuar
+la suite. Las pruebas de envío esperan también HTTP 200 de `/api/tx`; mostrar
+un mensaje optimista en el feed no acredita que el backend lo haya aceptado.
+Los nodos virtuales usan identidades completas de 32 bytes, idénticas a las
+que devuelve su serialización Companion; los prefijos siguen siendo selectores.
+
 ## Suite mantenida y aislamiento
 
 `pyproject.toml` configura la colección en `tests/`. Todas sus pruebas forman parte

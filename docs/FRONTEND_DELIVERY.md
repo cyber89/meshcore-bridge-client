@@ -25,6 +25,8 @@ Los artefactos están incluidos en Git y en los package-data de `src.web`; un SB
 no necesita Node ni compilar al instalar o arrancar. Las reglas LF de
 `.gitattributes` conservan los hashes entre Windows y Linux. Después de modificar
 fuentes hay que ejecutar build antes de publicar; check detecta recibos obsoletos.
+El constructor rechaza fuentes CRLF antes de generar recibos: deben guardarse
+con LF, para que el manifiesto describa los mismos bytes que entrega Git en CI.
 No se usan regex para minimizar código JS/CSS.
 
 El tema Zephyr servido es una copia derivada sin su import de Google Fonts:

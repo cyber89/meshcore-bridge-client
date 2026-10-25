@@ -58,6 +58,11 @@ async function main() {
   const mismatches = [];
   for (const source of await sources(root)) {
     const original = await fs.readFile(path.join(root, source));
+    // Git checks these sources out as LF (.gitattributes). Refuse receipts for
+    // editor-created CRLF bytes that Git would silently normalize on commit.
+    if (original.includes(Buffer.from('\r\n'))) {
+      throw new Error(`CRLF source: ${source}. Save with LF line endings before building.`);
+    }
     const extension = path.extname(source);
     let file = source;
     let content = original;
