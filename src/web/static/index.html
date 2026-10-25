@@ -2069,12 +2069,16 @@
     <div id="modalSavePreset" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalSavePresetTitle">
       <div class="modal-dialog modal-dialog-centered modal-dialog-narrow">
         <div class="modal-content modal-card bg-body-tertiary border-secondary">
-          <div class="modal-header">
-            <h3 id="modalSavePresetTitle">
-              <i class="bi bi-bookmark-plus modal-title-icon" aria-hidden="true"></i>
-              <span data-i18n="services.modal_save_title">Guardar como Preset</span>
-            </h3>
-            <button type="button" class="btn-close modal-close modal-close-btn" data-bs-dismiss="modal" id="btnCloseSavePresetModal" aria-label="Cerrar" data-i18n-aria-label="modal.close"></button>
+          <div class="modal-header system-dialog-header">
+            <div class="system-dialog-title-group">
+              <div class="system-dialog-icon-badge tone-primary">
+                <i class="bi bi-bookmark-plus modal-title-icon" aria-hidden="true"></i>
+              </div>
+              <h3 id="modalSavePresetTitle">
+                <span data-i18n="services.modal_save_title">Guardar como Preset</span>
+              </h3>
+            </div>
+            <button type="button" class="btn-close modal-close modal-close-btn" data-bs-dismiss="modal" id="btnCloseSavePresetModal" aria-label="Cerrar modal" data-i18n-aria-label="modal.close"></button>
           </div>
           <div class="modal-body">
             <div class="form-group mb-3">
@@ -2086,12 +2090,12 @@
               <textarea id="inputNewPresetDesc" class="form-control" rows="2" placeholder="Notas sobre el broker o servidor..."></textarea>
             </div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" id="btnCancelSavePreset" data-i18n="modal.cancel">
-              <i class="bi bi-x-circle me-1" aria-hidden="true"></i><span>Cancelar</span>
+          <div class="modal-footer system-dialog-footer">
+            <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelSavePreset" data-i18n="modal.cancel">
+              <i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span>
             </button>
-            <button type="button" class="btn btn-primary" id="btnConfirmSavePreset" data-i18n="modal.save">
-              <i class="bi bi-check2-circle me-1" aria-hidden="true"></i><span>Guardar Perfil</span>
+            <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmSavePreset" data-i18n="modal.save">
+              <i class="bi bi-check2-circle" aria-hidden="true"></i><span class="btn-text">Guardar Perfil</span>
             </button>
           </div>
         </div>
@@ -2128,8 +2132,13 @@
     <div id="createChannelModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="createChannelTitle">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
-        <div class="modal-header">
-          <h3 id="createChannelTitle" data-i18n="modal.channel_title"><i class="bi bi-broadcast modal-title-icon" aria-hidden="true"></i> Configurar Canal LoRa</h3>
+        <div class="modal-header system-dialog-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-primary">
+              <i class="bi bi-broadcast modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <h3 id="createChannelTitle"><span data-i18n="modal.channel_title">Configurar Canal LoRa</span></h3>
+          </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="createChannelForm" class="modal-body" aria-labelledby="createChannelTitle">
@@ -2177,9 +2186,9 @@
             <span class="field-hint" id="chModalPskHint" data-i18n="ui.static_390">Los miembros deben compartir el mismo índice, nombre y clave PSK.</span>
           </div>
 
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" id="btnCancelCreateChannel" data-i18n="modal.cancel">Cancelar</button>
-            <button type="submit" class="btn btn-primary" id="btnSaveChannel" data-i18n="modal.save_channel"><i class="bi bi-floppy" aria-hidden="true"></i> Guardar y Sincronizar al Nodo</button>
+          <div class="modal-footer system-dialog-footer">
+            <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelCreateChannel" data-i18n="modal.cancel"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span></button>
+            <button type="submit" class="btn btn-primary system-dialog-btn" id="btnSaveChannel" data-i18n="modal.save_channel"><i class="bi bi-floppy" aria-hidden="true"></i><span class="btn-text">Guardar y Sincronizar al Nodo</span></button>
           </div>
         </form>
       </div>
@@ -2190,8 +2199,13 @@
     <div id="createContactModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="createContactTitle">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
-        <div class="modal-header">
-          <h3 id="createContactTitle" data-i18n="modal.contact_title"><i class="bi bi-person modal-title-icon" aria-hidden="true"></i> Agregar Nuevo Contacto</h3>
+        <div class="modal-header system-dialog-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-primary">
+              <i class="bi bi-person-plus modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <h3 id="createContactTitle"><span data-i18n="modal.contact_title">Agregar Nuevo Contacto</span></h3>
+          </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseCreateContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="createContactForm" class="modal-body" aria-labelledby="createContactTitle">
@@ -2233,9 +2247,9 @@
             </div>
           </div>
 
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" id="btnCancelCreateContact" data-i18n="modal.cancel">Cancelar</button>
-            <button type="submit" class="btn btn-primary" id="btnSaveContact" data-i18n="modal.save_contact"><i class="bi bi-floppy" aria-hidden="true"></i> Guardar Contacto</button>
+          <div class="modal-footer system-dialog-footer">
+            <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelCreateContact" data-i18n="modal.cancel"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span></button>
+            <button type="submit" class="btn btn-primary system-dialog-btn" id="btnSaveContact" data-i18n="modal.save_contact"><i class="bi bi-floppy" aria-hidden="true"></i><span class="btn-text">Guardar Contacto</span></button>
           </div>
         </form>
       </div>
@@ -2246,8 +2260,13 @@
     <div id="modalShareContact" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalShareContactTitle" aria-describedby="shareContactModalInstruction">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
-        <div class="modal-header">
-          <h3 id="modalShareContactTitle" data-i18n="chat.share_contact"><i class="bi bi-person-check modal-title-icon" aria-hidden="true"></i> Compartir Contacto</h3>
+        <div class="modal-header system-dialog-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-primary">
+              <i class="bi bi-person-check modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <h3 id="modalShareContactTitle"><span data-i18n="chat.share_contact">Compartir Contacto</span></h3>
+          </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareContactModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body">
@@ -2257,9 +2276,9 @@
             <!-- Renderizado dinámico de contactos cliente -->
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btnCancelShareContact" data-i18n="modal.cancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btnConfirmShareContact" disabled data-i18n="ui.static_406"><i class="bi bi-send" aria-hidden="true"></i> Compartir en Chat</button>
+        <div class="modal-footer system-dialog-footer">
+          <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelShareContact" data-i18n="modal.cancel"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span></button>
+          <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmShareContact" disabled data-i18n="ui.static_406"><i class="bi bi-send" aria-hidden="true"></i><span class="btn-text">Compartir en Chat</span></button>
         </div>
       </div>
     </div>
@@ -2269,8 +2288,13 @@
     <div id="modalShareChannel" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalShareChannelTitle" aria-describedby="shareChannelModalInstruction shareChannelWarningText">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
-        <div class="modal-header">
-          <h3 id="modalShareChannelTitle" data-i18n="chat.share_channel"><i class="bi bi-broadcast modal-title-icon" aria-hidden="true"></i> Compartir Canal</h3>
+        <div class="modal-header system-dialog-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-primary">
+              <i class="bi bi-broadcast modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <h3 id="modalShareChannelTitle"><span data-i18n="chat.share_channel">Compartir Canal</span></h3>
+          </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseShareChannelModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body">
@@ -2283,9 +2307,9 @@
             <span id="shareChannelWarningText" data-i18n="ui.static_408">Atención: Al compartir un canal privado, su clave secreta (PSK) se transmitirá por la radio para que los participantes puedan unirse.</span>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btnCancelShareChannel" data-i18n="modal.cancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btnConfirmShareChannel" disabled data-i18n="ui.static_406"><i class="bi bi-send" aria-hidden="true"></i> Compartir en Chat</button>
+        <div class="modal-footer system-dialog-footer">
+          <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelShareChannel" data-i18n="modal.cancel"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span></button>
+          <button type="button" class="btn btn-primary system-dialog-btn" id="btnConfirmShareChannel" disabled data-i18n="ui.static_406"><i class="bi bi-send" aria-hidden="true"></i><span class="btn-text">Compartir en Chat</span></button>
         </div>
       </div>
     </div>
@@ -2295,8 +2319,13 @@
     <div id="qrShareModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
     <div class="modal-dialog modal-dialog-centered modal-dialog-qr">
       <div class="modal-content modal-card qr-modal-card bg-body-tertiary border-secondary">
-        <div class="modal-header">
-          <h3 id="qrModalTitle"><i class="bi bi-qr-code modal-title-icon" aria-hidden="true"></i> Compartir por Código QR</h3>
+        <div class="modal-header system-dialog-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-primary">
+              <i class="bi bi-qr-code modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <h3 id="qrModalTitle"><span data-i18n="qr.title">Compartir por Código QR</span></h3>
+          </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseQrShareModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <div class="modal-body qr-modal-body">
@@ -2325,8 +2354,8 @@
               </div>
 
               <div class="qr-actions-row">
-                <button type="button" class="btn btn-secondary btn-sm" id="btnDownloadQrJson" data-i18n="qr.download_json"><i class="bi bi-download" aria-hidden="true"></i> Descargar JSON</button>
-                <button type="button" class="btn btn-primary btn-sm" id="btnCloseQrModalAction" data-i18n="qr.done">Listo</button>
+                <button type="button" class="btn btn-secondary system-dialog-btn" id="btnDownloadQrJson" data-i18n="qr.download_json"><i class="bi bi-download" aria-hidden="true"></i> <span class="btn-text">Descargar JSON</span></button>
+                <button type="button" class="btn btn-primary system-dialog-btn" id="btnCloseQrModalAction" data-i18n="qr.done"><i class="bi bi-check2" aria-hidden="true"></i> <span class="btn-text">Listo</span></button>
               </div>
             </div>
           </div>
@@ -2339,11 +2368,16 @@
     <div id="repeaterAdminModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="repeaterAdminTitle">
     <div class="modal-dialog modal-dialog-centered modal-xl">
       <div class="modal-content modal-card repeater-admin-modal-card locked bg-body-tertiary border-secondary" id="repeaterAdminModalCard">
-        <div class="modal-header repeater-admin-modal-header">
-          <div class="header-node-info">
-            <h3 id="repeaterAdminTitle" data-i18n="ui.static_411"><i class="bi bi-sliders modal-title-icon" aria-hidden="true"></i> Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
-            <div class="header-node-badges">
-              <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
+        <div class="modal-header system-dialog-header repeater-admin-modal-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-primary">
+              <i class="bi bi-sliders modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <div class="header-node-info">
+              <h3 id="repeaterAdminTitle" data-i18n="ui.static_411">Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
+              <div class="header-node-badges">
+                <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
+              </div>
             </div>
           </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
@@ -2917,10 +2951,15 @@
     <div id="tracerouteModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="tracerouteModalTitle">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content modal-card traceroute-modal-card bg-body-tertiary border-secondary">
-        <div class="modal-header">
-          <div class="header-node-info">
-            <h3 id="tracerouteModalTitle" data-i18n="ui.static_537"><i class="bi bi-activity modal-title-icon" aria-hidden="true"></i> Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
-            <span class="modal-pubkey-badge font-mono" id="traceTargetPkDisplay">--</span>
+        <div class="modal-header system-dialog-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-primary">
+              <i class="bi bi-diagram-3 modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <div class="header-node-info">
+              <h3 id="tracerouteModalTitle" data-i18n="ui.static_537">Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
+              <span class="modal-pubkey-badge font-mono" id="traceTargetPkDisplay">--</span>
+            </div>
           </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseTracerouteModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
@@ -2966,8 +3005,13 @@
     <div id="importModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content modal-card bg-body-tertiary border-secondary">
-        <div class="modal-header">
-          <h3 id="importModalTitle" data-i18n="ui.static_549"><i class="bi bi-download modal-title-icon" aria-hidden="true"></i> Importar Canal o Contacto</h3>
+        <div class="modal-header system-dialog-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-primary">
+              <i class="bi bi-download modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <h3 id="importModalTitle"><span data-i18n="ui.static_549">Importar Canal o Contacto</span></h3>
+          </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnCloseImportModal" aria-label="Cerrar modal" data-i18n-aria-label="ui.static_370"></button>
         </div>
         <form id="importForm" class="modal-body" aria-labelledby="importModalTitle">
@@ -2983,9 +3027,9 @@
             </div>
           </div>
 
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" id="btnCancelImport" data-i18n="modal.cancel">Cancelar</button>
-            <button type="submit" class="btn btn-primary" id="btnExecuteImport" data-i18n="ui.static_554"><i class="bi bi-download" aria-hidden="true"></i> Procesar e Importar</button>
+          <div class="modal-footer system-dialog-footer">
+            <button type="button" class="btn btn-secondary system-dialog-btn" id="btnCancelImport" data-i18n="modal.cancel"><i class="bi bi-x-lg" aria-hidden="true"></i><span class="btn-text">Cancelar</span></button>
+            <button type="submit" class="btn btn-primary system-dialog-btn" id="btnExecuteImport" data-i18n="ui.static_554"><i class="bi bi-download" aria-hidden="true"></i><span class="btn-text">Procesar e Importar</span></button>
           </div>
         </form>
       </div>
@@ -2996,11 +3040,16 @@
     <div id="packetInspectorModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="packetInspectorTitle">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content modal-card packet-inspector-card bg-body-tertiary border-secondary">
-        <div class="modal-header">
-          <div class="header-badge-row">
-            <h3 id="packetInspectorTitle" data-i18n="ui.static_555"><i class="bi bi-qr-code-scan modal-title-icon" aria-hidden="true"></i> Trama LoRa <span id="inspectorPktIdDisplay" class="badge rounded-pill badge-primary font-mono">#0</span></h3>
-            <span id="inspectorDirBadge" class="badge rounded-pill badge-info">RX</span>
-            <span id="inspectorTypeBadge" class="badge rounded-pill badge-secondary">CHAT</span>
+        <div class="modal-header system-dialog-header">
+          <div class="system-dialog-title-group">
+            <div class="system-dialog-icon-badge tone-info">
+              <i class="bi bi-cpu modal-title-icon" aria-hidden="true"></i>
+            </div>
+            <div class="header-badge-row">
+              <h3 id="packetInspectorTitle" data-i18n="ui.static_555">Trama LoRa <span id="inspectorPktIdDisplay" class="badge rounded-pill badge-primary font-mono">#0</span></h3>
+              <span id="inspectorDirBadge" class="badge rounded-pill badge-info">RX</span>
+              <span id="inspectorTypeBadge" class="badge rounded-pill badge-secondary">CHAT</span>
+            </div>
           </div>
           <button type="button" class="btn-close modal-close" data-bs-dismiss="modal" id="btnClosePacketInspector" aria-label="Cerrar inspector" data-i18n-aria-label="ui.static_557"></button>
         </div>
