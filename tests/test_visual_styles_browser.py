@@ -74,19 +74,23 @@ async def test_rendered_text_contrast_across_views(
     assert not failures, failures
 
 
-async def test_touch_controls_and_keyboard_focus(browser_page: Page) -> None:
+@pytest.mark.parametrize("width", [320, 390, 768])
+async def test_touch_controls_and_keyboard_focus(browser_page: Page, width: int) -> None:
     page = browser_page
-    await page.set_viewport_size({"width": 390, "height": 844})
+    await page.set_viewport_size({"width": width, "height": 844})
     session = await page.context.new_cdp_session(page)
     try:
         await session.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
         assert await page.evaluate("matchMedia('(pointer: coarse)').matches")
-        for selector in ("#themeToggleBtn", "#langToggleBtn", "#btnSendMsg",
+        for selector in ("#themeToggleBtn", "#langToggleBtn", "#btnToggleSidebarMobile",
+                         ".auth-account-button", "#btnSendMsg",
                          "#btnEmojiPicker", "#btnChatAttach", ".btn-back-channels-mobile"):
             control = page.locator(selector)
             await expect(control).to_be_visible()
             box = await control.bounding_box()
             assert box is not None and box["width"] >= 44 and box["height"] >= 44, (selector, box)
+            assert 0 <= box["x"] < box["x"] + box["width"] <= width, (selector, box)
+        assert await page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         await page.locator("#themeToggleBtn").focus()
         ring = await page.locator("#themeToggleBtn").evaluate("""element => {
             const style = getComputedStyle(element);

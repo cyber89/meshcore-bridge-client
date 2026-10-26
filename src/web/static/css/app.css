@@ -6031,20 +6031,21 @@ details.settings-disclosure > .disclosure-content {
     min-height: 44px !important;
   }
 
-  .app-header .btn-header-action {
-    width: 34px !important;
-    height: 34px !important;
-    min-width: 34px !important;
-    min-height: 34px !important;
-    max-height: 34px !important;
+  .app-header .header-right > .btn-header-action {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    max-width: none !important;
     padding: 0 !important;
     border-radius: var(--radius-sm, 6px) !important;
   }
 
   .app-header .btn-header-action.btn-icon {
-    width: 34px !important;
-    min-width: 34px !important;
-    max-width: 34px !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
   }
 
   @media (min-width: 576px) {

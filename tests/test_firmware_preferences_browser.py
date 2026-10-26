@@ -15,6 +15,9 @@ async def preference_settings(page: Page) -> None:
     await page.locator('[data-tab="tab-settings"]').click()
     await page.locator('[data-subtab="local-telemetry"]').click()
     await page.wait_for_load_state("networkidle")
+    # The subtab starts a config read after navigation. Await the production
+    # read sequence before injecting capabilities, rather than a past load state.
+    await page.evaluate("bridgeApp.settingsModule.fetchLocalNodeConfig()")
     await page.evaluate("""async () => {
       const {eventBus, EVENTS} = await import('/js/core/eventbus.js');
       eventBus.emit(EVENTS.METRICS_UPDATE, {serial_connected:true, radio_connected:true});

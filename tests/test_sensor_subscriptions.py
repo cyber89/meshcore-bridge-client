@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -202,8 +203,13 @@ async def test_rx_router_correlates_active_sensor_push_and_isolates_unassociated
 
 @pytest.mark.asyncio
 async def test_manual_sensor_subscription_enforces_sensor_role_and_handles_ack_correlation(
-    tmp_path: Any,
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    clock = SimpleNamespace(now=time.monotonic())
+    # Freeze only the manager clock; asyncio and persistence retain their real clocks.
+    monkeypatch.setattr("src.repeater_manager.time", SimpleNamespace(
+        monotonic=lambda: clock.now, time=time.time,
+    ))
     db = StationDatabase(tmp_path / "admin_station.sqlite3")
     db.initialize()
     registry = NodeRegistry(database=db)
@@ -265,7 +271,17 @@ async def test_manual_sensor_subscription_enforces_sensor_role_and_handles_ack_c
     assert sent_args.args[1] == BinaryReqType.SUBSCRIBE
     assert len(sent_args.kwargs["data"]) == 8 + len(SENSOR_SUBSCRIBE_BALANCED_DELTAS)
 
-    # Unsubscribe from valid SENSOR node
+    # Manual unsubscribe obeys the existing command cooldown without emitting RF.
+    blocked = await handler.handle(
+        {"action": "unsubscribe_sensor", "target_node": SENSOR_KEY}, manual=True,
+    )
+    assert blocked["code"] == 429
+    assert blocked["cooldown_remaining"] > 0
+    assert mc.commands.send_binary_req.await_count == 1
+    assert db.get_sensor_subscription(SENSOR_KEY) is not None
+
+    # Advance by the configured interval instead of sleeping or forcing a bypass.
+    clock.now += admin_ctx.repeater_manager.min_cmd_interval_s
     mc.commands.send_binary_req.return_value = SimpleNamespace(
         type="MSG_SENT",
         payload={"expected_ack": bytes.fromhex("87654321"), "suggested_timeout": 3200},
@@ -279,5 +295,8 @@ async def test_manual_sensor_subscription_enforces_sensor_role_and_handles_ack_c
         manual=True,
     )
     assert unsub_res["status"] == "ok"
+    assert mc.commands.send_binary_req.await_count == 2
+    assert mc.commands.send_binary_req.await_args.args[1] == BinaryReqType.UNSUBSCRIBE
+    assert mc.commands.send_binary_req.await_args.kwargs["data"] == b""
     assert unsub_res["sensor_subscription"] == {"status": "none"}
     assert db.get_sensor_subscription(SENSOR_KEY) is None

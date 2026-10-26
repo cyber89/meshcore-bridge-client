@@ -41,6 +41,10 @@ esta tarea. Esa autorización no se extiende a tareas futuras.
     eligió mantener los cooldowns actuales también para las acciones manuales.
     Actualizar las regresiones y registrar la [decisión](../audits/2026-10-25-ci-repair.md)
     conservando el documento histórico de pausa 0.
+12. Continuación del 2026-10-26: completar las ocho regresiones que permanecieron
+    en `4721cf5`, incluidos sincronización de snapshots, admisión por rol,
+    cooldown SENSOR, temas, tamaño táctil y respaldo seguro de mapas. Verificar
+    el commit integrado mediante la matriz completa de Actions.
 
 ## Verificación y límites
 

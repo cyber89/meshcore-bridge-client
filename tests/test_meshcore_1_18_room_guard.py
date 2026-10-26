@@ -146,12 +146,12 @@ async def test_sdk_room_object_is_blocked_without_a_registry_entry(type_field: s
     assert_no_dispatch(admin, sdk, manager)
 
 
-async def test_sdk_contact_without_public_key_keeps_registered_room_guard_before_effects() -> None:
+async def test_sdk_contact_without_public_key_is_rejected_before_effects() -> None:
     admin, sdk, manager = administration()
     sdk.contacts[KEY] = {"type": 2, "adv_name": "Community"}
     result = await admin.handle({"target_node": KEY, "action": "set repeat on", "password": "secret"})
     assert result["status"] == "error"
-    assert result["code"] == 422
+    assert result["code"] == 404
     assert_no_dispatch(admin, sdk, manager)
 
 

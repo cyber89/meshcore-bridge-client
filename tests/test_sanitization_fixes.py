@@ -227,9 +227,9 @@ class TestSharedUtilsCentralized:
         assert classify_device_role(2, is_local=True) == "LOCAL"
 
     def test_classify_device_role_unknown(self) -> None:
-        """Verifica que tipo desconocido (99) → CLIENT."""
+        """Los tipos desconocidos no adquieren el rol de cliente de chat."""
         from src.shared_utils import classify_device_role
-        assert classify_device_role(99) == "CLIENT"
+        assert classify_device_role(99) == "UNKNOWN"
 
     def test_normalize_battery_percentage_direct(self) -> None:
         """Verifica conversión de porcentaje directo (0-100)."""

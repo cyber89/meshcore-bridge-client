@@ -49,6 +49,8 @@ async def settings(page: Page) -> None:
         await page.locator('[data-tab="tab-settings"]').click()
     await page.locator('[data-subtab="local-telemetry"]').click()
     await page.wait_for_load_state("networkidle")
+    # Finish the subtab's config sequence before a test emits its own snapshot.
+    await page.evaluate("bridgeApp.settingsModule.fetchLocalNodeConfig()")
 
 
 @pytest.mark.parametrize("width,height", [(1920, 1080), (390, 844)])

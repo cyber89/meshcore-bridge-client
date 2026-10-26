@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from playwright.async_api import Page, expect
+from test_frontend_ui_audit import _apply_theme
 
 
 async def _wait_for_mobile_sidebar_closed(page: Page) -> None:
@@ -46,9 +47,11 @@ async def test_playwright_delivery_ack_and_echo(browser_page: Page) -> None:
     await expect(browser_page.locator(".message-bubble-row.incoming").last).to_contain_text(message)
 
 
-async def test_mobile_header_with_wider_fallback_font(browser_page: Page) -> None:
+@pytest.mark.parametrize("theme", ["dark", "light"])
+async def test_mobile_header_with_wider_fallback_font(browser_page: Page, theme: str) -> None:
     """Platform font metrics must not push theme/language controls off screen."""
     await browser_page.set_viewport_size({"width": 390, "height": 844})
+    await _apply_theme(browser_page, theme)
     await browser_page.locator("header.app-header").evaluate("""element => {
         element.style.fontFamily = 'monospace';
         element.style.letterSpacing = '1px';
@@ -73,7 +76,10 @@ async def test_mobile_header_with_wider_fallback_font(browser_page: Page) -> Non
         await expect(browser_page.locator(f"#{action['id']}")).to_be_visible()
     # The controls remain usable rather than merely hidden to satisfy the bounds.
     await browser_page.locator("#themeToggleBtn").click()
-    await expect(browser_page.locator("body")).to_have_class(re.compile(r".*\blight-theme\b.*"))
+    expected_theme = "light" if theme == "dark" else "dark"
+    await expect(browser_page.locator("body")).to_have_class(
+        re.compile(rf".*\b{expected_theme}-theme\b.*")
+    )
     await browser_page.locator("#langToggleBtn").click(trial=True)
 
 

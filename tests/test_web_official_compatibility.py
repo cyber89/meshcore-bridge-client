@@ -178,7 +178,9 @@ def test_failed_api_auth_does_not_log_query_credential(monkeypatch: pytest.Monke
     assert "provided-secret" not in decision.log_path
 
 
-def test_map_tile_symlink_cannot_escape_map_storage(tmp_path: Path) -> None:
+def test_map_tile_symlink_cannot_escape_map_storage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = MapTileService(tmp_path / "maps-data")
     secret = tmp_path / "private.txt"
     secret.write_bytes(b"private server data")
@@ -189,8 +191,21 @@ def test_map_tile_symlink_cannot_escape_map_storage(tmp_path: Path) -> None:
             target.symlink_to(secret)
         except OSError:
             pytest.skip("Platform does not permit creating a symlink for this regression")
-        code, data, _ = service.get_tile(0, 0, 0)
-        assert code == 404
-        assert data == b""
+        fallback = service.get_tile(1, 0, 0)
+        assert fallback[0] == 200
+        assert fallback[1].startswith(b"\x89PNG\r\n\x1a\n")
+        assert fallback[2] == "image/png"
+        reads: list[Path] = []
+        original_read = Path.read_bytes
+
+        def observe_read(path: Path) -> bytes:
+            reads.append(path)
+            return original_read(path)
+
+        monkeypatch.setattr(Path, "read_bytes", observe_read)
+        # Rejected files use the same safe offline image as an absent tile;
+        # a 200 response must never conceal an attempted external file read.
+        assert service.get_tile(0, 0, 0) == fallback
+        assert not any(path.resolve() == secret for path in reads)
     finally:
         service.close()

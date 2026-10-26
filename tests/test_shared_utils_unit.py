@@ -24,8 +24,9 @@ def test_classify_device_role() -> None:
     assert classify_device_role(FirmwareAdvertType.ROOM) == "ROOM"
     assert classify_device_role(FirmwareAdvertType.SENSOR) == "SENSOR"
 
-    # Valor desconocido
-    assert classify_device_role(99) == "CLIENT"
+    # Los tipos reservados/desconocidos no identifican clientes de chat.
+    assert classify_device_role(5) == "UNKNOWN"
+    assert classify_device_role(99) == "UNKNOWN"
 
 
 def test_normalize_battery() -> None:

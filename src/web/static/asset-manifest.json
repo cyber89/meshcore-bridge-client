@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "6d97dfd39602b713e731b6cf2a802b64a4164da788bf955a7dfe04bd4f7b5ee6",
-      "sha256": "5605e11cba6df2fddcb1c469734e06a251523b1cd2a3c5c7de54ea21d1177e48",
-      "gzip_sha256": "ab508a77a4922ba02261262608069aea02557109df3c6399629bc56fb621b40c",
-      "source_bytes": 179525,
-      "bytes": 143194,
-      "gzip_bytes": 25488
+      "source_sha256": "294fbc3f786ea509b3babdfc59404b0d93b5e7066d94e3dfea346d91fe5967f0",
+      "sha256": "eae82b75df28cf441312d82dca7716d880edee62a2c11830dc0a8f2ebb4752c8",
+      "gzip_sha256": "af9ded3d50f017c815afeaf5c424d4cc9314569c85bf4421ddd6c5207ad024b8",
+      "source_bytes": 179573,
+      "bytes": 143233,
+      "gzip_bytes": 25493
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
