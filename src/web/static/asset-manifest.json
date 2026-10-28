@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "294fbc3f786ea509b3babdfc59404b0d93b5e7066d94e3dfea346d91fe5967f0",
-      "sha256": "eae82b75df28cf441312d82dca7716d880edee62a2c11830dc0a8f2ebb4752c8",
-      "gzip_sha256": "af9ded3d50f017c815afeaf5c424d4cc9314569c85bf4421ddd6c5207ad024b8",
-      "source_bytes": 179573,
-      "bytes": 143233,
-      "gzip_bytes": 25493
+      "source_sha256": "31863dda07140966de85a19fdd466a164f31b1112e9e7b27e64cac24d18253dd",
+      "sha256": "da8240ba6bd165ebc32cc41417ef2e3f9b8621d1ff8b7a249536507e596b36b9",
+      "gzip_sha256": "7b4b7b0591a289181643daf827820fc3443621990ad27e892d88958928bb21bb",
+      "source_bytes": 179686,
+      "bytes": 143333,
+      "gzip_bytes": 25513
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
@@ -229,12 +229,12 @@
     },
     "js/modules/map.js": {
       "file": "js/modules/map.min.js",
-      "source_sha256": "8f80c474265e18aa0f65a9c7257b48374c0cf74bbebfc04e34f6be740e808da0",
-      "sha256": "80f097e91d9cbc65c4cb6808eec0a2ee5d028e8c16d708bd62bacbf4fda1f089",
-      "gzip_sha256": "733e75a1c9bffea13c4c7fa2b3860c691319e1a5797c8503141432027372f4c7",
-      "source_bytes": 36813,
-      "bytes": 24740,
-      "gzip_bytes": 7278
+      "source_sha256": "5d50032319ab10e77963724697332f98e0bfcc0a25067327c5ab369e3a6f1186",
+      "sha256": "f89ce5355daf207c994f26b193d8437241b319e8b1852765e733266a9a96f89a",
+      "gzip_sha256": "82f27466ebc6dd35b5e1d46c39c9e4b47d721b85977252a2c4df208b75e39fca",
+      "source_bytes": 37510,
+      "bytes": 25324,
+      "gzip_bytes": 7334
     },
     "js/modules/nodes.js": {
       "file": "js/modules/nodes.min.js",

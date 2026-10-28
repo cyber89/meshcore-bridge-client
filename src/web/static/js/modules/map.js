@@ -226,15 +226,20 @@ export class MapModule {
         attributionControl: true,
       }).setView([20.15, -75.20], 12);
 
+      const darkFallbackTile = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" fill="%230f172a"><rect width="256" height="256"/><text x="128" y="128" fill="%23475569" text-anchor="middle" font-size="11" font-family="sans-serif">Mosaico No Disponible</text></svg>';
+      const lightFallbackTile = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" fill="%23e2e8f0"><rect width="256" height="256"/><text x="128" y="128" fill="%2364748b" text-anchor="middle" font-size="11" font-family="sans-serif">Mosaico No Disponible</text></svg>';
+
       const darkLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         className: 'map-tiles-dark',
         maxZoom: 19,
+        errorTileUrl: darkFallbackTile,
       });
 
       const osmLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
+        errorTileUrl: lightFallbackTile,
       });
 
       const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {

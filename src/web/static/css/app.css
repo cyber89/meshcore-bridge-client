@@ -1196,6 +1196,10 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 /* Scrollbars Sobrios y Consistentes */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(128, 128, 128, 0.25)) transparent;
+}
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
