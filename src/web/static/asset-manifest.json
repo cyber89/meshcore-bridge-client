@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generator": "esbuild 0.28.1; gzip level 9",
+  "generator": "esbuild 0.28.2; gzip level 9",
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
