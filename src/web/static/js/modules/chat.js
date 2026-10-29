@@ -321,15 +321,17 @@ export class ChatModule {
 
     // Contador de caracteres/bytes en tiempo real optimizado para INP
     if (this.dom.chatInputText) {
-      let _charCounterRaf = null;
-      let _charCounterAirtimeTimer = null;
+      this._charCounterRaf = null;
+      this._charCounterAirtimeTimer = null;
       this.dom.chatInputText.addEventListener("input", () => {
-        if (_charCounterRaf) cancelAnimationFrame(_charCounterRaf);
-        _charCounterRaf = requestAnimationFrame(() => {
+        if (this._charCounterRaf) cancelAnimationFrame(this._charCounterRaf);
+        this._charCounterRaf = requestAnimationFrame(() => {
+          this._charCounterRaf = null;
           this.updateCharCounterFast();
         });
-        if (_charCounterAirtimeTimer) clearTimeout(_charCounterAirtimeTimer);
-        _charCounterAirtimeTimer = setTimeout(() => {
+        if (this._charCounterAirtimeTimer) clearTimeout(this._charCounterAirtimeTimer);
+        this._charCounterAirtimeTimer = setTimeout(() => {
+          this._charCounterAirtimeTimer = null;
           this.updateCharCounterAirtime();
         }, 120);
       });
@@ -742,10 +744,10 @@ export class ChatModule {
           <span class="share-picker-avatar" aria-hidden="true">${isMyContact ? "⭐" : "👤"}</span>
           <span>
             <span class="share-picker-title">${escapeHtml(cleanName)}</span>
-            <span class="share-picker-sub">${escapeHtml(contact.public_key.slice(0, 14))}… • ${isMyContact ? (window.I18n ? window.I18n.t('chat.my_station_sub') : "Mi Estación Local") : escapeHtml(contact.role || "CLIENT")}</span>
+            <span class="share-picker-sub">${escapeHtml(contact.public_key.slice(0, 14))}… • ${isMyContact ? I18n.t('chat.my_station_sub') : escapeHtml(contact.role || "CLIENT")}</span>
           </span>
         </span>
-        <span class="badge-pill ${isMyContact ? 'badge-primary' : ''}">${isMyContact ? (window.I18n ? window.I18n.t('chat.my_contact_badge') : "Mi Contacto") : (contact.is_favorite ? "⭐" : I18n.t("chat.contact"))}</span>
+        <span class="badge-pill ${isMyContact ? 'badge-primary' : ''}">${isMyContact ? I18n.t('chat.my_contact_badge') : (contact.is_favorite ? "⭐" : I18n.t("chat.contact"))}</span>
       `;
 
       item.addEventListener("click", () => {
@@ -973,8 +975,8 @@ export class ChatModule {
     const isChannel = !this.activeDmTarget;
     if (!isChannel) return MAX_LORA_TEXT_BYTES;
     const cfg = this.ctx?.localConfig || {};
-    const name = String(cfg.name || "").trim();
-    const prefixBytes = name ? (getUtf8ByteLength(name) + 2) : 0;
+    const name = String(cfg.name || cfg.node_name || cfg.device_name || "").trim();
+    const prefixBytes = getUtf8ByteLength(name) + 2;
     return Math.max(32, MAX_LORA_TEXT_BYTES - prefixBytes);
   }
 
@@ -1806,7 +1808,7 @@ export class ChatModule {
               btnSave.disabled = true;
               btnSave.innerHTML = `
                 <i class="bi bi-check-lg me-1" aria-hidden="true"></i>
-                <span>${window.I18n ? window.I18n.t('chat.saved_contact') : 'Contacto Guardado'}</span>
+                <span>${I18n.t('chat.saved_contact')}</span>
               `;
               if (this.ctx.showToast) this.ctx.showToast(I18n.t("chat.contact_saved", { p0: name }), "success");
             }
@@ -2267,5 +2269,21 @@ export class ChatModule {
       osc.start(now);
       osc.stop(now + 0.12);
     } catch (_) {}
+  }
+
+  destroy() {
+    if (this._charCounterRaf) {
+      cancelAnimationFrame(this._charCounterRaf);
+      this._charCounterRaf = null;
+    }
+    if (this._charCounterAirtimeTimer) {
+      clearTimeout(this._charCounterAirtimeTimer);
+      this._charCounterAirtimeTimer = null;
+    }
+    this._readingResizeObserver?.disconnect();
+    this._readingResizeObserver = null;
+    this._popoverResizeObserver?.disconnect();
+    this._popoverResizeObserver = null;
+    this._shareChannelAbort?.abort();
   }
 }

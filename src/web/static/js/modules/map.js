@@ -53,6 +53,7 @@ export class MapModule {
   }
 
   onLanguageChange() {
+    this._refreshFallbackTileUrls();
     const nodes = Array.from(this.ctx.knownNodes?.values() || []);
     this.updateMapMarkers(nodes);
     this.updateMapNodesOverlayList(nodes);
@@ -61,6 +62,25 @@ export class MapModule {
       this.renderTracerouteGraph(this._lastTraceHops);
       this.renderTracerouteTable(this._lastTraceHops);
     }
+  }
+
+  _buildFallbackTileUrl(theme = "dark", isLocal = false) {
+    const bg = theme === "light" ? "%23e2e8f0" : "%230f172a";
+    const fg = theme === "light" ? "%2364748b" : "%23475569";
+    const key = isLocal ? "map.local_tile_unavailable" : "map.tile_unavailable";
+    const label = escapeHtml(I18n.t(key));
+    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" fill="${bg}"><rect width="256" height="256"/><text x="128" y="128" fill="${fg}" text-anchor="middle" font-size="11" font-family="sans-serif">${label}</text></svg>`;
+  }
+
+  _refreshFallbackTileUrls() {
+    if (!this.tileLayers) return;
+    const darkFallback = this._buildFallbackTileUrl("dark", false);
+    const lightFallback = this._buildFallbackTileUrl("light", false);
+    const localFallback = this._buildFallbackTileUrl("dark", true);
+    if (this.tileLayers.dark?.options) this.tileLayers.dark.options.errorTileUrl = darkFallback;
+    if (this.tileLayers.osm?.options) this.tileLayers.osm.options.errorTileUrl = lightFallback;
+    if (this.tileLayers.satellite?.options) this.tileLayers.satellite.options.errorTileUrl = darkFallback;
+    if (this.tileLayers.local?.options) this.tileLayers.local.options.errorTileUrl = localFallback;
   }
 
   _bindElements() {
@@ -125,6 +145,7 @@ export class MapModule {
   onThemeChanged(theme) {
     if (!this.map || !this.tileLayers) return;
     if (this._isBaseLayerMode()) {
+      if (this._remoteTilesUnreachable && this.mapLayerMode === "auto") return;
       const targetTheme = theme || this._getCurrentTheme();
       const targetLayer = targetTheme === "light" ? this.tileLayers.osm : this.tileLayers.dark;
       const oldLayer = targetTheme === "light" ? this.tileLayers.dark : this.tileLayers.osm;
@@ -226,8 +247,9 @@ export class MapModule {
         attributionControl: true,
       }).setView([20.15, -75.20], 12);
 
-      const darkFallbackTile = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" fill="%230f172a"><rect width="256" height="256"/><text x="128" y="128" fill="%23475569" text-anchor="middle" font-size="11" font-family="sans-serif">Mosaico No Disponible</text></svg>';
-      const lightFallbackTile = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" fill="%23e2e8f0"><rect width="256" height="256"/><text x="128" y="128" fill="%2364748b" text-anchor="middle" font-size="11" font-family="sans-serif">Mosaico No Disponible</text></svg>';
+      const darkFallbackTile = this._buildFallbackTileUrl("dark", false);
+      const lightFallbackTile = this._buildFallbackTileUrl("light", false);
+      const localFallbackTile = this._buildFallbackTileUrl("dark", true);
 
       const darkLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -246,6 +268,7 @@ export class MapModule {
         attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Earthstar Geographics',
         maxZoom: 19,
         maxNativeZoom: 18,
+        errorTileUrl: darkFallbackTile,
       });
 
       this.tileLayers = {
@@ -256,9 +279,21 @@ export class MapModule {
         local: L.tileLayer(this.localTileUrl, {
           attribution: 'MeshCore Offline Local Tiles',
           maxZoom: 18,
-          errorTileUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" fill="%230f172a"><rect width="256" height="256"/><text x="128" y="128" fill="%23475569" text-anchor="middle" font-size="11" font-family="sans-serif">Mosaico Local No Disponible</text></svg>',
+          errorTileUrl: localFallbackTile,
         }),
       };
+
+      const switchToLocalOnAutoError = () => {
+        if (this.mapLayerMode !== "auto" || !this.map || !this.tileLayers?.local) return;
+        this._remoteTilesUnreachable = true;
+        if (this.map.hasLayer(darkLayer)) this.map.removeLayer(darkLayer);
+        if (this.map.hasLayer(osmLayer)) this.map.removeLayer(osmLayer);
+        if (!this.map.hasLayer(this.tileLayers.local)) {
+          this.tileLayers.local.addTo(this.map);
+        }
+      };
+      darkLayer.on("tileerror", switchToLocalOnAutoError);
+      osmLayer.on("tileerror", switchToLocalOnAutoError);
 
       this.rfHeatmapGroup = L.layerGroup();
 
@@ -906,5 +941,16 @@ export class MapModule {
     marker.bindPopup(popupHtml);
     marker.addTo(this.map);
     this.mapMarkers.set(pk, marker);
+  }
+
+  destroy() {
+    if (this.rfHeatmapInterval) {
+      clearInterval(this.rfHeatmapInterval);
+      this.rfHeatmapInterval = null;
+    }
+    if (this._heatmapPollInterval) {
+      clearInterval(this._heatmapPollInterval);
+      this._heatmapPollInterval = null;
+    }
   }
 }

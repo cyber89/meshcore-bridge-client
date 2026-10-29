@@ -27,13 +27,19 @@ export function applyThemePreference(theme, persist = true) {
 }
 
 export function readDensityPreference() {
+  try {
+    const saved = localStorage.getItem("meshcore_ui_density");
+    if (saved === "comfortable" || saved === "compact") return saved;
+  } catch (_) {}
   return "compact";
 }
 
-export function applyDensityPreference(density = "compact", persist = true) {
-  document.documentElement.classList.add("density-compact");
+export function applyDensityPreference(density = readDensityPreference(), persist = true) {
+  const selected = density === "comfortable" ? "comfortable" : "compact";
+  document.documentElement.classList.toggle("density-compact", selected === "compact");
+  document.documentElement.classList.toggle("density-comfortable", selected === "comfortable");
   if (persist) {
-    try { localStorage.setItem("meshcore_ui_density", "compact"); }
+    try { localStorage.setItem("meshcore_ui_density", selected); }
     catch (_) {}
   }
 }

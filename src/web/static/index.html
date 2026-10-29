@@ -13,6 +13,7 @@
   <script async src="/js/session_startup.js"></script>
 
   <!-- Bootswatch 5.3 Themes Locales Offline: Slate (Oscuro) y Zephyr (Claro) -->
+  <link id="themeStylesheet" rel="stylesheet" href="/css/bootstrap-slate.min.css">
   <script>
     (function() {
       try {
@@ -24,15 +25,6 @@
           document.documentElement.setAttribute("data-bs-theme", "light");
           var m = document.querySelector('meta[name="theme-color"]');
           if (m) m.setAttribute("content", "#eef3f9");
-        }
-      } catch (_) {}
-    })();
-  </script>
-  <link id="themeStylesheet" rel="stylesheet" href="/css/bootstrap-slate.min.css">
-  <script>
-    (function() {
-      try {
-        if (localStorage.getItem("meshcore_theme") === "light") {
           var l = document.getElementById("themeStylesheet");
           if (l) l.href = "/css/bootstrap-zephyr.local.min.css";
         }
@@ -136,7 +128,7 @@
             <i class="bi bi-clock chip-icon" aria-hidden="true"></i>
             <span data-i18n="ui.static_005">Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
             <span class="progress d-inline-block ms-1 header-airtime-track" id="headerAirtimeTrack" aria-hidden="true">
-              <span class="progress-bar header-airtime-fill" id="headerAirtimeFill" style="width: 0%;"></span>
+              <span class="progress-bar header-airtime-fill" id="headerAirtimeFill"></span>
             </span>
           </span>
           <span class="badge border d-flex align-items-center gap-1 metric-chip normal" id="headerErrorRateChip" title="Tasa de Error" data-i18n-title="header.error_rate">
@@ -147,7 +139,7 @@
           </span>
         </div>
 
-        <button id="themeToggleBtn" type="button" class="btn btn-header-action btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">
+        <button id="themeToggleBtn" type="button" class="btn btn-header-action btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro" data-i18n-title="ui.toggle_theme" data-i18n-aria-label="ui.toggle_theme">
           <i class="bi bi-sun" aria-hidden="true"></i>
         </button>
 
@@ -156,7 +148,7 @@
         </button>
 
         <!-- Botón Toggler Móvil para Menú Lateral -->
-        <button class="btn btn-header-action btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Abrir menú de navegación" id="btnToggleSidebarMobile">
+        <button class="btn btn-header-action btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Abrir menú de navegación" data-i18n-aria-label="ui.open_nav_menu" id="btnToggleSidebarMobile">
           <i class="bi bi-list fs-5" aria-hidden="true"></i>
         </button>
         <button type="button" class="btn btn-header-action auth-account-button" data-open-account data-i18n-title="auth.account" data-i18n-aria-label="auth.account" aria-label="Perfil" title="Perfil" aria-haspopup="dialog" aria-controls="accountDialog"><i class="bi bi-person-circle" aria-hidden="true"></i><span id="accountNameLabel" class="d-none d-sm-inline ms-1" data-i18n="auth.account">Perfil</span></button>
@@ -634,8 +626,8 @@
                     <span id="analyticsAirtimeMs" class="text-sm font-mono text-muted">0 ms / 36,000 ms (Límite: 1.0%)</span>
                   </div>
                   <div class="airtime-progress-bar-bg">
-                    <div id="analyticsAirtimeFill" class="airtime-progress-bar-fill" style="width: 0%;"></div>
-                    <div id="analyticsAirtimeWarnMarker" class="airtime-warning-marker" style="left: 80%;" title="Umbral de advertencia (80% del límite)" data-i18n-title="ui.static_105"></div>
+                    <div id="analyticsAirtimeFill" class="airtime-progress-bar-fill"></div>
+                    <div id="analyticsAirtimeWarnMarker" class="airtime-warning-marker" title="Umbral de advertencia (80% del límite)" data-i18n-title="ui.static_105"></div>
                   </div>
                   <div class="airtime-progress-scale">
                     <span data-i18n="ui.static_106">0% (Libre)</span>
@@ -1756,8 +1748,8 @@
                       </div>
                       <div class="settings-toggle-controls">
                         <span id="badgeExtMqttStatus" class="badge rounded-pill badge-secondary" data-i18n="services.status_disconnected">Desconectado</span>
-                        <label class="switch-toggle toggle-switch" for="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo">
-                          <input type="checkbox" id="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo" />
+                        <label class="switch-toggle toggle-switch" for="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo" data-i18n-aria-label="services.enable_ext_mqtt_aria">
+                          <input type="checkbox" id="chkExternalMqttEnabled" aria-label="Habilitar Servidor MQTT Externo" data-i18n-aria-label="services.enable_ext_mqtt_aria" />
                           <span class="slider round toggle-slider"></span>
                         </label>
                       </div>
@@ -1776,10 +1768,10 @@
                         <select id="selExtMqttPreset" class="form-control settings-inline-control">
                           <!-- Dinámico desde API / services_config.json -->
                         </select>
-                        <button type="button" class="btn btn-secondary btn-sm" id="btnSaveCurrentAsPreset" title="Guardar los valores actuales como un perfil nuevo">
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnSaveCurrentAsPreset" title="Guardar los valores actuales como un perfil nuevo" data-i18n-title="services.save_preset_title">
                           <i class="bi bi-plus-circle" aria-hidden="true"></i> <span data-i18n="services.btn_save_preset">Guardar como Preset</span>
                         </button>
-                        <button type="button" class="btn btn-danger btn-sm" id="btnDeleteCustomPreset" title="Eliminar el preset personalizado seleccionado" disabled>
+                        <button type="button" class="btn btn-danger btn-sm" id="btnDeleteCustomPreset" title="Eliminar el preset personalizado seleccionado" data-i18n-title="services.delete_preset_title" disabled>
                           <i class="bi bi-trash" aria-hidden="true"></i> <span data-i18n="services.btn_delete_preset">Borrar</span>
                         </button>
                       </div>
@@ -1963,8 +1955,8 @@
                         <i class="bi bi-cpu section-icon" aria-hidden="true"></i>
                         <h3 data-i18n="services.local_mqtt_title">Servidor MQTT Local / Domótica (n8n & Home Assistant)</h3>
                       </div>
-                      <label class="switch-toggle toggle-switch" for="chkLocalMqttEnabled" aria-label="Habilitar Servidor MQTT Local">
-                        <input type="checkbox" id="chkLocalMqttEnabled" checked aria-label="Habilitar Servidor MQTT Local" />
+                      <label class="switch-toggle toggle-switch" for="chkLocalMqttEnabled" aria-label="Habilitar Servidor MQTT Local" data-i18n-aria-label="services.enable_local_mqtt_aria">
+                        <input type="checkbox" id="chkLocalMqttEnabled" checked aria-label="Habilitar Servidor MQTT Local" data-i18n-aria-label="services.enable_local_mqtt_aria" />
                         <span class="slider round toggle-slider"></span>
                       </label>
                     </div>
@@ -2015,8 +2007,8 @@
                         <i class="bi bi-phone section-icon" aria-hidden="true"></i>
                         <h3 data-i18n="services.tcp_title">Servidor TCP Companion (App Móvil Oficial & CLI)</h3>
                       </div>
-                      <label class="switch-toggle toggle-switch" for="chkTcpServerEnabled" aria-label="Habilitar Servidor TCP Companion">
-                        <input type="checkbox" id="chkTcpServerEnabled" checked aria-label="Habilitar Servidor TCP Companion" />
+                      <label class="switch-toggle toggle-switch" for="chkTcpServerEnabled" aria-label="Habilitar Servidor TCP Companion" data-i18n-aria-label="services.enable_tcp_companion_aria">
+                        <input type="checkbox" id="chkTcpServerEnabled" checked aria-label="Habilitar Servidor TCP Companion" data-i18n-aria-label="services.enable_tcp_companion_aria" />
                         <span class="slider round toggle-slider"></span>
                       </label>
                     </div>
@@ -3023,7 +3015,7 @@
               <button type="button" id="btnSelectImportFile" class="btn btn-secondary btn-sm" data-i18n="ui.static_553">
                 <i class="bi bi-upload" aria-hidden="true"></i> Cargar Archivo
               </button>
-              <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" aria-label="Seleccionar archivo de respaldo o configuración" />
+              <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" aria-label="Seleccionar archivo de respaldo o configuración" data-i18n-aria-label="settings.select_backup_file_aria" />
             </div>
           </div>
 

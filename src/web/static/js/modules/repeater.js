@@ -1957,5 +1957,12 @@ export class RepeaterModule {
       this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
     }
   }
+
+  destroy() {
+    if (this._modalPingInterval) {
+      clearInterval(this._modalPingInterval);
+      this._modalPingInterval = null;
+    }
+  }
 }
 

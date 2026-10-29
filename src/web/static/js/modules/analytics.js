@@ -680,4 +680,21 @@ export class AnalyticsModule {
       }
     }
   }
+
+  destroy() {
+    if (this._liveAnalyticsInterval) {
+      clearInterval(this._liveAnalyticsInterval);
+      this._liveAnalyticsInterval = null;
+    }
+    if (this._autoRefreshTimer) {
+      clearInterval(this._autoRefreshTimer);
+      this._autoRefreshTimer = null;
+    }
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+    this._requestController?.abort();
+    this._requestController = null;
+  }
 }

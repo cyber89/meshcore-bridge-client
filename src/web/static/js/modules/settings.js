@@ -387,11 +387,11 @@ export class SettingsModule {
         if (val) {
           try {
             await navigator.clipboard.writeText(val);
-            this._notify(I18n.t("qr.copied") || "Clave pública copiada al portapapeles", "success");
+            this._notify(I18n.t("qr.copied"), "success");
           } catch (_err) {
             pkInput.select();
             document.execCommand("copy");
-            this._notify(I18n.t("qr.copied") || "Clave pública copiada al portapapeles", "success");
+            this._notify(I18n.t("qr.copied"), "success");
           }
         }
       });
@@ -2953,7 +2953,7 @@ export class SettingsModule {
     if (this.dom.chkExtObserverMode) {
       this.dom.chkExtObserverMode.addEventListener("change", (e) => {
         if (e.target.checked && this.ctx.showToast) {
-          this.ctx.showToast(I18n.t("services.observer_toast") || "Modo Observer activo: chats no reenviados", "info");
+          this.ctx.showToast(I18n.t("services.observer_toast"), "info");
         }
       });
     }
@@ -3191,10 +3191,10 @@ export class SettingsModule {
 
     if (!selectedId || selectedId === "custom") {
       if (badge) {
-        badge.textContent = I18n.t("services.preset_custom") || "Personalizado";
+        badge.textContent = I18n.t("services.preset_custom");
         badge.className = "badge-pill badge-primary text-xs";
       }
-      if (desc) desc.textContent = I18n.t("services.preset_custom_desc") || "Configuración libre de servidor MQTT";
+      if (desc) desc.textContent = I18n.t("services.preset_custom_desc");
       if (btnDel) btnDel.disabled = true;
       return;
     }
@@ -3489,7 +3489,7 @@ export class SettingsModule {
     const description = (descInput?.value || "").trim();
 
     if (!name) {
-      this._notify(I18n.t("services.preset_name_required") || "Por favor ingrese un nombre para el perfil", "warning");
+      this._notify(I18n.t("services.preset_name_required"), "warning");
       nameInput?.focus();
       return;
     }
@@ -3534,7 +3534,7 @@ export class SettingsModule {
 
     const preset = (this.servicesPresets || []).find((p) => p.id === presetId);
     if (!preset || preset.is_system) {
-      this._notify(I18n.t("services.cannot_delete_system_preset") || "No se pueden eliminar presets del sistema", "warning");
+      this._notify(I18n.t("services.cannot_delete_system_preset"), "warning");
       return;
     }
 
@@ -3572,6 +3572,17 @@ export class SettingsModule {
       }
     } catch (err) {
       this._notify(I18n.t("settings.network_error", { error: err.message, p0: err.message }), "error");
+    }
+  }
+
+  destroy() {
+    if (this._tickInterval) {
+      clearInterval(this._tickInterval);
+      this._tickInterval = null;
+    }
+    if (this._clockInterval) {
+      clearInterval(this._clockInterval);
+      this._clockInterval = null;
     }
   }
 }

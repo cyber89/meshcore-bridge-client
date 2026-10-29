@@ -276,6 +276,8 @@ body.auth-pending > #app { display: none !important; }
   --term-header-bg: rgba(0, 0, 0, 0.42);
   --term-border: rgba(255, 255, 255, 0.08);
   --term-prompt: #38bdf8;
+  --table-row-stripe: rgba(255, 255, 255, 0.015);
+  --switch-thumb: #ffffff;
 
   /* Tipografía Fluida Progresiva (WCAG 2.2 / Modern CSS) */
   --font-fluid-body: clamp(0.8125rem, 0.77rem + 0.25vw, 0.9375rem);
@@ -420,45 +422,61 @@ html.density-compact {
   --scrollbar-thumb: rgba(100, 116, 139, 0.35);
   --scrollbar-thumb-hover: rgba(100, 116, 139, 0.55);
   --chat-divider: #94a3b8;
+  --table-row-stripe: rgba(15, 23, 42, 0.025);
+  --role-local-bg: #d1fae5;
+  --role-local-border: #6ee7b7;
+  --role-local-text: #065f46;
+  --role-repeater-bg: #fef3c7;
+  --role-repeater-border: #fcd34d;
+  --role-repeater-text: #92400e;
+  --role-sensor-bg: #cffafe;
+  --role-sensor-border: #67e8f9;
+  --role-sensor-text: #155e75;
+  --role-room-bg: #f3e8ff;
+  --role-room-border: #d8b4fe;
+  --role-room-text: #6b21a8;
+  --role-client-bg: #dbeafe;
+  --role-client-border: #93c5fd;
+  --role-client-text: #1e40af;
 }
 
 /* Modo Claro: Componentes Refinados sin Blanco Excesivo */
-body.light-theme .chat-messages {
+:is([data-bs-theme="light"], body.light-theme) .chat-messages {
   background: #ebf0f7;
 }
 
-body.light-theme .message-bubble-row.incoming .msg-bubble {
+:is([data-bs-theme="light"], body.light-theme) .message-bubble-row.incoming .msg-bubble {
   background: #ffffff;
   color: var(--bs-body-color);
   border: 1px solid var(--bs-border-color);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
-body.light-theme .chat-composer {
+:is([data-bs-theme="light"], body.light-theme) .chat-composer {
   background: var(--bg-surface);
 }
 
-body.light-theme .chat-composer input {
+:is([data-bs-theme="light"], body.light-theme) .chat-composer input {
   background: #ffffff;
   border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   padding: 6px 12px;
 }
 
-body.light-theme .modal-header,
-body.light-theme .modal-footer {
+:is([data-bs-theme="light"], body.light-theme) .modal-header,
+:is([data-bs-theme="light"], body.light-theme) .modal-footer {
   background: var(--bg-surface);
   border-color: transparent;
 }
 
-body.light-theme .form-control,
-body.light-theme .form-select,
-body.light-theme .modal-card input:not([type="checkbox"]):not([type="range"]):not(.linux-term-input),
-body.light-theme .modal-card select,
-body.light-theme .modal-card textarea,
-body.light-theme .settings-card input:not([type="checkbox"]):not([type="range"]):not(.linux-term-input),
-body.light-theme .settings-card select,
-body.light-theme .settings-card textarea {
+:is([data-bs-theme="light"], body.light-theme) .form-control,
+:is([data-bs-theme="light"], body.light-theme) .form-select,
+:is([data-bs-theme="light"], body.light-theme) .modal-card input:not([type="checkbox"]):not([type="range"]):not(.linux-term-input),
+:is([data-bs-theme="light"], body.light-theme) .modal-card select,
+:is([data-bs-theme="light"], body.light-theme) .modal-card textarea,
+:is([data-bs-theme="light"], body.light-theme) .settings-card input:not([type="checkbox"]):not([type="range"]):not(.linux-term-input),
+:is([data-bs-theme="light"], body.light-theme) .settings-card select,
+:is([data-bs-theme="light"], body.light-theme) .settings-card textarea {
   background-color: #ffffff;
   border-color: var(--control-border);
   color: var(--bs-body-color);
@@ -502,7 +520,7 @@ h5, .h5 { font-size: 0.875rem; font-weight: 650; }
 }
 
 .btn-sm {
-  min-height: var(--control-height);
+  min-height: var(--control-height-sm, 30px);
   padding: 0 8px;
   font-size: var(--font-label);
   line-height: 1.25;
@@ -1356,7 +1374,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   border-radius: var(--radius-sm, 8px);
   border: 1px solid var(--bs-border-color);
   box-shadow: var(--card-shadow, 0 4px 16px rgba(0, 0, 0, 0.16));
-  font-size: 12px;
+  font-size: 0.75rem;
   transition: max-height 0.2s ease, padding 0.2s ease;
 }
 
@@ -2054,6 +2072,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   padding: 0.75rem;
   border: 1px solid currentColor;
   border-radius: var(--radius-sm);
+  background: var(--bs-tertiary-bg);
   background: color-mix(in srgb, var(--field-error-color) 8%, var(--bs-body-bg));
 }
 
@@ -2934,7 +2953,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   padding: 3px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   font-family: var(--bs-font-monospace);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   word-break: break-word;
 }
@@ -3811,7 +3830,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 .airtime-progress-header > * { min-width: 0; overflow-wrap: anywhere; }
 .airtime-progress-scale { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-sm); color: var(--bs-secondary-color); font-size: var(--font-meta); }
 .airtime-progress-scale > * { min-width: 0; overflow-wrap: anywhere; }
-.airtime-warning-marker { position: absolute; top: -3px; height: 12px; width: 2px; background: var(--bs-warning); }
+.airtime-warning-marker { position: absolute; top: -3px; left: 80%; height: 12px; width: 2px; background: var(--bs-warning); }
 .airtime-warning-label { text-align: center; }
 .airtime-limit-label { text-align: right; }
 
@@ -4050,7 +4069,7 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 
 .settings-stack { display: flex; flex-direction: column; gap: var(--card-gap); min-width: 0; max-width: 72rem; }
 
-@media (min-width: 1024px) {
+@media (min-width: 992px) {
   .settings-cards-col.settings-stack {
     max-width: 100%;
     display: grid;
@@ -4421,7 +4440,7 @@ details.settings-disclosure > .disclosure-content {
   width: 18px;
   left: 2px;
   bottom: 2px;
-  background-color: #fff;
+  background-color: var(--switch-thumb, #ffffff);
   border-radius: 50%;
   transition: transform 0.2s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -4445,8 +4464,8 @@ details.settings-disclosure > .disclosure-content {
 }
 
 .toggle-purple input:checked + .toggle-slider {
-  background-color: #8b5cf6;
-  border-color: #8b5cf6;
+  background-color: var(--accent-purple, #8b5cf6);
+  border-color: var(--accent-purple, #8b5cf6);
 }
 
 .toggle-switch.toggle-success input:checked + .toggle-slider {
@@ -5238,6 +5257,7 @@ details.settings-disclosure > .disclosure-content {
   border-radius: var(--radius-sm, 8px);
   font-size: 1.2rem;
   color: var(--toast-accent);
+  background: var(--bs-tertiary-bg);
   background: color-mix(in srgb, var(--toast-accent) 14%, var(--bg-surface));
   flex-shrink: 0;
 }
@@ -5991,6 +6011,13 @@ details.settings-disclosure > .disclosure-content {
 /* Área Táctil Mejorada en Pantallas Táctiles (Pointer Coarse) */
 @media (pointer: coarse) {
   .btn:not(.btn-header-action) { min-height: 44px !important; }
+  .btn-header-action {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    max-height: 44px;
+  }
   .linux-term-input {
     min-height: 44px;
   }
@@ -6135,8 +6162,17 @@ details.settings-disclosure > .disclosure-content {
     white-space: nowrap !important;
   }
 
+  #radio-status .status-text,
   .radio-status-pill .status-text {
-    display: none !important;
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
   }
 
   .radio-status-pill {
@@ -6406,12 +6442,6 @@ details.settings-disclosure > .disclosure-content {
 .data-table th { color: var(--text-muted); font-weight: 600; }
 .data-table :is(th, td) { padding: 0.5rem 0.625rem; vertical-align: middle; }
 
-.chat-empty-icon {
-  font-size: 1.75rem;
-  margin-bottom: 8px;
-  opacity: 0.6;
-}
-
 .chat-empty-subtext {
   margin: 6px 0 0 0;
   font-size: 0.78rem;
@@ -6549,7 +6579,7 @@ details.settings-disclosure > .disclosure-content {
 }
 
 .sniffer-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.015);
+  background: var(--table-row-stripe);
 }
 
 .sniffer-table tbody tr:hover {
@@ -6603,6 +6633,7 @@ details.settings-disclosure > .disclosure-content {
 .header-airtime-fill,
 .airtime-progress-bar-fill {
   display: block;
+  width: 0%;
   height: 100%;
   max-width: 100%;
   border-radius: 999px;
@@ -6933,24 +6964,6 @@ details.settings-disclosure > .disclosure-content {
   color: var(--role-client-text);
 }
 
-[data-bs-theme="light"] {
-  --role-local-bg: #d1fae5;
-  --role-local-border: #6ee7b7;
-  --role-local-text: #065f46;
-  --role-repeater-bg: #fef3c7;
-  --role-repeater-border: #fcd34d;
-  --role-repeater-text: #92400e;
-  --role-sensor-bg: #cffafe;
-  --role-sensor-border: #67e8f9;
-  --role-sensor-text: #155e75;
-  --role-room-bg: #f3e8ff;
-  --role-room-border: #d8b4fe;
-  --role-room-text: #6b21a8;
-  --role-client-bg: #dbeafe;
-  --role-client-border: #93c5fd;
-  --role-client-text: #1e40af;
-}
-
 /* Tablas de Datos Unificadas con Sticky Headers y Tabular-Nums (Analítica y Sniffer - V-07) */
 .data-table-scroll {
   max-height: 550px;
@@ -7005,7 +7018,11 @@ details.settings-disclosure > .disclosure-content {
 /* U-27: Indicadores de foco visible para pildoras de filtro y botones de accion de tarjeta */
 .filter-pill:focus-visible,
 .subtab-btn:focus-visible,
-.card-action-btn:focus-visible {
+.local-subtab-btn:focus-visible,
+.card-action-btn:focus-visible,
+.share-picker-item:focus-visible,
+.map-layer-btn:focus-visible,
+.cmd-item:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }

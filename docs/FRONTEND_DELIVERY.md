@@ -245,3 +245,9 @@ para construir estos archivos.
 La pantalla de acceso utiliza los tokens vigentes de `app.css`, un SVG decorativo local y un formulario con controles de 48 px. En móvil muestra una columna y mantiene scroll propio; el tema guardado se aplica antes del login mediante `core/theme.js`, compartido con la estación. El control de visibilidad de contraseña conserva 44 px, nombres accesibles y vuelve a ocultar la entrada después de un intento.
 
 Se revisaron fuentes, IDs, traducciones y pares de contraste, y se regeneraron 31 activos: 1.963.214 bytes servidos y 400.692 bytes gzip. Build/check y sintaxis JS correctos. Las cifras son tamaños de build; no acreditan layout, rendimiento ni accesibilidad completos en navegador. La [revisión de recuperación](plans/LOGIN_DESIGN_AND_RECOVERY.md) conserva el contexto de la entrega. El CLI local está implementado en [reset_web_password.py](../scripts/reset_web_password.py): cambia credenciales y revoca sesiones/tokens existentes, por lo que es una operación explícita de mantenimiento.
+
+## Remediación de auditoría frontend — 2026-10-29
+
+Se resolvieron los defectos de uniformidad de tema (`[data-bs-theme="light"]` sincronizado en el arranque junto con `prefers-color-scheme: light` y `meta[name="theme-color"]`), sincronización de `stationConfig` y cálculo de bytes de canal con prefijo (`len(name) + 2` en `chat.js`), conmutación automática a teselas locales de mapa ante fallos de red en modo `"auto"` con SVG localizado, áreas táctiles de 44×44 px para `.btn-header-action` en `pointer: coarse`, preservación de anuncios `aria-live` en `<= 375px`, eliminación de los 3 estilos inline en `index.html`, completitud de i18n (1.673 claves ES/EN con 0 exclusiones de literales en español) y limpieza de intervalos/observers con `destroy()` en todos los módulos SPA.
+
+`build_frontend.cjs --check` verifica 33 activos: 2.444.891 bytes de fuentes, 2.105.301 bytes servidos y 431.243 bytes gzip.

@@ -1274,9 +1274,9 @@ export class NodesModule {
         } else if (node.temperature_c != null) {
           telemEl.innerHTML = `<i class="bi bi-thermometer-half button-icon" aria-hidden="true"></i> <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `<i class="bi bi-droplet button-icon" aria-hidden="true"></i> ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
         } else if (node.owner_name) {
-          telemEl.innerHTML = `${window.I18n ? window.I18n.t('nodes.owner_label') : "Dueño:"} <strong>${escapeHtml(node.owner_name)}</strong>`;
+          telemEl.innerHTML = `${I18n.t('nodes.owner_label')} <strong>${escapeHtml(node.owner_name)}</strong>`;
         } else if (node.best_route || node.hops != null) {
-          telemEl.innerHTML = `${window.I18n ? window.I18n.t('nodes.route_label') : "Ruta:"} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? (window.I18n ? window.I18n.t('nodes.route_direct') : "Directo") : (window.I18n ? window.I18n.t('nodes.route_mesh') : "Malla")))}</strong>`;
+          telemEl.innerHTML = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
         }
       }
 
@@ -1536,5 +1536,20 @@ export class NodesModule {
       }
     };
     tick();
+  }
+
+  destroy() {
+    if (this._presenceInterval) {
+      clearInterval(this._presenceInterval);
+      this._presenceInterval = null;
+    }
+    if (this._clockInterval) {
+      clearInterval(this._clockInterval);
+      this._clockInterval = null;
+    }
+    if (this._analyticsDebounceTimer) {
+      clearTimeout(this._analyticsDebounceTimer);
+      this._analyticsDebounceTimer = null;
+    }
   }
 }

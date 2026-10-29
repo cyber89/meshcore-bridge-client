@@ -64,7 +64,12 @@ class MeshCoreApp {
       get activeDmTarget() { return self.chatModule ? self.chatModule.activeDmTarget : null; },
       get settingsModule() { return self.settingsModule; },
       get channelsList() { return self.store.get("channels") || self.settingsModule?.channelsList || []; },
-      get localConfig() { return self.store.get("stationConfig") || self.settingsModule?.cachedConfig || {}; },
+      get localConfig() {
+        const cached = self.settingsModule?.cachedConfig;
+        const stored = self.store.get("stationConfig");
+        if (cached && Object.keys(cached).length > 0) return { ...(stored || {}), ...cached };
+        return stored || cached || {};
+      },
       renderNodesDirectory: () => self.nodesModule?.renderNodesDirectory?.(),
       fetchNodes: () => self.nodesModule?.fetchNodes(),
       updateNodeInDom: (a, b) => self.nodesModule?.updateNodeInDom?.(a, b),
@@ -200,7 +205,6 @@ class MeshCoreApp {
     const label = I18n.t(isDark ? 'app.dark_theme_title' : 'app.light_theme_title');
     this.dom.themeToggleBtn.title = label;
     this.dom.themeToggleBtn.setAttribute("aria-label", label);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#101b2e" : "#ffffff");
   }
 
   _initNavigation() {
@@ -641,6 +645,7 @@ class MeshCoreApp {
       if (!payload) return;
       const evType = String(payload.event || payload.event_type || payload.type || "").toLowerCase();
       if (evType === "self_info" || evType === "device_info") {
+        this.store.set("stationConfig", { ...(this.store.get("stationConfig") || {}), ...payload });
         if (this.modules?.settings?.populateLocalConfig) {
           this.modules.settings.populateLocalConfig(payload);
         }
@@ -1128,6 +1133,11 @@ class MeshCoreApp {
         dismiss: onCancel,
       });
     });
+  }
+
+  destroy() {
+    Object.values(this.modules || {}).forEach((module) => module?.destroy?.());
+    this.wsClient?.close?.();
   }
 }
 
