@@ -175,6 +175,9 @@ class MeshCoreCompanionServer:
         Radio/RX workers never wait for an IP client to read its socket.
         """
         try:
+            if getattr(writer, "is_closing", lambda: False)() is True:
+                self.active_clients.discard(writer)
+                return
             if writer.transport.get_write_buffer_size() + len(packet) > 65536:
                 self.slow_client_disconnects += 1
                 self.active_clients.discard(writer)
@@ -273,7 +276,11 @@ class MeshCoreCompanionServer:
                     async with asyncio.timeout(5.0):
                         auth_line = await reader.readline()
                     received_token = auth_line.decode("utf-8", errors="ignore").strip()
-                    if not hmac.compare_digest(received_token, f"TOKEN:{token}"):
+                    token_matches = (
+                        hmac.compare_digest(received_token, f"TOKEN:{token}")
+                        or hmac.compare_digest(received_token, token)
+                    )
+                    if not token_matches:
                         SecurityTrafficInspector.log_suspicious_traffic(
                             SuspiciousTrafficEvent(
                                 client_ip=peer_ip,

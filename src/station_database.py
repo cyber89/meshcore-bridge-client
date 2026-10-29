@@ -58,7 +58,10 @@ def _ack(value: Any) -> str:
 
 
 def _timestamp(value: Any) -> str:
-    if isinstance(value, (float, int)) and not isinstance(value, bool):
+    if isinstance(value, datetime):
+        result = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        result = result.astimezone(UTC)
+    elif isinstance(value, (float, int)) and not isinstance(value, bool):
         result = datetime.fromtimestamp(value / 1000 if value > 1e11 else value, UTC)
     elif isinstance(value, str) and value:
         result = datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -240,6 +243,7 @@ class StationDatabase:
         self._document_name(name)
         payload = _json(data)
         with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             connection.execute("INSERT INTO documents VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE "
                                "SET payload=excluded.payload, updated_at=excluded.updated_at",
                                (name, payload, _timestamp(None)))
@@ -413,7 +417,7 @@ class StationDatabase:
     def _prune_messages(connection: sqlite3.Connection) -> None:
         """Enforce retention of 30 days and maximum 50,000 messages (PST-01)."""
         cutoff_dt = datetime.now(UTC) - timedelta(days=30)
-        cutoff_iso = cutoff_dt.isoformat()
+        cutoff_iso = _timestamp(cutoff_dt)
         connection.execute("DELETE FROM messages WHERE timestamp < ?", (cutoff_iso,))
         count_row = connection.execute("SELECT count(*) FROM messages").fetchone()
         total_rows = int(count_row[0]) if count_row else 0
@@ -818,6 +822,10 @@ class StationDatabase:
     def get_station_id(self) -> str:
         """Return the stable station_id stored in database metadata."""
         with self._connection() as connection:
+            row = connection.execute("SELECT value FROM metadata WHERE key = 'station_id'").fetchone()
+            if row is not None:
+                return str(row[0])
+            connection.execute("BEGIN IMMEDIATE")
             row = connection.execute("SELECT value FROM metadata WHERE key = 'station_id'").fetchone()
             if row is not None:
                 return str(row[0])

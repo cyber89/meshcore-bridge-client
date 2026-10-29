@@ -25,14 +25,14 @@ def derive_channel_secret(name: str, psk: str) -> bytes:
     raise ValueError("El secreto de canal (PSK) debe contener exactamente 32 caracteres hexadecimales (16 bytes)")
 
 
-def classify_device_role(advert_type: int, is_local: bool = False) -> str:
+def classify_device_role(advert_type: Any, is_local: bool = False) -> str:
     """Clasificación canónica de rol de dispositivo según FirmwareAdvertType.
 
     Single Source of Truth para mapear tipos de advertisement del firmware
     MeshCore a roles de dispositivo legibles.
 
     Args:
-        advert_type: Valor numérico de FirmwareAdvertType del firmware.
+        advert_type: Valor numérico o texto de FirmwareAdvertType / rol.
         is_local: True si el nodo es la estación base local.
 
     Returns:
@@ -40,6 +40,24 @@ def classify_device_role(advert_type: int, is_local: bool = False) -> str:
     """
     if is_local:
         return "LOCAL"
+    if isinstance(advert_type, bool):
+        return "UNKNOWN"
+    if isinstance(advert_type, str):
+        cleaned = advert_type.strip().upper()
+        if cleaned in ("REPEATER", "ROUTER"):
+            return "REPEATER"
+        if cleaned == "ROOM":
+            return "ROOM"
+        if cleaned == "SENSOR":
+            return "SENSOR"
+        if cleaned in ("CLIENT", "CHAT", "NONE", "USER"):
+            return "CLIENT"
+        if cleaned == "LOCAL":
+            return "LOCAL"
+        try:
+            advert_type = int(cleaned)
+        except ValueError:
+            return "UNKNOWN"
     try:
         fat = FirmwareAdvertType(advert_type)
         if fat in (FirmwareAdvertType.NONE, FirmwareAdvertType.CHAT):

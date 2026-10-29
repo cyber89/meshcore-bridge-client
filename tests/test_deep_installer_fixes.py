@@ -136,7 +136,7 @@ def test_single_serial_port_remains_complete_string(tmp_path: Path) -> None:
         + block + '\nWrite-Output $DefaultPort\n', encoding="utf-8",
     )
     result = subprocess.run(
-        [str(POWERSHELL), "-NoProfile", "-File", str(script)],
+        [str(POWERSHELL), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
         capture_output=True, text=True, timeout=15,
     )
     assert result.returncode == 0, result.stderr

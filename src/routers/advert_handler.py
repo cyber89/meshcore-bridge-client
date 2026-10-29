@@ -92,8 +92,9 @@ class AdvertHandler(BaseRxHandler):
                 continue
 
             c_name = str(c_item.get("adv_name", c_item.get("name", c_item.get("alias", f"Node_{c_pk[:6]}")))).strip()
-            c_raw_type = c_item.get("type", c_item.get("adv_type", 1))
-            c_role = classify_device_role(c_raw_type)
+            c_raw_type = c_item.get("type") if c_item.get("type") is not None else (c_item.get("adv_type") if c_item.get("adv_type") is not None else c_item.get("role", 1))
+            is_local_node = bool(router_ctx and hasattr(router_ctx, "node_registry") and router_ctx.node_registry.is_local_key(c_pk))
+            c_role = classify_device_role(c_raw_type, is_local=is_local_node)
 
             c_lat = _get_coord(c_item, ("adv_lat", "lat", "latitude", "gps_lat"), latitude=True)
             c_lon = _get_coord(c_item, ("adv_lon", "lon", "longitude", "gps_lon"))
