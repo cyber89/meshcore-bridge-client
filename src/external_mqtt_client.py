@@ -87,6 +87,7 @@ class ExternalBridgeMQTTClient:
         self._sent_hashes: deque[str] = deque(maxlen=200)
         self._loop: asyncio.AbstractEventLoop | None = None
         self._drain_lock = threading.Lock()
+        self._drain_thread: threading.Thread | None = None
         self._cross_thread_lock = threading.Lock()
         self._cross_thread_scheduled = 0
         self._max_cross_thread_scheduled = 256
@@ -230,6 +231,11 @@ class ExternalBridgeMQTTClient:
         except Exception as e:
             logger.debug(f"Error desconectando cliente MQTT externo: {e}")
 
+        try:
+            if self._drain_thread and self._drain_thread.is_alive():
+                self._drain_thread.join(timeout=1.0)
+        except Exception:
+            pass
         try:
             thread = getattr(self.client, "_thread", None)
             if isinstance(thread, threading.Thread) and thread.is_alive():
@@ -435,18 +441,18 @@ class ExternalBridgeMQTTClient:
         return self._send_or_buffer(topic, payload_str, qos=self.config.qos, retain=False)
 
     def _send_or_buffer(self, topic: str, payload_str: str, qos: int = 0, retain: bool = False) -> bool:
-        """Envía el paquete inmediatamente si está conectado, o lo encola en el ring buffer si está offline."""
-        if self.is_connected and self.client is not None:
-            try:
-                info = self.client.publish(topic, payload_str, qos=qos, retain=retain)
-                if getattr(info, "rc", 0) == 0:
-                    self.total_published += 1
-                    return True
-            except Exception as e:
-                logger.debug(f"Error publicando mensaje a MQTT externo ({e}), encolando en ring buffer...")
-
-        # Encolar en ring buffer en RAM
+        """Envía el paquete inmediatamente si está conectado y no hay búfer acumulado, o lo encola preservando orden."""
         with self._drain_lock:
+            if self.is_connected and self.client is not None and not self._ring_buffer:
+                try:
+                    info = self.client.publish(topic, payload_str, qos=qos, retain=retain)
+                    if getattr(info, "rc", 0) == 0:
+                        self.total_published += 1
+                        return True
+                except Exception as e:
+                    logger.debug(f"Error publicando mensaje a MQTT externo ({e}), encolando en ring buffer...")
+
+            # Encolar en ring buffer en RAM bajo lock para mantener estricto orden
             if len(self._ring_buffer) >= self.MAX_BUFFER_SIZE:
                 self.total_dropped_buffer += 1
             self._ring_buffer.append((topic, payload_str, qos, retain))
@@ -537,8 +543,10 @@ class ExternalBridgeMQTTClient:
             else:
                 logger.debug("Downlink desactivado en MQTT externo (Modo Solo Uplink seguro).")
 
-            # Vaciar el búfer circular acumulado en memoria
-            threading.Thread(target=self._drain_ring_buffer, daemon=True, name="ext_mqtt_drain").start()
+            # Vaciar el búfer circular acumulado en memoria reteniendo referencia al hilo
+            drain_t = threading.Thread(target=self._drain_ring_buffer, daemon=True, name="ext_mqtt_drain")
+            self._drain_thread = drain_t
+            drain_t.start()
         else:
             self.is_connected = False
             logger.warning(f"Rechazo de conexión con Broker MQTT Externo (rc: {rc})")
@@ -761,11 +769,17 @@ class ExternalBridgeMQTTClient:
         except Exception as e:
             return {"ok": False, "error": f"Error de red: {e}", "latency_ms": None}
         finally:
+            def _cleanup_test_client() -> None:
+                try:
+                    client.disconnect()
+                except Exception:
+                    pass
+                try:
+                    client.loop_stop()
+                except Exception:
+                    pass
             try:
-                client.disconnect()
-            except Exception:
-                pass
-            try:
-                client.loop_stop()
+                async with asyncio.timeout(1.5):
+                    await asyncio.to_thread(_cleanup_test_client)
             except Exception:
                 pass

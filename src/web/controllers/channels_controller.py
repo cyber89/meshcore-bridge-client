@@ -147,41 +147,12 @@ class ChannelsController(BaseController):
         return 200, {"status": "ok", "data": masked_list, "count": len(masked_list)}
 
     def _get_masked_channels_list(self) -> list[dict[str, Any]]:
-        """Devuelve una lista ordenada de canales con PSK enmascarado por seguridad."""
-        channels_list = list(self.channels.values())
-        channels_list.sort(key=lambda c: int(c.get("index", 0)))
-        masked_list = []
-        for ch in channels_list:
-            c_dict = dict(ch)
-            ch_idx = int(c_dict.get("index", 0))
-            raw_psk = str(c_dict.get("psk") or "").strip()
-            is_ch0 = (ch_idx == 0)
-            has_psk = bool(raw_psk) and not is_ch0
-            c_dict["has_psk"] = has_psk
-            c_dict["is_encrypted"] = not is_ch0 and (has_psk or str(c_dict.get("name") or "").startswith("#"))
-            c_dict["is_public"] = is_ch0
-            if has_psk and not is_ch0:
-                c_dict["psk"] = "••••••••"
-            else:
-                c_dict["psk"] = ""
-            masked_list.append(c_dict)
-        return masked_list
+        """Devuelve una lista ordenada de canales con PSK enmascarado delegando en ChannelService."""
+        return self.channel_service.get_masked_channels()
 
     def _mask_channel(self, ch: dict[str, Any]) -> dict[str, Any]:
-        """Enmascara la PSK de un único canal."""
-        c_dict = dict(ch)
-        ch_idx = int(c_dict.get("index", 0))
-        raw_psk = str(c_dict.get("psk") or "").strip()
-        is_ch0 = (ch_idx == 0)
-        has_psk = bool(raw_psk) and not is_ch0
-        c_dict["has_psk"] = has_psk
-        c_dict["is_encrypted"] = not is_ch0 and (has_psk or str(c_dict.get("name") or "").startswith("#"))
-        c_dict["is_public"] = is_ch0
-        if has_psk and not is_ch0:
-            c_dict["psk"] = "••••••••"
-        else:
-            c_dict["psk"] = ""
-        return c_dict
+        """Enmascara la PSK de un único canal delegando en ChannelService."""
+        return self.channel_service.mask_channel(ch)
 
     async def _get_channels(self, sync_serial: bool = True) -> tuple[int, dict[str, Any]]:
         """Devuelve los canales configurados con PSK enmascarada."""

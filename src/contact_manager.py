@@ -1491,6 +1491,7 @@ class NodeRegistry:
             if not canon or canon not in self._nodes_by_key:
                 return False
             self._nodes_by_key.pop(canon)
+            self._stored_node_documents.pop(canon, None)
             self._mark_dirty()
             return True
 
@@ -1692,6 +1693,7 @@ class NodeRegistry:
             ]
             for k in to_remove:
                 self._nodes_by_key.pop(k, None)
+                self._stored_node_documents.pop(k, None)
 
         if to_remove:
             with self._lock:

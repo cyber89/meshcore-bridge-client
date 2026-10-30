@@ -98,6 +98,9 @@ class MetricsAggregator:
         if last_bucket.timestamp == minute_ts:
             return last_bucket
 
+        now_minute = int(time.time() // 60) * 60
+        if minute_ts > now_minute + 60:
+            minute_ts = now_minute
         if minute_ts > last_bucket.timestamp:
             # Rellenar minutos faltantes si hay un salto temporal (máx 1440)
             start = max(last_bucket.timestamp + 60, minute_ts - (self.max_minutes - 1) * 60)

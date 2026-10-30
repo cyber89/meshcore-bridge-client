@@ -211,6 +211,7 @@ class AirtimeTracker:
         self.cutoff_threshold_pct = cutoff_threshold_pct
         self.cutoff_resume_pct = cutoff_resume_pct
         self.cutoff_enabled = cutoff_enabled
+        self.policy_user_configured: bool = False
         self.on_cutoff_change_callback = on_cutoff_change_callback
 
         self._history: collections.deque[AirtimeRecord] = collections.deque()
@@ -288,28 +289,30 @@ class AirtimeTracker:
                     self.total_airtime_ms = sum_loaded_airtime
                     self.total_packets = sum_loaded_packets
 
-                if "duty_cycle_limit_pct" in data:
-                    try:
-                        self.duty_cycle_limit_pct = float(data["duty_cycle_limit_pct"])
-                    except (ValueError, TypeError):
-                        pass
-                if "warn_threshold_pct" in data:
-                    try:
-                        self.warn_threshold_pct = float(data["warn_threshold_pct"])
-                    except (ValueError, TypeError):
-                        pass
-                if "cutoff_threshold_pct" in data:
-                    try:
-                        self.cutoff_threshold_pct = float(data["cutoff_threshold_pct"])
-                    except (ValueError, TypeError):
-                        pass
-                if "cutoff_resume_pct" in data:
-                    try:
-                        self.cutoff_resume_pct = float(data["cutoff_resume_pct"])
-                    except (ValueError, TypeError):
-                        pass
-                if "cutoff_enabled" in data:
-                    self.cutoff_enabled = bool(data["cutoff_enabled"])
+                self.policy_user_configured = bool(data.get("policy_user_configured", False))
+                if self.policy_user_configured:
+                    if "duty_cycle_limit_pct" in data:
+                        try:
+                            self.duty_cycle_limit_pct = float(data["duty_cycle_limit_pct"])
+                        except (ValueError, TypeError):
+                            pass
+                    if "warn_threshold_pct" in data:
+                        try:
+                            self.warn_threshold_pct = float(data["warn_threshold_pct"])
+                        except (ValueError, TypeError):
+                            pass
+                    if "cutoff_threshold_pct" in data:
+                        try:
+                            self.cutoff_threshold_pct = float(data["cutoff_threshold_pct"])
+                        except (ValueError, TypeError):
+                            pass
+                    if "cutoff_resume_pct" in data:
+                        try:
+                            self.cutoff_resume_pct = float(data["cutoff_resume_pct"])
+                        except (ValueError, TypeError):
+                            pass
+                    if "cutoff_enabled" in data:
+                        self.cutoff_enabled = bool(data["cutoff_enabled"])
 
                 self._channel_utilization_pct = float(data.get("channel_utilization_pct", 0.0))
                 if self.cutoff_enabled:
@@ -381,6 +384,7 @@ class AirtimeTracker:
                 "cutoff_threshold_pct": cutoff_th,
                 "cutoff_resume_pct": cutoff_res,
                 "cutoff_enabled": self.cutoff_enabled,
+                "policy_user_configured": getattr(self, "policy_user_configured", False),
                 "records": [r.to_dict() for r in self._history],
             }
         try:
@@ -481,6 +485,29 @@ class AirtimeTracker:
         cutoff_24h = now - 86400.0
         while self._history and self._history[0].timestamp < cutoff_24h:
             self._history.popleft()
+
+    def apply_policy(
+        self,
+        *,
+        duty_cycle_limit_pct: float | None = None,
+        warn_threshold_pct: float | None = None,
+        cutoff_threshold_pct: float | None = None,
+        cutoff_resume_pct: float | None = None,
+        cutoff_enabled: bool | None = None,
+    ) -> None:
+        """Aplica políticas de airtime marcándolas explícitamente como configuradas por el usuario."""
+        self.policy_user_configured = True
+        if duty_cycle_limit_pct is not None:
+            self.duty_cycle_limit_pct = duty_cycle_limit_pct
+        if warn_threshold_pct is not None:
+            self.warn_threshold_pct = warn_threshold_pct
+        if cutoff_threshold_pct is not None:
+            self.cutoff_threshold_pct = cutoff_threshold_pct
+        if cutoff_resume_pct is not None:
+            self.cutoff_resume_pct = cutoff_resume_pct
+        if cutoff_enabled is not None:
+            self.cutoff_enabled = cutoff_enabled
+        self.save_history(sync=True)
 
     def get_stats(self) -> dict[str, Any]:
         """Retorna estadísticas completas de consumo de Airtime, Duty Cycle y estado de alertas."""

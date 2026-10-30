@@ -569,5 +569,27 @@ def update_services_config(
             else:
                 setattr(cur_tcp, k, str(v) if v is not None else "")
 
+    if "custom_presets" in updates and isinstance(updates["custom_presets"], list):
+        raw_presets = updates["custom_presets"]
+        valid_keys = MqttPreset.__dataclass_fields__.keys()
+        new_presets: list[MqttPreset] = []
+        for p_data in raw_presets:
+            if not isinstance(p_data, dict):
+                raise ValueError("Services configuration preset invalid")
+            _validate_service_fields(p_data, MqttPreset)
+            p_id = str(p_data.get("id") or "").strip()
+            existing_p = next((ep for ep in current.custom_presets if ep.id == p_id), None)
+            pwd = str(p_data.get("password") or "")
+            tok = str(p_data.get("token") or "")
+            if pwd == MASKED_PASSWORD and existing_p:
+                pwd = existing_p.password
+            if tok == MASKED_PASSWORD and existing_p:
+                tok = existing_p.token
+            clean_p = {k: v for k, v in p_data.items() if k in valid_keys and k != "is_system"}
+            clean_p["password"] = pwd
+            clean_p["token"] = tok
+            new_presets.append(MqttPreset(is_system=False, **clean_p))
+        new_cfg.custom_presets = new_presets
+
     validate_services_config(new_cfg)
     return new_cfg

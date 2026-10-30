@@ -182,7 +182,10 @@ class RepeaterAdminExecutor:
             target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
             lock = self._request_locks.setdefault(target, asyncio.Lock())
             async with lock:
-                return await self._execute_request(req)
+                res = await self._execute_request(req)
+                if len(self._request_locks) > 128 and not lock.locked():
+                    self._request_locks.pop(target, None)
+                return res
         except ValueError:
             return {"status": "error", "code": 422, "message": "Destino o comando remoto inválido"}
         except Exception as error:
@@ -1002,7 +1005,7 @@ class RepeaterAdminExecutor:
             waiter_keys.append(str(target_info["name"]).lower())
 
         async with self._waiters.expect_response(waiter_keys, include_ping=True) as fut:
-            contact_key = str(dest_target.get("public_key", "")) if isinstance(dest_target, dict) else str(dest_target)
+            contact_key = (str(dest_target.get("public_key", "")) if isinstance(dest_target, dict) else str(dest_target)).strip().lower()
             cached = getattr(req.mc, "_contacts", {})
             original = dict(cached[contact_key]) if isinstance(cached, dict) and contact_key in cached else None
             try:
@@ -1013,16 +1016,24 @@ class RepeaterAdminExecutor:
                 t_start = time.perf_counter()
                 cmd_text = "ping 0"
                 if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_ping_sent"):
-                    self._ctx.repeater_manager.record_ping_sent(str(req.target_node))
+                    self._ctx.repeater_manager.record_ping_sent(norm_target)
                     await self._flush_cooldowns()
                 await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
 
                 resp_data = await self._wait_for_repeater_response(req.mc, fut, timeout=5.0) or {}
             finally:
-                if original is not None and cached.get(contact_key) != original:
-                    response = await run_sdk_command(self._ctx, req.mc, "add_contact", original)
-                    require_success(response, "add_contact")
-                    cached[contact_key] = original
+                if original is not None:
+                    if cached.get(contact_key) != original:
+                        response = await run_sdk_command(self._ctx, req.mc, "add_contact", original)
+                        require_success(response, "add_contact")
+                        cached[contact_key] = original
+                else:
+                    try:
+                        if hasattr(req.mc, "remove_contact"):
+                            await run_sdk_command(self._ctx, req.mc, "remove_contact", contact_key)
+                        cached.pop(contact_key, None)
+                    except Exception:
+                        cached.pop(contact_key, None)
 
         elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
         if resp_data:

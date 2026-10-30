@@ -144,6 +144,22 @@ class MeshCoreCompanionServer:
         if owner is self._active_transaction_writer:
             self._response_received = True
 
+    def queue_companion_frame_sync(self, payload: bytes, response_owner: asyncio.StreamWriter | None = None) -> None:
+        """Encola inmediatamente y en orden FIFO estricto una trama Companion hacia los clientes correspondientes."""
+        if not self.running or not self.active_clients or not payload:
+            return
+        frame_len = len(payload)
+        if frame_len > MAX_FRAME_SIZE:
+            return
+        header = bytearray([FRAME_RADIO_TO_APP, frame_len & 0xFF, (frame_len >> 8) & 0xFF])
+        pkt = bytes(header) + payload
+        if payload[0] < 0x80:
+            if response_owner is not None and response_owner in self.active_clients:
+                self._queue_client_frame(response_owner, pkt)
+            return
+        for writer in list(self.active_clients):
+            self._queue_client_frame(writer, pkt)
+
     async def broadcast_companion_frame(self, payload: bytes, response_owner: asyncio.StreamWriter | None = None) -> None:
         """
         Emite una trama de respuesta o evento ('>' + len:2 + payload)

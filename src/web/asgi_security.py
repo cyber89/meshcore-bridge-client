@@ -466,9 +466,16 @@ class BridgeSecurityMiddleware:
                         self._log_rejection(peer=_peer_ip(scope), path=target, source="API-AUTH",
                                             anomaly="AUTH_SERVICE_UNAVAILABLE",
                                             detail="Authentication service is unavailable")
+                        prob_503 = {
+                            "type": "urn:meshcore:error:service-unavailable",
+                            "title": "Service Unavailable",
+                            "status": 503,
+                            "detail": "Authentication service is unavailable",
+                            "error": "authentication_unavailable",
+                        }
                         await self._reply_http(scope, send, 503,
-                                               b'{"error":"authentication_unavailable"}',
-                                               content_type="application/json", cors_origin=decision.cors_origin)
+                                               json.dumps(prob_503).encode("utf-8"),
+                                               content_type="application/problem+json", cors_origin=decision.cors_origin, scheme=req_scheme)
                         return
                     if not valid:
                         self._log_rejection(
@@ -478,13 +485,21 @@ class BridgeSecurityMiddleware:
                             anomaly="AUTENTICACION_API_FALLIDA",
                             detail="Protected endpoint rejected an absent or invalid session or API key",
                         )
+                        prob_401 = {
+                            "type": "urn:meshcore:error:unauthorized",
+                            "title": "Unauthorized",
+                            "status": 401,
+                            "detail": "Protected endpoint rejected an absent or invalid session or API key",
+                            "error": "auth_required",
+                        }
                         await self._reply_http(
                             scope,
                             send,
                             401,
-                            b'{"error": "auth_required"}',
-                            content_type="application/json",
+                            json.dumps(prob_401).encode("utf-8"),
+                            content_type="application/problem+json",
                             cors_origin=decision.cors_origin,
+                            scheme=req_scheme,
                         )
                         return
 
@@ -496,12 +511,21 @@ class BridgeSecurityMiddleware:
         state[BODY_JSON_STATE] = buffered.parsed
 
         if buffered.parsed and not self._inspect(scope, target, headers, body_dict=buffered.parsed):
+            prob_403 = {
+                "type": "urn:meshcore:error:forbidden",
+                "title": "Forbidden",
+                "status": 403,
+                "detail": "403 Forbidden - Security Violation",
+                "error": "forbidden",
+            }
             await self._reply_http(
                 scope,
                 send,
                 403,
-                b"403 Forbidden - Security Violation",
+                json.dumps(prob_403).encode("utf-8"),
+                content_type="application/problem+json",
                 cors_origin=decision.cors_origin,
+                scheme=req_scheme,
             )
             return
 

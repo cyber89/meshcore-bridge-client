@@ -110,7 +110,8 @@ class AuthStore:
                 raise
             finally:
                 connection.close()
-                self._restrict_files()
+                if write:
+                    self._restrict_files()
 
     def initialize(self) -> None:
         """Create only authentication tables, without replacing station schema/version."""
@@ -233,6 +234,9 @@ class AuthStore:
             connection.execute(
                 "DELETE FROM auth_login_attempts WHERE peer=?", ("peer:" + _digest(peer),)
             )
+            connection.execute(
+                "UPDATE auth_login_attempts SET attempts = MAX(0, attempts - 1) WHERE peer='global'"
+            )
             return self._new_session(connection, current, remember=remember)
 
     def session(self, token: str) -> AuthSession | None:
@@ -284,6 +288,14 @@ class AuthStore:
             raise ValueError("session_revoked")
         if not password or not self._matches_password(account, password):
             raise ValueError("invalid_current_password")
+        with self._connection() as connection:
+            connection.execute(
+                "DELETE FROM auth_login_attempts WHERE peer=?",
+                ("peer:" + _digest("account:" + _digest(token)),),
+            )
+            connection.execute(
+                "UPDATE auth_login_attempts SET attempts = MAX(0, attempts - 1) WHERE peer='global'"
+            )
         return session, account
 
     def change_credentials(

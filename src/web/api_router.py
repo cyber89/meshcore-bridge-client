@@ -77,6 +77,8 @@ ROUTE_ALIASES: dict[str, str] = {
     "/api/node/refresh": "/api/config/refresh",
     "/api/node/reconnect": "/api/config/reconnect",
     "/api/config/reconnect-serial": "/api/config/reconnect",
+    # Logs
+    "/api/logs": "/api/system/logs",
     # Mapas
     "/api/map/refresh": "/api/map/reload",
 }

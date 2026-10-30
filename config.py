@@ -124,7 +124,7 @@ MQTT_MAX_PAYLOAD_BYTES = _safe_int("MQTT_MAX_PAYLOAD_BYTES", 128 * 1024, min_val
 # ================= Parámetros de Resiliencia y Control =================
 TX_INTERVAL_SEC = _safe_float("TX_INTERVAL_SEC", 1.0)                 # Espaciado de transmisión RF (LoRa Rate Limiter)
 DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Ventana temporal de deduplicación de paquetes en RAM (segundos)
-WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0, min_val=5.0)     # Intervalo de supervisión de vivacidad serial
+WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0)     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
 MAX_RECONNECT_ATTEMPTS = _safe_int("MAX_RECONNECT_ATTEMPTS", 0)       # 0 = reintentos ilimitados
 DATA_DIR = os.getenv("DATA_DIR", "data")
@@ -134,7 +134,7 @@ NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.joi
 # ================= Parámetros de Concurrencia (Nuevos) =================
 MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500, min_val=1)
 MAX_RX_CONCURRENCY = _safe_int("MAX_RX_CONCURRENCY", 20, min_val=1)
-WS_IDLE_TIMEOUT_SEC = _safe_float("WS_IDLE_TIMEOUT_SEC", 30.0, min_val=5.0)
+WS_IDLE_TIMEOUT_SEC = _safe_float("WS_IDLE_TIMEOUT_SEC", 30.0)
 WS_METRICS_INTERVAL_SEC = _safe_float("WS_METRICS_INTERVAL_SEC", 5.0)
 
 # ================= Parámetros de Radio y Airtime LoRa =================

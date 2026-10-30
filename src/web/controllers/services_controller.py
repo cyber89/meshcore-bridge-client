@@ -498,15 +498,6 @@ class ServicesController(BaseController):
             return problem_details(
                 422, "Unprocessable Entity", "Host no permitido para pruebas de conectividad.", "disallowed_host"
             )
-        try:
-            import ipaddress
-            ip = ipaddress.ip_address(host)
-            if ip.is_link_local:
-                return problem_details(
-                    422, "Unprocessable Entity", "Host de enlace local no permitido.", "disallowed_host"
-                )
-        except ValueError:
-            pass
 
         port = body.get("port", 1883)
         try:
@@ -518,13 +509,35 @@ class ServicesController(BaseController):
                 422, "Unprocessable Entity", "Puerto inválido.", "invalid_port"
             )
 
+        import ipaddress
+        import socket
+        try:
+            loop = asyncio.get_running_loop()
+            addr_info = await loop.getaddrinfo(host, port_val, proto=socket.IPPROTO_TCP)
+            for _, _, _, _, sockaddr in addr_info:
+                ip_str = sockaddr[0]
+                try:
+                    ip = ipaddress.ip_address(ip_str)
+                    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+                        ip = ip.ipv4_mapped
+                    if ip.is_link_local or ip.is_unspecified or ip.is_multicast:
+                        return problem_details(
+                            422, "Unprocessable Entity", "Host no permitido para pruebas de conectividad.", "disallowed_host"
+                        )
+                except ValueError:
+                    pass
+        except socket.gaierror:
+            return problem_details(
+                422, "Unprocessable Entity", "No se pudo resolver el host especificado.", "unresolved_host"
+            )
+
         raw_ca = str(body.get("tls_ca_file") or "").strip()
         tls_ca_file: str | None = None
         if raw_ca:
             import os
-            if ".." in raw_ca or not os.path.isabs(raw_ca) or not os.path.isfile(raw_ca):
+            if ".." in raw_ca or not os.path.isabs(raw_ca) or not os.path.isfile(raw_ca) or os.path.islink(raw_ca):
                 return problem_details(
-                    422, "Unprocessable Entity", "tls_ca_file debe ser una ruta absoluta válida sin transversales (..).", "invalid_tls_ca_file"
+                    422, "Unprocessable Entity", "tls_ca_file debe ser una ruta absoluta válida sin transversales (..) ni enlaces simbólicos.", "invalid_tls_ca_file"
                 )
             tls_ca_file = raw_ca
 
@@ -533,17 +546,45 @@ class ServicesController(BaseController):
 
         password = str(body.get("password") or "")
         token = str(body.get("token") or "")
-        if password == MASKED_PASSWORD and cur_ext:
-            password = cur_ext.password
-        if token == MASKED_PASSWORD and cur_ext:
-            token = cur_ext.token
+        tls_enabled = bool(body.get("tls_enabled", False))
+
+        preset_id = str(body.get("preset_id") or "").strip()
+        matched_source: Any = None
+        if cur_ext and host == cur_ext.host and port_val == cur_ext.port and tls_enabled == cur_ext.tls_enabled:
+            matched_source = cur_ext
+        elif preset_id and cfg:
+            preset = next((p for p in cfg.custom_presets if p.id == preset_id), None)
+            if preset and host == preset.host and port_val == preset.port and tls_enabled == preset.tls_enabled:
+                matched_source = preset
+
+        if password == MASKED_PASSWORD:
+            if matched_source and getattr(matched_source, "password", ""):
+                password = matched_source.password
+            else:
+                return problem_details(
+                    422,
+                    "Unprocessable Entity",
+                    "No se pueden usar credenciales enmascaradas con un host o puerto diferente al configurado.",
+                    "masked_credentials_host_mismatch",
+                )
+
+        if token == MASKED_PASSWORD:
+            if matched_source and getattr(matched_source, "token", ""):
+                token = matched_source.token
+            else:
+                return problem_details(
+                    422,
+                    "Unprocessable Entity",
+                    "No se pueden usar credenciales enmascaradas con un host o puerto diferente al configurado.",
+                    "masked_credentials_host_mismatch",
+                )
 
         test_cfg = ExternalMqttConfig(
             enabled=True,
             host=host,
             port=port_val,
             transport=str(body.get("transport") or "tcp"),
-            tls_enabled=bool(body.get("tls_enabled", False)),
+            tls_enabled=tls_enabled,
             tls_verify=bool(body.get("tls_verify", True)),
             tls_ca_file=tls_ca_file,
             auth_type=str(body.get("auth_type") or "anonymous"),

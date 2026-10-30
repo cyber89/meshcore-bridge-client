@@ -53,7 +53,7 @@ class LogsController(BaseController):
                 "offset": offset,
             }
 
-        if clean_path == "/api/system/logs":
+        if clean_path in ("/api/system/logs", "/api/logs"):  # /api/logs: registered alias
             return self._handle_system_logs(raw_path, limit)
 
         if clean_path in ("/api/diagnostics/report.md", "/api/diagnostics/report"):

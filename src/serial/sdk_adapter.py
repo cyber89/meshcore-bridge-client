@@ -317,6 +317,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self._sdk_scheduled_callbacks = 0
         self._is_syncing_hardware: bool = False
         self._command_lock = asyncio.Lock()
+        self._lifecycle_lock = asyncio.Lock()
         self._serialized_commands: Any = None
         self._raw_command_future: asyncio.Future[bool] | None = None
         self._raw_command_opcode: int | None = None
@@ -691,21 +692,22 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             self._self_info = value
 
     async def connect(self) -> bool:
-        if MeshCore is None:
-            logging.warning("SDK meshcore_py no disponible en el entorno.")
-            return False
+        async with self._lifecycle_lock:
+            if MeshCore is None:
+                logging.warning("SDK meshcore_py no disponible en el entorno.")
+                return False
 
-        try:
-            self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            pass
+            try:
+                self._loop = asyncio.get_running_loop()
+            except RuntimeError:
+                pass
 
-        await self._connect_with_stabilization()
-        return self.is_connected
+            await self._connect_with_stabilization()
+            return self.is_connected
 
     async def _connect_with_stabilization(self) -> None:
         if self.mc is not None or self.is_connected:
-            await self.disconnect()
+            await self._disconnect_unlocked()
             await asyncio.sleep(0.5)
 
         try:
@@ -715,20 +717,38 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 addr = self.port.replace("tcp://", "")
                 host, port_str = addr.split(":", 1) if ":" in addr else (addr, "4000")
                 logging.info(f"Iniciando conexión MeshCore SDK remota TCP en {host}:{port_str}...")
-                if hasattr(MeshCore, "create_tcp"):
-                    self.mc = await MeshCore.create_tcp(host, int(port_str), auto_reconnect=False)
-                else:
-                    from meshcore.tcp_cx import TCPConnection
-                    cx = TCPConnection(host, int(port_str))
-                    self.mc = MeshCore(cx, auto_reconnect=False)
-                    if hasattr(self.mc, "connect"):
-                        await self.mc.connect()
+                _MC_TOTAL_TIMEOUT = max(35.0, self.timeout_sec + 5.0)
+                _mc_raw: Any = None
+                try:
+                    if hasattr(MeshCore, "create_tcp"):
+                        async with asyncio.timeout(_MC_TOTAL_TIMEOUT):
+                            self.mc = await MeshCore.create_tcp(host, int(port_str), auto_reconnect=False)
+                    else:
+                        from meshcore.tcp_cx import TCPConnection
+                        cx = TCPConnection(host, int(port_str))
+                        _mc_raw = MeshCore(cx, auto_reconnect=False)
+                        if hasattr(_mc_raw, "connect"):
+                            async with asyncio.timeout(_MC_TOTAL_TIMEOUT):
+                                res_app = await _mc_raw.connect()
+                            if res_app is not None and getattr(res_app, "type", None) != EventType.ERROR:
+                                self.mc = _mc_raw
+                                _mc_raw = None
+                        else:
+                            self.mc = _mc_raw
+                            _mc_raw = None
+                finally:
+                    if _mc_raw is not None:
+                        try:
+                            if hasattr(_mc_raw, "disconnect"):
+                                await _mc_raw.disconnect()
+                        except Exception:
+                            pass
             else:
                 logging.info(f"Iniciando conexión MeshCore SDK en puerto {self.port} ({self.baud_rate} baud)...")
                 _BOOT_WAIT_SEC = 5.0
                 _MC_TOTAL_TIMEOUT = max(35.0, self.timeout_sec + 5.0)
 
-                _mc_raw: Any = None
+                _mc_raw = None
                 try:
                     from meshcore.serial_cx import SerialConnection
                     cx_inner = SerialConnection(self.port, self.baud_rate, cx_dly=0.0)
@@ -800,13 +820,19 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.info("MeshCore SDK conectado e iniciado exitosamente.")
             self._initial_sync_task = asyncio.create_task(self._initial_hardware_sync())
         except asyncio.CancelledError:
-            await self.disconnect()
+            await self._disconnect_unlocked()
             raise
         except Exception as e:
             logging.error(f"Error conectando con MeshCore SDK: {e}", exc_info=True)
-            await self.disconnect()
+            await self._disconnect_unlocked()
 
     async def disconnect(self) -> None:
+        """Desconecta el transceptor LoRa liberando recursos con lock de ciclo de vida."""
+        async with self._lifecycle_lock:
+            await self._disconnect_unlocked()
+
+    async def _disconnect_unlocked(self) -> None:
+        """Implementación interna sin lock para evitar auto-bloqueos en reconexión."""
         self.is_connected = False
         self._pending_sdk_events.clear()
         self._reset_firmware_observations(new_session=True)

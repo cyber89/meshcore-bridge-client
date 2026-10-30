@@ -102,13 +102,20 @@ class PreflightChecker:
             is_critical=False,
         )
 
-    def check_tcp_companion_port(self, host: str, port: int, enabled: bool) -> PreflightCheckResult:
+    def check_tcp_companion_port(self, host: str, port: int, enabled: bool, already_running: bool = False) -> PreflightCheckResult:
         """Comprueba si el puerto del Servidor TCP Companion está disponible para enlazar."""
         if not enabled:
             return PreflightCheckResult(
                 name="Servidor TCP Companion (Puerto 5000)",
                 passed=True,
                 message="Servidor TCP Companion deshabilitado por configuración",
+                is_critical=False,
+            )
+        if already_running:
+            return PreflightCheckResult(
+                name="Servidor TCP Companion (Puerto 5000)",
+                passed=True,
+                message=f"Servidor TCP Companion activo y escuchando en puerto {port}",
                 is_critical=False,
             )
         try:
@@ -141,12 +148,13 @@ class PreflightChecker:
         tcp_server_enabled: bool = True,
         tcp_server_host: str = "0.0.0.0",  # nosec B104
         mqtt_enabled: bool = True,
+        tcp_companion_running: bool = False,
     ) -> dict[str, Any]:
         """Ejecuta toda la matriz de comprobaciones y devuelve el informe consolidado."""
         self.results = [
             self.check_mqtt_broker(mqtt_host, mqtt_port, enabled=mqtt_enabled),
             self.check_serial_port(serial_port),
-            self.check_tcp_companion_port(tcp_server_host, tcp_server_port, tcp_server_enabled),
+            self.check_tcp_companion_port(tcp_server_host, tcp_server_port, tcp_server_enabled, already_running=tcp_companion_running),
         ]
 
         critical_failures = [r for r in self.results if not r.passed and r.is_critical]
@@ -182,6 +190,8 @@ class PreflightChecker:
         tcp_server_enabled: bool = True,
         # Port availability probes bind loopback when configured with a wildcard host.
         tcp_server_host: str = "0.0.0.0",  # nosec B104
+        mqtt_enabled: bool = True,
+        tcp_companion_running: bool = False,
     ) -> dict[str, Any]:
         """Ejecuta todos los chequeos preflight de forma no bloqueante en thread pool."""
         import asyncio
@@ -193,6 +203,8 @@ class PreflightChecker:
             tcp_server_port=tcp_server_port,
             tcp_server_enabled=tcp_server_enabled,
             tcp_server_host=tcp_server_host,
+            mqtt_enabled=mqtt_enabled,
+            tcp_companion_running=tcp_companion_running,
         )
 
 

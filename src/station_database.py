@@ -84,6 +84,7 @@ class StationDatabase:
         self.path = Path(path)
         self._lock = threading.RLock()
         self._initialized = False
+        self._message_write_count = 0
         self._sensor_subscriptions_cache: dict[str, dict[str, Any]] = {}
 
     def _restrict_files(self) -> None:
@@ -103,20 +104,22 @@ class StationDatabase:
                         raise
 
     @contextmanager
-    def _connection(self) -> Iterator[sqlite3.Connection]:
+    def _connection(self, *, write: bool = True) -> Iterator[sqlite3.Connection]:
         if not self._initialized:
             raise RuntimeError("Station database has not been initialized")
         with self._lock:
             connection = sqlite3.connect(self.path, timeout=30)
             connection.row_factory = sqlite3.Row
             try:
-                connection.execute("PRAGMA synchronous = FULL")
+                if write:
+                    connection.execute("PRAGMA synchronous = FULL")
                 connection.execute("PRAGMA foreign_keys = ON")
                 with connection:
                     yield connection
             finally:
                 connection.close()
-                self._restrict_files()
+                if write:
+                    self._restrict_files()
 
     def initialize(self) -> None:
         """Create schema atomically; refuse databases from newer application versions."""
@@ -149,6 +152,7 @@ class StationDatabase:
                     feed_key TEXT NOT NULL, timestamp TEXT NOT NULL, direction TEXT NOT NULL,
                     status TEXT NOT NULL, expected_ack TEXT NOT NULL DEFAULT '', payload TEXT NOT NULL)""")
                 connection.execute("CREATE INDEX IF NOT EXISTS messages_feed_seq ON messages(feed_key, seq)")
+                connection.execute("CREATE INDEX IF NOT EXISTS messages_timestamp ON messages(timestamp)")
                 connection.execute("CREATE INDEX IF NOT EXISTS messages_ack ON messages(expected_ack)")
                 connection.execute("""CREATE TABLE IF NOT EXISTS delivery_events (
                     event_key TEXT PRIMARY KEY, payload TEXT NOT NULL)""")
@@ -357,7 +361,8 @@ class StationDatabase:
                            (record["msg_id"], record["feed_key"], record["timestamp"],
                             "outgoing" if record["is_outgoing"] else "incoming", record["status"],
                             record.get("expected_ack", ""), _json(record)))
-        if existing is None:
+        self._message_write_count += 1
+        if existing is None and (self._message_write_count % 50 == 0):
             self._prune_messages(connection)
         row = connection.execute("SELECT * FROM messages WHERE msg_id = ?", (record["msg_id"],)).fetchone()
         return self._result(connection, row), existing is None
@@ -914,10 +919,5 @@ class StationDatabase:
             )
 
     def backup_database(self, backup_path: str | Path) -> None:
-        """Create a consistent online backup using SQLite's backup API (safe for WAL)."""
-        dst_path = Path(backup_path)
-        dst_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._lock:
-            with self._connection() as src_conn:
-                with sqlite3.connect(dst_path) as dst_conn:
-                    src_conn.backup(dst_conn)
+        """Create a consistent online backup delegating to verified backup() implementation."""
+        self.backup(backup_path)

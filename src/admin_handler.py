@@ -258,11 +258,14 @@ class AdminCommandHandler:
             data = data or {}
 
         text = str(data.get("text") or data.get("message") or "")
+        has_tag = False
         if len(text) >= 3 and text[2] == "|":
+            has_tag = True
             data["tag"] = text[:2]
             data["text"] = text[3:]
             data["message"] = text[3:]
-        matched = self.notify_ping_response(sender, data)
+        # Solo comprobar ping si el paquete no es una respuesta CLI etiquetada
+        matched = self.notify_ping_response(sender, data) if not has_tag else False
         if not sender or not self._cmd_waiters:
             return matched
 

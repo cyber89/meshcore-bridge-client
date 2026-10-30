@@ -209,7 +209,8 @@ class ContactsController(BaseController):
 
     async def _delete_contact(self, req_body: dict[str, Any], path_pubkey: str = "") -> tuple[int, dict[str, Any]]:
         """Elimina un contacto de la libreta."""
-        pubkey = str(req_body.get("public_key", req_body.get("key", path_pubkey))).strip().lower()
+        raw_key = path_pubkey or req_body.get("public_key") or req_body.get("key") or ""
+        pubkey = str(raw_key).strip().lower()
         if not pubkey:
             return problem_details(400, "Bad Request", "Se requiere 'public_key'", "missing_public_key")
 

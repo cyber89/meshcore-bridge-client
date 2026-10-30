@@ -87,7 +87,8 @@ class SystemLogHandler(logging.Handler):
 
             exc_text = None
             if record.exc_info:
-                exc_text = "".join(traceback.format_exception(*record.exc_info)).strip()
+                raw_exc = "".join(traceback.format_exception(*record.exc_info)).strip()
+                exc_text = redact_command_str(raw_exc)
 
             log_entry = SystemLogRecord(
                 timestamp=record.created,
@@ -237,7 +238,7 @@ class DiagnosticManager:
                     "known_count": node_registry.get_count() if node_registry else 0,
                 },
                 "tcp_companion": {
-                    "enabled": getattr(getattr(self.bridge, "tcp_server", None), "is_running", False),
+                    "enabled": getattr(getattr(self.bridge, "tcp_server", None), "running", False),
                     "connected_clients": (
                         self.bridge.tcp_server.get_connected_count()
                         if getattr(self.bridge, "tcp_server", None)

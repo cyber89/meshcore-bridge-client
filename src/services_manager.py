@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import logging
+import threading
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -147,10 +148,16 @@ class ServicesManager:
         previous = self.external_mqtt
         if previous.local_pubkey == normalized:
             return
-        # Stop the old identity before constructing its replacement. A TLS or
-        # start failure must leave the old gateway offline, never mislabeled.
-        await asyncio.to_thread(previous.stop)
+        # Transfer Store-and-Forward ring buffer and sent hashes before replacing
         replacement = self._create_external_mqtt_client(self.services_config.external_mqtt, normalized)
+        if hasattr(previous, "_ring_buffer") and hasattr(replacement, "_ring_buffer"):
+            with getattr(previous, "_drain_lock", threading.Lock()):
+                with getattr(replacement, "_drain_lock", threading.Lock()):
+                    replacement._ring_buffer.extend(previous._ring_buffer)
+                    if hasattr(previous, "_sent_hashes") and hasattr(replacement, "_sent_hashes"):
+                        replacement._sent_hashes.extend(previous._sent_hashes)
+        # Stop the old identity before starting its replacement
+        await asyncio.to_thread(previous.stop)
         try:
             if start_client and self.is_running and self.services_config.external_mqtt.enabled:
                 replacement.start(loop=self._loop)
@@ -575,5 +582,4 @@ class ServicesManager:
 
         router = getattr(self.bridge, "rx_router", None)
         if router is not None and hasattr(router, "_ctx"):
-            if hasattr(router._ctx, "external_mqtt"):
-                router._ctx.external_mqtt = self.external_mqtt
+            router._ctx.external_mqtt = self.external_mqtt

@@ -17,6 +17,7 @@ from typing import Any
 
 from src.application.channels import firmware_name_valid
 from src.contact_manager import NodeContactUpdate, NodeRegistry, is_valid_node_key
+from src.shared_utils import classify_device_role
 from src.station_database import StationDatabase
 
 logger = logging.getLogger("meshcore.application.contacts")
@@ -412,7 +413,7 @@ class ContactService:
                             NodeContactUpdate(
                                 name=c.get("name"),
                                 alias=c.get("alias"),
-                                role=c.get("role", "CLIENT"),
+                                role=classify_device_role(c.get("type")) if isinstance(c.get("type"), int) else c.get("role", "CLIENT"),
                                 last_seen=None,
                                 last_advert=float(last_adv) if isinstance(last_adv, (int, float)) and last_adv > 0 else None,
                                 latitude=eff_lat,
@@ -713,29 +714,53 @@ class ContactService:
                 if hex_contacts:
                     contacts_to_add = hex_contacts
                 elif bin_data:
-                    ser = self.serial_adapter
-                    if ser and hasattr(ser, "import_contact"):
-                        try:
-                            res = await ser.import_contact(bin_data)
-                            failure = self._check_hardware_result(res)
-                            if failure:
-                                return failure
-                            if callable(self._log_event):
-                                self._log_event("INFO", "Contacto binario importado hacia el firmware", source="contacts")
-                            return ContactOperationResult(success=True, data={"status": "ok", "result": res}, http_code=200)
-                        except Exception as ex:
-                            return ContactOperationResult(
-                                success=False,
-                                error=f"Error en transceptor al importar binario: {type(ex).__name__}",
-                                error_code="serial_operation_failed",
-                                http_code=503,
-                            )
-                    return ContactOperationResult(
-                        success=False,
-                        error="Transceptor no disponible para importar contacto binario",
-                        error_code="serial_unavailable",
-                        http_code=503,
-                    )
+                    if len(bin_data) < 32:
+                        return ContactOperationResult(
+                            success=False,
+                            error="Datos de contacto binario insuficientes (mínimo 32 bytes de clave pública)",
+                            error_code="invalid_binary_data",
+                            http_code=422,
+                        )
+                    bin_pk = bin_data[:32].hex().lower()
+                    if self.node_registry.is_local_key(bin_pk):
+                        return ContactOperationResult(
+                            success=False,
+                            error="No se permite importar el nodo local en Contactos (SSoT §1.2)",
+                            error_code="prohibited_local_contact",
+                            http_code=422,
+                        )
+                    if len(bin_data) >= 33 and bin_data[32] in (2, 0x02):
+                        return ContactOperationResult(
+                            success=False,
+                            error="No se permite importar repetidores en Contactos (SSoT §1.1)",
+                            error_code="prohibited_repeater_contact",
+                            http_code=422,
+                        )
+                    async with self._mutation_lock:
+                        ser = self.serial_adapter
+                        if ser and hasattr(ser, "import_contact"):
+                            try:
+                                res = await ser.import_contact(bin_data)
+                                failure = self._check_hardware_result(res)
+                                if failure:
+                                    return failure
+                                await self.sync_from_radio()
+                                if callable(self._log_event):
+                                    self._log_event("INFO", "Contacto binario importado hacia el firmware", source="contacts")
+                                return ContactOperationResult(success=True, data={"status": "ok", "result": res}, http_code=200)
+                            except Exception as ex:
+                                return ContactOperationResult(
+                                    success=False,
+                                    error=f"Error en transceptor al importar binario: {type(ex).__name__}",
+                                    error_code="serial_operation_failed",
+                                    http_code=503,
+                                )
+                        return ContactOperationResult(
+                            success=False,
+                            error="Transceptor no disponible para importar contacto binario",
+                            error_code="serial_unavailable",
+                            http_code=503,
+                        )
 
         if not contacts_to_add:
             return ContactOperationResult(

@@ -26,7 +26,7 @@ class PacketDeduplicator:
     ) -> None:
         self.window_seconds = ttl_seconds if ttl_seconds is not None else window_seconds
         self.max_entries = max_history if max_history is not None else max_entries
-        self._cache: collections.OrderedDict[str, float] = collections.OrderedDict()
+        self._cache: collections.OrderedDict[str, tuple[float, float]] = collections.OrderedDict()
         self._lock = threading.Lock()
 
     def __len__(self) -> int:
@@ -43,11 +43,11 @@ class PacketDeduplicator:
 
         eff_window = window_override if window_override is not None else self.window_seconds
         if key in self._cache:
-            last_seen = self._cache[key]
-            if (now - last_seen) < eff_window:
+            last_seen, expires_at = self._cache[key]
+            if now < expires_at and (now - last_seen) < eff_window:
                 return True
 
-        self._cache[key] = now
+        self._cache[key] = (now, now + eff_window)
         self._cache.move_to_end(key)
 
         if len(self._cache) > self.max_entries:
@@ -61,11 +61,7 @@ class PacketDeduplicator:
             return self._check_and_insert(key, window_override)
 
     def _prune(self, now: float) -> None:
-        """Elimina entradas expiradas desde el inicio del OrderedDict."""
-        threshold = now - self.window_seconds
-        while self._cache:
-            first_key, first_time = next(iter(self._cache.items()))
-            if first_time < threshold:
-                del self._cache[first_key]
-            else:
-                break
+        """Elimina entradas expiradas respetando window_override individual."""
+        expired = [k for k, (_, exp) in self._cache.items() if now >= exp]
+        for k in expired:
+            del self._cache[k]

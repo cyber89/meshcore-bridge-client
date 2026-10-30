@@ -110,6 +110,8 @@ class SystemController(BaseController):
         if not isinstance(checker, PreflightChecker):
             checker = PreflightChecker()
 
+        tcp_running = bool(getattr(getattr(self.ctx.bridge, "tcp_server", None), "running", False))
+        mqtt_on = bool(getattr(config, "MQTT_ENABLED", True))
         if hasattr(checker, "run_all_async"):
             report = await checker.run_all_async(
                 mqtt_host=str(getattr(config, "MQTT_BROKER", "127.0.0.1")),
@@ -118,6 +120,8 @@ class SystemController(BaseController):
                 tcp_server_port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
                 tcp_server_enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
                 tcp_server_host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),  # nosec B104
+                mqtt_enabled=mqtt_on,
+                tcp_companion_running=tcp_running,
             )
         else:
             import asyncio
@@ -129,6 +133,8 @@ class SystemController(BaseController):
                 tcp_server_port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
                 tcp_server_enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
                 tcp_server_host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),  # nosec B104
+                mqtt_enabled=mqtt_on,
+                tcp_companion_running=tcp_running,
             )
         report_dict: dict[str, Any] = report if isinstance(report, dict) else (report.to_dict() if hasattr(report, "to_dict") else {"passed": getattr(report, "all_passed", False)})
         return 200, {"status": "ok", "data": report_dict}

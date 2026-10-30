@@ -385,7 +385,7 @@ class RepeaterManager:
 
         # Comandos que ya vienen formateados directamente con prefijo reconocido
         if act.startswith(("set ", "login ", "password ", "setperm ", "cmd ", "time ")):
-            return self._build_preformatted_command(action)
+            return self._build_preformatted_command(action.strip())
 
         # 2. Comandos de radio y parámetros RF
         radio_cmd = self._build_radio_cmd(act, params)
@@ -421,15 +421,17 @@ class RepeaterManager:
 
     def _build_preformatted_command(self, command: str) -> str | None:
         """Apply the same validation to CLI aliases as to structured configuration."""
-        if command.startswith("login "):
+        cmd_clean = command.strip()
+        cmd_lower = cmd_clean.lower()
+        if cmd_lower.startswith("login "):
             return None  # Login must use the binary authentication opcode.
-        if command.startswith("password "):
-            return self._build_acl_and_security_cmd("set_password", {"password": command[9:]})
-        if command.startswith("setperm "):
-            parts = command.split()
+        if cmd_lower.startswith("password "):
+            return self._build_acl_and_security_cmd("set_password", {"password": cmd_clean[9:]})
+        if cmd_lower.startswith("setperm "):
+            parts = cmd_clean.split()
             return self._build_acl_and_security_cmd("setperm", {"public_key": parts[1], "permission": parts[2]}) if len(parts) == 3 else None
-        if command.startswith("set radio "):
-            values = command[10:].split(",")
+        if cmd_lower.startswith("set radio "):
+            values = cmd_clean[10:].split(",")
             return self._build_radio_cmd("set_radio", dict(zip(("frequency", "bandwidth", "spreading_factor", "coding_rate"), values, strict=False))) if len(values) == 4 else None
         setters = {
             "set name ": ("set_name", "name"), "set owner.info ": ("set_owner_info", "owner_info"),
@@ -441,9 +443,9 @@ class RepeaterManager:
             "set allow.read.only ": ("set_allow_read_only", "allow_read_only"),
         }
         for prefix, (action, field) in setters.items():
-            if command.startswith(prefix):
-                return self.build_repeater_command_payload(action, {field: command[len(prefix):]})
-        return command
+            if cmd_lower.startswith(prefix):
+                return self.build_repeater_command_payload(action, {field: cmd_clean[len(prefix):]})
+        return None
 
     def _build_query_cmd(self, act: str) -> str | None:
         """Construye comandos de lectura sin argumentos adicionales."""

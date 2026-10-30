@@ -155,24 +155,19 @@ class ConfigController(BaseController):
         limiter = getattr(self.ctx.bridge, "rate_limiter", None)
         if limiter and hasattr(limiter, "airtime_tracker"):
             tracker = limiter.airtime_tracker
-            airtime_changed = False
+            kwargs_at: dict[str, Any] = {}
             if "duty_cycle_limit_pct" in params:
-                tracker.duty_cycle_limit_pct = float(params["duty_cycle_limit_pct"])
-                airtime_changed = True
+                kwargs_at["duty_cycle_limit_pct"] = float(params["duty_cycle_limit_pct"])
             if "warn_threshold_pct" in params:
-                tracker.warn_threshold_pct = float(params["warn_threshold_pct"])
-                airtime_changed = True
+                kwargs_at["warn_threshold_pct"] = float(params["warn_threshold_pct"])
             if "airtime_cutoff_enabled" in params:
-                tracker.cutoff_enabled = to_bool(params["airtime_cutoff_enabled"])
-                airtime_changed = True
+                kwargs_at["cutoff_enabled"] = to_bool(params["airtime_cutoff_enabled"])
             if "airtime_cutoff_threshold_pct" in params:
-                tracker.cutoff_threshold_pct = float(params["airtime_cutoff_threshold_pct"])
-                airtime_changed = True
+                kwargs_at["cutoff_threshold_pct"] = float(params["airtime_cutoff_threshold_pct"])
             if "airtime_cutoff_resume_pct" in params:
-                tracker.cutoff_resume_pct = float(params["airtime_cutoff_resume_pct"])
-                airtime_changed = True
-            if airtime_changed:
-                tracker.save_history(sync=True)
+                kwargs_at["cutoff_resume_pct"] = float(params["airtime_cutoff_resume_pct"])
+            if kwargs_at and hasattr(tracker, "apply_policy"):
+                tracker.apply_policy(**kwargs_at)
 
         if "repeater_pre_send_delay_enabled" in params:
             config.REPEATER_PRE_SEND_DELAY_ENABLED = to_bool(params["repeater_pre_send_delay_enabled"])

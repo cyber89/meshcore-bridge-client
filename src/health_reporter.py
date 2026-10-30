@@ -58,9 +58,13 @@ class HealthReporter:
     async def build_payload(self) -> dict[str, Any]:
         """Construye el snapshot de métricas de salud del bridge."""
         serial_conn = bool(self._ctx.serial_adapter.is_connected)
-        mqtt_conn = bool(getattr(self._ctx.mqtt, "is_connected", False))
+        mqtt_local_conn = bool(getattr(self._ctx.mqtt, "is_connected", False))
+        ext_client = getattr(getattr(self._ctx, "bridge", None), "external_mqtt", None)
+        mqtt_ext_conn = bool(getattr(ext_client, "is_connected", False))
 
         mqtt_required = True
+        local_required = True
+        ext_required = False
         capabilities_dict: dict[str, Any] | None = None
         bridge_obj = getattr(self._ctx, "bridge", None)
         refresh_core = getattr(bridge_obj, "refresh_core_capability", None)
@@ -72,18 +76,31 @@ class HealthReporter:
         if bridge_obj is not None and hasattr(bridge_obj, "capabilities") and bridge_obj.capabilities is not None:
             caps = bridge_obj.capabilities
             capabilities_dict = caps.to_dict()
-            mqtt_required = caps.mqtt_local.is_active or caps.mqtt_external.is_active
+            local_required = bool(caps.mqtt_local.is_active)
+            ext_required = bool(caps.mqtt_external.is_active)
+            mqtt_required = local_required or ext_required
         elif not getattr(config, "MQTT_ENABLED", True):
             mqtt_required = False
+            local_required = False
 
-        status = "healthy" if serial_conn and (mqtt_conn or not mqtt_required) else "degraded"
+        mqtt_ok = True
+        if local_required and not mqtt_local_conn:
+            mqtt_ok = False
+        if ext_required and not mqtt_ext_conn:
+            mqtt_ok = False
+        if not mqtt_required:
+            mqtt_ok = True
+
+        status = "healthy" if serial_conn and mqtt_ok else "degraded"
 
         payload: dict[str, Any] = {
             "status": status,
             "uptime_seconds": int(time.time() - self._ctx.start_time),
             "serial_port": getattr(self._ctx.serial_adapter, "port", config.SERIAL_PORT),
             "serial_connected": serial_conn,
-            "mqtt_connected": mqtt_conn,
+            "mqtt_connected": mqtt_local_conn or mqtt_ext_conn,
+            "mqtt_local_connected": mqtt_local_conn,
+            "mqtt_external_connected": mqtt_ext_conn,
             "known_mesh_nodes": self._ctx.node_registry.get_count(),
             "tx_queue_depth": self._ctx.rate_limiter.get_queue_depth(),
             "total_rx_packets": self._ctx.counters.rx_count,

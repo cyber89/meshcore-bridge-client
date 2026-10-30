@@ -100,13 +100,13 @@ class _PacedGzip:
             compressed = bytes(output)
             # Include final materialization in the same measured CPU budget.
             rest = (time.thread_time() - cpu_start) / 0.5 - (time.monotonic() - wall_start)
-            if rest > 0:
-                time.sleep(rest)
             return compressed if len(compressed) < len(body) else None
         finally:
             # Cancellation of to_thread's waiter cannot release admission while
             # its underlying worker still consumes CPU.
             self._lock.release()
+            if 'rest' in locals() and rest > 0:
+                time.sleep(rest)
 
     async def compress(self, body: bytes) -> bytes | None:
         if not self._lock.acquire(blocking=False):

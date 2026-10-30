@@ -148,6 +148,7 @@ class MeshCoreBridge:
         self._is_stopped = False
         self._cleanup_task: asyncio.Task[None] | None = None
         self._lifecycle_lock = asyncio.Lock()
+        self._reconnect_lock = asyncio.Lock()
         self._started = False
         self.start_time = time.time()
         self._custom_loop = loop
@@ -479,7 +480,7 @@ class MeshCoreBridge:
             raise
 
     def _on_raw_companion_frame_rx(self, payload: bytes) -> None:
-        """Difunde tramas binarias de la radio hacia clientes TCP Companion conectados (App Móvil / CLI)."""
+        """Difunde tramas binarias de la radio hacia clientes TCP Companion en estricto orden FIFO."""
         tcp_srv = getattr(self, "tcp_server", None)
         if tcp_srv is not None and getattr(self, "running", False):
             owner = tcp_srv.get_response_owner() if hasattr(tcp_srv, "get_response_owner") else None
@@ -488,9 +489,15 @@ class MeshCoreBridge:
                     return
                 if hasattr(tcp_srv, "note_response_received"):
                     tcp_srv.note_response_received(owner)
-                self._schedule_background(lambda: tcp_srv.broadcast_companion_frame(payload, response_owner=owner))
+                if hasattr(tcp_srv, "queue_companion_frame_sync"):
+                    tcp_srv.queue_companion_frame_sync(payload, response_owner=owner)
+                else:
+                    self._schedule_background(lambda: tcp_srv.broadcast_companion_frame(payload, response_owner=owner))
             else:
-                self._schedule_background(lambda: tcp_srv.broadcast_companion_frame(payload))
+                if hasattr(tcp_srv, "queue_companion_frame_sync"):
+                    tcp_srv.queue_companion_frame_sync(payload)
+                else:
+                    self._schedule_background(lambda: tcp_srv.broadcast_companion_frame(payload))
 
     async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any, timeout: float = 30.0) -> bool:
         """Maneja comandos binarios enviados por apps móviles o CLI a través del socket TCP Companion."""
@@ -506,7 +513,8 @@ class MeshCoreBridge:
             if target and node_reg:
                 is_local = getattr(node_reg, "is_local_key", lambda k: False)(target)
                 is_rep = getattr(node_reg, "is_repeater_key", lambda k: False)(target)
-                if is_local or is_rep:
+                is_user_chat = payload[0] == 2 and (len(payload) < 2 or payload[1] != 1)
+                if is_local or (is_rep and is_user_chat):
                     return False
             # Companion text layout: type + attempt/channel + timestampLE,
             # then the six-byte destination prefix for direct messages.
@@ -808,6 +816,8 @@ class MeshCoreBridge:
             self.mqtt = self.services_manager.local_mqtt
             self.external_mqtt = self.services_manager.external_mqtt
             self.tcp_server = self.services_manager.tcp_server
+            if hasattr(self, "rx_router") and hasattr(self.rx_router, "_ctx"):
+                self.rx_router._ctx.external_mqtt = self.external_mqtt
             return res
         return {"status": "error", "message": "ServicesManager no disponible"}
 
@@ -948,7 +958,6 @@ class MeshCoreBridge:
         await self.serial_adapter.connect()
         if hasattr(self, "capabilities"):
             self.capabilities.core.mark_started()
-        self.watchdog.start()
 
         # Iniciar servidor web si está habilitado
         if self.web_server:
@@ -959,6 +968,9 @@ class MeshCoreBridge:
 
         # Auto-importación en arranque: canales, contactos y configuración del hardware Heltec
         await self._auto_bootstrap_heltec_state()
+
+        # Iniciar Watchdog tras finalizar el auto-bootstrap
+        self.watchdog.start()
 
         # Iniciar reporte periódico de salud
         self._health_task = self.health_reporter.start()
@@ -1146,14 +1158,6 @@ class MeshCoreBridge:
                 if node_channels:
                     if hasattr(self, "channel_service") and self.channel_service:
                         await self.channel_service.sync_from_radio(node_channels)
-                    elif self.web_server:
-                        controller = self.web_server.router.channels_ctrl
-                        async with controller._mutation_lock:
-                            for ch in node_channels:
-                                idx = int(ch.get("index", 0))
-                                controller.channels[idx] = ch
-                            controller._dirty = True
-                            await controller._save_channels_async()
                     logging.info(f"Auto-importados {len(node_channels)} canales desde el transceptor serial.")
             except Exception as e:
                 logging.debug("Error en auto-importación de canales: %s", type(e).__name__)
@@ -1164,42 +1168,6 @@ class MeshCoreBridge:
                 contact_res = await self.contact_service.sync_from_radio()
                 if contact_res.success and isinstance(contact_res.data, dict):
                     logging.info("Auto-importados %d contactos desde el transceptor serial (ContactService).", contact_res.data.get("imported", 0))
-            except Exception as e:
-                logging.debug("Error en auto-importación de contactos: %s", type(e).__name__)
-        elif hasattr(self.serial_adapter, "sync_all_contacts"):
-            try:
-                imported_contacts = await self.serial_adapter.sync_all_contacts()
-                if imported_contacts:
-                    for c in imported_contacts:
-                        pk = str(c.get("public_key", "")).strip().lower()
-                        if pk and not self.node_registry.is_local_key(pk):
-                            last_adv = c.get("last_advert")
-                            self.node_registry.add_or_update(
-                                pk,
-                                NodeContactUpdate(
-                                    name=c.get("name") or c.get("adv_name"),
-                                    alias=c.get("alias"),
-                                    role=c.get("role", "CLIENT"),
-                                    auto_discovered=False,
-                                    is_favorite=bool(c.get("is_favorite", c.get("favorite", False))),
-                                    last_seen=None,
-                                    last_advert=float(last_adv) if isinstance(last_adv, (int, float)) and last_adv > 0 else None,
-                                    latitude=c.get("latitude"),
-                                    longitude=c.get("longitude"),
-                                    adv_lat=c.get("adv_lat") or c.get("latitude"),
-                                    adv_lon=c.get("adv_lon") or c.get("longitude"),
-                                    flags=c.get("flags"),
-                                    out_path=c.get("out_path"),
-                                    out_path_len=c.get("out_path_len"),
-                                    out_path_hash_mode=c.get("out_path_hash_mode"),
-                                ),
-                            )
-
-                    if hasattr(self.node_registry, "save_to_file_async"):
-                        await self.node_registry.save_to_file_async()
-                    elif hasattr(self.node_registry, "save_to_file"):
-                        await asyncio.to_thread(self.node_registry.save_to_file)
-                    logging.info(f"Auto-importados {len(imported_contacts)} contactos desde el transceptor serial.")
             except Exception as e:
                 logging.debug("Error en auto-importación de contactos: %s", type(e).__name__)
 
@@ -1227,16 +1195,19 @@ class MeshCoreBridge:
                 logging.debug("Error consultando parámetros de radio del nodo: %s", type(e).__name__)
 
     async def _reconnect_serial(self) -> None:
-        """Rutina de reconexión segura invocada por el Watchdog con pausa de estabilización USB."""
-        logging.info("Ejecutando reconexión de puerto serial con estabilización USB...")
-        await self.serial_adapter.disconnect()
-        # Pausa esencial de 1.5s para permitir que el kernel y el USB CDC liberen el endpoint
-        await asyncio.sleep(1.5)
-        success = await self.serial_adapter.connect()
-        if success:
-            logging.info("Reconexión de transceptor serial completada con éxito.")
-        else:
-            logging.warning("Intento de reconexión serial no completado. El Watchdog continuará intentando en background.")
+        """Rutina de reconexión segura invocada por el Watchdog con pausa de estabilización USB y lock."""
+        if self._reconnect_lock.locked():
+            logging.info("Reconexión serial ya en progreso; omitiendo solicitud concurrente.")
+            return
+        async with self._reconnect_lock:
+            logging.info("Ejecutando reconexión de puerto serial con estabilización USB...")
+            await self.serial_adapter.disconnect()
+            await asyncio.sleep(1.5)
+            success = await self.serial_adapter.connect()
+            if success:
+                logging.info("Reconexión de transceptor serial completada con éxito.")
+            else:
+                logging.warning("Intento de reconexión serial no completado. El Watchdog continuará intentando en background.")
 
     @staticmethod
     def _parse_tx_input(item: Any) -> tuple[Any, str, int, str]:
@@ -1307,7 +1278,13 @@ class MeshCoreBridge:
 
         clean_txt = text.strip().lower()
         first_token = clean_txt.split()[0] if clean_txt.split() else ""
-        is_admin_cmd = first_token in ("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info")
+        is_rep_target = bool(self.node_registry and getattr(self.node_registry, "is_repeater_key", lambda k: False)(target_str))
+        is_explicit_admin = False
+        if isinstance(item, dict):
+            is_explicit_admin = bool(item.get("is_admin") or item.get("admin"))
+        elif isinstance(item, TxItem):
+            is_explicit_admin = bool(getattr(item, "is_admin", False) or getattr(item, "context", "") == "admin")
+        is_admin_cmd = is_explicit_admin or (is_rep_target and first_token in ("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info"))
 
         if not is_admin_cmd and not is_broadcast:
             service = getattr(self, "message_service", None) or MessageService(

@@ -750,6 +750,7 @@ class LocalConfigExecutor:
             await self._apply_radio_settings(params, applied, mc)
             await self._apply_other_params_settings(params, applied, mc)
             await self._apply_advanced_meshcore_settings(params, applied, mc)
+            self._apply_host_airtime_policies(params, applied)
         except Exception as error:
             res.update({
                 "status": "partial" if applied else "error",
@@ -793,6 +794,31 @@ class LocalConfigExecutor:
         pub_res = redact_sensitive_dict(dict(res))
         self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(pub_res), 1)
         return res
+
+    def _apply_host_airtime_policies(self, params: dict[str, Any], applied: dict[str, Any]) -> None:
+        """Aplica políticas de airtime locales si fueron recibidas en la petición."""
+        bridge = getattr(self._ctx, "bridge", None)
+        limiter = getattr(bridge, "rate_limiter", None)
+        tracker = getattr(limiter, "airtime_tracker", None) if limiter else None
+        kwargs: dict[str, Any] = {}
+        if "duty_cycle_limit_pct" in params:
+            kwargs["duty_cycle_limit_pct"] = float(params["duty_cycle_limit_pct"])
+            applied["duty_cycle_limit_pct"] = kwargs["duty_cycle_limit_pct"]
+        if "warn_threshold_pct" in params:
+            kwargs["warn_threshold_pct"] = float(params["warn_threshold_pct"])
+            applied["warn_threshold_pct"] = kwargs["warn_threshold_pct"]
+        if "airtime_cutoff_threshold_pct" in params:
+            kwargs["cutoff_threshold_pct"] = float(params["airtime_cutoff_threshold_pct"])
+            applied["airtime_cutoff_threshold_pct"] = kwargs["cutoff_threshold_pct"]
+        if "airtime_cutoff_resume_pct" in params:
+            kwargs["cutoff_resume_pct"] = float(params["airtime_cutoff_resume_pct"])
+            applied["airtime_cutoff_resume_pct"] = kwargs["cutoff_resume_pct"]
+        if "airtime_cutoff_enabled" in params:
+            kwargs["cutoff_enabled"] = bool(params["airtime_cutoff_enabled"])
+            applied["airtime_cutoff_enabled"] = kwargs["cutoff_enabled"]
+
+        if kwargs and tracker is not None and hasattr(tracker, "apply_policy"):
+            tracker.apply_policy(**kwargs)
 
     async def _apply_identity_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """Aplica nombre, propietario y coordenadas GPS."""

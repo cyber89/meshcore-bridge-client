@@ -222,7 +222,8 @@ class PacketBuffer:
 
     def generate_json(self) -> str:
         """Serializa todas las tramas en formato JSON estructurado."""
-        packets = [p.to_dict() for p in self._buffer]
+        snapshot = list(self._buffer)
+        packets = [p.to_dict() for p in snapshot]
         export_bundle = {
             "version": "1.0",
             "generator": "MeshCore Bridge v3.0 LoRa Sniffer",

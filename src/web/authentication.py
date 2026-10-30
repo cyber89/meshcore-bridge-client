@@ -152,9 +152,11 @@ class AuthenticationService:
 
     async def password_call[T](self, function: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         """Keep the one KDF slot reserved until a cancelled request's worker finishes."""
-        if self.password_work.locked():
-            raise LoginLimited("login_rate_limited")
-        await self.password_work.acquire()
+        try:
+            async with asyncio.timeout(2.5):
+                await self.password_work.acquire()
+        except TimeoutError:
+            raise LoginLimited("login_rate_limited") from None
         task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
         self._password_tasks.add(task)
 

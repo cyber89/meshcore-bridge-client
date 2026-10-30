@@ -696,14 +696,6 @@ class RxEventRouter:
             is_local_sender=is_local_sender,
         )
 
-        specialized_route_event = (
-            is_binary_response
-            or meta.ev_upper in ("PATH_UPDATE", "RX_LOG_DATA", "LOG_DATA", "BINARY_RESPONSE")
-            or payload_dict.get("event_type") in ("path_update", "rx_log_data", "log_data", "binary_response")
-        )
-        if sender and is_valid_node_key(sender) and not specialized_route_event:
-            self._update_node_registry_presence(meta, payload_dict)
-
         return payload_dict, meta
 
     @staticmethod
@@ -1064,6 +1056,28 @@ class RxEventRouter:
 
         if await self._is_deduplicated_mesh_msg(msg):
             return None
+
+        # Actualizar presencia y registrar paquete RX tras deduplicación
+        if msg.sender and is_valid_node_key(msg.sender) and not self._ctx.node_registry.is_local_key(msg.sender):
+            int_rssi = int(round(msg.rssi)) if msg.rssi is not None else None
+            self._ctx.node_registry.record_packet(
+                PacketRecord(
+                    public_key=msg.sender,
+                    is_rx=True,
+                    rssi=int_rssi,
+                    snr=msg.snr,
+                    hop_count=None,
+                )
+            )
+            self._ctx.node_registry.add_or_update(
+                msg.sender,
+                NodeContactUpdate(
+                    name=msg.sender_name if msg.sender_name and msg.sender_name != msg.sender else None,
+                    last_seen=time.time(),
+                    last_rssi=int_rssi,
+                    last_snr=msg.snr,
+                ),
+            )
 
         tagged_cli = bool(_TAGGED_CLI_RE.match(msg.text))
         # Scalar CLI replies need their request context; a password or latitude

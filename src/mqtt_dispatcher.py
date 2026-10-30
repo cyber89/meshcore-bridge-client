@@ -87,7 +87,7 @@ class MqttInboundDispatcher:
         max_inbound_tasks = getattr(config, "MAX_MQTT_INBOUND_TASKS", 50)
         token = object()
         with self._admission_lock:
-            current_tasks = max(0, len(self._ctx.background_tasks) - len(self._inbound_tasks)) + len(self._admission_tokens)
+            current_tasks = len(self._inbound_tasks) + len(self._admission_tokens)
             if self._closed or current_tasks >= max_inbound_tasks:
                 logging.warning("MQTT admission rejected: pending=%d, limit=%d, topic=%s", current_tasks, max_inbound_tasks, topic)
                 return
@@ -339,16 +339,16 @@ class MqttInboundDispatcher:
             await self.command_policy.record_result_async("mqtt", str(req_id) if req_id else None, outcome, status_payload)
             # bridge._execute_tx_transmission already published ack_payload to topic_tx_status for sent/delivered
 
-        except TimeoutError:
+        except (TimeoutError, asyncio.CancelledError):
             limiter = getattr(self._ctx, "rate_limiter", None)
-            if limiter and hasattr(limiter, "cancel_by_request_id"):
-                limiter.cancel_by_request_id(req_id)
-            elif hasattr(future, "cancel") and not future.done():
+            if limiter and hasattr(limiter, "cancel_by_request_id") and req_id:
+                limiter.cancel_by_request_id(str(req_id))
+            elif 'future' in locals() and hasattr(future, "cancel") and not future.done():
                 future.cancel()
-            logging.error("TX future timeout, activating diagnostic alert")
+            logging.error("TX future timeout or cancelled, recording uncertain outcome")
             status_payload = {
                 "status": "uncertain",
-                "error": "TX future timeout (dispatch outcome uncertain)",
+                "error": "TX future timeout or cancelled (dispatch outcome uncertain)",
                 "request_id": req_id,
                 "target": target,
                 "channel_idx": channel_idx,
@@ -356,6 +356,7 @@ class MqttInboundDispatcher:
             }
             await self.command_policy.record_result_async("mqtt", str(req_id) if req_id else None, CommandStatus.UNCERTAIN, status_payload)
             self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
+            raise
         except Exception as e:
             logging.error(f"TX execution error: {e}", exc_info=True)
             status_payload = {
