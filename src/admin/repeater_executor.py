@@ -981,8 +981,15 @@ class RepeaterAdminExecutor:
     ) -> dict[str, Any]:
         """Ejecuta un ping directo de 0 saltos y calcula RTT y métricas de señal."""
         force = bool(req.admin_data.get("force", False))
+        cfg = self._get_local_config()
+        sf_val = cfg.get("spreading_factor") or cfg.get("sf")
+        try:
+            sf_int = int(sf_val) if sf_val is not None else 12
+        except (ValueError, TypeError):
+            sf_int = 12
+
         if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_ping_cooldown"):
-            can_send, rem_cd = self._ctx.repeater_manager.check_ping_cooldown(str(req.target_node))
+            can_send, rem_cd = self._ctx.repeater_manager.check_ping_cooldown(str(req.target_node), spreading_factor=sf_int)
             if not can_send:
                 return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
@@ -991,7 +998,6 @@ class RepeaterAdminExecutor:
         target_name = str((target_info.get("name") or target_info.get("alias")) if target_info else f"Nodo {norm_target[:8]}")
 
         # Guarda contra bucle local (Regla Inmutable SSoT 1.1)
-        cfg = self._get_local_config()
         local_pk = str(cfg.get("public_key", "")).lower().strip()
         if local_pk and (norm_target == local_pk or norm_target.startswith(local_pk[:12])):
             return {
@@ -1016,7 +1022,7 @@ class RepeaterAdminExecutor:
                 t_start = time.perf_counter()
                 cmd_text = "ping 0"
                 if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_ping_sent"):
-                    self._ctx.repeater_manager.record_ping_sent(norm_target)
+                    self._ctx.repeater_manager.record_ping_sent(norm_target, spreading_factor=sf_int)
                     await self._flush_cooldowns()
                 await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
 
@@ -1039,6 +1045,10 @@ class RepeaterAdminExecutor:
         if resp_data:
             outcome = PingZeroOutcome(norm_target, target_name, resp_data, elapsed_rtt, cmd_text)
             return self._build_ping_zero_success(outcome, res)
+
+        if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_ping_sent"):
+            self._ctx.repeater_manager.record_ping_sent(norm_target, is_timeout=True, spreading_factor=sf_int)
+            await self._flush_cooldowns()
         return self._build_ping_zero_timeout(str(req.target_node), target_name, elapsed_rtt, res, cmd_text)
 
     def _build_ping_zero_success(self, outcome: PingZeroOutcome, res: dict[str, Any]) -> dict[str, Any]:
@@ -1054,6 +1064,9 @@ class RepeaterAdminExecutor:
             )
             self._ctx.node_registry.add_or_update(outcome.norm_target, NodeContactUpdate(last_rssi=rssi_val, last_snr=snr_back, hops=0))
 
+        asymmetric = abs(snr_there - snr_back) > 6.0
+        snr_delta = round(abs(snr_there - snr_back), 1)
+
         res.update({
             "status": "ok",
             "action": "ping_zero",
@@ -1067,6 +1080,8 @@ class RepeaterAdminExecutor:
             "snr": snr_back,
             "rssi": rssi_val,
             "reachable": True,
+            "asymmetric_link": asymmetric,
+            "snr_delta": snr_delta,
             "timestamp": int(time.time()),
             "message": f"Duration: {rtt_ms:.1f} ms, SNR there: {snr_there:.1f} dB, SNR back: {snr_back:.1f} dB",
             "cmd_dispatched": outcome.cmd_text,

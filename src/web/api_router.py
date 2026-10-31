@@ -682,8 +682,19 @@ class WebAPIRouter:
             return await self.repeater_ctrl.get_acl(req_body)
         if clean_path in ("/api/repeater/ping_zero", "/api/node/ping_zero") and method == "POST":
             return await self.repeater_ctrl.ping_zero(req_body)
-        if clean_path in ("/api/traceroute", "/api/repeater/traceroute") and method == "POST":
-            return await self.repeater_ctrl.traceroute(req_body)
+        if clean_path in ("/api/traceroute", "/api/repeater/traceroute"):
+            if method == "POST":
+                return await self.repeater_ctrl.traceroute(req_body)
+            if method == "GET":
+                return await self.repeater_ctrl.get_traceroute()
+
+        if clean_path.startswith("/api/repeater/traceroute/") and method == "GET":
+            target_pk = clean_path[len("/api/repeater/traceroute/"):].strip()
+            return await self.repeater_ctrl.get_traceroute(target_pk)
+
+        if clean_path.startswith("/api/traceroute/") and method == "GET":
+            target_pk = clean_path[len("/api/traceroute/"):].strip()
+            return await self.repeater_ctrl.get_traceroute(target_pk)
 
         repeater_routes = {
             "/api/admin",

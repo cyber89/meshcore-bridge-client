@@ -138,6 +138,14 @@ export class RepeaterModule {
       repQuickCmdFeedback: document.getElementById("repQuickCmdFeedback"),
       btnGoToTerminalTab: document.getElementById("btnGoToTerminalTab"),
       btnCloseRepeaterAdminModal: document.getElementById("btnCloseRepeaterAdminModal"),
+      btnRepDirectPing: document.getElementById("btnRepDirectPing"),
+      btnRepDirectViewOnMap: document.getElementById("btnRepDirectViewOnMap"),
+      repDirectRtt: document.getElementById("repDirectRtt"),
+      repDirectSnrBack: document.getElementById("repDirectSnrBack"),
+      repDirectSnrThere: document.getElementById("repDirectSnrThere"),
+      repDirectRssi: document.getElementById("repDirectRssi"),
+      repDirectAsymBadge: document.getElementById("repDirectAsymBadge"),
+      repDirectAsymDelta: document.getElementById("repDirectAsymDelta"),
     };
   }
 
@@ -156,6 +164,18 @@ export class RepeaterModule {
     for (const event of ["meshcore:auth_expired", "meshcore:credentials_changed", "meshcore:station_changed"]) {
       window.addEventListener(event, () => this._clearRemotePreferences());
     }
+
+    document.getElementById("btnRepDirectPing")?.addEventListener("click", () => this.executeDirectPing());
+    document.getElementById("btnRepDirectViewOnMap")?.addEventListener("click", () => {
+      const target = this.selectedRepeaterTarget;
+      if (!target) return;
+      this.closeRepeaterAdminModal();
+      const mapNavBtn = document.querySelector('[data-tab="tab-map"]');
+      if (mapNavBtn) mapNavBtn.click();
+      if (this.ctx?.drawDirectPingVector) {
+        this.ctx.drawDirectPingVector(target, this._lastDirectPingMetrics || {});
+      }
+    });
     // Rastreo de campos en borrador del modal de repetidor (F01, F11)
     const markDirty = (e) => {
       if (e.target && e.target.id) {
@@ -1227,6 +1247,33 @@ export class RepeaterModule {
 
     const clockEl = document.getElementById("repClockValue");
     if (clockEl) clockEl.textContent = node.clock || "--:--:--";
+    const directRttEl = document.getElementById("repDirectRtt");
+    const directSnrBackEl = document.getElementById("repDirectSnrBack");
+    const directSnrThereEl = document.getElementById("repDirectSnrThere");
+    const directRssiEl = document.getElementById("repDirectRssi");
+    const asymBadge = document.getElementById("repDirectAsymBadge");
+    const asymDeltaEl = document.getElementById("repDirectAsymDelta");
+
+    if (directRttEl) directRttEl.textContent = (node.last_rtt != null || node.rtt_ms != null) ? `${node.last_rtt || node.rtt_ms} ms` : "-- ms";
+    if (directSnrBackEl) {
+      const snrB = node.last_snr ?? node.snr;
+      directSnrBackEl.textContent = snrB != null ? `${snrB > 0 ? "+" : ""}${Number(snrB).toFixed(1)} dB` : "-- dB";
+    }
+    if (directSnrThereEl) {
+      const snrT = node.snr_there ?? node.last_snr ?? node.snr;
+      directSnrThereEl.textContent = snrT != null ? `${snrT > 0 ? "+" : ""}${Number(snrT).toFixed(1)} dB` : "-- dB";
+    }
+    if (directRssiEl) {
+      const rssiV = node.last_rssi ?? node.rssi;
+      directRssiEl.textContent = rssiV != null ? `${rssiV} dBm` : "-- dBm";
+    }
+    if (node.asymmetric_link && asymBadge && asymDeltaEl) {
+      asymBadge.classList.remove("d-none");
+      asymDeltaEl.textContent = String(node.snr_delta || 0);
+    } else if (asymBadge) {
+      asymBadge.classList.add("d-none");
+    }
+
     const uptimeEl = document.getElementById("repUptimeValue");
     if (uptimeEl) uptimeEl.textContent = node.uptime || "--";
     const seenEl = document.getElementById("repLastSeenValue");
@@ -2004,5 +2051,80 @@ export class RepeaterModule {
       this._modalPingInterval = null;
     }
   }
-}
 
+  async executeDirectPing() {
+    const target = this.selectedRepeaterTarget;
+    if (!target) return;
+    const btn = document.getElementById("btnRepDirectPing");
+    const originalText = btn ? btn.innerHTML : null;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<i class="bi bi-arrow-repeat spin me-1" aria-hidden="true"></i><span>Midiendo...</span>`;
+    }
+    try {
+      const res = await fetch("/api/node/ping_zero", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: target }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 429 || data.code === 429) {
+        const cd = data.cooldown_remaining || 15;
+        if (this.ctx.showToast) this.ctx.showToast(`Cooldown activo: ${cd}s restantes`, "warning");
+        this._startDirectPingCooldown(btn, cd, originalText);
+        return;
+      }
+      if (res.ok && data.status === "ok" && data.data) {
+        const d = data.data;
+        this._lastDirectPingMetrics = d;
+        const rttEl = document.getElementById("repDirectRtt");
+        const snrBackEl = document.getElementById("repDirectSnrBack");
+        const snrThereEl = document.getElementById("repDirectSnrThere");
+        const rssiEl = document.getElementById("repDirectRssi");
+        const asymBadge = document.getElementById("repDirectAsymBadge");
+        const asymDeltaEl = document.getElementById("repDirectAsymDelta");
+        if (rttEl) rttEl.textContent = d.rtt_ms != null ? `${d.rtt_ms} ms` : "--";
+        if (snrBackEl) snrBackEl.textContent = d.snr_back != null ? `${d.snr_back > 0 ? "+" : ""}${Number(d.snr_back).toFixed(1)} dB` : "--";
+        if (snrThereEl) snrThereEl.textContent = d.snr_there != null ? `${d.snr_there > 0 ? "+" : ""}${Number(d.snr_there).toFixed(1)} dB` : "--";
+        if (rssiEl) rssiEl.textContent = d.rssi != null ? `${d.rssi} dBm` : "--";
+        if (d.asymmetric_link && asymBadge && asymDeltaEl) {
+          asymBadge.classList.remove("d-none");
+          asymDeltaEl.textContent = String(d.snr_delta);
+        } else if (asymBadge) {
+          asymBadge.classList.add("d-none");
+        }
+        if (this.ctx.showToast) {
+          this.ctx.showToast(`🎯 Pong directo de ${this.selectedRepeaterName || target.slice(0, 8)}: ${d.rtt_ms} ms | SNR: ${d.snr_back} dB`, "success");
+        }
+        this._startDirectPingCooldown(btn, 15, originalText);
+      } else {
+        const msg = data.detail || data.message || "Sin respuesta";
+        if (this.ctx.showToast) this.ctx.showToast(`Ping fallido: ${msg}`, "warning");
+        this._startDirectPingCooldown(btn, 8, originalText);
+      }
+    } catch (e) {
+      if (this.ctx.showToast) this.ctx.showToast(`Error de conexión: ${e.message}`, "error");
+      if (btn && originalText) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+  }
+
+  _startDirectPingCooldown(btn, seconds, originalHtml) {
+    if (!btn) return;
+    btn.disabled = true;
+    let rem = Math.ceil(seconds);
+    const tick = () => {
+      if (rem <= 0) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml || '<i class="bi bi-bullseye me-1" aria-hidden="true"></i><span>Ping 0</span>';
+      } else {
+        btn.innerHTML = `<i class="bi bi-clock me-1" aria-hidden="true"></i><span>${rem}s</span>`;
+        rem--;
+        setTimeout(tick, 1000);
+      }
+    };
+    tick();
+  }
+}

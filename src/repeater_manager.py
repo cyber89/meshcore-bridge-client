@@ -301,7 +301,46 @@ class RepeaterManager:
         if is_full_query:
             self._record_persisted_ts("telemetry", clean_pk, now)
 
-    def check_ping_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
+    @staticmethod
+    def get_dynamic_cooldown(
+        op_type: str, spreading_factor: int | None = None, is_timeout: bool = False
+    ) -> float:
+        """Calcula el intervalo dinámico de cooldown según el Spreading Factor (SF) y resultado.
+
+        Escala:
+        - SF <= 7 (ShortFast): Ping = 10s, Traceroute = 40s
+        - SF 8..9 (Medium):   Ping = 15s, Traceroute = 60s
+        - SF >= 10 (LongRange/Slow): Ping = 25s, Traceroute = 120s
+
+        En caso de timeout/fallo (is_timeout=True), el cooldown hacia el nodo se reduce al 50%.
+        """
+        sf = int(spreading_factor) if spreading_factor is not None else 12
+        if op_type == "ping":
+            if sf <= 7:
+                base = 10.0
+            elif sf in (8, 9):
+                base = 15.0
+            else:
+                base = 25.0
+        elif op_type == "traceroute":
+            if sf <= 7:
+                base = 40.0
+            elif sf in (8, 9):
+                base = 60.0
+            else:
+                base = 120.0
+        elif op_type == "telemetry":
+            base = 30.0 if sf <= 9 else 60.0
+        else:
+            base = 5.0
+
+        if is_timeout:
+            return max(5.0, round(base * 0.5, 1))
+        return base
+
+    def check_ping_cooldown(
+        self, target_pk: str, is_automated: bool = False, spreading_factor: int | None = None
+    ) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown mínimo antes de enviar otro ping 0 a target_pk."""
         if is_automated and self.is_airtime_cutoff_active():
             return False, 999.0
@@ -310,15 +349,32 @@ class RepeaterManager:
         clean_pk = target_pk.strip().lower()
         last_ts = self._get_last_ts(self._last_ping_ts, clean_pk)
         elapsed = now - last_ts
-        if elapsed < self.min_ping_interval_s:
-            return False, round(self.min_ping_interval_s - elapsed, 1)
+        min_interval = (
+            self.get_dynamic_cooldown("ping", spreading_factor)
+            if spreading_factor is not None
+            else self.min_ping_interval_s
+        )
+        if elapsed < min_interval:
+            return False, round(min_interval - elapsed, 1)
         return True, 0.0
 
-    def record_ping_sent(self, target_pk: str) -> None:
-        """Registra la emisión de un ping 0 hacia target_pk."""
-        self._record_persisted_ts("ping", target_pk.strip().lower(), time.monotonic())
+    def record_ping_sent(
+        self, target_pk: str, is_timeout: bool = False, spreading_factor: int | None = None
+    ) -> None:
+        """Registra la emisión de un ping 0 hacia target_pk, ajustando cooldown si fue timeout."""
+        nominal = self.get_dynamic_cooldown("ping", spreading_factor, is_timeout=False)
+        effective = self.get_dynamic_cooldown("ping", spreading_factor, is_timeout=is_timeout)
+        discount = nominal - effective if is_timeout else 0.0
+        now_mono = time.monotonic() - discount
+        now_wall = time.time() - discount
+        clean_pk = target_pk.strip().lower()
+        self._record_ts(self._cooldown_maps()["ping"], clean_pk, now_mono)
+        self._record_ts(self._wall_timestamps["ping"], clean_pk, now_wall)
+        self._generation += 1
 
-    def check_traceroute_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
+    def check_traceroute_cooldown(
+        self, target_pk: str, is_automated: bool = False, spreading_factor: int | None = None
+    ) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown mínimo antes de iniciar otro traceroute a target_pk."""
         if is_automated and self.is_airtime_cutoff_active():
             return False, 999.0
@@ -327,13 +383,28 @@ class RepeaterManager:
         clean_pk = target_pk.strip().lower()
         last_ts = self._get_last_ts(self._last_traceroute_ts, clean_pk)
         elapsed = now - last_ts
-        if elapsed < self.min_traceroute_interval_s:
-            return False, round(self.min_traceroute_interval_s - elapsed, 1)
+        min_interval = (
+            self.get_dynamic_cooldown("traceroute", spreading_factor)
+            if spreading_factor is not None
+            else self.min_traceroute_interval_s
+        )
+        if elapsed < min_interval:
+            return False, round(min_interval - elapsed, 1)
         return True, 0.0
 
-    def record_traceroute_sent(self, target_pk: str) -> None:
-        """Registra la emisión de un traceroute hacia target_pk."""
-        self._record_persisted_ts("traceroute", target_pk.strip().lower(), time.monotonic())
+    def record_traceroute_sent(
+        self, target_pk: str, is_timeout: bool = False, spreading_factor: int | None = None
+    ) -> None:
+        """Registra la emisión de un traceroute hacia target_pk, ajustando cooldown si fue timeout."""
+        nominal = self.get_dynamic_cooldown("traceroute", spreading_factor, is_timeout=False)
+        effective = self.get_dynamic_cooldown("traceroute", spreading_factor, is_timeout=is_timeout)
+        discount = nominal - effective if is_timeout else 0.0
+        now_mono = time.monotonic() - discount
+        now_wall = time.time() - discount
+        clean_pk = target_pk.strip().lower()
+        self._record_ts(self._cooldown_maps()["traceroute"], clean_pk, now_mono)
+        self._record_ts(self._wall_timestamps["traceroute"], clean_pk, now_wall)
+        self._generation += 1
 
     def check_neighbours_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown antes de consultar vecinos de target_pk."""

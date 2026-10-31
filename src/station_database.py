@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 _SCHEMA_VERSION = 3
-_DOCUMENT_NAMES = frozenset({"nodes", "channels", "services", "airtime", "repeater_cooldowns"})
+_DOCUMENT_NAMES = frozenset({"nodes", "channels", "services", "airtime", "repeater_cooldowns", "traceroutes"})
 _MESSAGE_FIELDS = frozenset({
     "sender", "sender_name", "text", "is_outgoing", "channel_idx", "dm_target",
     "dm_target_name", "timestamp", "metrics", "quote", "location", "txt_type",

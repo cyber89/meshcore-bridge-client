@@ -4,12 +4,12 @@
   "assets": {
     "css/app.css": {
       "file": "css/app.min.css",
-      "source_sha256": "4164f506cd0dcf0e1def6a3f9ff9c505a6f63f54de3067a652789f2a828875e0",
-      "sha256": "dd6268a22e076e3484bd945b8ac9987289c94b10758ca71f067664fa8c0251bf",
-      "gzip_sha256": "8ef9700ab6a053483f139ba40fa6093bfe55286cb0e1cb09440fcad4ec875d90",
-      "source_bytes": 181599,
-      "bytes": 145095,
-      "gzip_bytes": 25720
+      "source_sha256": "a05190815518460ba4ff602acad67825d914a811e7410c319a5a017c09549c16",
+      "sha256": "c9eef9d2e0c9722582960e366888b27c2e28e33cd83a5391c4a316462405a5e7",
+      "gzip_sha256": "2983b3bf698d53f477175e8e4e948aebd96d76f4106083b0edb086f9beb38880",
+      "source_bytes": 186184,
+      "bytes": 148638,
+      "gzip_bytes": 26446
     },
     "css/bootstrap-icons.min.css": {
       "file": "css/bootstrap-icons.min.css",
@@ -58,21 +58,21 @@
     },
     "index.html": {
       "file": "index.html",
-      "source_sha256": "782d8cd9c993e863ce9408b5c34af4ebc5890f00e3c9c63cb14ad970e08d4a8b",
-      "sha256": "782d8cd9c993e863ce9408b5c34af4ebc5890f00e3c9c63cb14ad970e08d4a8b",
-      "gzip_sha256": "ae68161fcd7e52907677aa9a8415688941ded20589673c58b9565d240a446a12",
-      "source_bytes": 250139,
-      "bytes": 250139,
-      "gzip_bytes": 44630
+      "source_sha256": "d8ed408f6bb95150e002a08123d0ec5e4fa3a998941a425b794d3474c9338da8",
+      "sha256": "d8ed408f6bb95150e002a08123d0ec5e4fa3a998941a425b794d3474c9338da8",
+      "gzip_sha256": "87dfd90227f9a2735bbfd4951ebc1a90bc31337a036c33427a20fa7a4c020b54",
+      "source_bytes": 256914,
+      "bytes": 256914,
+      "gzip_bytes": 45931
     },
     "js/app.js": {
       "file": "js/app.min.js",
-      "source_sha256": "ecec5e7b2e9a5d09aa3b1fa155ca474577ef5c753eb133c2bf9debb15fbc5e8e",
-      "sha256": "099240e8978902786468482941ce59e259744492f73159508ddbae19d5e62d05",
-      "gzip_sha256": "8881cfbaeba004e407610a8b798ef8e55df922a0420170de7235467267f78125",
-      "source_bytes": 48839,
-      "bytes": 29276,
-      "gzip_bytes": 8575
+      "source_sha256": "bbb42d2728311a3712278dad7bf74a3102227546695aa416a7e57cbb65830b14",
+      "sha256": "afb083883f66c65593e12d68e053ea123db8cac48e7f8a146abd06b7fec42fe3",
+      "gzip_sha256": "e67f5149c5bdcb40d1babd72670fb7d16ef6684f807381fa7d218b72c6eda8ea",
+      "source_bytes": 49245,
+      "bytes": 29582,
+      "gzip_bytes": 8643
     },
     "js/bootstrap.bundle.min.js": {
       "file": "js/bootstrap.bundle.min.js",
@@ -229,12 +229,12 @@
     },
     "js/modules/map.js": {
       "file": "js/modules/map.min.js",
-      "source_sha256": "b6d242125b2055c53e75aa30d91a5cb54e9f06e898670266b0831db00214242b",
-      "sha256": "4deec9565e45c4f77aa22a11e09352e3638d50c839481d3c283daab3d834ab64",
-      "gzip_sha256": "83c3d8a2d1b3563293ce02983d4bb095a453c3045eaabdd667a98476b5e17cb5",
-      "source_bytes": 39307,
-      "bytes": 26340,
-      "gzip_bytes": 7611
+      "source_sha256": "54e2a4e7870bbc04c32858b5a34c2e9b054c2955e273223b0a1e1ad70c402e86",
+      "sha256": "d2363de7150fc46a67839b4f01620bf17af03548aed8e026ac9b8c387fd55150",
+      "gzip_sha256": "8f1f7a02063ca5727f7611cb6f74a8231df691c7a8e5301dce8482238ace5566",
+      "source_bytes": 56391,
+      "bytes": 37972,
+      "gzip_bytes": 10221
     },
     "js/modules/nodes.js": {
       "file": "js/modules/nodes.min.js",
@@ -247,12 +247,12 @@
     },
     "js/modules/repeater.js": {
       "file": "js/modules/repeater.min.js",
-      "source_sha256": "c12efee906cc45effffaa1625b9fbffaf5e117435ca6c4a7f77a35409ea84938",
-      "sha256": "5b3c8dec9a760b4d00196c2f9c00aa05ae2de53f6d9058383a81e0149eb5492f",
-      "gzip_sha256": "d95e90bd3723e4de2a583a5a48a6b8f3fe7fe9d79ed1e34237a3e45a3aed2897",
-      "source_bytes": 96152,
-      "bytes": 62027,
-      "gzip_bytes": 14511
+      "source_sha256": "87d758278112b381c071bc327254c8af96100c78e533a409e850244bdbd54974",
+      "sha256": "f2222ea042a5d1cd9dc2a605496c8a9dd2a77611bc6a6e14497e013f66be206b",
+      "gzip_sha256": "56565a6a5ccb318be38aa842c383d88b43a077155b8302cfd58c5b7a9613e3b6",
+      "source_bytes": 102184,
+      "bytes": 66070,
+      "gzip_bytes": 15333
     },
     "js/modules/settings.js": {
       "file": "js/modules/settings.min.js",

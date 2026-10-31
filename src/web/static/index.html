@@ -344,6 +344,62 @@
                 </label>
               </div>
             </div>
+                        <!-- HUD Flotante de Trazado de Ruta / Diagnóstico RF -->
+            <div class="map-route-hud d-none" id="mapRouteHud" role="region" aria-label="Diagnóstico de Ruta LoRa">
+              <div class="map-route-hud-header">
+                <h4 class="map-route-hud-title">
+                  <i class="bi bi-diagram-3 text-info" aria-hidden="true"></i>
+                  <span id="routeHudTargetName">Destino</span>
+                </h4>
+                <div class="map-route-hud-actions">
+                  <button type="button" class="btn btn-icon btn-sm" id="btnToggleRouteHudCollapse" title="Colapsar panel" aria-label="Colapsar panel"><i class="bi bi-chevron-up" aria-hidden="true"></i></button>
+                  <button type="button" class="btn btn-icon btn-sm" id="btnClearMapRoute" title="Limpiar ruta del mapa" aria-label="Limpiar ruta"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                </div>
+              </div>
+              <div class="map-route-hud-body" id="mapRouteHudBody">
+                <div id="routeHudBrokenAlert" class="map-route-broken-alert d-none">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                  <span id="routeHudBrokenText">Ruta interrumpida</span>
+                </div>
+                <div class="map-route-hud-metrics">
+                  <div>
+                    <span class="map-route-hud-metric-label" data-i18n="map.trace_col_hop">Saltos</span>
+                    <span class="map-route-hud-metric-val" id="routeHudHopsVal">0</span>
+                  </div>
+                  <div>
+                    <span class="map-route-hud-metric-label">RTT</span>
+                    <span class="map-route-hud-metric-val" id="routeHudRttVal">-- ms</span>
+                  </div>
+                  <div>
+                    <span class="map-route-hud-metric-label">SNR</span>
+                    <span class="map-route-hud-metric-val" id="routeHudSnrVal">-- dB</span>
+                  </div>
+                </div>
+                <div class="map-route-legend">
+                  <div class="map-route-legend-item">
+                    <span class="map-route-legend-dot" style="background:#10b981;"></span>
+                    <span>SNR ≥ +2 dB (Excelente)</span>
+                  </div>
+                  <div class="map-route-legend-item">
+                    <span class="map-route-legend-dot" style="background:#f59e0b;"></span>
+                    <span>-5 a +2 dB (Aceptable)</span>
+                  </div>
+                  <div class="map-route-legend-item">
+                    <span class="map-route-legend-dot" style="background:#ef4444;"></span>
+                    <span>&lt; -5 dB (Marginal / Débil)</span>
+                  </div>
+                  <div id="routeHudNoGpsWarning" class="map-route-legend-item text-warning d-none">
+                    <i class="bi bi-geo-alt-slash" aria-hidden="true"></i>
+                    <span id="routeHudNoGpsCount">0 saltos sin GPS</span>
+                  </div>
+                </div>
+                <div class="map-route-hud-buttons">
+                  <button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnRouteHudPingHop1"><i class="bi bi-bullseye me-1"></i>Probar Salto 1</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnToggleRouteVisibility"><i class="bi bi-eye-slash me-1"></i>Ocultar</button>
+                </div>
+              </div>
+            </div>
+
             <div class="map-overlay-info" id="mapOverlayInfo">
               <div class="map-overlay-header" id="mapOverlayHeader">
                 <div class="map-overlay-title-group">
@@ -2419,6 +2475,45 @@
 
           <!-- Subpanel 1: Info General, Métricas y Telemetría Completa -->
           <div id="rep-info" class="repeater-subpanel active">
+            <!-- Widget de Enlace RF Directo (Hop 0) -->
+            <div class="rep-direct-link-card" id="repDirectLinkCard">
+              <div class="rep-direct-link-header">
+                <h4 class="rep-direct-link-title">
+                  <i class="bi bi-broadcast text-primary" aria-hidden="true"></i>
+                  <span>Enlace RF Directo (Hop 0)</span>
+                  <span id="repDirectAsymBadge" class="asymmetric-badge d-none" title="Diferencia de SNR ida/vuelta > 6 dB">
+                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Desbalance RF (<span id="repDirectAsymDelta">0</span> dB)
+                  </span>
+                </h4>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-outline-info btn-sm" id="btnRepDirectViewOnMap" title="Ver enlace en mapa cartográfico">
+                    <i class="bi bi-geo-alt me-1" aria-hidden="true"></i><span>Mapa</span>
+                  </button>
+                  <button type="button" class="btn btn-primary btn-sm" id="btnRepDirectPing" title="Enviar ping directo de 0 saltos">
+                    <i class="bi bi-bullseye me-1" aria-hidden="true"></i><span class="btn-text">Ping 0</span>
+                  </button>
+                </div>
+              </div>
+              <div class="rep-direct-link-grid">
+                <div class="rep-direct-stat">
+                  <span class="rep-direct-stat-label">RTT</span>
+                  <span class="rep-direct-stat-value text-info" id="repDirectRtt">-- ms</span>
+                </div>
+                <div class="rep-direct-stat">
+                  <span class="rep-direct-stat-label">SNR Vuelta (RX)</span>
+                  <span class="rep-direct-stat-value text-success" id="repDirectSnrBack">-- dB</span>
+                </div>
+                <div class="rep-direct-stat">
+                  <span class="rep-direct-stat-label">SNR Ida (TX)</span>
+                  <span class="rep-direct-stat-value text-success" id="repDirectSnrThere">-- dB</span>
+                </div>
+                <div class="rep-direct-stat">
+                  <span class="rep-direct-stat-label">RSSI</span>
+                  <span class="rep-direct-stat-value text-warning" id="repDirectRssi">-- dBm</span>
+                </div>
+              </div>
+            </div>
+
             <div class="info-grid info-grid-extended">
               <div class="metric-card">
                 <div class="card-icon"><i class="bi bi-battery-half" aria-hidden="true"></i></div>
@@ -2969,6 +3064,14 @@
             </table>
           </div>
           <p class="field-hint" data-i18n="map.trace_measurement_hint">El SNR puede proceder de la última lectura conocida; el RTT solo se muestra donde está disponible. — indica un valor desconocido.</p>
+        </div>
+        <div class="modal-footer d-flex justify-content-between align-items-center pt-2">
+          <div id="traceModalFailureHint" class="text-danger small d-none"><i class="bi bi-exclamation-triangle me-1"></i><span id="traceModalFailureMsg"></span></div>
+          <div class="d-flex gap-2 ms-auto">
+            <button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnTracePingHop1"><i class="bi bi-bullseye me-1" aria-hidden="true"></i><span data-i18n="map.ping_hop1">Probar Salto 1</span></button>
+            <button type="button" class="btn btn-outline-info btn-sm" id="btnTracePlotOnMap" disabled><i class="bi bi-geo-alt me-1" aria-hidden="true"></i><span data-i18n="map.plot_on_map">Trazar en Mapa</span></button>
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" data-i18n="modal.close">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>

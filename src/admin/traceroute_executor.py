@@ -51,13 +51,20 @@ class TracerouteExecutor:
         if manual_info is not None:
             manual_info = dict(manual_info)
         force = bool(admin_data.get("force", False))
+        local_cfg = self._get_local_config()
+        sf_val = local_cfg.get("spreading_factor") or local_cfg.get("sf")
+        try:
+            sf_int = int(sf_val) if sf_val is not None else 12
+        except (ValueError, TypeError):
+            sf_int = 12
+
         rep_mgr = getattr(self._ctx, "repeater_manager", None)
         if rep_mgr is not None and hasattr(rep_mgr, "load_state"):
             loading = rep_mgr.load_state()
             if asyncio.iscoroutine(loading):
                 await loading
         if not force and rep_mgr is not None and hasattr(rep_mgr, "check_traceroute_cooldown"):
-            chk_result = rep_mgr.check_traceroute_cooldown(target_str)
+            chk_result = rep_mgr.check_traceroute_cooldown(target_str, spreading_factor=sf_int)
             if isinstance(chk_result, tuple) and len(chk_result) >= 2:
                 can_send, rem_cd = chk_result[0], chk_result[1]
                 if not can_send:
@@ -91,7 +98,7 @@ class TracerouteExecutor:
         trace_waiter: asyncio.Task[Any] | None = None
         try:
             if rep_mgr is not None and hasattr(rep_mgr, "record_traceroute_sent"):
-                rep_mgr.record_traceroute_sent(target_str)
+                rep_mgr.record_traceroute_sent(target_str, spreading_factor=sf_int)
                 if hasattr(rep_mgr, "flush_state"):
                     writing = rep_mgr.flush_state()
                     if asyncio.iscoroutine(writing):
@@ -114,7 +121,47 @@ class TracerouteExecutor:
                 if trace_ev and hasattr(trace_ev, "payload") and isinstance(trace_ev.payload, dict):
                     trace_data_payload = trace_ev.payload
             if trace_data_payload is None:
-                return {"status": "error", "action": "traceroute", "target_node": target_str, "timeout": True, "message": "Sin respuesta TRACE_DATA del firmware"}
+                if rep_mgr is not None and hasattr(rep_mgr, "record_traceroute_sent"):
+                    rep_mgr.record_traceroute_sent(target_str, is_timeout=True, spreading_factor=sf_int)
+                    if hasattr(rep_mgr, "flush_state"):
+                        writing = rep_mgr.flush_state()
+                        if asyncio.iscoroutine(writing):
+                            await writing
+                rem_cd = (
+                    rep_mgr.check_traceroute_cooldown(target_str, spreading_factor=sf_int)[1]
+                    if rep_mgr is not None and hasattr(rep_mgr, "check_traceroute_cooldown")
+                    else 30.0
+                )
+                projected_hops = self._build_hops_breakdown(path_list, str(target_node), 0.0, None)
+                first_hop_key = path_list[0] if path_list else None
+                first_hop_info = self._find_node_info(first_hop_key) if first_hop_key else None
+                first_hop_name = (
+                    (first_hop_info.get("name") or first_hop_info.get("alias"))
+                    if first_hop_info
+                    else (first_hop_key[:8] if first_hop_key else None)
+                )
+                res.update({
+                    "status": "error",
+                    "action": "traceroute",
+                    "target_node": target_str,
+                    "timeout": True,
+                    "message": "Sin respuesta TRACE_DATA del firmware (tiempo de espera agotado)",
+                    "path": path_list,
+                    "hops_breakdown": projected_hops,
+                    "failed_at_hop": max(1, len(projected_hops) - 1),
+                    "first_hop": first_hop_key,
+                    "first_hop_name": first_hop_name,
+                    "cooldown_remaining": rem_cd,
+                })
+                res_json = json.dumps(res)
+                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", res_json, 1)
+                self._publish_safe(config.TOPIC_ADMIN_STAT, res_json, 1)
+                if self._ctx.web_server:
+                    try:
+                        await self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res})
+                    except Exception as e:
+                        logging.warning(f"Error difundiendo trace_data a la WebUI: {e}")
+                return res
         except Exception as error:
             return {"status": "error", "action": "traceroute", "target_node": target_str, "message": str(error)}
         finally:
@@ -126,6 +173,19 @@ class TracerouteExecutor:
 
         hops_breakdown = self._build_hops_breakdown(path_list, str(target_node), rtt_ms, trace_data_payload)
 
+        snr_there = None
+        snr_back = None
+        if len(hops_breakdown) >= 2:
+            snr_there = hops_breakdown[-1].get("snr")
+            snr_back = hops_breakdown[0].get("snr")
+
+        asymmetric_link = False
+        snr_delta = 0.0
+        if snr_there is not None and snr_back is not None:
+            snr_delta = round(abs(float(snr_there) - float(snr_back)), 1)
+            if snr_delta > 6.0:
+                asymmetric_link = True
+
         res.update({
             "status": "ok",
             "action": "traceroute",
@@ -136,7 +196,33 @@ class TracerouteExecutor:
             "hops_breakdown": hops_breakdown,
             "timestamp": int(time.time()),
             "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
+            "asymmetric_link": asymmetric_link,
+            "snr_delta": snr_delta,
+            "snr_there": snr_there,
+            "snr_back": snr_back,
         })
+
+        db = getattr(rep_mgr, "database", None)
+        if db is not None:
+            try:
+                traces_doc = db.read_document("traceroutes") or {}
+                if not isinstance(traces_doc, dict):
+                    traces_doc = {}
+                traces_doc[target_str.lower()] = {
+                    "target_node": str(target_node),
+                    "path": path_list,
+                    "total_hops": len(hops_breakdown) - 1,
+                    "total_rtt_ms": rtt_ms,
+                    "hops_breakdown": hops_breakdown,
+                    "timestamp": int(time.time()),
+                    "asymmetric_link": asymmetric_link,
+                    "snr_delta": snr_delta,
+                    "snr_there": snr_there,
+                    "snr_back": snr_back,
+                }
+                db.write_document("traceroutes", traces_doc)
+            except Exception as db_err:
+                logging.warning("Error persistiendo traceroute en StationDatabase: %s", db_err)
 
         res_json = json.dumps(res)
         self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", res_json, 1)

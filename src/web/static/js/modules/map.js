@@ -103,6 +103,24 @@ export class MapModule {
       traceStatusPill: document.getElementById("traceStatusPill"),
       traceVisualGraph: document.getElementById("traceVisualGraph"),
       traceBreakdownTableBody: document.getElementById("traceBreakdownTableBody"),
+      mapRouteHud: document.getElementById("mapRouteHud"),
+      routeHudTargetName: document.getElementById("routeHudTargetName"),
+      btnToggleRouteHudCollapse: document.getElementById("btnToggleRouteHudCollapse"),
+      btnClearMapRoute: document.getElementById("btnClearMapRoute"),
+      mapRouteHudBody: document.getElementById("mapRouteHudBody"),
+      routeHudBrokenAlert: document.getElementById("routeHudBrokenAlert"),
+      routeHudBrokenText: document.getElementById("routeHudBrokenText"),
+      routeHudHopsVal: document.getElementById("routeHudHopsVal"),
+      routeHudRttVal: document.getElementById("routeHudRttVal"),
+      routeHudSnrVal: document.getElementById("routeHudSnrVal"),
+      routeHudNoGpsWarning: document.getElementById("routeHudNoGpsWarning"),
+      routeHudNoGpsCount: document.getElementById("routeHudNoGpsCount"),
+      btnRouteHudPingHop1: document.getElementById("btnRouteHudPingHop1"),
+      btnToggleRouteVisibility: document.getElementById("btnToggleRouteVisibility"),
+      btnTracePlotOnMap: document.getElementById("btnTracePlotOnMap"),
+      btnTracePingHop1: document.getElementById("btnTracePingHop1"),
+      traceModalFailureHint: document.getElementById("traceModalFailureHint"),
+      traceModalFailureMsg: document.getElementById("traceModalFailureMsg"),
     };
   }
 
@@ -560,6 +578,37 @@ export class MapModule {
         this.executeTraceroute();
       });
     }
+
+    if (this.dom.btnTracePlotOnMap) {
+      this.dom.btnTracePlotOnMap.addEventListener("click", () => {
+        if (this.dom.tracerouteModal) this.dom.tracerouteModal.classList.add("hidden");
+        const mapNavBtn = document.querySelector('[data-tab="tab-map"]');
+        if (mapNavBtn) mapNavBtn.click();
+        if (this._lastTraceData) {
+          this.drawTraceroutePath(this._lastTraceData);
+        }
+      });
+    }
+
+    const handlePingHop1 = (btn) => {
+      const hopKey = btn?.dataset?.hop1;
+      if (hopKey && this.ctx?.pingNode) {
+        this.ctx.pingNode(hopKey, btn.dataset.hop1Name || hopKey.slice(0, 8), btn);
+      }
+    };
+
+    this.dom.btnTracePingHop1?.addEventListener("click", () => handlePingHop1(this.dom.btnTracePingHop1));
+    this.dom.btnRouteHudPingHop1?.addEventListener("click", () => handlePingHop1(this.dom.btnRouteHudPingHop1));
+
+    this.dom.btnToggleRouteHudCollapse?.addEventListener("click", () => {
+      this._isRouteHudCollapsed = !this._isRouteHudCollapsed;
+      this.dom.mapRouteHud?.classList.toggle("collapsed", this._isRouteHudCollapsed);
+      const icon = this.dom.btnToggleRouteHudCollapse?.querySelector("i");
+      if (icon) icon.className = this._isRouteHudCollapsed ? "bi bi-chevron-down" : "bi bi-chevron-up";
+    });
+
+    this.dom.btnClearMapRoute?.addEventListener("click", () => this.clearTraceroutePath());
+    this.dom.btnToggleRouteVisibility?.addEventListener("click", () => this.toggleRouteVisibility());
   }
 
   openTracerouteModal(targetNode, targetName) {
@@ -617,6 +666,10 @@ export class MapModule {
       if (!isCurrent()) return;
       if (data.status === "ok" && data.data) {
         const trace = data.data;
+        this._lastTraceData = trace;
+        if (this.dom.btnTracePlotOnMap) this.dom.btnTracePlotOnMap.disabled = false;
+        if (this.dom.traceModalFailureHint) this.dom.traceModalFailureHint.classList.add("d-none");
+        if (this.dom.btnTracePingHop1) this.dom.btnTracePingHop1.classList.add("d-none");
         if (this.dom.traceStatusPill) {
           I18n.setText(this.dom.traceStatusPill, 'map.trace_completed', { hops: trace.total_hops || 0, rtt: trace.total_rtt_ms || 0 });
           this.dom.traceStatusPill.className = "trace-status-pill success";
@@ -625,6 +678,22 @@ export class MapModule {
         this.renderTracerouteTable(trace.hops_breakdown || []);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.trace_completed', { hops: trace.total_hops || 0, rtt: trace.total_rtt_ms || 0 }), "success");
       } else {
+        const trace = data.data || data;
+        this._lastTraceData = trace;
+        if (trace && trace.hops_breakdown && trace.hops_breakdown.length > 0) {
+          this.renderTracerouteGraph(trace.hops_breakdown);
+          this.renderTracerouteTable(trace.hops_breakdown);
+          if (this.dom.btnTracePlotOnMap) this.dom.btnTracePlotOnMap.disabled = false;
+        }
+        if (trace.first_hop && this.dom.btnTracePingHop1) {
+          this.dom.btnTracePingHop1.classList.remove("d-none");
+          this.dom.btnTracePingHop1.dataset.hop1 = trace.first_hop;
+          this.dom.btnTracePingHop1.dataset.hop1Name = trace.first_hop_name || trace.first_hop.slice(0, 8);
+        }
+        if (this.dom.traceModalFailureHint && this.dom.traceModalFailureMsg) {
+          this.dom.traceModalFailureHint.classList.remove("d-none");
+          this.dom.traceModalFailureMsg.textContent = data.message || "Timeout de respuesta";
+        }
         if (this.dom.traceStatusPill) {
           I18n.setText(this.dom.traceStatusPill, 'map.trace_failed');
           this.dom.traceStatusPill.className = "trace-status-pill error";
@@ -963,5 +1032,334 @@ export class MapModule {
       this.map = null;
     }
     this.mapMarkers?.clear();
+  }
+
+  getNodeCoordinates(key) {
+    if (!key) return null;
+    const cleanKey = String(key).toLowerCase().trim();
+    if (cleanKey === "local") return this.getLocalNodeCoordinates();
+
+    if (this.ctx?.knownNodes) {
+      let node = this.ctx.knownNodes.get(cleanKey);
+      if (!node) {
+        for (const [pk, n] of this.ctx.knownNodes.entries()) {
+          if (pk.startsWith(cleanKey) || cleanKey.startsWith(pk)) {
+            node = n;
+            break;
+          }
+        }
+      }
+      if (node) {
+        const rawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
+        const rawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
+        const lat = parseFloat(rawLat);
+        const lon = parseFloat(rawLon);
+        if (this._isValidCoords(lat, lon)) {
+          return { lat, lon, name: node.name || node.alias || cleanKey.slice(0, 8), node };
+        }
+      }
+    }
+    return null;
+  }
+
+  drawTraceroutePath(traceData) {
+    if (!traceData) return;
+    this.ensureMapInitialized();
+    if (!this.map) return;
+
+    this._currentTraceData = traceData;
+    this._isRouteVisible = true;
+
+    if (!this._traceLayerGroup) {
+      this._traceLayerGroup = L.layerGroup().addTo(this.map);
+    } else {
+      this._traceLayerGroup.clearLayers();
+    }
+
+    const hops = Array.isArray(traceData.hops_breakdown) ? traceData.hops_breakdown : [];
+    if (hops.length === 0) return;
+
+    const positionedHops = [];
+    const unpositionedHops = [];
+
+    hops.forEach((hop, idx) => {
+      const isStart = idx === 0;
+      const coords = isStart ? this.getLocalNodeCoordinates() : this.getNodeCoordinates(hop.pubkey || hop.key || hop.name);
+      if (coords && this._isValidCoords(coords.lat, coords.lon)) {
+        positionedHops.push({ ...hop, lat: coords.lat, lon: coords.lon, resolvedName: coords.name || hop.name });
+      } else {
+        unpositionedHops.push({ ...hop, hop_index: idx });
+      }
+    });
+
+    const routeLatLngs = [];
+    const isTimeout = Boolean(traceData.timeout || traceData.status === "error");
+    const failedHopIdx = traceData.failed_at_hop || (hops.length - 1);
+
+    for (let i = 0; i < positionedHops.length - 1; i++) {
+      const p1 = positionedHops[i];
+      const p2 = positionedHops[i + 1];
+      const segmentCoords = [[p1.lat, p1.lon], [p2.lat, p2.lon]];
+      routeLatLngs.push([p1.lat, p1.lon]);
+
+      const segSnr = p2.snr != null ? Number(p2.snr) : (p1.snr != null ? Number(p1.snr) : null);
+      let segColor = "#10b981";
+      if (segSnr == null || segSnr < -5) {
+        segColor = "#ef4444";
+      } else if (segSnr < 2) {
+        segColor = "#f59e0b";
+      }
+
+      const isBrokenSegment = isTimeout && (i === positionedHops.length - 2 || p2.hop_index >= failedHopIdx);
+      if (isBrokenSegment) {
+        segColor = "#ef4444";
+      }
+
+      const basePolyline = L.polyline(segmentCoords, {
+        color: segColor,
+        weight: isBrokenSegment ? 4 : 5,
+        opacity: isBrokenSegment ? 0.75 : 0.85,
+        dashArray: isBrokenSegment ? "6, 6" : null,
+      });
+
+      if (!isBrokenSegment) {
+        const flowPolyline = L.polyline(segmentCoords, {
+          color: "#ffffff",
+          weight: 2,
+          opacity: 0.9,
+          className: "leaflet-polyline-flow",
+        });
+        flowPolyline.addTo(this._traceLayerGroup);
+      }
+
+      const snrLabel = segSnr != null ? `${segSnr > 0 ? "+" : ""}${segSnr.toFixed(1)} dB` : "--";
+      const rttPart = p2.rtt_ms != null ? `${p2.rtt_ms} ms` : (traceData.total_rtt_ms ? `~${traceData.total_rtt_ms} ms` : "--");
+      const asymBadge = (traceData.asymmetric_link && (i === positionedHops.length - 2))
+        ? `<div class="asymmetric-badge mt-1"><i class="bi bi-exclamation-triangle"></i> Desbalance RF (${traceData.snr_delta} dB)</div>`
+        : "";
+
+      const popupContent = `
+        <div class="custom-map-popup">
+          <div class="popup-title">
+            <i class="bi bi-diagram-3 me-1"></i> <strong>Tramo: ${escapeHtml(p1.resolvedName || "Hop " + i)} ➔ ${escapeHtml(p2.resolvedName || "Hop " + (i + 1))}</strong>
+          </div>
+          <div class="popup-info">
+            <div><span>SNR Tramo:</span> <strong>${escapeHtml(snrLabel)}</strong></div>
+            <div><span>RTT Acumulado:</span> <strong>${escapeHtml(String(rttPart))}</strong></div>
+            ${isBrokenSegment ? '<div class="text-danger fw-bold"><i class="bi bi-x-circle me-1"></i>Tramo interrumpido / sin retorno</div>' : ''}
+            ${asymBadge}
+          </div>
+        </div>
+      `;
+      basePolyline.bindPopup(popupContent);
+      basePolyline.addTo(this._traceLayerGroup);
+    }
+
+    if (positionedHops.length > 0) {
+      routeLatLngs.push([positionedHops[positionedHops.length - 1].lat, positionedHops[positionedHops.length - 1].lon]);
+    }
+
+    positionedHops.forEach((hop, idx) => {
+      const isStart = idx === 0;
+      const isTarget = idx === positionedHops.length - 1;
+      const isBroken = isTimeout && isTarget;
+
+      let markerSymbol = isStart ? "🏠" : (isBroken ? "❌" : (isTarget ? "🎯" : `#${idx}`));
+      let markerBg = isStart ? "#10b981" : (isBroken ? "#ef4444" : (isTarget ? "#0ea5e9" : "#8b5cf6"));
+
+      const hopIcon = L.divIcon({
+        className: "custom-leaflet-marker",
+        html: `<div style="background: ${markerBg}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 8px ${markerBg}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: white;">${markerSymbol}</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      const marker = L.marker([hop.lat, hop.lon], { icon: hopIcon });
+      marker.bindPopup(`
+        <div class="custom-map-popup">
+          <div class="popup-title"><strong>Salto #${idx}: ${escapeHtml(hop.resolvedName || hop.name || "Nodo")}</strong></div>
+          <div class="popup-info">
+            <div><span>Rol:</span> <strong>${escapeHtml(hop.role || "DESCONOCIDO")}</strong></div>
+            <div><span>Clave:</span> <code>${escapeHtml(String(hop.pubkey || "").slice(0, 10))}...</code></div>
+            ${hop.snr != null ? `<div><span>SNR:</span> <strong>${hop.snr} dB</strong></div>` : ""}
+            ${isBroken ? '<div class="text-danger mt-1">⚠️ Sin respuesta de este salto</div>' : ''}
+          </div>
+        </div>
+      `);
+      marker.addTo(this._traceLayerGroup);
+    });
+
+    if (routeLatLngs.length > 0) {
+      this.map.fitBounds(L.latLngBounds(routeLatLngs), { padding: [60, 60], maxZoom: 15 });
+    }
+
+    this.renderRouteHud(traceData, unpositionedHops);
+  }
+
+  renderRouteHud(traceData, unpositionedHops = []) {
+    if (!this.dom.mapRouteHud) return;
+
+    this.dom.mapRouteHud.classList.remove("d-none");
+    if (this.dom.routeHudTargetName) {
+      this.dom.routeHudTargetName.textContent = traceData.target_node ? (this.selectedTraceName || traceData.target_node.slice(0, 8)) : "Destino";
+    }
+    if (this.dom.routeHudHopsVal) {
+      this.dom.routeHudHopsVal.textContent = traceData.total_hops != null ? String(traceData.total_hops) : String(traceData.path?.length || 0);
+    }
+    if (this.dom.routeHudRttVal) {
+      this.dom.routeHudRttVal.textContent = traceData.total_rtt_ms != null ? `${traceData.total_rtt_ms} ms` : "--";
+    }
+    if (this.dom.routeHudSnrVal) {
+      const avgSnr = traceData.snr_there ?? traceData.snr_back ?? (traceData.hops_breakdown?.[1]?.snr);
+      this.dom.routeHudSnrVal.textContent = avgSnr != null ? `${avgSnr > 0 ? "+" : ""}${Number(avgSnr).toFixed(1)} dB` : "--";
+    }
+
+    const isTimeout = Boolean(traceData.timeout || traceData.status === "error");
+    if (this.dom.routeHudBrokenAlert) {
+      if (isTimeout) {
+        this.dom.routeHudBrokenAlert.classList.remove("d-none");
+        if (this.dom.routeHudBrokenText) {
+          this.dom.routeHudBrokenText.textContent = traceData.message || "Ruta interrumpida sin respuesta";
+        }
+      } else {
+        this.dom.routeHudBrokenAlert.classList.add("d-none");
+      }
+    }
+
+    if (this.dom.routeHudNoGpsWarning && this.dom.routeHudNoGpsCount) {
+      if (unpositionedHops.length > 0) {
+        this.dom.routeHudNoGpsWarning.classList.remove("d-none");
+        this.dom.routeHudNoGpsCount.textContent = `${unpositionedHops.length} salto(s) sin GPS (en tránsito)`;
+      } else {
+        this.dom.routeHudNoGpsWarning.classList.add("d-none");
+      }
+    }
+
+    if (this.dom.btnRouteHudPingHop1) {
+      if (isTimeout && traceData.first_hop) {
+        this.dom.btnRouteHudPingHop1.classList.remove("d-none");
+        this.dom.btnRouteHudPingHop1.dataset.hop1 = traceData.first_hop;
+        this.dom.btnRouteHudPingHop1.dataset.hop1Name = traceData.first_hop_name || traceData.first_hop.slice(0, 8);
+      } else {
+        this.dom.btnRouteHudPingHop1.classList.add("d-none");
+      }
+    }
+  }
+
+  clearTraceroutePath() {
+    if (this._traceLayerGroup) {
+      this._traceLayerGroup.clearLayers();
+    }
+    if (this.dom.mapRouteHud) {
+      this.dom.mapRouteHud.classList.add("d-none");
+    }
+    this._currentTraceData = null;
+  }
+
+  toggleRouteVisibility() {
+    if (!this._traceLayerGroup || !this.map) return;
+    this._isRouteVisible = !this._isRouteVisible;
+    if (this._isRouteVisible) {
+      this._traceLayerGroup.addTo(this.map);
+      if (this.dom.btnToggleRouteVisibility) {
+        this.dom.btnToggleRouteVisibility.innerHTML = '<i class="bi bi-eye-slash me-1"></i>Ocultar';
+      }
+    } else {
+      this.map.removeLayer(this._traceLayerGroup);
+      if (this.dom.btnToggleRouteVisibility) {
+        this.dom.btnToggleRouteVisibility.innerHTML = '<i class="bi bi-eye me-1"></i>Mostrar';
+      }
+    }
+  }
+
+  drawDirectPingVector(targetPk, metrics = {}) {
+    if (!targetPk) return;
+    this.ensureMapInitialized();
+    if (!this.map) return;
+
+    if (!this._directPingLayerGroup) {
+      this._directPingLayerGroup = L.layerGroup().addTo(this.map);
+    } else {
+      this._directPingLayerGroup.clearLayers();
+    }
+
+    const localCoords = this.getLocalNodeCoordinates();
+    const targetCoords = this.getNodeCoordinates(targetPk);
+
+    if (!localCoords || !targetCoords) {
+      if (this.ctx?.showToast) {
+        this.ctx.showToast("No se puede trazar el vector directo: faltan coordenadas GPS del nodo o de la estación local", "warning");
+      }
+      return;
+    }
+
+    const rtt = metrics.rtt_ms != null ? `${metrics.rtt_ms} ms` : "--";
+    const snrBack = metrics.snr_back ?? metrics.snr;
+    const snrThere = metrics.snr_there ?? snrBack;
+    const rssi = metrics.rssi != null ? `${metrics.rssi} dBm` : "--";
+
+    let lineColor = "#10b981";
+    if (snrBack != null && Number(snrBack) < -5) lineColor = "#ef4444";
+    else if (snrBack != null && Number(snrBack) < 2) lineColor = "#f59e0b";
+
+    const coords = [[localCoords.lat, localCoords.lon], [targetCoords.lat, targetCoords.lon]];
+
+    const line = L.polyline(coords, {
+      color: lineColor,
+      weight: 4,
+      opacity: 0.85,
+      dashArray: "6, 6",
+    });
+
+    const flowLine = L.polyline(coords, {
+      color: "#ffffff",
+      weight: 2,
+      opacity: 0.9,
+      className: "leaflet-polyline-flow",
+    });
+
+    const pulseIcon = L.divIcon({
+      className: "custom-leaflet-marker direct-ping-pulse-marker",
+      html: `<div style="background: ${lineColor}; width: 18px; height: 18px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px ${lineColor}; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">🎯</div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    });
+
+    const targetMarker = L.marker([targetCoords.lat, targetCoords.lon], { icon: pulseIcon });
+
+    const asymAlert = metrics.asymmetric_link
+      ? `<div class="asymmetric-badge mt-1"><i class="bi bi-exclamation-triangle"></i> Desbalance RF (${metrics.snr_delta} dB)</div>`
+      : "";
+
+    const popupHtml = `
+      <div class="custom-map-popup">
+        <div class="popup-title">
+          <i class="bi bi-bullseye me-1"></i> <strong>Enlace Directo (Hop 0): ${escapeHtml(targetCoords.name)}</strong>
+        </div>
+        <div class="popup-info">
+          <div><span>RTT:</span> <strong>${escapeHtml(String(rtt))}</strong></div>
+          <div><span>SNR Vuelta (RX):</span> <strong>${snrBack != null ? `${snrBack} dB` : "--"}</strong></div>
+          <div><span>SNR Ida (TX):</span> <strong>${snrThere != null ? `${snrThere} dB` : "--"}</strong></div>
+          <div><span>RSSI:</span> <strong>${escapeHtml(String(rssi))}</strong></div>
+          ${asymAlert}
+        </div>
+      </div>
+    `;
+
+    line.bindPopup(popupHtml);
+    targetMarker.bindPopup(popupHtml);
+
+    line.addTo(this._directPingLayerGroup);
+    flowLine.addTo(this._directPingLayerGroup);
+    targetMarker.addTo(this._directPingLayerGroup);
+
+    this.map.fitBounds(L.latLngBounds(coords), { padding: [50, 50], maxZoom: 15 });
+    targetMarker.openPopup();
+  }
+
+  clearDirectPingVector() {
+    if (this._directPingLayerGroup) {
+      this._directPingLayerGroup.clearLayers();
+    }
   }
 }

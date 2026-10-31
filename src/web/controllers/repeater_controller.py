@@ -178,6 +178,28 @@ class RepeaterController(BaseController):
         self.ctx.log_system_event("INFO", "🗺️ Traceroute completado", source="admin")
         return 200, {"status": "ok", "data": res}
 
+    async def get_traceroute(self, target_pk: str = "") -> tuple[int, dict[str, Any]]:
+        """Recupera la última ruta almacenada en base de datos para un nodo o todas las rutas."""
+        db = getattr(self.ctx.bridge, "database", None) or getattr(getattr(self.ctx.bridge, "repeater_manager", None), "database", None)
+        if db is None:
+            return 200, {"status": "ok", "data": None if target_pk else {}}
+        try:
+            traces_doc = db.read_document("traceroutes") or {}
+            if not isinstance(traces_doc, dict):
+                traces_doc = {}
+            if target_pk:
+                clean_pk = target_pk.strip().lower()
+                trace_data = traces_doc.get(clean_pk)
+                if trace_data is None:
+                    for k, v in traces_doc.items():
+                        if k.startswith(clean_pk) or clean_pk.startswith(k):
+                            trace_data = v
+                            break
+                return 200, {"status": "ok", "data": trace_data}
+            return 200, {"status": "ok", "data": traces_doc}
+        except Exception as e:
+            return 500, {"status": "error", "message": f"Error leyendo rutas: {e}"}
+
     async def get_neighbours(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Consulta binaria de la tabla de vecinos zero-hop de un repetidor remoto."""
         target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
