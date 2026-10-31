@@ -9,14 +9,18 @@ from src.routers.direct_handler import DirectMessageHandler
 from src.routers.repeater_handler import RepeaterAdminHandler
 from src.routers.system_handler import SystemHandler
 from src.routers.telemetry_handler import TelemetryHandler
+from src.routers.telemetry_processor import TelemetryProcessor, get_coord, location_pair
 
 __all__ = [
-    "BaseRxHandler",
-    "RxMeta",
     "AdvertHandler",
+    "BaseRxHandler",
     "ChannelMessageHandler",
     "DirectMessageHandler",
     "RepeaterAdminHandler",
+    "RxMeta",
     "SystemHandler",
     "TelemetryHandler",
+    "TelemetryProcessor",
+    "get_coord",
+    "location_pair",
 ]
