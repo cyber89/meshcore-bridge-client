@@ -124,6 +124,7 @@ export class BrowserAuthentication {
   }
 
   _showLogin({ requires_initial_setup = false } = {}) {
+    if (this.dialog?.open) this.dialog.close();
     document.body.classList.add("auth-pending");
     document.getElementById("authStartup").hidden = true;
     document.getElementById("authGate").hidden = false;

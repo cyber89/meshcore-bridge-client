@@ -1767,9 +1767,6 @@ export class RepeaterModule {
         return false;
       }
 
-      // Cooldown mínimo de 3s en el cliente para prevenir saturación de la malla LoRa
-      this._cmdCooldowns.set(cleanTarget, Date.now() + 3000);
-
       const qFeedback = document.getElementById("repQuickCmdFeedback");
       if (res.ok && data.status === "ok" && !["error", "partial"].includes(data.data?.status)) {
         const payload = data.data || data;

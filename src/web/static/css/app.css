@@ -7033,19 +7033,10 @@ details.settings-disclosure > .disclosure-content {
 }
 
 /* U-34: Alto contraste WCAG AA (>= 4.5:1) para badges sobre fondo oscuro de terminal en ambos temas */
-.linux-term-header .badge-outline {
+.linux-term-header .badge-outline,
+#logsCountBadge.badge-outline {
   color: #cbd5e1 !important;
   border-color: rgba(203, 213, 225, 0.45) !important;
-}
-
-[data-bs-theme="dark"] #logsCountBadge.badge-outline {
-  color: #cbd5e1 !important;
-  border-color: rgba(203, 213, 225, 0.45) !important;
-}
-
-[data-bs-theme="light"] #logsCountBadge.badge-outline {
-  color: var(--bs-secondary-color, #475569) !important;
-  border-color: rgba(71, 85, 105, 0.45) !important;
 }
 
 /* U-05: Regla universal anti-zoom iOS en orientacion horizontal y tablets */
