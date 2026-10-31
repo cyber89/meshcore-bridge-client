@@ -612,11 +612,28 @@ export class SettingsModule {
         e.preventDefault();
         if (contactFeedback.busy) return;
         const pubkey = this.dom.contactModalPubKey.value.trim();
+        const cleanPubkey = pubkey.toLowerCase();
         const name = this.dom.contactModalName.value.trim();
         const role = this.dom.contactModalRole ? this.dom.contactModalRole.value : "CLIENT";
         const isFavorite = Boolean(this.dom.contactModalFavorite?.checked);
+
+        const localPk = String(this.ctx.localNodePubkey || this.ctx.state?.localNode?.public_key || document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+        const isLocal = Boolean(localPk && (cleanPubkey === localPk || (localPk.length >= 8 && cleanPubkey.startsWith(localPk.slice(0, 8))) || (cleanPubkey.length >= 8 && localPk.startsWith(cleanPubkey.slice(0, 8)))));
+
+        const knownNode = this.ctx.knownNodes?.get(cleanPubkey) || (Array.isArray(this.ctx.state?.nodes) ? this.ctx.state.nodes.find(n => (n.public_key || n.pubkey || "").toLowerCase() === cleanPubkey) : null);
+        const isRepeater = Boolean((knownNode && ["REPEATER", "ROUTER"].includes(String(knownNode.role || "").toUpperCase())) || ["REPEATER", "ROUTER"].includes(String(role).toUpperCase()));
+
+        let pubkeyError = null;
+        if (!/^[a-fA-F0-9]{64}$/.test(pubkey)) {
+          pubkeyError = "forms.public_key";
+        } else if (isLocal) {
+          pubkeyError = "forms.cannot_add_local_station";
+        } else if (isRepeater) {
+          pubkeyError = "forms.repeater_contact_forbidden";
+        }
+
         if (!contactFeedback.validate({
-          public_key: /^[a-fA-F0-9]{64}$/.test(pubkey) ? null : "forms.public_key",
+          public_key: pubkeyError,
           name: name ? firmwareNameError(name) : "forms.required",
         })) return;
 

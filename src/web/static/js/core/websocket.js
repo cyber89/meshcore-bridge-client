@@ -12,6 +12,10 @@ export class MeshCoreWebSocketClient {
     this.ws = null;
     this.reconnectTimer = null;
     this.heartbeatInterval = null;
+    this.heartbeatTimeoutTimer = null;
+    this.heartbeatTimeoutMs = 5000;
+    this.lastPingTimestamp = 0;
+    this.lastPongTimestamp = 0;
     this.reconnectDelay = 1000;
     this.maxReconnectDelay = 30000;
     this.status = "disconnected";
@@ -23,10 +27,13 @@ export class MeshCoreWebSocketClient {
 
     if (this.ws) {
       try {
+        this.ws.onopen = null;
+        this.ws.onmessage = null;
         this.ws.onclose = null;
         this.ws.onerror = null;
         this.ws.close();
       } catch (_) {}
+      this.ws = null;
     }
 
     this._setStatus("connecting");
@@ -56,7 +63,14 @@ export class MeshCoreWebSocketClient {
       // A rejected handshake can surface as code 1006, indistinguishable from
       // network loss. Check the session before starting another reconnect.
       try {
-        const response = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
+        const signal = typeof AbortSignal !== "undefined" && AbortSignal.timeout
+          ? AbortSignal.timeout(3000)
+          : undefined;
+        const response = await fetch("/api/auth/session", {
+          credentials: "same-origin",
+          cache: "no-store",
+          signal,
+        });
         const session = response.ok ? await response.json() : null;
         if (response.status === 401 || (session && (!session.authenticated || session.must_change_credentials))) {
           this._setStatus("disconnected");
@@ -78,7 +92,14 @@ export class MeshCoreWebSocketClient {
         if (!payload || typeof payload !== "object") return;
         const pType = String(payload.type || payload.event_type || payload.event || "").toLowerCase();
 
-        if (pType === "pong") return;
+        if (pType === "pong") {
+          this.lastPongTimestamp = Date.now();
+          if (this.heartbeatTimeoutTimer) {
+            clearTimeout(this.heartbeatTimeoutTimer);
+            this.heartbeatTimeoutTimer = null;
+          }
+          return;
+        }
 
         if (pType === "rf_packet") {
           this.eventBus.emit(EVENTS.RF_PACKET, payload.data || payload.packet || payload);
@@ -142,7 +163,10 @@ export class MeshCoreWebSocketClient {
     clearTimeout(this.reconnectTimer);
     if (this.ws) {
       try {
+        this.ws.onopen = null;
+        this.ws.onmessage = null;
         this.ws.onclose = null;
+        this.ws.onerror = null;
         this.ws.close();
       } catch (_) {}
       this.ws = null;
@@ -170,7 +194,19 @@ export class MeshCoreWebSocketClient {
     this.heartbeatInterval = setInterval(() => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         try {
-          this.ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
+          this.lastPingTimestamp = Date.now();
+          this.ws.send(JSON.stringify({ type: "ping", timestamp: this.lastPingTimestamp }));
+
+          // Arm watchdog timeout for pong response
+          if (this.heartbeatTimeoutTimer) clearTimeout(this.heartbeatTimeoutTimer);
+          this.heartbeatTimeoutTimer = setTimeout(() => {
+            console.warn("WebSocket heartbeat timeout: sin respuesta pong tras", this.heartbeatTimeoutMs, "ms. Forzando reconexión.");
+            if (this.ws) {
+              try {
+                this.ws.close(4000, "Heartbeat Timeout");
+              } catch (_) {}
+            }
+          }, this.heartbeatTimeoutMs);
         } catch (_) {}
       }
     }, 15000);
@@ -180,6 +216,10 @@ export class MeshCoreWebSocketClient {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
+    }
+    if (this.heartbeatTimeoutTimer) {
+      clearTimeout(this.heartbeatTimeoutTimer);
+      this.heartbeatTimeoutTimer = null;
     }
   }
 }

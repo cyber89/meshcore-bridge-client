@@ -1178,7 +1178,21 @@ export class RepeaterModule {
     }
     this.selectedRepeaterTarget = null;
     this.selectedRepeaterName = null;
+    this._setCommandBusy(false);
     this._resetModalInputs();
+  }
+
+  _setCommandBusy(busy) {
+    this._isCommandBusy = Boolean(busy);
+    document.querySelectorAll(".rep-quick-cmd, #btnModalActionRadioStats, #btnSyncRepeaterClock, #btnModalActionAdvert").forEach((btn) => {
+      btn.disabled = this._isCommandBusy;
+    });
+    const termBtn = document.querySelector("#repeaterTerminalForm button[type='submit'], .btn-term-send");
+    if (termBtn) termBtn.disabled = this._isCommandBusy;
+    const quickBtn = document.querySelector("#repQuickCmdForm button[type='submit']");
+    if (quickBtn) quickBtn.disabled = this._isCommandBusy;
+    const termInput = this.dom.repeaterTerminalInput || document.getElementById("repeaterTerminalInput");
+    if (termInput) termInput.disabled = this._isCommandBusy;
   }
 
   populateRepeaterModalData(node) {
@@ -1720,6 +1734,19 @@ export class RepeaterModule {
     const revision = this._modalRevision;
     const observationRevision = this._observationRevision;
     const pwd = password || this.getRepeaterPassword(target) || "";
+
+    if (!this._cmdCooldowns) this._cmdCooldowns = new Map();
+    const cleanTarget = (target || "").toLowerCase();
+    const now = Date.now();
+    const cooldownExpires = this._cmdCooldowns.get(cleanTarget) || 0;
+    if (now < cooldownExpires) {
+      const remainingSec = Math.ceil((cooldownExpires - now) / 1000);
+      this.appendTerminalLine(`⏳ [COOLDOWN] Espera ${remainingSec}s antes de enviar otro comando a este repetidor.`, "term-warning");
+      if (this.ctx.showToast) this.ctx.showToast(`⏳ Espera ${remainingSec}s antes de enviar otro comando RF.`, "warning");
+      return false;
+    }
+
+    this._setCommandBusy(true);
     this.appendTerminalLine(`repeater> ${this._redactRemoteCommand(action)}`, "term-cmd");
     try {
       const res = await fetch("/api/repeater/remote/action", {
@@ -1727,8 +1754,22 @@ export class RepeaterModule {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
         body: JSON.stringify({ target_node: target, action, params, password: pwd }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (revision !== this._modalRevision || observationRevision !== this._observationRevision) return false;
+
+      // Si el servidor activa rate-limiting LoRa (HTTP 429)
+      if (res.status === 429 || data.code === 429) {
+        const remSec = data.cooldown_remaining || 15;
+        this._cmdCooldowns.set(cleanTarget, Date.now() + remSec * 1000);
+        const warnMsg = data.detail || data.message || `Cooldown activo: ${remSec}s restantes.`;
+        this.appendTerminalLine(`⚠️ [COOLDOWN] ${warnMsg}`, "term-warning");
+        if (this.ctx.showToast) this.ctx.showToast(`⏳ ${warnMsg}`, "warning");
+        return false;
+      }
+
+      // Cooldown mínimo de 3s en el cliente para prevenir saturación de la malla LoRa
+      this._cmdCooldowns.set(cleanTarget, Date.now() + 3000);
+
       const qFeedback = document.getElementById("repQuickCmdFeedback");
       if (res.ok && data.status === "ok" && !["error", "partial"].includes(data.data?.status)) {
         const payload = data.data || data;
@@ -1785,6 +1826,8 @@ export class RepeaterModule {
         qFeedback.className = "rep-quick-feedback error";
         I18n.setText(qFeedback, "repeater.command_network_error", { p0: err.message });
       }
+    } finally {
+      this._setCommandBusy(false);
     }
   }
 
