@@ -41,19 +41,21 @@ class CompanionProxy:
         tcp_srv = self.tcp_server_provider()
         if tcp_srv is not None and self.is_running_provider():
             owner = tcp_srv.get_response_owner() if hasattr(tcp_srv, "get_response_owner") else None
+            use_sync = callable(getattr(type(tcp_srv), "queue_companion_frame_sync", None))
+
             if payload and payload[0] < 0x80:
                 if owner is None:
                     return
                 if hasattr(tcp_srv, "note_response_received"):
                     tcp_srv.note_response_received(owner)
-                if hasattr(tcp_srv, "queue_companion_frame_sync"):
+                if use_sync:
                     tcp_srv.queue_companion_frame_sync(payload, response_owner=owner)
                 else:
                     self.schedule_bg_fn(
                         lambda: tcp_srv.broadcast_companion_frame(payload, response_owner=owner)
                     )
             else:
-                if hasattr(tcp_srv, "queue_companion_frame_sync"):
+                if use_sync:
                     tcp_srv.queue_companion_frame_sync(payload)
                 else:
                     self.schedule_bg_fn(lambda: tcp_srv.broadcast_companion_frame(payload))
