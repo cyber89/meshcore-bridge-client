@@ -181,13 +181,17 @@ flowchart TB
     subgraph L2 ["Capa 2: Aplicación y Orquestación (Application Services)"]
         direction LR
         Facade["Bridge Core Facade (MeshCoreBridge)"]
-        AdminHandler["Admin Command Handler (admin/* Executors)"]
+        AckTracker["AckTracker (ACKs L2/L4 & Pruning)"]
+        CompanionProxy["CompanionProxy (TCP 4403 & SSoT)"]
+        TxCoordinator["TxCoordinator (Flujo TX & Métricas)"]
+        AdminHandler["Admin Command Handler (admin/* & validators/*)"]
         Lifecycle["Preflight, Health & Diagnostics"]
     end
 
     subgraph L3 ["Capa 3: Dominio de Malla y Enrutamiento (Mesh Domain & Policies)"]
         direction LR
-        Router["RxEventRouter (routers/* handlers)"]
+        Router["RxEventRouter Facade (rx_router.py)"]
+        TelemProc["TelemetryProcessor (LQI & Sensores)"]
         RateLimiter["TxRateLimiter & AirtimeTracker"]
         Managers["NodeRegistry & RepeaterManager"]
         Engines["LinkQualityEngine & PacketDeduplicator"]
@@ -203,7 +207,10 @@ flowchart TB
     subgraph L5 ["Capa 5: Infraestructura y Transporte (Hardware Adapters / Seams)"]
         direction LR
         BaseAdapter["BaseSerialAdapter (Seam abstracto)"]
-        SDKAdapter["MeshcoreSDKAdapter (SDK Oficial Companion)"]
+        SDKAdapter["MeshcoreSDKAdapter Facade"]
+        CompanionProto["CompanionProtocol (Framing & Guardas)"]
+        FirmwareCli["FirmwareCliHandler (Task-local lease ContextVar)"]
+        SdkDispatcher["SdkEventDispatcher (Cola acotada 256)"]
         RawAdapter["RawSerialFramingAdapter (Parser en memoria)"]
         Drivers["SerialWatchdog & TCPCompanionServer"]
         Storage["SQLite: estado e historial de estación"]
@@ -222,10 +229,10 @@ flowchart TB
 | Capa | Nombre Canónico | Responsabilidad Principal | Módulos y Rutas del Código |
 |---|---|---|---|
 | **Capa 1** | **Presentación y Exposición** | Frontera exterior con redes IP y usuarios humanos. Servidor HTTP/WS, controladores REST, cliente SPA y broker MQTT. Sin lógica RF directa. | [`src/web/`](../src/web/) (SPA, `asgi_server.py`, `api_router.py`, `controllers/*`), [`src/mqtt_client.py`](../src/mqtt_client.py), [`src/mqtt_dispatcher.py`](../src/mqtt_dispatcher.py) |
-| **Capa 2** | **Aplicación y Orquestación** | Orquestación de casos de uso de alto nivel, coordinación de ciclo de vida, apagado ordenado y despacho de comandos administrativos. | [`src/bridge_core.py`](../src/bridge_core.py) (`MeshCoreBridge`), [`src/admin_handler.py`](../src/admin_handler.py), [`src/admin/`](../src/admin/) (`local_config`, `repeater`, `traceroute`, `cli`), [`src/preflight.py`](../src/preflight.py), [`src/health_reporter.py`](../src/health_reporter.py) |
-| **Capa 3** | **Dominio de Malla y Enrutamiento** | Lógica de red LoRa: enrutamiento de eventos entrantes, priorización TX, estimación de airtime, deduplicación de ecos, LQI y gestión de nodos. | [`src/rx_router.py`](../src/rx_router.py), [`src/routers/`](../src/routers/), [`src/rate_limiter.py`](../src/rate_limiter.py) (`TxRateLimiter`, `AirtimeTracker`), [`src/contact_manager.py`](../src/contact_manager.py) (`NodeRegistry`), [`src/repeater_manager.py`](../src/repeater_manager.py), [`src/lqi_engine.py`](../src/lqi_engine.py), [`src/deduplicator.py`](../src/deduplicator.py), [`src/sensor_decoder.py`](../src/sensor_decoder.py) |
+| **Capa 2** | **Aplicación y Orquestación** | Orquestación de casos de uso de alto nivel, coordinación de ciclo de vida, apagado ordenado, correlación de ACKs L2/L4, proxy TCP Companion, despacho TX y comandos administrativos. | [`src/bridge_core.py`](../src/bridge_core.py) (`MeshCoreBridge`), [`src/core/`](../src/core/) (`AckTracker`, `CompanionProxy`, `TxCoordinator`), [`src/admin_handler.py`](../src/admin_handler.py), [`src/admin/`](../src/admin/) (`local_config`, `validators/*`, `repeater`, `traceroute`, `cli`), [`src/preflight.py`](../src/preflight.py), [`src/health_reporter.py`](../src/health_reporter.py) |
+| **Capa 3** | **Dominio de Malla y Enrutamiento** | Lógica de red LoRa: enrutamiento de eventos entrantes, procesamiento y normalización de telemetría/LQI, priorización TX, estimación de airtime, deduplicación de ecos y gestión de nodos. | [`src/rx_router.py`](../src/rx_router.py), [`src/routers/`](../src/routers/) (`TelemetryProcessor`, `AdvertHandler`, etc.), [`src/rate_limiter.py`](../src/rate_limiter.py) (`TxRateLimiter`, `AirtimeTracker`), [`src/contact_manager.py`](../src/contact_manager.py) (`NodeRegistry`), [`src/repeater_manager.py`](../src/repeater_manager.py), [`src/lqi_engine.py`](../src/lqi_engine.py), [`src/deduplicator.py`](../src/deduplicator.py), [`src/sensor_decoder.py`](../src/sensor_decoder.py) |
 | **Capa 4** | **Dominio Puro y Protocolo Canónico** | Definiciones fundamentales del protocolo y tipos estrictos alineados con el firmware C/C++ oficial. Invariantes inmutables de dominio de [`CONTEXT.md`](../CONTEXT.md). Libre de dependencias externas. | [`src/protocol_types.py`](../src/protocol_types.py) (`FirmwareAdvertType`, roles, opcodes, eventos `@dataclass(frozen=True)`), invariantes canónicas de [`CONTEXT.md`](../CONTEXT.md) |
-| **Capa 5** | **Infraestructura y Transporte** | Abstracción de hardware (*Seams*), drivers serie (UART/USB), sockets TCP, parser raw y persistencia transaccional. | [`src/serial/`](../src/serial/), [`src/serial_driver.py`](../src/serial_driver.py), [`src/tcp_companion_server.py`](../src/tcp_companion_server.py), [`src/virtual_mesh_adapter.py`](../src/virtual_mesh_adapter.py), [`src/station_database.py`](../src/station_database.py) |
+| **Capa 5** | **Infraestructura y Transporte** | Abstracción de hardware (*Seams*), drivers serie (UART/USB), framing Companion oficial, leases task-local CLI, cola acotada 256 eventos, sockets TCP, parser raw y persistencia transaccional. | [`src/serial/`](../src/serial/) (`sdk_adapter.py`, `companion_protocol.py`, `firmware_cli.py`, `sdk_event_dispatcher.py`, `serial_base.py`, `watchdog.py`), [`src/tcp_companion_server.py`](../src/tcp_companion_server.py), [`src/virtual_mesh_adapter.py`](../src/virtual_mesh_adapter.py), [`src/station_database.py`](../src/station_database.py) |
 
 ### 2.2 Invariantes de Dependencia entre Capas
 
@@ -343,21 +350,31 @@ flowchart TB
         TCP[Companion remoto\ntcp://host:port]
     end
 
-    subgraph Capa de Adaptación Serial
+    subgraph Capa de Adaptación Serial ["Capa de Adaptación Serial (ADR 0025)"]
         WD[SerialWatchdog]
         Base[BaseSerialAdapter]
-        SDK[MeshcoreSDKAdapter]
+        SDK[MeshcoreSDKAdapter Facade]
+        CProto[CompanionProtocol\nFraming binario < / >]
+        FCli[FirmwareCliHandler\nContextVar lease]
+        SEvt[SdkEventDispatcher\nCola acotada 256]
         Raw[Parser Raw Propio\nsin E/S física]
+        SDK --> CProto & FCli & SEvt
     end
 
     subgraph Capa de Protocolo
         PT[protocol_types.py\nEnums oficiales y formato raw propio]
     end
 
-    subgraph Capa Core
-        Bridge[MeshCoreBridge Facade]
-        RxR[RxEventRouter]
+    subgraph Capa Core ["Capa Core de Aplicación (ADR 0025 y ADR 0026)"]
+        Bridge[MeshCoreBridge Transparent Facade]
+        AckT[AckTracker\nACKs L2/L4, TTL 3600s, Poda]
+        CompP[CompanionProxy\nTCP 4403 & SSoT Guards]
+        TxC[TxCoordinator\nFlujo TX, Destinos & Métricas]
+        RxR[RxEventRouter Facade]
+        TelP[TelemetryProcessor\nLQI, Sensores & MQTT]
         TxL[TxRateLimiter]
+        Bridge --> AckT & CompP & TxC
+        RxR --> TelP
     end
 
     subgraph Capa de Routing
@@ -369,12 +386,14 @@ flowchart TB
         R_TEL[TelemetryHandler]
     end
 
-    subgraph Capa Admin
+    subgraph Capa Admin ["Capa Admin & Validadores (ADR 0026)"]
         Admin[AdminCommandHandler]
         LocConf[LocalConfigExecutor]
+        Valids["validators/*\nschema, radio, gps, id, airtime\nCC < 5"]
         RepConf[RepeaterExecutor]
         Trace[TracerouteExecutor]
         CliExec[CliCommandExecutor]
+        LocConf --> Valids
     end
 
     subgraph Capa de Gestión
@@ -386,7 +405,6 @@ flowchart TB
 
     subgraph Capa de Telemetría
         Cayenne[CayenneLPPDecoder]
-        Sens[CayenneLPPDecoder]
         Diag[DiagnosticManager]
         Health[HealthReporter]
     end
@@ -411,14 +429,16 @@ flowchart TB
     TCP <--> Base
     Base <--> SDK
     Raw -. bytes en memoria .-> PT
-    SDK --> PT
+    CProto --> PT
+    SEvt --> PT
 
     PT --> RxR
-    TxL --> PT
+    TxC --> TxL --> PT
 
     RxR --> R_ADV & R_CH & R_DIR & R_REP & R_SYS & R_TEL
     R_REP --> RM
-    RxR --> LQI & DED & Sens
+    TelP --> LQI & NR & Cayenne & MQTT
+    RxR --> DED
 
     Admin --> LocConf & RepConf & Trace
 
@@ -436,6 +456,9 @@ flowchart TB
 
 ```mermaid
 graph TD
+    bridge_core --> ack_tracker
+    bridge_core --> companion_proxy
+    bridge_core --> tx_coordinator
     bridge_core --> serial_driver
     bridge_core --> rx_router
     bridge_core --> mqtt_client
@@ -448,6 +471,11 @@ graph TD
     bridge_core --> preflight
     bridge_core --> repeater_manager
     bridge_core --> tcp_companion_server
+    rx_router --> telemetry_processor
+    serial_driver --> companion_protocol
+    serial_driver --> firmware_cli
+    serial_driver --> sdk_event_dispatcher
+    admin_handler --> local_config_validators
 
     rx_router --> routers_star[routers/*]
     rx_router --> contact_manager
@@ -589,9 +617,17 @@ sequenceDiagram
 
 | Nombre de clase | Módulo | Responsabilidad | Patrón | Dependencias |
 | --- | --- | --- | --- | --- |
-| `MeshCoreBridge` | `bridge_core.py` | Orquesta la aplicación uniendo MQTT, Web, Serial y Routers. | Facade | `serial_driver`, `rx_router`, `mqtt_client`, etc. |
-| `BaseSerialAdapter` | `serial/serial_base.py` | Interfaz para adaptadores. | Adapter | Ninguna explícita |
-| `MeshcoreSDKAdapter` | `serial/sdk_adapter.py` | Comunicación USB/TCP con SDK MeshCore. | Adapter | `protocol_types`, `meshcore` |
+| `MeshCoreBridge` | `bridge_core.py` | Fachada transparente que orquesta la aplicación delegando en `AckTracker`, `CompanionProxy` y `TxCoordinator`. | Transparent Facade | `src/core/*`, `serial_driver`, `rx_router`, `mqtt_client` |
+| `AckTracker` | `src/core/ack_tracker.py` | Correlación y resolución de ACKs de entrega (L2/L4), TTL de 3600s, capacidad máxima de 200 y poda automática. | State / Tracker | `station_database` |
+| `CompanionProxy` | `src/core/companion_proxy.py` | Proxy de la pasarela TCP Companion oficial (puerto 4403), reenvío FIFO y guardas estrictas SSoT §1.1/§1.2. | Proxy / SSoT Guard | `tcp_companion_server`, `rate_limiter`, `protocol_types` |
+| `TxCoordinator` | `src/core/tx_coordinator.py` | Coordinación de transmisiones salientes hacia la malla, validación de destinos, formato de chat y métricas deterministas. | Coordinator | `rate_limiter`, `packet_buffer`, `message_service` |
+| `BaseSerialAdapter` | `serial/serial_base.py` | Interfaz abstracta (*Seam*) para adaptadores serie. | Seam / Adapter | Ninguna explícita |
+| `MeshcoreSDKAdapter` | `serial/sdk_adapter.py` | Fachada transparente del SDK oficial MeshCore delegando en submódulos especializados. | Transparent Facade | `companion_protocol`, `firmware_cli`, `sdk_event_dispatcher` |
+| `CompanionProtocol` | `src/serial/companion_protocol.py` | Tablas de comandos binarios oficiales Companion, discriminación de opcodes y guardas de chat raw. | Protocol Parser | `protocol_types` |
+| `FirmwareCliHandler` | `src/serial/firmware_cli.py` | Consola CLI de firmware, leases task-local aislados vía `ContextVar` y preferencias CAD/WiFi. | Command Handler | `shared_utils` |
+| `SdkEventDispatcher` | `src/serial/sdk_event_dispatcher.py` | Cola acotada de 256 eventos, deduplicación de anuncios de paquetes y despacho thread-safe. | Dispatcher / Queue | Ninguna |
+| `TelemetryProcessor` | `src/routers/telemetry_processor.py` | Normalización de telemetría de malla, LQI instantáneo (`LinkQualityEngine`), decodificación sensorial y MQTT. | Processor | `lqi_engine`, `contact_manager`, `mqtt_client` |
+| `LocalConfigValidators`| `src/admin/validators/` | Validadores desacoplados de parámetros locales (schema, radio, tuning, GPS, identity, airtime) con CC < 5. | Validator Strategy | `schema`, `protocol_types` |
 | `RawSerialFramingAdapter` | `serial/raw_framing.py` | Parser en memoria del formato propio SOF=0xAA, EOF=0x55, ESC=0x1B y CRC; sin E/S física actual. | Adapter | `protocol_types` |
 | `SerialWatchdog` | `serial/watchdog.py` | Supervisa vivacidad local y reconecta el adaptador. | Watchdog | `BaseSerialAdapter` |
 | `RxEventRouter` | `rx_router.py` | Enruta mensajes recibidos de la radio a los handlers correctos. | Strategy / Router | `routers/*`, `contact_manager`, etc. |
@@ -629,6 +665,29 @@ sequenceDiagram
   El executor remoto convierte `NodeContactInfo` obtenido por nombre/alias a su representación dict antes de aplicar guards de identidad/rol. Los comandos unitarios se construyen y validan antes de autenticación, consumo de cooldown y envío: un resultado no compilable devuelve error administrativo con `code: 422`. La preparación local de contactos SDK del dispatcher permanece previa. Los resultados de lote usan `redact_sensitive_mapping` con salida dict; el redactor general conserva soporte de estructuras arbitrarias. PIN y potencia TX nulos se rechazan en prevalidación del lote local. Los informes anteriores conservan su evidencia; no se ejecutaron suites para aceptar el checkout de esta auditoría.
 
 - **`src/web/controllers/`**: Sigue el patrón **MVC / Modular Controllers**. Organiza unívocamente las rutas REST por dominios funcionales (Contactos, Nodos, Sistema, Transmisiones).
+
+### 7.1 Descomposición de God Classes bajo el Patrón Transparent Facade (ADR 0025 y ADR 0026)
+
+Conforme a lo resuelto en [ADR 0025](adr/0025-core-and-serial-facade-decomposition.md) y [ADR 0026](adr/0026-rx-telemetry-and-admin-validation-modularization.md), se aplicó el patrón **Transparent Facade** para erradicar las concentraciones monolíticas de código sin alterar los contratos públicos existentes:
+
+1. **`MeshCoreBridge` $	o$ `AckTracker` + `CompanionProxy` + `TxCoordinator`**:
+   - `AckTracker`: Encapsula el seguimiento en memoria de códigos ACK esperados, su sincronización con la base de datos SQLite y su algoritmo de poda periódica con caducidad de 3,600 segundos.
+   - `CompanionProxy`: Aísla la pasarela TCP Companion (puerto 4403), asegurando un orden estricto de entrega FIFO hacia la radio y aplicando las guardas de dominio inmutables (SSoT §1.1 y §1.2), de modo que los repetidores y el nodo local queden protegidos contra tráfico de chat de usuario, permitiendo a la vez comandos administrativos y de diagnóstico.
+   - `TxCoordinator`: Normaliza las identidades destino (resolviendo alias en pubkeys canónicas), ejecuta validaciones de admisión, registra en `PacketBuffer`, incrementa deterministamente `tx_count` y formatea los metadatos requeridos por la persistencia (`dm_target`, `is_direct`).
+   - Resolutores Perezosos (*Lazy Resolvers*): Los métodos de clase `_get_ack_tracker`, `_get_companion_proxy` y `_get_tx_coordinator` instancian componentes bajo demanda si el atributo no existe, garantizando total transparencia con fixtures y mocks unitarios.
+
+2. **`MeshcoreSDKAdapter` $	o$ `CompanionProtocol` + `FirmwareCliHandler` + `SdkEventDispatcher`**:
+   - `CompanionProtocol`: Maneja la tabla canónica de opcodes binarios del firmware oficial (`_COMPANION_RF_COMMANDS`, `_COMPANION_MIN_LENGTHS`), funciones de truncado seguro y guardas de chat raw.
+   - `FirmwareCliHandler`: Administra las sesiones de consola CLI mediante un lease task-local aislado con `ContextVar[str | None]`, previniendo colisiones de comandos o interferencia en la negociación de preferencias CAD y WiFi entre corrutinas concurrentes.
+   - `SdkEventDispatcher`: Implementa una cola acotada de 256 eventos para comunicar de forma segura el hilo nativo del SDK con el event loop de asyncio, deduplicando anuncios repetidos.
+
+3. **`RxEventRouter` $	o$ `TelemetryProcessor`**:
+   - Extrae más de 300 líneas de decodificación y cálculo de calidad de enlace hacia `TelemetryProcessor`.
+   - Centraliza el cálculo de LQI instantáneo (`LinkQualityEngine.compute_instant_lqi`), la normalización de telemetría de malla y la sincronización del autodiagnóstico de la estación base local (`SELF_INFO`).
+
+4. **`LocalConfigExecutor` $	o$ `src/admin/validators/`**:
+   - Descompone la validación monolítica `_prevalidate_local_params` en una jerarquía de validadores cohesivos de responsabilidad única: `schema.py`, `radio_params_validator.py`, `location_validator.py`, `identity_validator.py` y `airtime_policy_validator.py`.
+   - **Reducción de Complejidad**: La Complejidad Ciclomática de McCabe cayó de **CC = 93 a CC < 5**, garantizando legibilidad, aislamiento y cumplimiento riguroso de principios SOLID.
 
 ## 8. Mapa de Endpoints REST API
 

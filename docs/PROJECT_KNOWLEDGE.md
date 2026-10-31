@@ -50,20 +50,22 @@ Las decisiones vigentes posteriores cubren [SQLite](adr/0017-sqlite-station-brow
 [seguridad MQTT](adr/0021-mqtt-security-idempotency-and-unified-topics.md),
 [aislamiento RX](adr/0022-consumer-isolation-and-bounded-admission.md),
 [mensajería/contactos](adr/0023-messaging-and-contact-application-services.md) y
-[capacidades](adr/0024-capability-registry-and-runtime-optionality.md).
+[capacidades](adr/0024-capability-registry-and-runtime-optionality.md),
+[descomposición de núcleo y serial](adr/0025-core-and-serial-facade-decomposition.md) y
+[telemetría RX y validadores administrativos](adr/0026-rx-telemetry-and-admin-validation-modularization.md).
 
 ## Mapa de implementación
 
 | Subsistema | Archivos principales | Contrato comprobado por lectura |
 | --- | --- | --- |
-| Arranque/composición | `meshcore_bridge.py`, `src/__main__.py`, `src/bridge_core.py`, `src/preflight.py` | Compone serie, MQTT, web, workers y registros; importar/arrancar puede leer configuración o consultar servicios. |
-| Serie | `src/serial/sdk_adapter.py`, `serial_base.py`, `watchdog.py`, `raw_framing.py` | Companion lo gestiona el SDK. El raw propio es parser en memoria, sin transporte UART físico. |
+| Arranque/composición | `meshcore_bridge.py`, `src/__main__.py`, `src/bridge_core.py`, `src/core/` (`ack_tracker.py`, `companion_proxy.py`, `tx_coordinator.py`), `src/preflight.py` | Compone serie, MQTT, web, workers y registros; fachada transparente que delega correlación de ACKs, proxy TCP Companion (SSoT) y despacho TX. |
+| Serie | `src/serial/` (`sdk_adapter.py`, `companion_protocol.py`, `firmware_cli.py`, `sdk_event_dispatcher.py`), `serial_base.py`, `watchdog.py`, `raw_framing.py` | Fachada transparente con framing binario oficial, leases task-local CLI con ContextVar y cola acotada de 256 eventos. El raw propio es parser en memoria. |
 | Protocolo | `src/protocol_types.py`, `sensor_decoder.py` | Enums oficiales y tipos del bridge; CayenneLPP tiene endian por campo, no LE universal. |
-| RX | `src/rx_router.py`, `src/routers/`, `event_utils.py`, `deduplicator.py`, `bridge_core.py` | Normalización y clasificación con admisión acotada; salidas observacionales aisladas por consumidor. Deduplicación vive en RAM. |
+| RX | `src/rx_router.py`, `src/routers/` (`telemetry_processor.py`, `advert_handler.py`, etc.), `event_utils.py`, `deduplicator.py`, `bridge_core.py` | Normalización y enrutamiento con admisión acotada; TelemetryProcessor extrae LQI, sensores y sincronización de estación local. Deduplicación vive en RAM. |
 | TX/airtime | `src/rate_limiter.py`, `packet_buffer.py`, `target_resolver.py` | Cola/prioridades/pacing y estimación de airtime; `sent` no acredita entrega remota. |
 | Nodos/contactos | `src/contact_manager.py`, `lqi_engine.py`, `src/application/contacts.py` | Registro inyectado con SQLite en producción y JSON como migración; LQI calcula RSSI/SNR/saltos con EMA/decaimiento. Las invariantes excluyen repetidor y nodo local de chat/contactos. |
 | Aplicación/capacidades | `src/application/`, `src/capabilities.py` | Servicios compartidos de canales, mensajería y contactos; informes de instalación, configuración, construcción, arranque y disponibilidad de servicios. |
-| Administración | `src/admin_handler.py`, `admin/`, `repeater_manager.py` | Operaciones SDK y comandos remotos bajo demanda; cualquier cambio RF requiere checklist y límites acordados. |
+| Administración | `src/admin_handler.py`, `admin/` (`local_config_executor.py`, `validators/`, `repeater_executor.py`), `repeater_manager.py` | Operaciones SDK y comandos remotos bajo demanda; validators/* reduce la complejidad ciclomática de configuración local a CC < 5. |
 | MQTT | `src/mqtt_client.py`, `mqtt_dispatcher.py`, `health_reporter.py`, `src/integrations/mqtt/topics.py` | Tópicos derivados del prefijo activo y admisión acotada; ledger SQLite de órdenes identificadas, distinto de una cola MQTT durable. Salud MQTT no publica RAM/CPU del OS. |
 | TCP Companion | `src/tcp_companion_server.py` | Proxy Companion con controles de conexión; no equivale a una segunda radio física. |
 | REST/WebSocket | `src/web/asgi_server.py`, `asgi_routes.py`, `asgi_ws_hub.py`, `api_router.py`, `controllers/` | ASGI es el backend web seleccionado; REST conserva dispatcher/controladores, WS usa el hub. No hay servidor HTTP nativo alternativo; `_create_web_server` permite operar sin web si faltan dependencias/imports. Un fallo posterior de arranque no queda cubierto por esa tolerancia. |

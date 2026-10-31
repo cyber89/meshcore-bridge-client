@@ -2,7 +2,7 @@
 
 Generado mediante `python scripts/inventory_verification.py`: lectura AST de Python e inventario textual de CommonJS, sin importar módulos ni ejecutar escenarios. Los hashes de fuentes están en `tests/artifacts/inventory.json` (artefacto local ignorado en Git).
 
-El alcance incluye 185 archivos: 147 Python en `tests/` (144 módulos `test_*.py` y 3 helpers/fixtures), 38 scripts Python/CommonJS y 0 archivos históricos de `scratch/`. Se excluyen referencias, vendors, artefactos y `scratch/maintenance/`.
+El alcance incluye 186 archivos: 148 Python en `tests/` (145 módulos `test_*.py` y 3 helpers/fixtures), 38 scripts Python/CommonJS y 0 archivos históricos de `scratch/`. Se excluyen referencias, vendors, artefactos y `scratch/maintenance/`.
 
 La suite mantenida se selecciona con `python -m pytest tests` o `python scripts/run_quality_checks.py` y requiere petición explícita del usuario. El segundo también ejecuta mypy, Ruff y documentación. Los scripts auxiliares no entran automáticamente en pytest. Consultar [TESTING.md](TESTING.md) para comandos y límites.
 
@@ -61,6 +61,7 @@ La cobertura mide líneas Python ejecutadas; no equivale a cobertura del JavaScr
 | [tests/test_firmware_wifi.py](../tests/test_firmware_wifi.py) | maintained-pytest-suite | Suite del gate completo. Local WiFi Companion configuration contracts, write-only password redaction and HTTP/admin boundary. |
 | [tests/test_firmware_wifi_browser.py](../tests/test_firmware_wifi_browser.py) | maintained-pytest-suite | Suite del gate completo. Local WiFi Companion UI requires a manual WiFi read and clears write-only passwords immediately. |
 | [tests/test_fixture_isolation.py](../tests/test_fixture_isolation.py) | maintained-pytest-suite | Suite del gate completo. Regressions for QA state restoration and cleanup when fixture setup fails. |
+| [tests/test_frontend_build.py](../tests/test_frontend_build.py) | maintained-pytest-suite | Suite del gate completo. Frontend receipts must describe the bytes preserved by Git checkouts. |
 | [tests/test_frontend_dialog_toasts.py](../tests/test_frontend_dialog_toasts.py) | maintained-pytest-suite | Suite del gate completo. Dialog ownership and fallback notifications against an isolated virtual station. |
 | [tests/test_frontend_exhaustive_audit.py](../tests/test_frontend_exhaustive_audit.py) | maintained-pytest-suite | Suite del gate completo. Observable regressions from the exhaustive frontend review, on virtual fixtures. |
 | [tests/test_frontend_expected_aborts.py](../tests/test_frontend_expected_aborts.py) | maintained-pytest-suite | Suite del gate completo. Offline browser QA accepts only cancellations observed on application signals. |
@@ -79,7 +80,7 @@ La cobertura mide líneas Python ejecutadas; no equivale a cobertura del JavaScr
 | [tests/test_local_config_save_roundtrip.py](../tests/test_local_config_save_roundtrip.py) | maintained-pytest-suite | Suite del gate completo. Local save/reload regressions with independent SDK snapshots and device state. |
 | [tests/test_login_browser_audit.py](../tests/test_login_browser_audit.py) | maintained-pytest-suite | Suite del gate completo. Real isolated ASGI/Chromium regressions for login sizing and credential forms. |
 | [tests/test_lqi_routing.py](../tests/test_lqi_routing.py) | maintained-pytest-suite | Suite del gate completo. Unit and Integration tests for LinkQualityEngine and LQI-based routing. |
-| [tests/test_manual_remote_policy.py](../tests/test_manual_remote_policy.py) | maintained-pytest-suite | Suite del gate completo. Only authenticated web administration of identified infrastructure skips pauses. |
+| [tests/test_manual_remote_policy.py](../tests/test_manual_remote_policy.py) | maintained-pytest-suite | Suite del gate completo. Manual remote administration preserves role, authentication and persisted cooldown guards. |
 | [tests/test_meshcore_1_18_companion.py](../tests/test_meshcore_1_18_companion.py) | maintained-pytest-suite | Suite del gate completo. Companion 1.18 responses must keep their transaction owner and reply type. |
 | [tests/test_meshcore_1_18_firmware_admin.py](../tests/test_meshcore_1_18_firmware_admin.py) | maintained-pytest-suite | Suite del gate completo. Firmware read scope stays local, explicit, private and separate from bridge CLI. |
 | [tests/test_meshcore_1_18_firmware_cli.py](../tests/test_meshcore_1_18_firmware_cli.py) | maintained-pytest-suite | Suite del gate completo. Manual firmware getters require observed protocol, one owner and fresh sessions. |

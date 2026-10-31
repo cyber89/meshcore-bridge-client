@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-24T17:52:27.849429+00:00",
-  "project_head": "c3b114cf9a8458a8959fe31b412838384e9bb487",
+  "generated_at_utc": "2026-10-31T14:21:40.445737+00:00",
+  "project_head": "1529de17333ab00981e98a82482969938572be63",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,9 +14,9 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 105,
+    "documents": 109,
     "references": 15,
-    "source_files": 161,
+    "source_files": 175,
     "project_skills": 22,
     "vendor_skills": 8,
     "scripts_and_entrypoints": 64
@@ -167,6 +167,18 @@
       "lines": 70
     },
     {
+      "path": "docs/adr/0025-core-and-serial-facade-decomposition.md",
+      "category": "maintained-or-decision",
+      "sha256": "02c40fd9132091273243f5c3a1766c02ea5cb429e64c259b9e6e0d31413443ae",
+      "lines": 100
+    },
+    {
+      "path": "docs/adr/0026-rx-telemetry-and-admin-validation-modularization.md",
+      "category": "maintained-or-decision",
+      "sha256": "2e530ffbc5f8da21ef3f40e89db5518d414881d0feccef6916603155407b1cc9",
+      "lines": 116
+    },
+    {
       "path": "docs/AI_REFERENCE.md",
       "category": "maintained-or-decision",
       "sha256": "48141d0da6edba47c1d5cb93a826bfd3b2a3f3292133fe8fe43521cf3082a532",
@@ -175,8 +187,8 @@
     {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "81df329869e9efea643a7856f69ccdaf211e7dc63968e3c0e2ae2ecec60b9b0b",
-      "lines": 946
+      "sha256": "92bff3ddfe99eb107da25886940dc5ac05f5042af1c473efd41c27bd775a172b",
+      "lines": 1006
     },
     {
       "path": "docs/audits/2026-10-09-layer-audit.md",
@@ -265,14 +277,14 @@
     {
       "path": "docs/audits/2026-10-17-meshcore-1.18-manual-admin.md",
       "category": "historical-ledger-or-report",
-      "sha256": "db5684784ef2477c0cbb3de748298da37fb07d2c0fe5110d52de5f8098b20972",
-      "lines": 77
+      "sha256": "d31e5090e41044f85704588055cd746cce1e827bd862d7eb28dba325e6a9d53a",
+      "lines": 82
     },
     {
       "path": "docs/audits/2026-10-17-remote-firmware-preferences.md",
       "category": "historical-ledger-or-report",
-      "sha256": "9bdb31adde2976dcd447562ab78403d104fac5ad88bcfcea37b933a63107efdf",
-      "lines": 121
+      "sha256": "bbc45e7921475cf979a89ce9660d1fc3f9125e80427edc88d019d023236df196",
+      "lines": 125
     },
     {
       "path": "docs/audits/2026-10-17-sensor-subscriptions.md",
@@ -319,8 +331,8 @@
     {
       "path": "docs/audits/2026-10-21-official-clients-comparison.md",
       "category": "historical-ledger-or-report",
-      "sha256": "b224a0046cd34f72710480f55fb53b29bb6fd0990cfdafe0b4c44c0b59afd210",
-      "lines": 282
+      "sha256": "ecc5e8e4877ab3586dcd475e3273fa8623726be723c379b581de6af9d31b1fe2",
+      "lines": 284
     },
     {
       "path": "docs/audits/2026-10-23-deep-script-contract-review.md",
@@ -339,6 +351,12 @@
       "category": "historical-ledger-or-report",
       "sha256": "af0508fb78a7f2cb407612ba793d144f8faa5683f59a6ab652ee270a23ab6a98",
       "lines": 124
+    },
+    {
+      "path": "docs/audits/2026-10-25-ci-repair.md",
+      "category": "historical-ledger-or-report",
+      "sha256": "8bd7ac1739b39cdf33af2b147ef05fc5f307ddcca3cdfff5c7c83d0fcb09630b",
+      "lines": 87
     },
     {
       "path": "docs/audits/node-config-2026-10-03/backend/README.md",
@@ -415,14 +433,14 @@
     {
       "path": "docs/fastapi/HISTORICAL_PROPOSAL.md",
       "category": "historical-ledger-or-report",
-      "sha256": "a6eddd16d9ea085133c87eb0610013632fdab727137e242a73f4d744d6e8a7f9",
-      "lines": 410
+      "sha256": "bc01bb697f0744e95541affc469006fac5120b6085c7557efca257d498c37f76",
+      "lines": 412
     },
     {
       "path": "docs/fastapi/INTERNAL_CONTRACT_BASELINE.md",
       "category": "maintained-or-decision",
-      "sha256": "c2d0981c53e646f4b22b9220af48a4887b1ffc0f22cc3a16ebc4521da99d8f8e",
-      "lines": 386
+      "sha256": "c6acc553dce69a04dd680c5b590a8bc907cb51e9ab37f833f9db61d3bcd4a63e",
+      "lines": 388
     },
     {
       "path": "docs/fastapi/PHASE_0_REPORT.md",
@@ -487,14 +505,20 @@
     {
       "path": "docs/FRONTEND_DELIVERY.md",
       "category": "maintained-or-decision",
-      "sha256": "108b2871f0c6a2248bbce159775f36a7b98bc8ba65a5a6f1870c5b09345d5eb6",
-      "lines": 245
+      "sha256": "4ca4841afa06f3d9ffc3ebe559536813d497dcb59e00fb909dc90c08faba0ff6",
+      "lines": 253
     },
     {
       "path": "docs/N8N_WORKFLOW_GUIDE.md",
       "category": "maintained-or-decision",
       "sha256": "48f96d50b0857a377865a4ae767266dadfe91c14f24040771ad329b0aac6038d",
       "lines": 98
+    },
+    {
+      "path": "docs/plans/2026-10-25-ci-repair-plan.md",
+      "category": "maintained-or-decision",
+      "sha256": "12034bcbc9c25ab531103de2b87a9fffde9f0722dbe087aa0c6361f7e08485f9",
+      "lines": 66
     },
     {
       "path": "docs/plans/AUTHENTICATION_PLAN.md",
@@ -529,20 +553,20 @@
     {
       "path": "docs/PROJECT_KNOWLEDGE.md",
       "category": "maintained-or-decision",
-      "sha256": "608360a7a56291fd5394ff5c4389a6f371a15eab63e77f62e796dac613d94c57",
-      "lines": 244
+      "sha256": "b1f88a88289c7d0d2de2da1fa676aa7f47f5ff3dc4bc653b3c7fce33f5e6856d",
+      "lines": 246
     },
     {
       "path": "docs/PROTOCOL_SPEC.md",
       "category": "maintained-or-decision",
-      "sha256": "50d13a113aceebda8c2918f83eb3baf44cb5a7eb21fa58fbf45e1adc7f400367",
+      "sha256": "fcfdfe574de2c4c87e54c91ebf7d5e1765884b616ada7dce45ee030e17f3cfb3",
       "lines": 592
     },
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "3b6c774a88d97091b4a889b39d6091c4d75174b2517e28b70f8e5b18a65a600e",
-      "lines": 186
+      "sha256": "b53007e6c49d9f19ac77b0f2b52f46c726e91c06b35d442ab3dc8827ad794224",
+      "lines": 188
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",
@@ -583,14 +607,14 @@
     {
       "path": "docs/TEST_INVENTORY.md",
       "category": "maintained-or-decision",
-      "sha256": "2be422e980e0fdd2d0bbeec4d4869687467e1f98251a4868811668e81fc57300",
-      "lines": 203
+      "sha256": "3efa54fbe402fc99e481d9c8e7d3dd2293a9ee399b70bf7cad680b1cf23b2502",
+      "lines": 204
     },
     {
       "path": "docs/TESTING.md",
       "category": "maintained-or-decision",
-      "sha256": "3c6403236b582b02bc53aa7fc833313ffea5186900d55df021b6fe1d4956c59b",
-      "lines": 212
+      "sha256": "d77cabe191373c1bacc1800d65bfae8020fb6d20ea7eea259f8627cbc904b926",
+      "lines": 220
     },
     {
       "path": "README.md",
@@ -607,8 +631,8 @@
     {
       "path": "CONTEXT.md",
       "category": "maintained-or-decision",
-      "sha256": "0fb5b0073de3f554903c9d2fae13108fa77365470e26670a4dfe91f40768878f",
-      "lines": 92
+      "sha256": "8b0cb6fc5b373e9e72ea5c77bde73a90a87611ffd531059ec06a6206c4fe312b",
+      "lines": 97
     },
     {
       "path": "nuevo.md",
@@ -1773,6 +1797,12 @@
     "src/admin/repeater_executor.py",
     "src/admin/sdk_commands.py",
     "src/admin/traceroute_executor.py",
+    "src/admin/validators/__init__.py",
+    "src/admin/validators/airtime_policy_validator.py",
+    "src/admin/validators/identity_validator.py",
+    "src/admin/validators/location_validator.py",
+    "src/admin/validators/radio_params_validator.py",
+    "src/admin/validators/schema.py",
     "src/admin_handler.py",
     "src/application/__init__.py",
     "src/application/capabilities.py",
@@ -1784,6 +1814,10 @@
     "src/capabilities.py",
     "src/companion_connection.py",
     "src/contact_manager.py",
+    "src/core/__init__.py",
+    "src/core/ack_tracker.py",
+    "src/core/companion_proxy.py",
+    "src/core/tx_coordinator.py",
     "src/deduplicator.py",
     "src/diagnostics.py",
     "src/event_utils.py",
@@ -1809,11 +1843,15 @@
     "src/routers/repeater_handler.py",
     "src/routers/system_handler.py",
     "src/routers/telemetry_handler.py",
+    "src/routers/telemetry_processor.py",
     "src/rx_router.py",
     "src/sensor_decoder.py",
     "src/serial/__init__.py",
+    "src/serial/companion_protocol.py",
+    "src/serial/firmware_cli.py",
     "src/serial/raw_framing.py",
     "src/serial/sdk_adapter.py",
+    "src/serial/sdk_event_dispatcher.py",
     "src/serial/serial_base.py",
     "src/serial/watchdog.py",
     "src/serial_driver.py",
@@ -1960,7 +1998,7 @@
     },
     {
       "path": ".agents/skills/contract-openapi-sync/scripts/verify_api_parity.py",
-      "sha256": "82a1c62fbb7d78c3df11f8a0836615f3f2835a238c3ede5783fa9f41b413cf4c",
+      "sha256": "c651d962639b1a2346757b1bfd297bc58b71691e3fbc9258d2403c07211e1f51",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2015,12 +2053,12 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "fbbf8be140d045c7151d95d4fdb96e1d671db2c32c028569b567360aa4a830ea",
+      "sha256": "d742212493295000c984ac1417560c29c2843c7ccf5f0c9e687f33f7c2249b7d",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
       "path": "config.py",
-      "sha256": "2192a936417d7b2a4f8a1f63da6a276c48297a58378943b5f8cb458a7288b19c",
+      "sha256": "c1bb8fd6e58bc1fc305bf794461152103f7b7bb0ed6dd637b60f2cda3e974097",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2090,7 +2128,7 @@
     },
     {
       "path": "scripts/build_frontend.cjs",
-      "sha256": "afb76175b039503e8fd879be02db49d3bd9258a2cf5d5c1e7ad7de15161b299b",
+      "sha256": "efbbf5e351e5f27c73659a77405ed1d2a4cf9415ec07cb6a1be46b29b07f2a42",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {
@@ -2200,7 +2238,7 @@
     },
     {
       "path": "scripts/simulate_heltec_v4_mesh.py",
-      "sha256": "010f8645a60d0afcc49dd653bd221d5ced3a209983272ccbb70e11835ac6a1bc",
+      "sha256": "189d2d953b088d7c006e8dd976115c7d003f696ebdd400f4bfa1b99b5ec4ff78",
       "review_scope": "static inventory only; inspect side effects before execution"
     },
     {

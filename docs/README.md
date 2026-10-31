@@ -104,6 +104,8 @@ Los ADRs documentan de forma inmutable las decisiones arquitectónicas fundament
 | **[ADR 0022](adr/0022-consumer-isolation-and-bounded-admission.md)** | Aislamiento de Consumidores y Admisión Acotada en Ingesta | Vigente |
 | **[ADR 0023](adr/0023-messaging-and-contact-application-services.md)** | Extracción de Servicios de Aplicación para Mensajería y Contactos | Vigente |
 | **[ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md)** | Registro de Capacidades, Opcionalidad en Runtime y Desacoplamiento de Servicios Opcionales | Vigente |
+| **[ADR 0025](adr/0025-core-and-serial-facade-decomposition.md)** | Descomposición de God Classes en Núcleo y Serial bajo Transparent Facade | Vigente |
+| **[ADR 0026](adr/0026-rx-telemetry-and-admin-validation-modularization.md)** | Modularización de Telemetría RX y Validadores Administrativos | Vigente |
 
 ---
 
