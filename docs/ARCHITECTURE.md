@@ -1,7 +1,7 @@
 # Arquitectura de MeshCore Bridge v3.0
 
 > **AI Context & Machine Contract**:
-> - **Domain**: Core System Architecture & Concurrency Model ([ADR 0003](adr/0003-asyncio-serial-resilience.md), [ADR 0011](adr/0011-staged-asgi-migration.md), [ADR 0016](adr/0016-python-3-12-baseline.md))
+> - **Domain**: Core System Architecture & Concurrency Model ([ADR 0003](adr/0003-asyncio-serial-resilience.md), [ADR 0011](adr/0011-staged-asgi-migration.md), [ADR 0016](adr/0016-python-3-12-baseline.md), [ADR 0025](adr/0025-core-and-serial-facade-decomposition.md), [ADR 0026](adr/0026-rx-telemetry-and-admin-validation-modularization.md), [ADR 0027](adr/0027-csp-hardening-and-session-startup-decoupling.md), [ADR 0028](adr/0028-incremental-dom-rendering-and-state-batching.md), [ADR 0029](adr/0029-dynamic-lora-chat-pacing-and-unconfirmed-ack-state.md))
 > - **Authority Level**: Level 3 (Living SSoT for System Architecture)
 > - **Core Symbols**: `src/bridge_core.py` (`MeshCoreBridge`), `src/web/asgi_server.py` (`create_asgi_app`, `AsgiWebServer`), `src/rx_router.py` (`RxEventRouter`)
 > - **Concurrency Invariant**: Zero blocking calls on the asyncio event loop. Dedicated threadpool for SQLite and synchronous SDK operations.
@@ -340,6 +340,55 @@ medido y descansos; ante concurrencia sirve el cuerpo original. El apagado retie
 ese worker hasta que finaliza, dentro del presupuesto existente, y rechaza reinicio
 si sigue activo. No limita instantáneamente el proceso bridge. Construcción,
 fallbacks y alcance: [FRONTEND_DELIVERY.md](FRONTEND_DELIVERY.md).
+
+### 2.5 Seguridad Web, CSP Estricto y Ciclo de Vida de Modales (ADR 0027)
+
+El perímetro web implementa una política rigurosa de Content Security Policy (CSP) en `src/web/asgi_security.py` alineada con OWASP Top 10 A03:2021:
+- **`script-src 'self'` sin `'unsafe-inline'`**: Ningún script embebido o inyectado se ejecuta en el navegador. La inicialización temprana de tema y verificación de sesión se desacopla a `/js/session_startup.js`, cargado de manera asíncrona mediante `<script async>` para garantizar que el DOM no se bloquee ni se retrase el evento `DOMContentLoaded`.
+- **Mitigación de XSS**: Sanitización contextual mediante `escapeHtml()` antes de insertar datos no confiables en el DOM (`ChatModule`, `NodesModule`, `Terminal`).
+- **Ciclo de Vida de Diálogos HTML5 (`<dialog>`)**: El diálogo modal `#accountDialog` se gestiona estrictamente cerrándolo (`dialog.close()`) al expirar la sesión o ejecutar logout, impidiendo que elementos modales no visibles o inactivos capturen indebidamente eventos de puntero sobre el formulario de autenticación `#loginForm`.
+
+### 2.6 Arquitectura Reactiva Frontend: EventBus, Store Batching y Pacing LoRa (ADR 0028 y ADR 0029)
+
+El pipeline reactivo del cliente coordina la ingesta de eventos de red y la actualización del DOM minimizando recálculos y protegiendo el espectro:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant WS as WebSocket Hub (Backend)
+    participant WSC as WebSocketService (Client)
+    participant EB as EventBus (off/on)
+    participant ST as Store (batch)
+    participant NM as NodesModule (Incremental DOM)
+    participant CM as ChatModule (LoRa Pacing & ACK)
+    participant DOM as Document Object Model
+
+    WS->>WSC: Trama WebSocket (node_updated / msg_rx)
+    WSC->>EB: emit(EVENTS.NODE_UPDATED, payload)
+    EB->>ST: batch(() => updateState(payload))
+    ST-->>NM: notify(BATCHED_NODES_UPDATED)
+    NM->>NM: In-Place Patching (tarjeta existente)
+    Note over NM,DOM: Si el nodo no existe: DocumentFragment<br/>Debounce de ordenamiento: 400ms
+    NM->>DOM: Patch quirúrgico sin destruir el árbol
+
+    Note over CM,DOM: Envío de Mensaje con Pacing y Timeout
+    CM->>WS: Enviar mensaje de texto
+    CM->>CM: Pacing dinámico botón (1.2s - 5.0s según longitud)
+    CM->>DOM: Renderizar estado 'pending' (timer 45s)
+    alt ACK recibido antes de 45s
+        WS->>EB: message_ack_matched
+        EB->>CM: delivered = true
+        CM->>DOM: Estado 'delivered' (doble check verde)
+    else Timeout 45s expirado
+        CM->>DOM: Transición a 'ack-unconfirmed' (feedback visual)
+    end
+```
+
+- **`EventBus.off()`**: Desuscripción idempotente de manejadores para evitar fugas de memoria al cambiar de vistas.
+- **`Store.batch()`**: Acumulación de mutaciones atómicas en ráfaga; emite una única notificación consolidada tras procesar lotes de eventos.
+- **Renderizado Incremental de Nodos**: Localización de tarjetas existentes por selector `#node-card-${pubkey}` y actualización en sitio de LQI, SNR y telemetría sin invocar `innerHTML = ""`.
+- **Pacing Dinámico de Chat**: Enfriamiento adaptativo entre 1.2s y 5.0s (`800 + length * 25ms`) para salvaguardar el medio LoRa y la cola UART.
+- **Transición a ACK No Confirmado**: Límite determinista de 45s para mensajes con confirmación solicitada, pasando visualmente a `ack-unconfirmed` si la malla no responde, conservando la inmutabilidad de la base de datos SQLite.
 
 ## 3. Diagrama de Arquitectura General
 

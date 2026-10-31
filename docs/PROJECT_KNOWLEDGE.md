@@ -51,8 +51,11 @@ Las decisiones vigentes posteriores cubren [SQLite](adr/0017-sqlite-station-brow
 [aislamiento RX](adr/0022-consumer-isolation-and-bounded-admission.md),
 [mensajería/contactos](adr/0023-messaging-and-contact-application-services.md) y
 [capacidades](adr/0024-capability-registry-and-runtime-optionality.md),
-[descomposición de núcleo y serial](adr/0025-core-and-serial-facade-decomposition.md) y
-[telemetría RX y validadores administrativos](adr/0026-rx-telemetry-and-admin-validation-modularization.md).
+[descomposición de núcleo y serial](adr/0025-core-and-serial-facade-decomposition.md),
+[telemetría RX y validadores administrativos](adr/0026-rx-telemetry-and-admin-validation-modularization.md),
+[endurecimiento CSP y arranque de sesión](adr/0027-csp-hardening-and-session-startup-decoupling.md),
+[renderizado incremental y lotes DOM](adr/0028-incremental-dom-rendering-and-state-batching.md) y
+[pacing dinámico LoRa y timeout de ACK](adr/0029-dynamic-lora-chat-pacing-and-unconfirmed-ack-state.md).
 
 ## Mapa de implementación
 
@@ -70,7 +73,7 @@ Las decisiones vigentes posteriores cubren [SQLite](adr/0017-sqlite-station-brow
 | TCP Companion | `src/tcp_companion_server.py` | Proxy Companion con controles de conexión; no equivale a una segunda radio física. |
 | REST/WebSocket | `src/web/asgi_server.py`, `asgi_routes.py`, `asgi_ws_hub.py`, `api_router.py`, `controllers/` | ASGI es el backend web seleccionado; REST conserva dispatcher/controladores, WS usa el hub. No hay servidor HTTP nativo alternativo; `_create_web_server` permite operar sin web si faltan dependencias/imports. Un fallo posterior de arranque no queda cubierto por esa tolerancia. |
 | Contrato/documentación API | `src/web/asgi_docs.py`, `asgi_openapi.py`, `request_models.py`, `docs_ui/` | Visor propio de consulta `/docs` y alias `/redoc`; esquema `/openapi.json`. DTO abiertos para documentación, sin validación de solicitudes en ejecución; sin paquetes Swagger UI/ReDoc. |
-| SPA | `src/web/static/`, `src/web/static/index.html` | HTML, Vanilla CSS/JS, WebSocket y almacenamiento IndexedDB del navegador. |
+| SPA | `src/web/static/`, `src/web/static/index.html` | HTML5/Vanilla ES2024 y CSS, WebSocket Hub, CSP estricto sin unsafe-inline (ADR 0027), renderizado incremental y batching en Store/EventBus (ADR 0028), pacing LoRa dinámico y timeouts de ACK (ADR 0029). |
 | Persistencia/cartografía | `src/station_database.py` (ADR 0017), registros/canales/airtime JSON (migración), `src/web/map_tile_service.py` | SQLite transaccional como backend autoritativo de chat, nodos, canales, airtime y entregas; JSON para migración inicial y MBTiles para cartografía. |
 | QA | `tests/`, `pyproject.toml`, `scripts/run_quality_checks.py` | Suites sólo por petición explícita; temporal, virtual y loopback. No ejecutar scripts históricos por su nombre. |
 

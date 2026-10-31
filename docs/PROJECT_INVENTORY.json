@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-31T14:21:40.445737+00:00",
-  "project_head": "1529de17333ab00981e98a82482969938572be63",
+  "generated_at_utc": "2026-10-31T21:56:25.663224+00:00",
+  "project_head": "00de64c6f84221488a884bc8633d786de195515c",
   "project_branch": "main",
   "project_origin": "https://github.com/cyber89/meshcore-bridge-client.git",
   "scope": "checkout snapshot including existing uncommitted work; structural inventory, not runtime certification",
@@ -14,7 +14,7 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 109,
+    "documents": 112,
     "references": 15,
     "source_files": 175,
     "project_skills": 22,
@@ -179,6 +179,24 @@
       "lines": 116
     },
     {
+      "path": "docs/adr/0027-csp-hardening-and-session-startup-decoupling.md",
+      "category": "maintained-or-decision",
+      "sha256": "53cf9e3b6c28b0c7f99e33fe60751d1538d3008856a10691af785941b135b0c1",
+      "lines": 95
+    },
+    {
+      "path": "docs/adr/0028-incremental-dom-rendering-and-state-batching.md",
+      "category": "maintained-or-decision",
+      "sha256": "f7bd0a22c8b20676bcabdd5c4a7beb4ed4543230e2d8a97cb785a31ff1968414",
+      "lines": 96
+    },
+    {
+      "path": "docs/adr/0029-dynamic-lora-chat-pacing-and-unconfirmed-ack-state.md",
+      "category": "maintained-or-decision",
+      "sha256": "0f2522ca7409707ff409131f907f1ee9ba24a896540fff36a7fa85124b420fe2",
+      "lines": 84
+    },
+    {
       "path": "docs/AI_REFERENCE.md",
       "category": "maintained-or-decision",
       "sha256": "48141d0da6edba47c1d5cb93a826bfd3b2a3f3292133fe8fe43521cf3082a532",
@@ -187,8 +205,8 @@
     {
       "path": "docs/ARCHITECTURE.md",
       "category": "maintained-or-decision",
-      "sha256": "92bff3ddfe99eb107da25886940dc5ac05f5042af1c473efd41c27bd775a172b",
-      "lines": 1006
+      "sha256": "9c2f294da710b4bf796a6106e269644e8a28b73b99aa20e3d3ce96e6cc114db8",
+      "lines": 1055
     },
     {
       "path": "docs/audits/2026-10-09-layer-audit.md",
@@ -553,8 +571,8 @@
     {
       "path": "docs/PROJECT_KNOWLEDGE.md",
       "category": "maintained-or-decision",
-      "sha256": "b1f88a88289c7d0d2de2da1fa676aa7f47f5ff3dc4bc653b3c7fce33f5e6856d",
-      "lines": 246
+      "sha256": "78f24dec47f23dccefb9a745a92fc05abe578eb5e74435093266d8d1cefc4880",
+      "lines": 249
     },
     {
       "path": "docs/PROTOCOL_SPEC.md",
@@ -565,8 +583,8 @@
     {
       "path": "docs/README.md",
       "category": "maintained-or-decision",
-      "sha256": "b53007e6c49d9f19ac77b0f2b52f46c726e91c06b35d442ab3dc8827ad794224",
-      "lines": 188
+      "sha256": "0ffccb725448dbda3be368e2a33ccb39fe9d15689997ebee4c972e16172dbf54",
+      "lines": 191
     },
     {
       "path": "docs/reference_analysis/01_FIRMWARE_C_CPP.md",

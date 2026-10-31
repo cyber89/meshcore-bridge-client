@@ -24,7 +24,7 @@ docs/
 │   ├── TEST_INVENTORY.md           <- Inventario catalogado de pruebas automatizadas
 │   ├── PROJECT_KNOWLEDGE.md        <- Mapa de conocimiento y procedencia de referencias
 │   └── PROJECT_INVENTORY.json      <- Snapshot reproducible de hashes e inventario
-├── adr/                            <- Registros de Decisiones de Arquitectura (0001 - 0024)
+├── adr/                            <- Registros de Decisiones de Arquitectura (0001 - 0029)
 ├── evolution/                      <- Especificaciones y contratos de evolución por fases (nuevo.md)
 
 ├── audits/                         <- Informes de auditoría fechados (YYYY-MM-DD-*.md)
@@ -106,6 +106,9 @@ Los ADRs documentan de forma inmutable las decisiones arquitectónicas fundament
 | **[ADR 0024](adr/0024-capability-registry-and-runtime-optionality.md)** | Registro de Capacidades, Opcionalidad en Runtime y Desacoplamiento de Servicios Opcionales | Vigente |
 | **[ADR 0025](adr/0025-core-and-serial-facade-decomposition.md)** | Descomposición de God Classes en Núcleo y Serial bajo Transparent Facade | Vigente |
 | **[ADR 0026](adr/0026-rx-telemetry-and-admin-validation-modularization.md)** | Modularización de Telemetría RX y Validadores Administrativos | Vigente |
+| **[ADR 0027](adr/0027-csp-hardening-and-session-startup-decoupling.md)** | Endurecimiento de CSP y Desacoplamiento de session_startup.js | Vigente |
+| **[ADR 0028](adr/0028-incremental-dom-rendering-and-state-batching.md)** | Renderizado Incremental y Procesamiento en Lotes del Estado DOM | Vigente |
+| **[ADR 0029](adr/0029-dynamic-lora-chat-pacing-and-unconfirmed-ack-state.md)** | Pacing Dinámico de Chat LoRa y Transición a ACK No Confirmado | Vigente |
 
 ---
 
