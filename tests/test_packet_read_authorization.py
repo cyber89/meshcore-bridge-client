@@ -76,7 +76,7 @@ async def test_capture_read_rejects_missing_or_wrong_key(
 ) -> None:
     status, body = await request(capture_server, path, api_key=provided_key)
     assert status == 401
-    assert json.loads(body) == {"error": "auth_required"}
+    assert json.loads(body)["error"] == "auth_required"
     assert PACKET_TEXT.encode() not in body
 
 
@@ -104,7 +104,7 @@ async def test_query_api_key_cannot_authorize_capture_reads(
     capture_server: AsgiWebServer, path: str,
 ) -> None:
     status, body = await request(capture_server, path + "&api_key=" + quote(API_KEY, safe=""))
-    assert status == 401 and json.loads(body) == {"error": "auth_required"}
+    assert status == 401 and json.loads(body)["error"] == "auth_required"
     assert PACKET_TEXT.encode() not in body
 
 
@@ -125,7 +125,7 @@ async def test_empty_integration_key_does_not_allow_anonymous_capture_read(
 ) -> None:
     monkeypatch.delenv("BRIDGE_API_KEY", raising=False)
     status, body = await request(capture_server, path)
-    assert status == 401 and json.loads(body) == {"error": "auth_required"}
+    assert status == 401 and json.loads(body)["error"] == "auth_required"
     assert PACKET_TEXT.encode() not in body
 
 

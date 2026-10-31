@@ -143,7 +143,7 @@ class TxCoordinator:
             "timestamp": datetime.now(UTC).isoformat(),
         }
         if not broadcast:
-            event["recipient"] = target
+            event.update(dm_target=target, is_direct=True, recipient=target)
             event["recipient_name"] = (
                 node_reg.get_contact_name(target)
                 if node_reg and hasattr(node_reg, "get_contact_name")
@@ -203,11 +203,9 @@ class TxCoordinator:
             if self.publish_chat_event_fn is not None:
                 await self.publish_chat_event_fn(chat_event)
 
-        await self.on_tx_increment(True)
         status_val = "sent"
         error_detail: str | None = None
         expected_ack_hex: str | None = None
-
         serial_adapter = self.serial_adapter_provider()
         try:
             if not serial_adapter or not serial_adapter.is_connected:
@@ -229,6 +227,8 @@ class TxCoordinator:
                 ev_type = getattr(res_obj, "type", None)
                 if str(getattr(ev_type, "name", ev_type)).upper() == "ERROR":
                     raise RuntimeError("El transceptor rechazó la transmisión")
+
+            await self.on_tx_increment(True)
 
         except Exception as e:
             await self.on_tx_increment(False)
