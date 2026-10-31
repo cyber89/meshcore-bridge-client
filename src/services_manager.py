@@ -148,6 +148,8 @@ class ServicesManager:
         previous = self.external_mqtt
         if previous.local_pubkey == normalized:
             return
+        # Stop the old identity before starting its replacement
+        await asyncio.to_thread(previous.stop)
         # Transfer Store-and-Forward ring buffer and sent hashes before replacing
         replacement = self._create_external_mqtt_client(self.services_config.external_mqtt, normalized)
         if hasattr(previous, "_ring_buffer") and hasattr(replacement, "_ring_buffer"):
@@ -156,8 +158,6 @@ class ServicesManager:
                     replacement._ring_buffer.extend(previous._ring_buffer)
                     if hasattr(previous, "_sent_hashes") and hasattr(replacement, "_sent_hashes"):
                         replacement._sent_hashes.extend(previous._sent_hashes)
-        # Stop the old identity before starting its replacement
-        await asyncio.to_thread(previous.stop)
         try:
             if start_client and self.is_running and self.services_config.external_mqtt.enabled:
                 replacement.start(loop=self._loop)
