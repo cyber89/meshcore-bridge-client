@@ -724,7 +724,7 @@ export class MapModule {
           const rawLon = n.longitude ?? n.lon ?? n.adv_lon ?? n.gps?.longitude;
           const lat = parseFloat(rawLat);
           const lon = parseFloat(rawLon);
-          if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
+          if (this._isValidCoords(lat, lon)) {
             return { lat, lon, name: n.name || I18n.t('map.local_station'), node: n };
           }
         }
@@ -737,7 +737,7 @@ export class MapModule {
     if (latEl && lonEl) {
       const lat = parseFloat(latEl.value);
       const lon = parseFloat(lonEl.value);
-      if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
+      if (this._isValidCoords(lat, lon)) {
         return { lat, lon, name: I18n.t('map.local_station') };
       }
     }
@@ -819,7 +819,7 @@ export class MapModule {
       const rawLon = n.longitude ?? n.lon ?? n.adv_lon ?? n.gps?.longitude;
       const lat = parseFloat(rawLat);
       const lon = parseFloat(rawLon);
-      return !isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0);
+      return this._isValidCoords(lat, lon);
     });
 
     if (this.dom.mapNodesCount) {
@@ -886,13 +886,19 @@ export class MapModule {
     }
   }
 
+  _isValidCoords(lat, lon) {
+    return Number.isFinite(lat) && Number.isFinite(lon) &&
+           Math.abs(lat) <= 90 && Math.abs(lon) <= 180 &&
+           (lat !== 0 || lon !== 0);
+  }
+
   updateSingleNodeMarker(node) {
     if (!this.map || !node) return;
     const rawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
     const rawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
     const lat = parseFloat(rawLat);
     const lon = parseFloat(rawLon);
-    if (isNaN(lat) || isNaN(lon) || (lat === 0 && lon === 0)) return;
+    if (!this._isValidCoords(lat, lon)) return;
 
     const pk = (node.public_key || (node.is_local ? "local" : "")).toLowerCase();
     if (!pk) return;
@@ -952,5 +958,10 @@ export class MapModule {
       clearInterval(this._heatmapPollInterval);
       this._heatmapPollInterval = null;
     }
+    if (this.map) {
+      this.map.remove();
+      this.map = null;
+    }
+    this.mapMarkers?.clear();
   }
 }

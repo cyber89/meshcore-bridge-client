@@ -673,7 +673,6 @@ h5, .h5 { font-size: 0.875rem; font-weight: 650; }
   max-width: 36px;
   height: 36px;
   min-height: 36px;
-  max-height: 32px;
   padding: 0;
 }
 
@@ -1329,19 +1328,32 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 }
 
 .toggle-switch.toggle-sm {
-  width: 36px;
-  height: 20px;
+  width: 40px;
+  height: 24px;
+  position: relative;
 }
 
 .toggle-switch.toggle-sm .toggle-slider::before {
-  height: 14px;
-  width: 14px;
-  left: 2px;
+  height: 18px;
+  width: 18px;
+  left: 3px;
   bottom: 2px;
 }
 
 .toggle-switch.toggle-sm input:checked + .toggle-slider::before {
   transform: translateX(16px);
+}
+
+@media (pointer: coarse) {
+  .toggle-switch.toggle-sm::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 @media (max-width: 767.98px) {
@@ -2364,34 +2376,42 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   border: 1px solid var(--bs-border-color);
 }
 
+.color-dim {
+  color: var(--text-muted, #94a3b8);
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
 .node-role-badge.role-repeater {
-  background: rgba(168, 85, 247, 0.15);
-  color: var(--accent-purple);
-  border-color: rgba(168, 85, 247, 0.35);
+  background: var(--role-repeater-bg);
+  color: var(--role-repeater-text);
+  border-color: var(--role-repeater-border);
 }
 
 .node-role-badge.role-sensor {
-  background: rgba(6, 182, 212, 0.15);
-  color: var(--accent-cyan);
-  border-color: rgba(6, 182, 212, 0.35);
+  background: var(--role-sensor-bg);
+  color: var(--role-sensor-text);
+  border-color: var(--role-sensor-border);
 }
 
 .node-role-badge.role-room {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--accent-warning);
-  border-color: rgba(245, 158, 11, 0.35);
+  background: var(--role-room-bg);
+  color: var(--role-room-text);
+  border-color: var(--role-room-border);
 }
 
 .node-role-badge.role-client {
-  background: rgba(59, 130, 246, 0.15);
-  color: var(--accent-primary);
-  border-color: rgba(59, 130, 246, 0.35);
+  background: var(--role-client-bg);
+  color: var(--role-client-text);
+  border-color: var(--role-client-border);
 }
 
 .node-role-badge.role-local {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--accent-success);
-  border-color: rgba(16, 185, 129, 0.35);
+  background: var(--role-local-bg);
+  color: var(--role-local-text);
+  border-color: var(--role-local-border);
 }
 
 .contact-battery-chip {
@@ -6138,9 +6158,10 @@ details.settings-disclosure > .disclosure-content {
   }
 
   .btn-header-action.btn-lang-toggle {
-    width: 32px !important;
-    min-width: 32px !important;
-    max-width: 32px !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+    height: 36px !important;
     padding: 0 !important;
   }
 
@@ -6153,10 +6174,21 @@ details.settings-disclosure > .disclosure-content {
   }
 
   .btn-header-action.auth-account-button {
-    width: 32px !important;
-    min-width: 32px !important;
-    max-width: 32px !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+    height: 36px !important;
     padding: 0 !important;
+  }
+
+  @media (pointer: coarse) {
+    .btn-header-action.btn-lang-toggle,
+    .btn-header-action.auth-account-button {
+      width: 44px !important;
+      min-width: 44px !important;
+      max-width: 44px !important;
+      height: 44px !important;
+    }
   }
 }
 
@@ -7001,10 +7033,19 @@ details.settings-disclosure > .disclosure-content {
 }
 
 /* U-34: Alto contraste WCAG AA (>= 4.5:1) para badges sobre fondo oscuro de terminal en ambos temas */
-.linux-term-header .badge-outline,
-#logsCountBadge.badge-outline {
+.linux-term-header .badge-outline {
   color: #cbd5e1 !important;
   border-color: rgba(203, 213, 225, 0.45) !important;
+}
+
+[data-bs-theme="dark"] #logsCountBadge.badge-outline {
+  color: #cbd5e1 !important;
+  border-color: rgba(203, 213, 225, 0.45) !important;
+}
+
+[data-bs-theme="light"] #logsCountBadge.badge-outline {
+  color: var(--bs-secondary-color, #475569) !important;
+  border-color: rgba(71, 85, 105, 0.45) !important;
 }
 
 /* U-05: Regla universal anti-zoom iOS en orientacion horizontal y tablets */

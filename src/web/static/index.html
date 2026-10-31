@@ -10,33 +10,14 @@
   <!-- Vector identity shared with the station header. -->
   <link rel="icon" type="image/svg+xml" href="/brand.svg">
   <link rel="preload" href="/css/fonts/bootstrap-icons.woff2?e34853135f9e39acf64315236852cd5a" as="font" type="font/woff2" crossorigin>
-  <script async src="/js/session_startup.js"></script>
-
   <!-- Bootswatch 5.3 Themes Locales Offline: Slate (Oscuro) y Zephyr (Claro) -->
   <link id="themeStylesheet" rel="stylesheet" href="/css/bootstrap-slate.min.css">
-  <script>
-    (function() {
-      try {
-        var t = localStorage.getItem("meshcore_theme");
-        if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-          t = "light";
-        }
-        if (t === "light") {
-          document.documentElement.setAttribute("data-bs-theme", "light");
-          var m = document.querySelector('meta[name="theme-color"]');
-          if (m) m.setAttribute("content", "#eef3f9");
-          var l = document.getElementById("themeStylesheet");
-          if (l) l.href = "/css/bootstrap-zephyr.local.min.css";
-        }
-      } catch (_) {}
-    })();
-  </script>
+  <script src="/js/session_startup.js"></script>
   <link rel="stylesheet" href="/css/bootstrap-icons.min.css">
   <link rel="stylesheet" href="/css/app.css">
 
-  <!-- Leaflet Map CSS (Offline Local Bundle, deferred non-critical style) -->
-  <link rel="preload" href="/css/leaflet.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="/css/leaflet.min.css"></noscript>
+  <!-- Leaflet Map CSS (Offline Local Bundle) -->
+  <link rel="stylesheet" href="/css/leaflet.min.css">
 </head>
 <body class="bg-body text-body d-flex flex-column overflow-hidden auth-pending">
   <a href="#appMain" class="skip-link" data-i18n="ui.skip_to_content">Saltar al contenido</a>
@@ -160,7 +141,7 @@
     <!-- Barra Lateral de Navegación Principal (Offcanvas en móvil) -->
     <aside class="app-sidebar offcanvas-lg offcanvas-start bg-body-tertiary border-end d-flex flex-column" id="appSidebar" tabindex="-1" role="navigation" aria-label="Navegación principal" data-i18n-aria-label="ui.static_009">
       <div class="offcanvas-header d-lg-none border-bottom p-3">
-        <h5 class="offcanvas-title fs-6 fw-bold">Menú Principal</h5>
+        <h2 class="offcanvas-title fs-6 fw-bold">Menú Principal</h2>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Cerrar" data-i18n-aria-label="modal.close"></button>
       </div>
       <div class="offcanvas-body p-3 flex-column d-flex justify-content-between h-100">
@@ -367,10 +348,10 @@
               <div class="map-overlay-header" id="mapOverlayHeader">
                 <div class="map-overlay-title-group">
                   <i class="bi bi-people-fill map-overlay-icon" aria-hidden="true"></i>
-                  <h4 class="map-overlay-title">
+                  <h3 class="map-overlay-title fs-6">
                     <span class="map-overlay-title-text" data-i18n="map.nodes_title">Nodos en Malla</span>
                     <span id="mapNodesCount" class="map-nodes-badge badge rounded-pill">0</span>
-                  </h4>
+                  </h3>
                 </div>
                 <button type="button" class="btn-toggle-overlay" id="btnToggleMapNodes" title="Minimizar lista de nodos" aria-label="Minimizar lista de nodos" aria-expanded="true" data-i18n-title="map.minimize_nodes" data-i18n-aria-label="map.minimize_nodes" aria-controls="mapNodesList">
                   <span class="toggle-icon" aria-hidden="true">−</span>
@@ -2388,7 +2369,7 @@
                 <label for="repeaterGatePassword" class="auth-gate-label" data-i18n="rep.pin_label">Contraseña de Administración (PIN):</label>
                 <div class="auth-gate-input-row">
                   <input type="password" id="repeaterGatePassword" placeholder="PIN / Contraseña del repetidor..." autocomplete="current-password" required  data-i18n-placeholder="rep.pin_placeholder"/>
-                  <button type="button" class="btn-icon btn-toggle-pwd" id="btnToggleGatePwd" title="Mostrar u ocultar contraseña" data-i18n-title="ui.static_412"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                  <button type="button" class="btn-icon btn-toggle-pwd" id="btnToggleGatePwd" title="Mostrar u ocultar contraseña" data-i18n-title="ui.static_412" aria-label="Mostrar u ocultar contraseña" data-i18n-aria-label="ui.static_412" aria-controls="repeaterGatePassword" aria-pressed="false"><i class="bi bi-eye" aria-hidden="true"></i></button>
                 </div>
               </div>
 

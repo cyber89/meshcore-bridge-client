@@ -326,7 +326,11 @@ class AssetsAdapter:
                 "Cache-Control": (
                     "no-store"
                     if target.suffix == ".html"
-                    else "public, max-age=300"
+                    else (
+                        "public, max-age=86400, immutable"
+                        if target.suffix in {".woff2", ".woff", ".ttf", ".eot"}
+                        else "public, max-age=300"
+                    )
                 ),
                 "ETag": etag,
                 "Vary": "Accept-Encoding",

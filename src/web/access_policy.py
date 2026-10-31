@@ -26,12 +26,12 @@ MAP_TILE_PREFIX = "/api/map/tiles/"
 # Note: All /api/ endpoints are protected by requires_api_auth apart from login/session.
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline'; "
+    "script-src 'self'; "
     "style-src 'self' 'unsafe-inline'; "
     "font-src 'self' data:; "
     "img-src 'self' data: blob: https: https://*.tile.openstreetmap.org "
     "https://*.basemaps.cartocdn.com; "
-    "connect-src 'self' ws: wss: https:; "
+    "connect-src 'self' ws: wss:; "
     "frame-ancestors 'none'"
 )
 
