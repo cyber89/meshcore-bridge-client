@@ -19,5 +19,10 @@ NoNewPrivileges=true
 KillMode=control-group
 TimeoutStopSec=20
 
+# Sandboxing and security hardening
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
 [Install]
 WantedBy=multi-user.target
