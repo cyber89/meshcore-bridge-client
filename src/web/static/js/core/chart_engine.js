@@ -39,6 +39,10 @@ function getUniqueId(prefix = "chart") {
  */
 export function renderAreaChart(container, options = {}) {
   if (!container) return;
+  if (container._chartCleanup) {
+    container._chartCleanup();
+    container._chartCleanup = null;
+  }
   container.innerHTML = "";
 
   const points = options.points || [];
@@ -275,19 +279,26 @@ export function renderAreaChart(container, options = {}) {
     tooltip.style.top = "20px";
   };
 
-  svg.addEventListener("mousemove", (e) => onMove(e.clientX));
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  svg.addEventListener("mousemove", (e) => onMove(e.clientX), { signal });
   svg.addEventListener("mouseleave", () => {
     guideLine.style.display = "none";
     tooltip.classList.add("hidden");
-  });
+  }, { signal });
 
   svg.addEventListener("touchmove", (e) => {
     if (e.touches && e.touches[0]) onMove(e.touches[0].clientX);
-  }, { passive: true });
+  }, { passive: true, signal });
   svg.addEventListener("touchend", () => {
     guideLine.style.display = "none";
     tooltip.classList.add("hidden");
-  });
+  }, { signal });
+
+  const cleanup = () => controller.abort();
+  container._chartCleanup = cleanup;
+  return { destroy: cleanup };
 }
 
 /**
@@ -297,6 +308,10 @@ export function renderAreaChart(container, options = {}) {
  */
 export function renderDonutChart(container, options = {}) {
   if (!container) return;
+  if (container._chartCleanup) {
+    container._chartCleanup();
+    container._chartCleanup = null;
+  }
   container.innerHTML = "";
 
   const data = options.data || [];
@@ -342,6 +357,8 @@ export function renderDonutChart(container, options = {}) {
   }
 
   let accumulatedOffset = 0;
+  const controller = new AbortController();
+  const { signal } = controller;
 
   // Dibujar cada segmento circular
   data.forEach((item) => {
@@ -376,12 +393,12 @@ export function renderDonutChart(container, options = {}) {
       circle.setAttribute("stroke-width", strokeWidth + 4);
       centerSub.textContent = item.label;
       centerVal.textContent = `${(pct * 100).toFixed(1)}%`;
-    });
+    }, { signal });
     circle.addEventListener("mouseleave", () => {
       circle.setAttribute("stroke-width", strokeWidth);
       centerSub.textContent = options.centerLabel || "Total";
       centerVal.textContent = total.toLocaleString();
-    });
+    }, { signal });
 
     svg.appendChild(circle);
     accumulatedOffset += strokeDash;
@@ -435,6 +452,10 @@ export function renderDonutChart(container, options = {}) {
 
   wrapper.appendChild(legend);
   container.appendChild(wrapper);
+
+  const cleanup = () => controller.abort();
+  container._chartCleanup = cleanup;
+  return { destroy: cleanup };
 }
 
 /**
@@ -459,11 +480,17 @@ export function renderHorizontalBarChart(container, items = []) {
     const val = Number(item.value) || 0;
     const pct = Math.min((val / maxVal) * 100, 100);
 
+    const safeIcon = item.icon
+      ? (typeof item.icon === "string" && /^<i class="[a-zA-Z0-9_\-\s]+" aria-hidden="true"><\/i>$/.test(item.icon.trim())
+          ? item.icon
+          : escapeHtml(item.icon))
+      : "";
+
     const row = document.createElement("div");
     row.className = "bar-chart-row";
     row.innerHTML = `
       <div class="bar-header">
-        <span class="bar-label">${item.icon ? `<span class="bar-icon">${item.icon}</span> ` : ""}${escapeHtml(item.label)}</span>
+        <span class="bar-label">${safeIcon ? `<span class="bar-icon">${safeIcon}</span> ` : ""}${escapeHtml(item.label)}</span>
         <span class="bar-value font-mono font-semibold">${val.toLocaleString()} ${item.detail ? `<small class="text-muted">(${escapeHtml(item.detail)})</small>` : ""}</span>
       </div>
       <div class="bar-track">

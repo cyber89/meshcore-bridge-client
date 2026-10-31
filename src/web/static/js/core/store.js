@@ -11,6 +11,8 @@ export class ReactiveStore {
   constructor(initialState = {}) {
     this._target = new EventTarget();
     this._rawState = { ...initialState };
+    this._isBatching = false;
+    this._batchChanges = [];
 
     // Proxy reactivo que intercepta mutaciones y despacha eventos de cambio
     this.state = new Proxy(this._rawState, {
@@ -19,6 +21,11 @@ export class ReactiveStore {
         if (oldValue === value) return true;
 
         target[prop] = value;
+
+        if (this._isBatching) {
+          this._batchChanges.push({ prop, value, oldValue });
+          return true;
+        }
 
         // Despachar evento específico para la propiedad mutada
         this._target.dispatchEvent(
@@ -61,14 +68,51 @@ export class ReactiveStore {
   }
 
   /**
+   * Ejecuta una serie de mutaciones agrupadas de forma atómica.
+   * Emite un único evento global 'change' al finalizar el bloque de ejecución.
+   * @param {() => void} fn Función con las mutaciones a ejecutar.
+   */
+  batch(fn) {
+    if (this._isBatching) {
+      fn();
+      return;
+    }
+    this._isBatching = true;
+    this._batchChanges = [];
+    try {
+      fn();
+    } finally {
+      this._isBatching = false;
+      const changes = [...this._batchChanges];
+      this._batchChanges = [];
+      if (changes.length > 0) {
+        for (const change of changes) {
+          this._target.dispatchEvent(
+            new CustomEvent(`change:${String(change.prop)}`, {
+              detail: change,
+            })
+          );
+        }
+        this._target.dispatchEvent(
+          new CustomEvent("change", {
+            detail: { batch: true, changes, snapshot: this.snapshot() },
+          })
+        );
+      }
+    }
+  }
+
+  /**
    * Actualiza múltiples propiedades de forma atómica.
    * @param {Record<string, any>} patch Objeto con propiedades a actualizar.
    */
   setMany(patch) {
     if (!patch || typeof patch !== "object") return;
-    for (const [k, v] of Object.entries(patch)) {
-      this.state[k] = v;
-    }
+    this.batch(() => {
+      for (const [k, v] of Object.entries(patch)) {
+        this.state[k] = v;
+      }
+    });
   }
 
   /**
@@ -100,11 +144,15 @@ export class ReactiveStore {
   }
 
   /**
-   * Retorna una instantánea inmutable (shallow copy) del estado actual.
-   * @returns {Record<string, any>} Copia del estado.
+   * Retorna una instantánea inmutable (deep clone) del estado actual.
+   * @returns {Record<string, any>} Copia profunda del estado.
    */
   snapshot() {
-    return { ...this._rawState };
+    try {
+      return structuredClone(this._rawState);
+    } catch (_) {
+      return JSON.parse(JSON.stringify(this._rawState));
+    }
   }
 }
 

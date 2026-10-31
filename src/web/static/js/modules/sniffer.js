@@ -104,6 +104,9 @@ export class SnifferModule {
         };
         this.worker.onerror = (err) => {
           console.warn("Sniffer packet worker error, falling back to sync:", err);
+          try {
+            this.worker?.terminate();
+          } catch (_) {}
           this.worker = null;
         };
       } catch (err) {

@@ -69,7 +69,8 @@ export class ApiClient {
         data = null;
       }
     } else {
-      data = await response.text();
+      const rawText = await response.text();
+      data = rawText.length > 160 ? `${rawText.slice(0, 157)}...` : rawText;
     }
 
     if (!response.ok) {

@@ -6,6 +6,7 @@
 export class EventBus {
   constructor() {
     this._target = new EventTarget();
+    this._handlers = new Map();
   }
 
   /**
@@ -15,9 +16,28 @@ export class EventBus {
    * @returns {Function} Función para cancelar la suscripción
    */
   on(eventName, handler) {
+    if (!this._handlers.has(eventName)) {
+      this._handlers.set(eventName, new Map());
+    }
     const wrappedHandler = (e) => handler(e.detail);
+    this._handlers.get(eventName).set(handler, wrappedHandler);
     this._target.addEventListener(eventName, wrappedHandler);
-    return () => this._target.removeEventListener(eventName, wrappedHandler);
+    return () => this.off(eventName, handler);
+  }
+
+  /**
+   * Desuscribe un listener de un tipo de evento.
+   * @param {string} eventName Nombre del evento
+   * @param {Function} handler Función callback original
+   */
+  off(eventName, handler) {
+    if (!this._handlers.has(eventName)) return;
+    const eventMap = this._handlers.get(eventName);
+    const wrappedHandler = eventMap.get(handler);
+    if (wrappedHandler) {
+      this._target.removeEventListener(eventName, wrappedHandler);
+      eventMap.delete(handler);
+    }
   }
 
   /**
@@ -36,7 +56,14 @@ export class EventBus {
    * @param {Function} handler Función callback
    */
   once(eventName, handler) {
-    const wrappedHandler = (e) => handler(e.detail);
+    const wrappedHandler = (e) => {
+      this.off(eventName, handler);
+      handler(e.detail);
+    };
+    if (!this._handlers.has(eventName)) {
+      this._handlers.set(eventName, new Map());
+    }
+    this._handlers.get(eventName).set(handler, wrappedHandler);
     this._target.addEventListener(eventName, wrappedHandler, { once: true });
   }
 }

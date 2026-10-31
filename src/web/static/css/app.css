@@ -2238,9 +2238,14 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
   font-weight: 800;
 }
 
+.ack-indicator.ack-unconfirmed {
+  color: var(--accent-warning, #f59e0b);
+}
+
 .message-bubble-row.outgoing .ack-indicator { color: #eaf2ff; }
 .message-bubble-row.outgoing .ack-delivered { color: #fff; }
 .message-bubble-row.outgoing .ack-failed { color: #ffe4e9; }
+.message-bubble-row.outgoing .ack-unconfirmed { color: #fde68a; }
 
 .msg-sender {
   font-size: 0.75rem;

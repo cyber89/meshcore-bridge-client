@@ -36,6 +36,7 @@ export class ChatModule {
     this.activeDmTarget = null;
     this.activeDmName = null;
     this.pendingOutgoingAcks = new Map();
+    this._ackTimeoutTimers = new Map();
     this.historyPages = new Map();
     this._historyStates = new Map();
     this._visibleFeedKey = null;
@@ -109,6 +110,7 @@ export class ChatModule {
       this.historyPages.clear();
       this._historyStates.clear();
       this._visibleFeedKey = null;
+      this._clearAllAckTimeouts();
       this.pendingOutgoingAcks.clear();
       if (this.dom.dmListUi) this.dom.dmListUi.textContent = "";
       if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
@@ -1402,6 +1404,7 @@ export class ChatModule {
     this.channelFeeds.clear();
     this.historyPages.clear();
     this._historyStates.clear();
+    this._clearAllAckTimeouts();
     this.pendingOutgoingAcks.clear();
     if (this.conversationsWithMessages instanceof Set) {
       this.conversationsWithMessages.clear();
@@ -1608,7 +1611,9 @@ export class ChatModule {
       if (cleanAck) {
         row.setAttribute("data-ack-code", cleanAck);
         if (msg.is_outgoing && !msg.delivered) {
-          this.pendingOutgoingAcks.set(cleanAck, msg.id || msg.msg_id);
+          const mId = msg.id || msg.msg_id;
+          this.pendingOutgoingAcks.set(cleanAck, mId);
+          this._registerPendingAckTimeout(cleanAck, mId);
         }
       }
     }
@@ -1891,7 +1896,13 @@ export class ChatModule {
           break;
         }
         if (i < chunks.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          const cfg = this.ctx.localConfig || {};
+          const sf = Number(cfg.spreading_factor || cfg.sf || 11);
+          const bw = Number(cfg.bandwidth || cfg.bw || 250);
+          const cr = Number(cfg.coding_rate || cfg.cr || 5);
+          const chunkAirtimeMs = estimateLoraAirtimeMs(getUtf8ByteLength(chunks[i]), sf, bw, cr);
+          const pacingMs = Math.max(1500, Math.round(chunkAirtimeMs * 1.35));
+          await new Promise((resolve) => setTimeout(resolve, pacingMs));
         }
       }
     } finally {
@@ -1977,7 +1988,10 @@ export class ChatModule {
           const cleanExpectedAck = String(rawExpectedAck).toLowerCase().replace(/^0x/, "").trim();
           if (cleanExpectedAck) {
             outgoingMsg.expected_ack = cleanExpectedAck;
-            if (!outgoingMsg.delivered) this.pendingOutgoingAcks.set(cleanExpectedAck, msgId);
+            if (!outgoingMsg.delivered) {
+              this.pendingOutgoingAcks.set(cleanExpectedAck, msgId);
+              this._registerPendingAckTimeout(cleanExpectedAck, msgId);
+            }
             await this._persistOutgoingMessage(() => this.ctx.storage?.updateMessageExpectedAck?.(msgId, cleanExpectedAck));
           }
         }
@@ -2206,10 +2220,15 @@ export class ChatModule {
     const rawAck = (payload.ack_code || payload.code || "").toString().toLowerCase().trim();
     const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
     if (!ackClean || /^0+$/.test(ackClean)) return;
+    if (this._ackTimeoutTimers?.has(ackClean)) {
+      clearTimeout(this._ackTimeoutTimers.get(ackClean));
+      this._ackTimeoutTimers.delete(ackClean);
+    }
     let msgId = payload.msg_id;
     if (!msgId && ackClean) {
       msgId = this.pendingOutgoingAcks.get(ackClean);
     }
+    this.pendingOutgoingAcks.delete(ackClean);
 
     let row = null;
     if (msgId) {
@@ -2271,7 +2290,41 @@ export class ChatModule {
     } catch (_) {}
   }
 
+  _registerPendingAckTimeout(cleanAck, msgId) {
+    if (!this._ackTimeoutTimers) this._ackTimeoutTimers = new Map();
+    if (this._ackTimeoutTimers.has(cleanAck)) {
+      clearTimeout(this._ackTimeoutTimers.get(cleanAck));
+    }
+    const timer = setTimeout(() => {
+      this._ackTimeoutTimers.delete(cleanAck);
+      this.pendingOutgoingAcks.delete(cleanAck);
+      const row = this.dom.chatMessageFeed?.querySelector(
+        `.message-bubble-row[data-msg-id="${msgId}"], .message-bubble-row[data-ack-code="${cleanAck}"]`
+      );
+      if (row) {
+        const indicator = row.querySelector(".ack-indicator");
+        if (indicator && !indicator.classList.contains("ack-delivered")) {
+          indicator.className = "ack-indicator ack-unconfirmed";
+          indicator.innerHTML = '<i class="bi bi-question-circle" aria-hidden="true"></i>';
+          indicator.title = I18n.t("chat.ack_unconfirmed");
+          indicator.setAttribute("aria-label", indicator.title);
+        }
+      }
+    }, 45000);
+    this._ackTimeoutTimers.set(cleanAck, timer);
+  }
+
+  _clearAllAckTimeouts() {
+    if (this._ackTimeoutTimers) {
+      for (const timer of this._ackTimeoutTimers.values()) {
+        clearTimeout(timer);
+      }
+      this._ackTimeoutTimers.clear();
+    }
+  }
+
   destroy() {
+    this._clearAllAckTimeouts();
     if (this._charCounterRaf) {
       cancelAnimationFrame(this._charCounterRaf);
       this._charCounterRaf = null;

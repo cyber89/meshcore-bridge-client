@@ -2,14 +2,15 @@
 export class DialogController {
   constructor() {
     this.entries = new WeakMap();
+    this._registeredEntries = new Set();
     this.stack = [];
     this.lastOutsideFocus = document.activeElement;
     this.redirectingFocus = false;
     document.querySelectorAll('.modal-overlay[role="dialog"]').forEach((modal) => this.register(modal));
     this.backdropObserver = new MutationObserver(() => this._syncBackdrops());
     this.backdropObserver.observe(document.body, { childList: true });
-    document.addEventListener("keydown", (event) => this._onKeyDown(event), true);
-    document.addEventListener("focusin", (event) => {
+    this._onKeyDownBound = (event) => this._onKeyDown(event);
+    this._onFocusInBound = (event) => {
       // Native modal dialogs own focus while they are in the browser top layer.
       if (document.querySelector("dialog[open]")) return;
       const targetModal = event.target.closest?.('.modal-overlay[role="dialog"]');
@@ -25,13 +26,16 @@ export class DialogController {
         this._focus(top);
         this.redirectingFocus = false;
       }
-    });
+    };
+    document.addEventListener("keydown", this._onKeyDownBound, true);
+    document.addEventListener("focusin", this._onFocusInBound);
   }
 
   register(modal) {
     if (this.entries.has(modal)) return this.entries.get(modal);
     const entry = { modal, phase: "closed", initialFocus: null, dismiss: null, waiters: [] };
     this.entries.set(modal, entry);
+    this._registeredEntries.add(entry);
     if (window.bootstrap?.Modal) {
       // Native Bootstrap focus traps and Escape handlers compete with stacked dialogs.
       entry.adapter = window.bootstrap.Modal.getOrCreateInstance(modal, {
@@ -231,5 +235,27 @@ export class DialogController {
         if (!first) this._focus(entry);
       }
     }
+  }
+
+  destroy() {
+    this.backdropObserver?.disconnect();
+    this.backdropObserver = null;
+    if (this._onKeyDownBound) {
+      document.removeEventListener("keydown", this._onKeyDownBound, true);
+      this._onKeyDownBound = null;
+    }
+    if (this._onFocusInBound) {
+      document.removeEventListener("focusin", this._onFocusInBound);
+      this._onFocusInBound = null;
+    }
+    if (this._registeredEntries) {
+      for (const entry of this._registeredEntries) {
+        entry.observer?.disconnect();
+        entry.observer = null;
+      }
+      this._registeredEntries.clear();
+    }
+    this.entries = new WeakMap();
+    this.stack = [];
   }
 }

@@ -253,7 +253,10 @@ export class BrowserAuthentication {
     }, this.loginFeedback);
     fields.password.value = "";
     this._setPasswordVisible(false);
-    if (data) this._acceptSession(data);
+    if (data) {
+      this.expired = false;
+      this._acceptSession(data);
+    }
   }
 
   async _changeCredentials(event) {
@@ -313,11 +316,11 @@ export class BrowserAuthentication {
   _expire() {
     if (this.expired) return;
     this.expired = true;
+    this.session = null;
     setSessionCsrfToken("");
     window.dispatchEvent(new CustomEvent("meshcore:auth_expired"));
     window.dispatchEvent(new CustomEvent("meshcore:credentials_changed"));
-    document.body.classList.add("auth-pending");
     this._clearAccountSecrets();
-    location.reload();
+    this._showLogin();
   }
 }

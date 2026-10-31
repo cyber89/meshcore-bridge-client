@@ -931,21 +931,6 @@ export class NodesModule {
       this.ctx.knownNodes = this.knownNodes;
     }
 
-    // Actualizar contadores globales de la interfaz
-    if (this.dom.headerNodeCount) {
-      this.dom.headerNodeCount.textContent = String(deduplicatedNodes.length);
-    }
-
-    let cntRepeaters = 0;
-    let cntSensors = 0;
-    let cntRooms = 0;
-    let cntClients = 0;
-
-    let cntContacts = 0;
-    let cntFavContacts = 0;
-    let cntOnlineContacts = 0;
-    let cntGpsContacts = 0;
-
     if (contactsGrid) contactsGrid.textContent = "";
     if (unifiedNodesGrid) unifiedNodesGrid.textContent = "";
 
@@ -960,22 +945,8 @@ export class NodesModule {
       const isRoom = node.role === "ROOM";
       const isClient = !isLocal && !isRepeater && !isSensor && !isRoom;
 
-      if (isRepeater) cntRepeaters++;
-      else if (isSensor) cntSensors++;
-      else if (isRoom) cntRooms++;
-      else if (isClient) cntClients++;
-
       // 1. Tarjetas para Contactos (Exclusivamente Clientes de Usuario)
       if (contactsGrid && !isLocal && !isRepeater && (node.role === "CLIENT" || isClient)) {
-        cntContacts++;
-        if (node.is_favorite) cntFavContacts++;
-        if (getPresenceState(node.last_seen, false) === "status-online") cntOnlineContacts++;
-        const cRawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
-        const cRawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
-        const cfLat = cRawLat != null ? parseFloat(cRawLat) : NaN;
-        const cfLon = cRawLon != null ? parseFloat(cRawLon) : NaN;
-        if (!isNaN(cfLat) && !isNaN(cfLon) && (cfLat !== 0 || cfLon !== 0)) cntGpsContacts++;
-
         const cCard = this.createNodeCard(node, "contact", localCoords);
         contactsFrag.appendChild(cCard);
       }
@@ -989,29 +960,10 @@ export class NodesModule {
       }
     }
 
-    // Actualizar contadores en badges de filtros de UI (usando elementos cacheados)
-    const cAll = this.dom.countAllNodes || document.getElementById("countAllNodes");
-    const cRep = this.dom.countRepeaters || document.getElementById("countRepeaters");
-    const cSen = this.dom.countSensors || document.getElementById("countSensors");
-    const cRoo = this.dom.countRooms || document.getElementById("countRooms");
-    const cCli = this.dom.countClients || document.getElementById("countClients");
-    if (cAll) cAll.textContent = String(deduplicatedNodes.length);
-    if (cRep) cRep.textContent = String(cntRepeaters);
-    if (cSen) cSen.textContent = String(cntSensors);
-    if (cRoo) cRoo.textContent = String(cntRooms);
-    if (cCli) cCli.textContent = String(cntClients);
-
-    const cCAll = this.dom.countAllContacts || document.getElementById("countAllContacts");
-    const cCFav = this.dom.countFavContacts || document.getElementById("countFavContacts");
-    const cCOnl = this.dom.countOnlineContacts || document.getElementById("countOnlineContacts");
-    const cCGps = this.dom.countGpsContacts || document.getElementById("countGpsContacts");
-    if (cCAll) cCAll.textContent = String(cntContacts);
-    if (cCFav) cCFav.textContent = String(cntFavContacts);
-    if (cCOnl) cCOnl.textContent = String(cntOnlineContacts);
-    if (cCGps) cCGps.textContent = String(cntGpsContacts);
-
     if (contactsGrid) contactsGrid.appendChild(contactsFrag);
     if (unifiedNodesGrid) unifiedNodesGrid.appendChild(nodesFrag);
+
+    this._updateCounts(deduplicatedNodes);
 
     // Re-aplicar filtros activos
     const qC = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
@@ -1189,6 +1141,152 @@ export class NodesModule {
     }
   }
 
+  _updateCounts(nodesList = Array.from(this.knownNodes.values())) {
+    if (this.dom.headerNodeCount) {
+      this.dom.headerNodeCount.textContent = String(nodesList.length);
+    }
+    let cntRepeaters = 0;
+    let cntSensors = 0;
+    let cntRooms = 0;
+    let cntClients = 0;
+
+    let cntContacts = 0;
+    let cntFavContacts = 0;
+    let cntOnlineContacts = 0;
+    let cntGpsContacts = 0;
+
+    for (const node of nodesList) {
+      const isLocal = node.is_local;
+      const isRepeater = node.role === "REPEATER";
+      const isSensor = node.role === "SENSOR";
+      const isRoom = node.role === "ROOM";
+      const isClient = !isLocal && !isRepeater && !isSensor && !isRoom;
+
+      if (isRepeater) cntRepeaters++;
+      else if (isSensor) cntSensors++;
+      else if (isRoom) cntRooms++;
+      else if (isClient) cntClients++;
+
+      if (!isLocal && !isRepeater && (node.role === "CLIENT" || isClient)) {
+        cntContacts++;
+        if (node.is_favorite) cntFavContacts++;
+        if (getPresenceState(node.last_seen, false) === "status-online") cntOnlineContacts++;
+        const cRawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
+        const cRawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
+        const cfLat = cRawLat != null ? parseFloat(cRawLat) : NaN;
+        const cfLon = cRawLon != null ? parseFloat(cRawLon) : NaN;
+        if (!isNaN(cfLat) && !isNaN(cfLon) && (cfLat !== 0 || cfLon !== 0)) cntGpsContacts++;
+      }
+    }
+
+    const cAll = this.dom.countAllNodes || document.getElementById("countAllNodes");
+    const cRep = this.dom.countRepeaters || document.getElementById("countRepeaters");
+    const cSen = this.dom.countSensors || document.getElementById("countSensors");
+    const cRoo = this.dom.countRooms || document.getElementById("countRooms");
+    const cCli = this.dom.countClients || document.getElementById("countClients");
+    if (cAll) cAll.textContent = String(nodesList.length);
+    if (cRep) cRep.textContent = String(cntRepeaters);
+    if (cSen) cSen.textContent = String(cntSensors);
+    if (cRoo) cRoo.textContent = String(cntRooms);
+    if (cCli) cCli.textContent = String(cntClients);
+
+    const cCAll = this.dom.countAllContacts || document.getElementById("countAllContacts");
+    const cCFav = this.dom.countFavContacts || document.getElementById("countFavContacts");
+    const cCOnl = this.dom.countOnlineContacts || document.getElementById("countOnlineContacts");
+    const cCGps = this.dom.countGpsContacts || document.getElementById("countGpsContacts");
+    if (cCAll) cCAll.textContent = String(cntContacts);
+    if (cCFav) cCFav.textContent = String(cntFavContacts);
+    if (cCOnl) cCOnl.textContent = String(cntOnlineContacts);
+    if (cCGps) cCGps.textContent = String(cntGpsContacts);
+  }
+
+  _scheduleDirectorySort() {
+    if (this._sortDebounceTimer) return;
+    this._sortDebounceTimer = setTimeout(() => {
+      this._sortDebounceTimer = null;
+      this._sortCardsInGrid(this.dom.nodesUnifiedGridUi);
+      this._sortCardsInGrid(this.dom.contactsGridUi);
+    }, 400);
+  }
+
+  _sortCardsInGrid(grid) {
+    if (!grid) return;
+    const cards = Array.from(grid.querySelectorAll(".node-card, .contact-card"));
+    if (cards.length <= 1) return;
+    cards.sort((a, b) => {
+      const pkA = (a.dataset.pk || "").toLowerCase();
+      const pkB = (b.dataset.pk || "").toLowerCase();
+      const nodeA = this.knownNodes.get(pkA);
+      const nodeB = this.knownNodes.get(pkB);
+      if (!nodeA || !nodeB) return 0;
+      if (nodeA.is_local && !nodeB.is_local) return -1;
+      if (!nodeA.is_local && nodeB.is_local) return 1;
+      if (nodeA.is_favorite && !nodeB.is_favorite) return -1;
+      if (!nodeA.is_favorite && nodeB.is_favorite) return 1;
+      const seenA = nodeA.last_seen || 0;
+      const seenB = nodeB.last_seen || 0;
+      return seenB - seenA;
+    });
+    const frag = document.createDocumentFragment();
+    cards.forEach((c) => frag.appendChild(c));
+    grid.appendChild(frag);
+  }
+
+  _insertNodeCardIncremental(rawNode) {
+    if (!rawNode || !this.isValidNodeKey(rawNode.public_key)) return;
+    const normPk = String(rawNode.public_key).toLowerCase().trim();
+    const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+
+    const isThisLocal = Boolean(rawNode.is_local) ||
+      (rawNode.role && String(rawNode.role).toUpperCase() === "LOCAL") ||
+      normPk === "local" ||
+      (localPk && (normPk === localPk || (localPk.length >= 8 && normPk.startsWith(localPk.slice(0, 8)))));
+
+    const roleStr = (rawNode.role || "CLIENT").toUpperCase();
+    const isRepeater = !isThisLocal && (
+      roleStr === "REPEATER" || roleStr === "ROUTER"
+    );
+
+    const effectiveRole = isThisLocal ? "LOCAL" : (isRepeater ? "REPEATER" : (rawNode.role || "CLIENT"));
+    const node = {
+      ...rawNode,
+      is_local: isThisLocal,
+      role: effectiveRole,
+    };
+
+    this.knownNodes.set(normPk, node);
+    if (this.ctx.knownNodes) {
+      this.ctx.knownNodes = this.knownNodes;
+    }
+
+    const localCoords = this._getLocalCoordinates();
+    const unifiedNodesGrid = this.dom.nodesUnifiedGridUi;
+    const contactsGrid = this.dom.contactsGridUi;
+
+    // 1. Inserción incremental en Nodos Unificados
+    if (unifiedNodesGrid) {
+      const emptyState = unifiedNodesGrid.querySelector(".empty-state, .nodes-empty-filter-state");
+      if (emptyState) emptyState.remove();
+      const nCard = this.createNodeCard(node, "node", localCoords);
+      unifiedNodesGrid.appendChild(nCard);
+      const qN = this.dom.nodesSearchInput ? this.dom.nodesSearchInput.value : "";
+      this.filterNodesGrid(qN);
+    }
+
+    // 2. Inserción incremental en Contactos (exclusivamente Clientes, SSoT §1.1)
+    if (contactsGrid && !isThisLocal && !isRepeater && (effectiveRole === "CLIENT")) {
+      const emptyContacts = contactsGrid.querySelector(".empty-state");
+      if (emptyContacts) emptyContacts.remove();
+      const cCard = this.createNodeCard(node, "contact", localCoords);
+      contactsGrid.appendChild(cCard);
+      const qC = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
+      this.filterContactsGrid(qC);
+    }
+
+    this._updateCounts();
+    this.ctx.eventBus.emit(EVENTS.NODE_UPDATED, Array.from(this.knownNodes.values()));
+  }
+
   updateNodeInDom(arg1, arg2) {
     const node = (arg2 && typeof arg2 === "object") ? arg2 : (arg1 && typeof arg1 === "object" ? arg1 : null);
     if (!node) return;
@@ -1197,8 +1295,10 @@ export class NodesModule {
     const pk = String(node.public_key).toLowerCase();
     const cards = document.querySelectorAll(`[data-pk="${pk}"], [data-pubkey="${pk}"]`);
     if (!cards || cards.length === 0) {
-      this.knownNodes.set(pk, { ...(this.knownNodes.get(pk) || {}), ...node });
-      this.renderNodesDirectory(Array.from(this.knownNodes.values()));
+      const existing = this.knownNodes.get(pk) || {};
+      const fullNode = { ...existing, ...node };
+      this._insertNodeCardIncremental(fullNode);
+      this._scheduleDirectorySort();
       return;
     }
 
@@ -1550,6 +1650,10 @@ export class NodesModule {
     if (this._analyticsDebounceTimer) {
       clearTimeout(this._analyticsDebounceTimer);
       this._analyticsDebounceTimer = null;
+    }
+    if (this._sortDebounceTimer) {
+      clearTimeout(this._sortDebounceTimer);
+      this._sortDebounceTimer = null;
     }
   }
 }
