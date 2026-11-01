@@ -175,12 +175,12 @@
     },
     "js/core/utils.js": {
       "file": "js/core/utils.min.js",
-      "source_sha256": "392934495bab0557b41c61a6561668abf5f69e95f2312c6dd39f5504579dae42",
-      "sha256": "13779f8126838f418d0521369771ab9e970468d0c1bcaf5cf773bf24a3e50e30",
-      "gzip_sha256": "8db690adf10b7b6f946a7cb1a5d4998c025b4ce85fe9d197fc2682bd6fdac4a9",
-      "source_bytes": 26038,
-      "bytes": 11190,
-      "gzip_bytes": 4430
+      "source_sha256": "39891728a66729c352c3db12aabecef329e738aa61450c7a08f7a66a2cf8f245",
+      "sha256": "44d5a8093232462a5812308605c42fcff8f29a77a26dd2fb89e8b2879f395c01",
+      "gzip_sha256": "d724ad8142637f684acf45ac0f41ed367ccca323f772f90d3afd9fe7c8f83117",
+      "source_bytes": 26625,
+      "bytes": 11301,
+      "gzip_bytes": 4477
     },
     "js/core/websocket.js": {
       "file": "js/core/websocket.min.js",
@@ -220,12 +220,12 @@
     },
     "js/modules/chat.js": {
       "file": "js/modules/chat.min.js",
-      "source_sha256": "7e7bccda71d115ada9131dcd8e56778f57aa3cac14af475be96b8b1fde96ec1b",
-      "sha256": "e65242071df15677e53ab20ba94165bb0aa88e9417a69ae698e863996042f8d4",
-      "gzip_sha256": "7bdc65f6483746ee005c4d883b42a2d7cc751d3982457444ad6b6c37a774b988",
-      "source_bytes": 128409,
-      "bytes": 84231,
-      "gzip_bytes": 21167
+      "source_sha256": "35450999e4038bea9373684774972c319e8d1965b5c85897e8ec5072556a3c74",
+      "sha256": "43ef0e933039e4d1c2deedad3855bc44629d830bafd2857674b215e644fe15d2",
+      "gzip_sha256": "7022e312d3d736d643f004d39e0c3a24a477a39fdd6836846cf1c84b31140fc6",
+      "source_bytes": 128346,
+      "bytes": 84234,
+      "gzip_bytes": 21168
     },
     "js/modules/map.js": {
       "file": "js/modules/map.min.js",

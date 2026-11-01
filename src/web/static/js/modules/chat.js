@@ -15,6 +15,7 @@ import {
   getRoleFromNumericType,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
   MAX_LORA_TEXT_BYTES,
+  getMaxLoraTextBudget,
   getUtf8ByteLength,
   splitUtf8Message,
   estimateLoraAirtimeMs,
@@ -1084,8 +1085,7 @@ export class ChatModule {
     if (!isChannel) return MAX_LORA_TEXT_BYTES;
     const cfg = this.ctx?.localConfig || {};
     const name = String(cfg.name || cfg.node_name || cfg.device_name || "").trim();
-    const prefixBytes = name ? (getUtf8ByteLength(name) + 2) : 0;
-    return Math.max(32, MAX_LORA_TEXT_BYTES - prefixBytes);
+    return getMaxLoraTextBudget(name);
   }
 
   updateCharCounterFast() {

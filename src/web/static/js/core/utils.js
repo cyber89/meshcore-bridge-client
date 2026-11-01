@@ -415,6 +415,19 @@ export function parseMeshCoreUri(rawUri) {
 export const MAX_LORA_TEXT_BYTES = 160;
 
 /**
+ * Calcula el presupuesto maximo de texto en bytes para un mensaje LoRa.
+ * Si se especifica el nombre del remitente (en canal broadcast), resta el prefijo "<name>: "
+ * conforme a BaseChatMesh::sendGroupMessage del firmware oficial.
+ * @param {string} senderName Nombre del nodo emisor
+ * @returns {number} Presupuesto maximo disponible en bytes
+ */
+export function getMaxLoraTextBudget(senderName = "") {
+  const clean = String(senderName || "").trim();
+  const prefixBytes = clean ? (getUtf8ByteLength(clean) + 2) : 0;
+  return Math.max(32, MAX_LORA_TEXT_BYTES - prefixBytes);
+}
+
+/**
  * Calcula la longitud exacta en bytes de una cadena codificada en UTF-8.
  * Permite computar con precisión caracteres multi-byte como emojis (3-4 bytes) y tildes (2 bytes).
  * @param {string} str Cadena de texto

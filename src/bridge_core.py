@@ -530,7 +530,10 @@ class MeshCoreBridge:
             ):
                 return None
 
-            if not is_common_chat_message(
+            is_chat = data.get("is_chat")
+            if is_chat is False:
+                return None
+            if is_chat is None and not is_common_chat_message(
                 str(data.get("text", "")),
                 txt_type=int(data.get("txt_type", 0) or 0),
                 event_type=kind,
