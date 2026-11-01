@@ -734,9 +734,13 @@ export class SettingsModule {
     if (this.dom.btnCancelImport) this.dom.btnCancelImport.addEventListener("click", closeImportModal);
 
     if (this.dom.importFileInput) {
-      this.dom.importFileInput.addEventListener("change", (e) => {
+      this.dom.importFileInput.addEventListener("change", async (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
+        if (file.type && file.type.startsWith("image/")) {
+          await this.decodeAndFillQr(file);
+          return;
+        }
         const reader = new FileReader();
         reader.onload = (ev) => {
           if (this.dom.importPayloadInput && ev.target?.result) {
@@ -744,6 +748,20 @@ export class SettingsModule {
           }
         };
         reader.readAsText(file);
+      });
+    }
+
+    const btnScanCamera = document.getElementById("btnScanQrCamera");
+    const qrCameraInput = document.getElementById("qrCameraInput");
+    if (btnScanCamera && qrCameraInput) {
+      btnScanCamera.addEventListener("click", () => {
+        qrCameraInput.click();
+      });
+      qrCameraInput.addEventListener("change", async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          await this.decodeAndFillQr(file);
+        }
       });
     }
 
@@ -1608,10 +1626,11 @@ export class SettingsModule {
           if (!overwrite) return;
         }
 
+        const scope = parsedUri.region_scope || parsedUri.scope || "";
         const res = await fetch("/api/channels", {
           method: "POST",
           headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-          body: JSON.stringify({ index: idx, name, psk, overwrite: exists }),
+          body: JSON.stringify({ index: idx, name, psk, region_scope: scope, overwrite: exists }),
         });
         const data = await res.json();
         if (data.status === "ok") {
@@ -3668,6 +3687,56 @@ export class SettingsModule {
     } catch (e) {
       console.warn("Error guardando messaging config:", e);
       if (this.ctx.showToast) this.ctx.showToast(`Error: ${e.message}`, "error");
+    }
+  }
+
+
+
+  async decodeAndFillQr(fileOrBlob) {
+    try {
+      if (this.ctx.showToast) this.ctx.showToast("Leyendo código QR...", "info");
+      let text = null;
+
+      // 1. Probar BarcodeDetector nativo de la Web Platform API
+      if ("BarcodeDetector" in window) {
+        try {
+          const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+          const bitmap = await createImageBitmap(fileOrBlob);
+          const barcodes = await detector.detect(bitmap);
+          if (barcodes.length > 0 && barcodes[0].rawValue) {
+            text = barcodes[0].rawValue.trim();
+          }
+        } catch (detectorErr) {
+          console.warn("BarcodeDetector falló:", detectorErr);
+        }
+      }
+
+      // 2. Si no se detectó texto con BarcodeDetector
+      if (!text) {
+        if (!("BarcodeDetector" in window)) {
+          if (this.ctx.showToast) {
+            this.ctx.showToast("El navegador actual no soporta BarcodeDetector nativo para decodificar imágenes QR. Pega el enlace URI de MeshCore directamente", "warning");
+          }
+          return;
+        }
+        if (this.ctx.showToast) this.ctx.showToast("No se detectó un código QR legible en la imagen seleccionada", "warning");
+        return;
+      }
+
+      if (this.dom.importPayloadInput) {
+        this.dom.importPayloadInput.value = text;
+      }
+
+      const parsed = parseMeshCoreUri(text);
+      if (parsed) {
+        const label = parsed.kind === "channel" ? `Canal: ${parsed.name || parsed.index}` : `Contacto: ${parsed.name || parsed.public_key?.slice(0, 8)}`;
+        if (this.ctx.showToast) this.ctx.showToast(`Código QR decodificado exitosamente (${label})`, "success");
+      } else {
+        if (this.ctx.showToast) this.ctx.showToast("Código QR decodificado exitosamente", "success");
+      }
+    } catch (err) {
+      console.warn("Error decodificando QR:", err);
+      if (this.ctx.showToast) this.ctx.showToast(`Error al leer código QR: ${err.message}`, "error");
     }
   }
 

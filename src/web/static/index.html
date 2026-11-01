@@ -3142,10 +3142,16 @@
             <textarea id="importPayloadInput" placeholder='{"type":"channel","index":1,"name":"Táctico","psk":"..."} o &lt;8d5accef...:1:Nombre&gt; o meshcore://...' rows="5" required class="code-textarea" data-i18n-placeholder="ui.static_551"></textarea>
             <div class="import-file-toolbar">
               <span class="field-hint" data-i18n="ui.static_552">Soporta enlaces exportados desde MeshCore App, CLI o Web Station.</span>
-              <button type="button" id="btnSelectImportFile" class="btn btn-secondary btn-sm" data-i18n="ui.static_553">
-                <i class="bi bi-upload" aria-hidden="true"></i> Cargar Archivo
-              </button>
-              <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" aria-label="Seleccionar archivo de respaldo o configuración" data-i18n-aria-label="settings.select_backup_file_aria" />
+              <div class="btn-group gap-2">
+                <button type="button" id="btnSelectImportFile" class="btn btn-secondary btn-sm" data-i18n="ui.static_553">
+                  <i class="bi bi-upload" aria-hidden="true"></i> Cargar Archivo
+                </button>
+                <button type="button" id="btnScanQrCamera" class="btn btn-outline-info btn-sm">
+                  <i class="bi bi-qr-code-scan" aria-hidden="true"></i> Leer QR / Cámara
+                </button>
+              </div>
+              <input type="file" id="importFileInput" accept=".json,.txt,image/*" class="hidden" aria-label="Seleccionar archivo o imagen QR" />
+              <input type="file" id="qrCameraInput" accept="image/*" capture="environment" class="hidden" aria-label="Escanear con cámara" />
             </div>
           </div>
 

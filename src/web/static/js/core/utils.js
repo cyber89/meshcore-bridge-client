@@ -362,6 +362,7 @@ export function parseMeshCoreUri(rawUri) {
     const secret = params.get("secret") || params.get("psk") || "";
     const idxStr = params.get("index");
     const index = idxStr !== null ? parseInt(idxStr, 10) : null;
+    const scope = params.get("scope") || params.get("region_scope") || "";
     return {
       type: "channel",
       kind: "channel",
@@ -369,6 +370,8 @@ export function parseMeshCoreUri(rawUri) {
       secret,
       psk: secret,
       index,
+      scope: scope || null,
+      region_scope: scope || null,
     };
   }
 
