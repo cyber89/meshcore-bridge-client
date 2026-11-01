@@ -1608,15 +1608,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_connected or not self.mc:
             raise ConnectionError("MeshCore SDK no conectado")
 
-        # 1. Validación estricta de MTU LoRa
-
-        raw_bytes = text.encode("utf-8")
-
-        if len(raw_bytes) > MAX_TEXT_BYTES:
-            raise ValueError(
-                f"Payload de mensaje excede límite oficial ({len(raw_bytes)} > {MAX_TEXT_BYTES} bytes)"
-            )
-
+        # 1. Validación de cadena terminada en NUL
         if "\x00" in text:
             raise ValueError(
                 "El texto no puede contener NUL: el firmware usa cadenas terminadas en NUL"
@@ -1638,7 +1630,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         is_dm = bool(
             target_clean
             and target_clean.upper()
-            not in ("0XFFFF", "0xFFFF", "BROADCAST", "PUBLIC", "ALL", "GLOBAL", "NONE", "")
+            not in ("0XFFFF", "0xFFFF", "BROADCAST", "PUBLIC", "ALL", "GLOBAL", "NONE", "NULL", "*", "")
             and not target_clean.lower().startswith("channel")
         )
 
@@ -1707,21 +1699,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 raise NotImplementedError("send_msg no soportado en este SDK")
 
         else:
-            info = self.self_info
-
-            name = str(info.get("name", "")) if isinstance(info, dict) else ""
-
-            # BaseChatMesh::sendGroupMessage prepends '<sender>: ' within MAX_TEXT_LEN.
-
-            prefix_bytes = len(name.encode("utf-8")) + 2
-
-            max_channel_bytes = MAX_TEXT_BYTES - prefix_bytes
-
-            if len(raw_bytes) > max_channel_bytes:
-                raise ValueError(
-                    f"Texto de canal excede límite oficial con prefijo ({len(raw_bytes)} > {max_channel_bytes} bytes)"
-                )
-
+            # Transmisión a canal / broadcast: el firmware del dispositivo gestiona el presupuesto
+            # y empaquetado seguro en la trama física LoRa sin rechazo preventivo de la aplicación.
             if hasattr(self.mc.commands, "send_chan_msg"):
                 res = await self.run_sdk_command("send_chan_msg", safe_ch, text)
 
@@ -1743,7 +1722,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         expected_ack_hex = None
 
-        if res is not None and hasattr(res, "payload") and isinstance(res.payload, dict):
+        # En difusión / broadcast LoRa nunca se solicita ni espera ACK
+        if is_dm and res is not None and hasattr(res, "payload") and isinstance(res.payload, dict):
             exp_raw = res.payload.get("expected_ack")
 
             if isinstance(exp_raw, (bytes, bytearray)):

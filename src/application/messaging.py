@@ -137,7 +137,18 @@ class MessageService:
             )
 
         is_broadcast = (
-            clean_target.lower() in ("broadcast", "public", "0xffff", "*", "")
+            clean_target.lower()
+            in (
+                "broadcast",
+                "public",
+                "0xffff",
+                "*",
+                "",
+                "none",
+                "null",
+                "all",
+                "global",
+            )
             or clean_target.lower().startswith("channel")
         )
 

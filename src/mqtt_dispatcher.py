@@ -230,8 +230,14 @@ class MqttInboundDispatcher:
                 if not isinstance(raw_text, str):
                     raise ValueError("El texto debe ser una cadena")
                 text = raw_text
-                target = data.get("dest_node_id", data.get("target", data.get("to", data.get("recipient", "broadcast"))))
-                if target is not None and not isinstance(target, str):
+                raw_target = data.get("dest_node_id", data.get("target", data.get("to", data.get("recipient", "broadcast"))))
+                if raw_target is None or (isinstance(raw_target, str) and not raw_target.strip()):
+                    target = "broadcast"
+                elif isinstance(raw_target, str):
+                    target = raw_target.strip()
+                    if target.lower() in ("none", "null"):
+                        target = "broadcast"
+                else:
                     raise ValueError("El destino debe ser una cadena")
                 raw_ch = data.get("channel_idx", data.get("channel_index", data.get("channel", 0)))
                 if isinstance(raw_ch, bool) or not isinstance(raw_ch, (str, int, type(None))):

@@ -65,7 +65,10 @@ class TxCoordinator:
         if isinstance(item, dict):
             req_id = item.get("request_id", item.get("id"))
             target_raw = item.get("to", item.get("target", "broadcast"))
-            target = str(target_raw) if target_raw is not None else "broadcast"
+            if target_raw is None or (isinstance(target_raw, str) and not target_raw.strip()):
+                target = "broadcast"
+            else:
+                target = str(target_raw).strip()
             raw_ch = item.get("channel_index", item.get("channel_idx", item.get("channel", 0)))
             ch_idx = int(raw_ch) if raw_ch is not None else 0
             text = str(item.get("text", item.get("message", "")))
@@ -158,8 +161,9 @@ class TxCoordinator:
         req_id, target, ch_idx, text = self.parse_tx_input(item)
         req_id = str(req_id) if req_id is not None else f"tx_{uuid.uuid4().hex}"
         target_str = str(target).lower().strip()
-        is_broadcast = target_str in ("broadcast", "public", "0xffff", "") or target_str.startswith(
-            "channel"
+        is_broadcast = (
+            target_str in ("broadcast", "public", "0xffff", "*", "", "none", "null", "all", "global")
+            or target_str.startswith("channel")
         )
 
         clean_txt = text.strip().lower()
@@ -241,6 +245,9 @@ class TxCoordinator:
             logging.warning("Transmisión no confirmada: %s", type(e).__name__)
             error_detail = "No se confirmó la transmisión por radio"
 
+        if is_broadcast:
+            expected_ack_hex = None
+
         ack_payload: dict[str, Any] = {
             "status": status_val,
             "request_id": req_id,
@@ -253,7 +260,7 @@ class TxCoordinator:
             ack_payload["error"] = error_detail
 
         database = self.database_provider()
-        if status_val == "sent" and expected_ack_hex and req_id:
+        if status_val == "sent" and expected_ack_hex and req_id and not is_broadcast:
             ack_payload["delivery_tracking"] = self.ack_tracker.register(
                 expected_ack_hex, req_id, str(target)
             )

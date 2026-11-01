@@ -558,13 +558,12 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             return {"status": "ERROR", "reason": "Simulador desconectado"}
         self.heartbeat()
 
-        # Validación MTU LoRa oficial y capacidad de canal (VRT-M01)
+        # Manejo de MTU LoRa oficial (BaseChatMesh::sendGroupMessage):
+        # El firmware trunca/ajusta el texto a 160 bytes sin fallar ni rechazar la transmisión.
         raw_bytes = text.encode("utf-8")
         if len(raw_bytes) > 160:
-            return {
-                "status": "ERROR",
-                "reason": f"Payload de mensaje excede límite oficial ({len(raw_bytes)} > 160 bytes)",
-            }
+            text = raw_bytes[:160].decode("utf-8", errors="ignore")
+            raw_bytes = text.encode("utf-8")
         target_clean = str(target or "").strip().lower()
         resolved_channel: Any = channel_idx
         if target_clean.startswith("channel"):

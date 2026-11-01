@@ -350,9 +350,6 @@ def is_raw_chat_permitted(
         if len(data) < 8:
             return False
         text = data[7:]
-        name = str((self_info or {}).get("name", ""))
-        if len(text) + len((name + ": ").encode("utf-8")) > MAX_TEXT_BYTES:
-            return False
     else:
         return True
-    return b"\x00" not in text and len(text) <= MAX_TEXT_BYTES
+    return b"\x00" not in text

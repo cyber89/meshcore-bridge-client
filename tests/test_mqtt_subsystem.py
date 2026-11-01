@@ -115,7 +115,10 @@ class TestMqttSubsystem(unittest.IsolatedAsyncioTestCase):
         dispatcher.handle_incoming(self.client.topic_tx, tx_payload)
 
         # Esperar a que la tarea asíncrona termine
-        await asyncio.sleep(0.1)
+        for _ in range(50):
+            if mock_rate_limiter.submit.await_count > 0:
+                break
+            await asyncio.sleep(0.02)
 
         mock_rate_limiter.submit.assert_awaited_once()
         call_kwargs = mock_rate_limiter.submit.call_args.kwargs
@@ -154,6 +157,107 @@ class TestMqttSubsystem(unittest.IsolatedAsyncioTestCase):
 
         mock_admin.assert_awaited_once_with({"action": "reboot", "target_node": "local"})
 
+    async def test_inbound_dispatcher_broadcast_channel_message_never_expects_ack(self) -> None:
+        """Verifica que mensajes broadcast/canal desde MQTT (ej. n8n) nunca requieran ACK y manejen payload extenso."""
+        loop = asyncio.get_running_loop()
+        background_tasks: set[asyncio.Task[Any]] = set()
+
+        fut = loop.create_future()
+        fut.set_result({"status": "sent", "expected_ack": None})
+
+        mock_rate_limiter = MagicMock(spec=TxRateLimiter)
+        mock_rate_limiter.submit = AsyncMock(return_value=fut)
+        mock_rate_limiter.get_queue_depth = MagicMock(return_value=0)
+
+        ctx = MqttInboundContext(
+            loop=loop,
+            background_tasks=background_tasks,
+            mqtt=self.client,
+            rate_limiter=mock_rate_limiter,
+            handle_admin=AsyncMock(),
+        )
+        dispatcher = MqttInboundDispatcher(ctx)
+
+        # Simular payload de n8n con reporte de clima extenso (180 chars) y target null/omitido
+        weather_text = "Reporte Meteorológico: Temp 24.5C, Hum 78%, Presión 1013 hPa, Viento 15 km/h NE. " + ("A" * 100)
+        tx_payload = json.dumps({
+            "text": weather_text,
+            "target": None,
+            "channel": 0,
+        })
+        self.client.is_connected = True
+        dispatcher.handle_incoming(self.client.topic_tx, tx_payload)
+
+        await asyncio.sleep(0.1)
+
+        for _ in range(50):
+            if mock_rate_limiter.submit.await_count > 0:
+                break
+            await asyncio.sleep(0.02)
+
+        mock_rate_limiter.submit.assert_awaited_once()
+        call_kwargs = mock_rate_limiter.submit.call_args.kwargs
+        self.assertEqual(call_kwargs["payload"], weather_text)
+        self.assertIn(call_kwargs["target"], (None, "broadcast"))
+        self.assertEqual(call_kwargs["channel_idx"], 0)
+
+    async def test_tx_coordinator_broadcast_never_tracks_ack(self) -> None:
+        """Verifica que TxCoordinator nunca registre ACK tracker ni reintentos en difusión."""
+        from src.core.ack_tracker import AckTracker
+        from src.core.tx_coordinator import TxCoordinator
+
+        ack_tracker = AckTracker()
+        mock_serial = MagicMock()
+        mock_serial.is_connected = True
+        # Simular que el driver de radio retorna un evento con payload, pero es broadcast
+        mock_serial.send_message = AsyncMock(return_value={
+            "status": "SENT",
+            "expected_ack": None,
+            "event": MagicMock(type="OK"),
+        })
+
+        published_chat: list[dict[str, Any]] = []
+        async def record_chat(event: dict[str, Any]) -> None:
+            published_chat.append(dict(event))
+
+        mock_db = MagicMock()
+        mock_db.save_pending_ack = MagicMock()
+
+        coordinator = TxCoordinator(
+            node_registry_provider=lambda: None,
+            serial_adapter_provider=lambda: mock_serial,
+            rate_limiter_provider=lambda: None,
+            packet_buffer_provider=lambda: None,
+            web_server_provider=lambda: None,
+            database_provider=lambda: mock_db,
+            mqtt_provider=lambda: None,
+            message_service_provider=lambda: None,
+            ack_tracker=ack_tracker,
+            persist_fn=None,
+            publish_chat_event_fn=record_chat,
+            publish_mqtt_safe_fn=lambda *a, **k: True,
+            broadcast_system_log_fn=lambda *a: None,
+            tx_metrics_lock=asyncio.Lock(),
+            on_tx_increment=AsyncMock(),
+            retry_scheduler_provider=lambda: None,
+        )
+
+        res = await coordinator.execute_tx({
+            "text": "Reporte de clima público",
+            "target": "broadcast",
+            "channel_idx": 0,
+        })
+
+        self.assertEqual(res["status"], "sent")
+        self.assertIsNone(res["expected_ack"])
+        # Nunca debe registrarse en el ack_tracker en memoria ni en SQLite
+        self.assertEqual(len(ack_tracker.pending_acks), 0)
+        mock_db.save_pending_ack.assert_not_called()
+        # El evento de chat debe tener status sent
+        self.assertTrue(len(published_chat) >= 1)
+        self.assertEqual(published_chat[-1]["status"], "sent")
+        self.assertIsNone(published_chat[-1].get("expected_ack"))
+
     async def test_inbound_dispatcher_malformed_json(self) -> None:
         """Verifica que payloads malformados no provoquen excepciones no controladas."""
         loop = asyncio.get_running_loop()
@@ -170,9 +274,12 @@ class TestMqttSubsystem(unittest.IsolatedAsyncioTestCase):
 
         # Enviar JSON corrupto
         dispatcher.handle_incoming(self.client.topic_tx, "ESTO NO ES UN JSON {}}")
-        await asyncio.sleep(0.05)
+        for _ in range(50):
+            if len([t for t in background_tasks if not t.done()]) == 0:
+                break
+            await asyncio.sleep(0.02)
         # Debe manejar el error limpiamente sin lanzar excepciones
-        self.assertEqual(len(background_tasks), 0)
+        self.assertEqual(len([t for t in background_tasks if not t.done()]), 0)
 
 
 if __name__ == "__main__":

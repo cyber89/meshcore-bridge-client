@@ -109,19 +109,24 @@ async def test_channel_name_cannot_be_truncated_by_firmware(name: str) -> None:
     adapter.mc.commands.set_channel.assert_not_awaited()
 
 
-@pytest.mark.parametrize("target,text", [("Target", "a" * 161), ("broadcast", "a" * 155), ("broadcast", "é" * 78)])
-async def test_official_text_limits_reject_before_transmission(target: str, text: str) -> None:
-    adapter = connected_adapter({"public_key": "cd" * 32, "adv_name": "Target", "type": 1})
-    with pytest.raises(ValueError):
-        await adapter.send_message(text, target=target)
-    adapter.mc.commands.send_msg.assert_not_awaited()
-    adapter.mc.commands.send_chan_msg.assert_not_awaited()
-
-
-async def test_official_channel_limit_accepts_exact_boundary() -> None:
-    adapter = connected_adapter()
-    result = await adapter.send_message("a" * 154, target="broadcast")
+@pytest.mark.parametrize("target,text", [("Target", "a" * 180), ("broadcast", "a" * 180), ("broadcast", "é" * 90)])
+async def test_official_text_delegates_budget_to_firmware(target: str, text: str) -> None:
+    contact = {"public_key": "cd" * 32, "name": "Target", "adv_name": "Target", "type": 1}
+    adapter = connected_adapter(contact)
+    adapter.mc._contacts[contact["public_key"]] = contact
+    result = await adapter.send_message(text, target=target)
     assert result["status"] == "SENT"
+    if target == "Target":
+        adapter.mc.commands.send_msg.assert_awaited_once()
+    else:
+        adapter.mc.commands.send_chan_msg.assert_awaited_once()
+        assert result.get("expected_ack") is None
+
+
+async def test_nul_byte_in_text_raises_value_error() -> None:
+    adapter = connected_adapter()
+    with pytest.raises(ValueError, match="El texto no puede contener NUL"):
+        await adapter.send_message("hola\x00mundo", target="broadcast")
 
 
 async def test_raw_disconnect_starts_new_stream_without_stale_frame() -> None:
@@ -216,7 +221,7 @@ async def test_message_reaches_official_sdk_wire_serializer(direct: bool) -> Non
     adapter = connected_adapter(contact)
     adapter.mc._contacts[contact["public_key"]] = contact
     commands = CommandHandler()
-    response = Event(EventType.MSG_SENT if direct else EventType.OK, {"expected_ack": b"\x01\x02\x03\x04"})
+    response = Event(EventType.MSG_SENT if direct else EventType.OK, {"expected_ack": b"\x01\x02\x03\x04"} if direct else {})
     captured: list[bytes] = []
 
     async def capture(data: bytes, *args: Any, **kwargs: Any) -> Event:
@@ -230,7 +235,7 @@ async def test_message_reaches_official_sdk_wire_serializer(direct: bool) -> Non
     assert data[:3] == (b"\x02\x00\x00" if direct else b"\x03\x00\x03")
     assert int.from_bytes(data[3:7], "little") > 0
     assert data[7:] == (bytes.fromhex("cd" * 6) if direct else b"") + "Hola é".encode()
-    assert result["expected_ack"] == "01020304"
+    assert result["expected_ack"] == ("01020304" if direct else None)
 
 
 async def test_sdk_auto_fetch_and_mutation_share_response_serialization() -> None:
