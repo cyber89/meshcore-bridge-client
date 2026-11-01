@@ -279,7 +279,7 @@ export function buildMeshCoreContactUri(name, publicKey, role = "CLIENT") {
  * @param {number|null} index
  * @returns {string}
  */
-export function buildMeshCoreChannelUri(name, secret = "", index = null) {
+export function buildMeshCoreChannelUri(name, secret = "", index = null, scope = null) {
   const cleanName = String(name || "Public").trim();
   const rawSec = String(secret || "").trim();
   const isMasked = !rawSec || rawSec.includes("•");
@@ -300,6 +300,10 @@ export function buildMeshCoreChannelUri(name, secret = "", index = null) {
   }
   if (index !== null && index !== undefined && !isNaN(Number(index))) {
     uri += `&index=${Number(index)}`;
+  }
+  const cleanScope = String(scope || "").trim();
+  if (cleanScope) {
+    uri += `&scope=${encodeURIComponent(cleanScope)}`;
   }
   return uri;
 }

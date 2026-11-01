@@ -512,13 +512,14 @@ de ventana con último intervalo partial y includes_current_minute.
 
 ## 15. Companion 1.18 / protocolo 14 (revisión 2026-10-17)
 
-Fuente fijada: [MyMesh.cpp 1.18](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/examples/companion_radio/MyMesh.cpp). La revisión detallada y sus límites están en el [plan de actualización](plans/MESHCORE_1_18_UPGRADE_PLAN.md) y la [auditoría de protocolo](audits/2026-10-15-meshcore-1.18-protocol.md).
+Fuente remota fijada: [MyMesh.cpp 1.18 commit 81dbae5](https://github.com/meshcore-dev/MeshCore/blob/81dbae592ffad40b4212bc0b37e82b38da08f4bc/examples/companion_radio/MyMesh.cpp) (tag `companion-v1.18.0`; la copia local en `reference/meshcore` corresponde a 1.17.1 commit `d9296435`). La revisión detallada y sus límites están en el [plan de actualización](plans/MESHCORE_1_18_UPGRADE_PLAN.md) y la [auditoría de protocolo](audits/2026-10-15-meshcore-1.18-protocol.md).
 
 - `CMD_RUN_CLI_COMMAND=66 (0x42)` lleva texto; responde `CLI_REPLY=29 (0x1D)` con texto sin NUL transmitido. No responde OK como éxito normal. El bridge identifica ese contrato en enum y tabla de transacciones raw. Recibir 29 acredita respuesta de transporte, no éxito semántico del texto.
 - El código numérico 14 se obtiene de `DEVICE_INFO['fw ver']`, no de `SELF_INFO`. La presencia del opcode por sí sola no habilita CLI; se requiere sesión vigente (`session_generation`), `fw ver >= 14` y método SDK `commands.run_cli_command` disponible.
 - No hay un límite uniforme de 160 bytes demostrado para CLI. `cli_command[80]` es rescue USB; `reply_buf[166]` incluye NUL. Validar gramática y límite específico de cada operación antes de exponerla.
 - Push binario `0x8C | reservado_u8 | tag_4bytes | datos` no contiene pubkey. Sin asociación previa verificable se conserva origen desconocido (`sender=None`, `sender_known=False`); no se interpreta cualquier push como LPP.
 - Datagrama 62, raw 65, WiFi y rango sintáctico 150–2500 MHz ya existían en 1.17.1. SDK 2.3.16 incorpora modo hash en ruta de datagramas; límite SDK 163 bytes frente a 165 del handler firmware. Validar modo, hops, divisibilidad y frame total antes de cualquier integración.
+- Cotas físicas LoRa RF wire: el firmware oficial fija `MAX_PACKET_PAYLOAD 184` (`MeshCore.h:20`) como tamaño máximo de carga útil LoRa por el medio radioeléctrico. El framing serial raw interno en memoria tolera tramas de hasta 256 bytes, pero todo paquete transmitido por el transceptor físico debe cumplir la cota del firmware.
 - Los layouts anteriores son secuencias serializadas sin padding C++ ni CRC propio añadido. El framing Companion externo conserva dirección y longitud uint16 LE gestionadas por SDK; no mezclarlo con el framing AA/55 interno.
 
 El firmware 1.18 rechaza `set repeat on` en ROOM. Desde la entrega del 2026-10-16, el ejecutor administrativo del bridge lo bloquea para todos los ROOM por política explícita del usuario, incluidas versiones antiguas/desconocidas. La prevalidación cubre aliases, texto con prefijo y lotes antes de login, alta de contacto, cooldown o envío; existe una segunda guarda junto al envío. Se conserva `repeat off` y la activación en REPEATER. La guarda usa registro canónico/tipo advert oficial, no rol suministrado en la petición.
@@ -558,9 +559,9 @@ Fuente en firmware 1.18: `examples/simple_sensor/SensorMesh.cpp` (`REQ_TYPE_SUBS
   - Cada tupla de umbral mínimo de cambio (`delta`) ocupa formato CayenneLPP: `[channel (1B)][lpp_type (1B)][min_delta (uint16 BE, 2B)]`.
   - **Preset equilibrado implementado**: `timeout_s = 3600` (1 hora) y deltas `b"\x01\x67\x00\x05\x01\x74\x00\x0a"` (temperatura `0x67` con cambio mínimo de $0.5\,^\circ\text{C}$, voltaje `0x74` con cambio mínimo de $0.10\,\text{V}$).
   - **Respuesta `BINARY_RESPONSE (0x8C)` a `SUBSCRIBE`**: `data` de `[actual_timeout_secs (uint16 LE, 2B)][reserved (0x0000, 2B)][scope_name]`, donde `actual_timeout_secs > 0` confirma registro/renovación y `0x0000` denota rechazo.
-- **Solicitud `BinaryReqType.UNSUBSCRIBE (0x09)`** (enviada v?a `CMD_SEND_BINARY_REQ = 50`):
-  - Layout de `request_data`: `[0x09 (1B)]` (1 byte, req_type sin push_tag ni payload adicional, verificado por inspecci?n offline de tag `companion-v1.18.0` / commit `81dbae5` en `reference/meshcore`).
-  - **Respuesta `BINARY_RESPONSE (0x8C)` a `UNSUBSCRIBE`**: Tras extraer el tag de 4B (`expected_ack`), `data` contiene 10 bytes: `[8 bytes en cero (0x00 * 8)][2 bytes aleatorios (RNG)]` (confirmando cancelaci?n de suscripci?n en el sensor remoto, sin campo `err_code`).
+- **Solicitud `BinaryReqType.UNSUBSCRIBE (0x09)`** (enviada vía `CMD_SEND_BINARY_REQ = 50`):
+  - Layout de `request_data`: `[0x09 (1B)]` (1 byte, req_type sin push_tag ni payload adicional, verificado por inspección offline de tag `companion-v1.18.0` / commit `81dbae5` en `reference/meshcore`).
+  - **Respuesta `BINARY_RESPONSE (0x8C)` a `UNSUBSCRIBE`**: Tras extraer el tag de 4B (`expected_ack`), `data` contiene 10 bytes: `[8 bytes en cero (0x00 * 8)][2 bytes aleatorios (RNG)]` (confirmando cancelación de suscripción en el sensor remoto con éxito implícito, sin campo `err_code`).
 - **Trama Push de Muestras de Sensor (`BINARY_RESPONSE = 0x8C`)**:
   - Layout recibido desde la radio: `[0x8C (1B)][reserved (1B)][push_tag (4B)][sample_timestamp (uint32 LE, 4B)][CayenneLPP (N bytes)]`.
   - **Regla estricta de atribución**: `BINARY_RESPONSE (0x8C)` carece de clave pública en su cabecera. `RxEventRouter` nunca infiere un emisor en `_extract_normalized_meta()`. `SystemHandler._handle_binary_response()` consulta la tabla SQLite `sensor_subscriptions` por `push_tag` activo y no expirado:

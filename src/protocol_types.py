@@ -27,7 +27,8 @@ EOF_BYTE: int = 0x55
 ESC_BYTE: int = 0x1B
 ESC_MASK: int = 0x20
 BROADCAST_NODE_ID: int = 0xFFFF
-MAX_PAYLOAD_SIZE: int = 256
+MAX_PAYLOAD_SIZE: int = 256  # Capacidad máxima del framing serial raw en memoria
+MAX_LORA_RF_PAYLOAD: int = 184  # Cota física LoRa RF wire oficial (MeshCore.h: MAX_PACKET_PAYLOAD 184)
 HEADER_SIZE_BYTES: int = 9
 CRC_SIZE_BYTES: int = 2
 
