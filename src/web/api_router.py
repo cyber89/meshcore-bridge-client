@@ -441,7 +441,7 @@ class WebAPIRouter:
             ):
                 return await self._dispatch_repeater(method, clean_path, req_body)
 
-            if clean_path.startswith(("/api/node", "/api/config")):
+            if clean_path.startswith(("/api/node", "/api/config", "/api/radio")):
                 return await self._dispatch_config(method, path, clean_path, req_body)
 
             if clean_path in ("/api/capabilities",) or clean_path.startswith("/api/services"):

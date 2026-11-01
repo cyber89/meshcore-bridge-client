@@ -147,7 +147,10 @@ class TestMqttSubsystem(unittest.IsolatedAsyncioTestCase):
         })
         dispatcher.handle_incoming(self.client.topic_admin_cmd, admin_payload)
 
-        await asyncio.sleep(0.1)
+        for _ in range(50):
+            if mock_admin.await_count > 0:
+                break
+            await asyncio.sleep(0.02)
 
         mock_admin.assert_awaited_once_with({"action": "reboot", "target_node": "local"})
 

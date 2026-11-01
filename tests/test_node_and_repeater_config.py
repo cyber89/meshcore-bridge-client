@@ -365,12 +365,13 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             EventType.TRACE_DATA, attribute_filters={"tag": tag}, timeout=None,
         )
 
-        # 2. Petición con lista vacía []
+        # 2. Petición con lista vacía [] (usando force=True para bypass de cooldown en prueba)
         self.mock_mc.commands.send_trace.reset_mock()
         res2 = await self.admin_handler.handle({
             "action": "trace",
             "target_node": "feedfacecafe0011",
             "path": [],
+            "force": True,
         })
         self.assertEqual(res2["status"], "ok")
         self.mock_mc.commands.send_trace.assert_awaited_once_with(path=None, flags=0, tag=ANY)

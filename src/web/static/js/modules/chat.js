@@ -1704,17 +1704,20 @@ export class ChatModule {
     });
 
     feed.replaceChildren(frag);
+    const isFeedSwitch = this._visibleFeedKey !== feedKey;
     this._visibleFeedKey = feedKey;
     feed.scrollTop = followTail ? feed.scrollHeight : oldTop;
 
-    // Restaurar borrador persistente para la conversación activa (P0-2)
-    try {
-      const savedDraft = localStorage.getItem(`meshcore_draft_${feedKey}`) || "";
-      if (this.dom.chatInputText) {
-        this.dom.chatInputText.value = savedDraft;
-        this.updateCharCounterFast();
-      }
-    } catch (_) {}
+    // Restaurar borrador persistente para la conversación activa al cambiar de feed (P0-2)
+    if (isFeedSwitch || !this.dom.chatInputText?.value) {
+      try {
+        const savedDraft = localStorage.getItem(`meshcore_draft_${feedKey}`) || "";
+        if (this.dom.chatInputText) {
+          this.dom.chatInputText.value = savedDraft;
+          this.updateCharCounterFast();
+        }
+      } catch (_) {}
+    }
   }
 
   createMessageBubble(msg) {
@@ -2988,7 +2991,7 @@ export class ChatModule {
   }
 
   _updateFeedUnreadBadges() {
-    this._updateFeedUnreadBadges();
+    this._updateGlobalUnreadBadge();
     document.querySelectorAll(".channel-item").forEach((item) => {
       const feedKey = item.dataset.pubkey ? `dm_${item.dataset.pubkey}` : `ch_${item.dataset.channelIdx}`;
       let badge = item.querySelector(".feed-unread-badge");
