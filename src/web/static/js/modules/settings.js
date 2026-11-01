@@ -95,6 +95,7 @@ export class SettingsModule {
       this.fetchCustomVars();
       this.fetchFloodScope();
       this.fetchAutoAddConfig();
+    this.fetchMessagingConfig();
       this.loadServicesConfig();
     };
     if ("requestIdleCallback" in window) {
@@ -775,6 +776,7 @@ export class SettingsModule {
         if (target === "local-security") {
           this.fetchFloodScope();
           this.fetchAutoAddConfig();
+    this.fetchMessagingConfig();
         }
         if (target === "local-services") {
           this.loadServicesConfig();
@@ -934,6 +936,11 @@ export class SettingsModule {
     const btnSaveAutoAdd = document.getElementById("btnSaveAutoAddConfig");
     if (btnSaveAutoAdd) {
       btnSaveAutoAdd.addEventListener("click", () => this.saveAutoAddConfig());
+    }
+
+    const btnSaveMessaging = document.getElementById("btnSaveMessagingConfig");
+    if (btnSaveMessaging) {
+      btnSaveMessaging.addEventListener("click", () => this.saveMessagingConfig());
     }
 
 
@@ -3602,5 +3609,66 @@ export class SettingsModule {
       this._clockInterval = null;
     }
   }
-}
 
+
+  async fetchMessagingConfig() {
+    try {
+      const res = await fetch("/api/config/messaging", {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "ok") {
+        const cfg = data.config || {};
+        this._populateMessagingConfig(cfg);
+      }
+    } catch (e) {
+      console.warn("Error consultando messaging config:", e);
+    }
+  }
+
+  _populateMessagingConfig(cfg) {
+    const chkRetry = document.getElementById("chkMsgAutoRetry");
+    const selMax = document.getElementById("selMsgMaxRetries");
+    const numTimeout = document.getElementById("numMsgAckTimeout");
+
+    if (chkRetry && typeof cfg.auto_retry_enabled === "boolean") {
+      chkRetry.checked = cfg.auto_retry_enabled;
+    }
+    if (selMax && cfg.max_retries) {
+      selMax.value = String(cfg.max_retries);
+    }
+    if (numTimeout && cfg.ack_timeout_s) {
+      numTimeout.value = String(cfg.ack_timeout_s);
+    }
+  }
+
+  async saveMessagingConfig() {
+    const chkRetry = document.getElementById("chkMsgAutoRetry");
+    const selMax = document.getElementById("selMsgMaxRetries");
+    const numTimeout = document.getElementById("numMsgAckTimeout");
+
+    const payload = {
+      auto_retry_enabled: chkRetry ? chkRetry.checked : true,
+      max_retries: selMax ? parseInt(selMax.value, 10) : 2,
+      ack_timeout_s: numTimeout ? parseFloat(numTimeout.value) : 30.0,
+    };
+
+    try {
+      const res = await fetch("/api/config/messaging", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "ok") {
+        if (this.ctx.showToast) this.ctx.showToast("Política de reintentos y mensajería guardada correctamente", "success");
+      } else {
+        throw new Error(data.detail || data.message || "Error al guardar");
+      }
+    } catch (e) {
+      console.warn("Error guardando messaging config:", e);
+      if (this.ctx.showToast) this.ctx.showToast(`Error: ${e.message}`, "error");
+    }
+  }
+
+}

@@ -2,6 +2,7 @@
 
 from src.core.ack_tracker import AckTracker
 from src.core.companion_proxy import CompanionProxy
+from src.core.message_retry_scheduler import MessageRetryScheduler
 from src.core.tx_coordinator import TxCoordinator
 
-__all__ = ["AckTracker", "CompanionProxy", "TxCoordinator"]
+__all__ = ["AckTracker", "CompanionProxy", "MessageRetryScheduler", "TxCoordinator"]

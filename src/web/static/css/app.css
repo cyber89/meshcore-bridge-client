@@ -2259,6 +2259,113 @@ body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
 .message-bubble-row.outgoing .ack-failed { color: #ffe4e9; }
 .message-bubble-row.outgoing .ack-unconfirmed { color: #fde68a; }
 
+.ack-indicator.ack-retrying {
+  color: var(--accent-warning, #f59e0b);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ack-indicator.ack-cancelled {
+  color: var(--text-muted, #94a3b8);
+  opacity: 0.8;
+}
+
+.message-bubble-row.outgoing .ack-retrying { color: #fef08a; }
+.message-bubble-row.outgoing .ack-cancelled { color: #cbd5e1; }
+
+.retry-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.2);
+  color: inherit;
+  line-height: 1;
+}
+
+.btn-msg-cancel-compact {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.btn-msg-cancel-compact:hover {
+  opacity: 1;
+  color: var(--accent-danger, #f43f5e);
+  transform: scale(1.15);
+}
+
+.msg-retry-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(244, 63, 94, 0.3);
+}
+
+.btn-msg-retry,
+.btn-msg-cancel {
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  min-height: 32px;
+  border: 1px solid transparent;
+}
+
+.btn-msg-retry {
+  background: rgba(14, 165, 233, 0.15);
+  color: var(--accent-info, #38bdf8);
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+.btn-msg-retry:hover {
+  background: rgba(14, 165, 233, 0.28);
+  border-color: #38bdf8;
+  transform: translateY(-1px);
+}
+
+.btn-msg-cancel {
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--accent-danger, #f87171);
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+.btn-msg-cancel:hover {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: #f87171;
+  transform: translateY(-1px);
+}
+
+.spin-clockwise {
+  display: inline-block;
+  animation: spin-clockwise 1.2s linear infinite;
+}
+
+@keyframes spin-clockwise {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .msg-sender {
   font-size: 0.75rem;
   font-weight: 600;

@@ -141,6 +141,11 @@ export class MeshCoreWebSocketClient {
           return;
         }
 
+        if (pType === "message_status") {
+          this.eventBus.emit(EVENTS.MESSAGE_STATUS, payload.data || payload);
+          return;
+        }
+
 
         this.eventBus.emit(EVENTS.RX_PACKET, payload);
       } catch (err) {

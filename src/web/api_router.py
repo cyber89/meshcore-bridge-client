@@ -424,7 +424,7 @@ class WebAPIRouter:
             if clean_path == "/api/channels" or clean_path.startswith("/api/channels/"):
                 return await self._dispatch_channels(method, clean_path, req_body)
 
-            if clean_path in ("/api/tx", "/api/messages/recent"):
+            if clean_path in ("/api/tx", "/api/messages/recent", "/api/config/messaging") or clean_path.startswith("/api/messages/"): 
                 return await self._dispatch_tx(method, clean_path, req_body)
 
             if (
@@ -654,6 +654,18 @@ class WebAPIRouter:
             return await self.tx_ctrl.send_tx(req_body)
         if clean_path == "/api/messages/recent" and method == "GET":
             return await self.tx_ctrl.get_recent_messages()
+        if clean_path.startswith("/api/messages/") and clean_path.endswith("/resend") and method == "POST":
+            msg_id = clean_path[len("/api/messages/"): -len("/resend")].strip()
+            return await self.tx_ctrl.resend_message(msg_id)
+        if clean_path.startswith("/api/messages/") and clean_path.endswith("/cancel") and method == "POST":
+            msg_id = clean_path[len("/api/messages/"): -len("/cancel")].strip()
+            return await self.tx_ctrl.cancel_message_retry(msg_id)
+        if clean_path == "/api/config/messaging":
+            if method == "GET":
+                return await self.tx_ctrl.get_messaging_config()
+            if method == "POST":
+                return await self.tx_ctrl.update_messaging_config(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
     async def _dispatch_repeater(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

@@ -40,6 +40,7 @@ class TxCoordinator:
         broadcast_system_log_fn: Callable[[dict[str, Any]], None],
         tx_metrics_lock: asyncio.Lock,
         on_tx_increment: Callable[[bool], Awaitable[None]],
+        retry_scheduler_provider: Callable[[], Any] | None = None,
     ) -> None:
         self.node_registry_provider = node_registry_provider
         self.serial_adapter_provider = serial_adapter_provider
@@ -56,6 +57,7 @@ class TxCoordinator:
         self.broadcast_system_log_fn = broadcast_system_log_fn
         self.tx_metrics_lock = tx_metrics_lock
         self.on_tx_increment = on_tx_increment
+        self.retry_scheduler_provider = retry_scheduler_provider
 
     @staticmethod
     def parse_tx_input(item: Any) -> tuple[Any, str, int, str]:
@@ -280,6 +282,24 @@ class TxCoordinator:
                 ack_payload["delivery_tracking"] = tracking
                 if tracking not in ("registered", "persistence_failed"):
                     self.ack_tracker.remove(expected_ack_hex)
+
+        if (
+            status_val == "sent"
+            and expected_ack_hex
+            and req_id
+            and not is_broadcast
+            and not is_admin_cmd
+        ):
+            if self.retry_scheduler_provider is not None:
+                sched = self.retry_scheduler_provider()
+                if sched is not None and getattr(sched, "auto_retry_enabled", False):
+                    sched.schedule_retry(
+                        msg_id=req_id,
+                        target=str(target),
+                        text=text,
+                        channel_idx=ch_idx,
+                        attempt_count=1,
+                    )
 
         if chat_event is not None:
             chat_event["status"] = "sent" if status_val == "sent" else "failed"

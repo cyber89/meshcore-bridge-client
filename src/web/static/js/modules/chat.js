@@ -358,6 +358,31 @@ export class ChatModule {
       this.dom.clearChatBtn.addEventListener("click", () => this.clearCurrentChat());
     }
 
+    // Delegación de eventos para acciones de reintentos y cancelación en mensajes
+    this.dom.chatMessageFeed?.addEventListener("click", async (e) => {
+      const retryBtn = e.target.closest(".btn-msg-retry");
+      if (retryBtn) {
+        const msgId = retryBtn.getAttribute("data-msg-id");
+        if (msgId) {
+          retryBtn.disabled = true;
+          await this.resendMessage(msgId);
+          retryBtn.disabled = false;
+        }
+        return;
+      }
+
+      const cancelBtn = e.target.closest(".btn-msg-cancel, .btn-msg-cancel-compact");
+      if (cancelBtn) {
+        const msgId = cancelBtn.getAttribute("data-msg-id");
+        if (msgId) {
+          cancelBtn.disabled = true;
+          await this.cancelMessageRetry(msgId);
+          cancelBtn.disabled = false;
+        }
+        return;
+      }
+    });
+
     // Selector de Emojis
     if (this.dom.btnEmojiPicker && this.dom.emojiPickerPopover) {
       this.dom.btnEmojiPicker.addEventListener("click", (e) => {
@@ -470,9 +495,20 @@ export class ChatModule {
   _subscribeBus() {
     if (!this.ctx.eventBus) return;
 
+    if (EVENTS.MESSAGE_STATUS) {
+      this.ctx.eventBus.on(EVENTS.MESSAGE_STATUS, (payload) => {
+        this.handleMessageStatus(payload);
+      });
+    }
+
     this.ctx.eventBus.on(EVENTS.RX_PACKET, async (payload) => {
       if (!payload || typeof payload !== "object") return;
       const evType = payload.type || payload.event_type;
+
+      if (evType === "message_status") {
+        this.handleMessageStatus(payload);
+        return;
+      }
 
       if (evType === "message_delivered") {
         this.handleDeliveryAck(payload);
@@ -1761,18 +1797,48 @@ export class ChatModule {
       }
     }
 
-    // 3. Indicador de entrega estilo WhatsApp (Checkmarks)
+    // 3. Indicador de entrega y acciones estilo WhatsApp con soporte de reintentos
     let ackHtml = "";
+    let actionButtonsHtml = "";
     if (msg.is_outgoing) {
-      if (msg.delivered) {
+      const msgId = msg.id || msg.msg_id || "";
+      if (msg.delivered || msg.status === "delivered") {
         const label = escapeHtml(I18n.t('chat.delivered'));
-        ackHtml = `<span class="ack-indicator ack-delivered" role="img" title="${label}" aria-label="${label}"><i class="bi bi-check-all" aria-hidden="true"></i></span>`;
-      } else if (msg.status === "sent") {
-        const label = escapeHtml(I18n.t('chat.sent'));
-        ackHtml = `<span class="ack-indicator ack-sent" role="img" title="${label}" aria-label="${label}"><i class="bi bi-check-lg" aria-hidden="true"></i></span>`;
+        const trip = msg.trip_time_ms ? ` (${msg.trip_time_ms} ms)` : "";
+        ackHtml = `<span class="ack-indicator ack-delivered" role="img" title="${label}${trip}" aria-label="${label}${trip}"><i class="bi bi-check-all" aria-hidden="true"></i></span>`;
+      } else if (msg.status === "retrying") {
+        const attempt = msg.attempt || 1;
+        const maxAttempts = msg.max_attempts || 2;
+        const nextS = msg.next_attempt_s ? ` ${msg.next_attempt_s}s` : "";
+        const label = `Reintentando (${attempt}/${maxAttempts})${nextS}`;
+        ackHtml = `
+          <span class="ack-indicator ack-retrying" role="status" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">
+            <i class="bi bi-arrow-repeat spin-clockwise" aria-hidden="true"></i>
+            <span class="retry-badge">${attempt}/${maxAttempts}</span>
+          </span>
+          <button type="button" class="btn-msg-cancel-compact" data-msg-id="${escapeHtml(msgId)}" title="Cancelar reintento" aria-label="Cancelar reintento">
+            <i class="bi bi-x" aria-hidden="true"></i>
+          </button>
+        `;
+      } else if (msg.status === "cancelled") {
+        const label = "Cancelado";
+        ackHtml = `<span class="ack-indicator ack-cancelled" role="img" title="${label}" aria-label="${label}"><i class="bi bi-slash-circle" aria-hidden="true"></i></span>`;
       } else if (msg.status === "failed") {
         const label = escapeHtml(I18n.t('chat.failed'));
         ackHtml = `<span class="ack-indicator ack-failed" role="img" title="${label}" aria-label="${label}"><i class="bi bi-exclamation-circle" aria-hidden="true"></i></span>`;
+        actionButtonsHtml = `
+          <div class="msg-retry-actions">
+            <button type="button" class="btn-msg-retry" data-msg-id="${escapeHtml(msgId)}">
+              <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i> Reintentar
+            </button>
+            <button type="button" class="btn-msg-cancel" data-msg-id="${escapeHtml(msgId)}">
+              <i class="bi bi-x-circle me-1" aria-hidden="true"></i> Descartar
+            </button>
+          </div>
+        `;
+      } else if (msg.status === "sent") {
+        const label = escapeHtml(I18n.t('chat.sent'));
+        ackHtml = `<span class="ack-indicator ack-sent" role="img" title="${label}" aria-label="${label}"><i class="bi bi-check-lg" aria-hidden="true"></i></span>`;
       } else {
         const label = escapeHtml(I18n.t('chat.queued'));
         ackHtml = `<span class="ack-indicator ack-queued" role="img" title="${label}" aria-label="${label}"><i class="bi bi-clock" aria-hidden="true"></i></span>`;
@@ -1791,6 +1857,7 @@ export class ChatModule {
           <time class="msg-time"${timeAttributes}>${escapeHtml(timeStr)}</time>
           ${ackHtml}
         </div>
+        ${actionButtonsHtml}
       </div>
     `;
 
@@ -2339,4 +2406,160 @@ export class ChatModule {
     this._popoverResizeObserver = null;
     this._shareChannelAbort?.abort();
   }
+
+
+  handleMessageStatus(payload) {
+    if (!payload || !payload.msg_id) return;
+    const msgId = String(payload.msg_id);
+    const status = String(payload.status || "").toLowerCase();
+    const attempt = payload.attempt || 1;
+    const maxAttempts = payload.max_attempts || 2;
+    const nextAttemptS = payload.next_attempt_s || 0;
+
+    // Actualizar estado en memoria en los feeds
+    for (const [feedKey, msgs] of this.channelFeeds.entries()) {
+      for (const m of msgs) {
+        if (m.id === msgId || m.msg_id === msgId) {
+          m.status = status;
+          if (status === "delivered") {
+            m.delivered = true;
+          } else if (status === "retrying") {
+            m.attempt = attempt;
+            m.max_attempts = maxAttempts;
+            m.next_attempt_s = nextAttemptS;
+          }
+        }
+      }
+    }
+
+    // Actualizar burbuja en el DOM si es visible
+    const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+    if (row) {
+      this.updateBubbleStatus(row, { status, attempt, maxAttempts, nextAttemptS, msgId });
+    }
+
+    if (this.ctx.storage?.updateMessageStatus) {
+      this.ctx.storage.updateMessageStatus(msgId, status).catch(() => {});
+    }
+  }
+
+  updateBubbleStatus(row, { status, attempt = 1, maxAttempts = 2, nextAttemptS = 0, msgId = "" }) {
+    if (!row) return;
+    const footer = row.querySelector(".msg-footer");
+    let indicator = row.querySelector(".ack-indicator");
+    const existingActions = row.querySelector(".msg-retry-actions");
+    if (existingActions) existingActions.remove();
+
+    if (status === "delivered") {
+      if (indicator) {
+        indicator.className = "ack-indicator ack-delivered";
+        indicator.innerHTML = '<i class="bi bi-check-all" aria-hidden="true"></i>';
+        const label = window.I18n ? window.I18n.t('chat.delivered') : "Entregado";
+        indicator.title = label;
+        indicator.setAttribute("aria-label", label);
+      }
+    } else if (status === "retrying") {
+      const label = `Reintentando (${attempt}/${maxAttempts})${nextAttemptS ? ` en ${nextAttemptS}s` : ""}`;
+      if (footer) {
+        const oldComp = footer.querySelector(".btn-msg-cancel-compact");
+        if (oldComp) oldComp.remove();
+        if (indicator) {
+          indicator.className = "ack-indicator ack-retrying";
+          indicator.innerHTML = `<i class="bi bi-arrow-repeat spin-clockwise" aria-hidden="true"></i> <span class="retry-badge">${attempt}/${maxAttempts}</span>`;
+          indicator.title = label;
+          indicator.setAttribute("aria-label", label);
+        }
+        const cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "btn-msg-cancel-compact";
+        cancelBtn.setAttribute("data-msg-id", msgId);
+        cancelBtn.title = "Cancelar reintento";
+        cancelBtn.setAttribute("aria-label", "Cancelar reintento");
+        cancelBtn.innerHTML = '<i class="bi bi-x" aria-hidden="true"></i>';
+        footer.appendChild(cancelBtn);
+      }
+    } else if (status === "failed") {
+      if (footer) {
+        const oldComp = footer.querySelector(".btn-msg-cancel-compact");
+        if (oldComp) oldComp.remove();
+      }
+      if (indicator) {
+        indicator.className = "ack-indicator ack-failed";
+        indicator.innerHTML = '<i class="bi bi-exclamation-circle" aria-hidden="true"></i>';
+        const label = window.I18n ? window.I18n.t('chat.failed') : "Fallo de entrega";
+        indicator.title = label;
+        indicator.setAttribute("aria-label", label);
+      }
+      const bubble = row.querySelector(".msg-bubble");
+      if (bubble) {
+        const actionsDiv = document.createElement("div");
+        actionsDiv.className = "msg-retry-actions";
+        actionsDiv.innerHTML = `
+          <button type="button" class="btn-msg-retry" data-msg-id="${escapeHtml(msgId)}">
+            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i> Reintentar
+          </button>
+          <button type="button" class="btn-msg-cancel" data-msg-id="${escapeHtml(msgId)}">
+            <i class="bi bi-x-circle me-1" aria-hidden="true"></i> Descartar
+          </button>
+        `;
+        bubble.appendChild(actionsDiv);
+      }
+    } else if (status === "cancelled") {
+      if (footer) {
+        const oldComp = footer.querySelector(".btn-msg-cancel-compact");
+        if (oldComp) oldComp.remove();
+      }
+      if (indicator) {
+        indicator.className = "ack-indicator ack-cancelled";
+        indicator.innerHTML = '<i class="bi bi-slash-circle" aria-hidden="true"></i>';
+        indicator.title = "Cancelado";
+        indicator.setAttribute("aria-label", "Cancelado");
+      }
+    } else if (status === "sent") {
+      if (indicator) {
+        indicator.className = "ack-indicator ack-sent";
+        indicator.innerHTML = '<i class="bi bi-check-lg" aria-hidden="true"></i>';
+        const label = window.I18n ? window.I18n.t('chat.sent') : "Enviado";
+        indicator.title = label;
+        indicator.setAttribute("aria-label", label);
+      }
+    }
+  }
+
+  async resendMessage(msgId) {
+    try {
+      this.ctx.showToast?.("Reintentando transmisión por radio LoRa...", "info");
+      const res = await fetch(`/api/messages/${encodeURIComponent(msgId)}/resend`, {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== "ok") {
+        throw new Error(data.detail || data.message || "Error al reenviar");
+      }
+      this.ctx.showToast?.("Mensaje encolado para retransmisión", "success");
+    } catch (err) {
+      console.warn("Error reenviando mensaje:", err);
+      this.ctx.showToast?.(`Fallo al reenviar: ${err.message}`, "error");
+    }
+  }
+
+  async cancelMessageRetry(msgId) {
+    try {
+      const res = await fetch(`/api/messages/${encodeURIComponent(msgId)}/cancel`, {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== "ok") {
+        throw new Error(data.detail || data.message || "Error al cancelar");
+      }
+      this.ctx.showToast?.("Reintento cancelado", "info");
+      this.handleMessageStatus({ msg_id: msgId, status: "cancelled" });
+    } catch (err) {
+      console.warn("Error cancelando reintento:", err);
+      this.ctx.showToast?.(`Fallo al cancelar: ${err.message}`, "error");
+    }
+  }
+
 }

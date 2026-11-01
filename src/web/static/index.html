@@ -1732,6 +1732,41 @@
                     </form>
                   </div>
                 </div>
+
+                <!-- Política de Reintentos de Mensajería -->
+                <div class="col-12 mt-3">
+                  <div class="card card-panel">
+                    <div class="card-header-flex">
+                      <h3><i class="bi bi-arrow-repeat section-icon" aria-hidden="true"></i> Política de Reintentos de Mensajería (LoRa Message Retries)</h3>
+                      <span class="badge rounded-pill badge-primary">Airtime Seguro</span>
+                    </div>
+                    <p class="card-desc">
+                      Gobierna la máquina de estados de entrega para mensajes directos (DMs). Aplica backoff exponencial gradual con jitter aleatorio para evitar colisiones y respeta estrictamente el ciclo de trabajo legal de LoRa.
+                    </p>
+                    <form class="settings-form" id="messagingConfigForm" aria-label="Política de reintentos de mensajería">
+                      <div class="form-group settings-choice-group">
+                        <label for="chkMsgAutoRetry" class="settings-choice-row">
+                          <input type="checkbox" id="chkMsgAutoRetry" checked />
+                          <span>Habilitar reintentos automáticos acotados para Mensajes Directos (DMs)</span>
+                        </label>
+                        <div class="settings-policy-row mt-2">
+                          <label for="selMsgMaxRetries">Límite máximo de reintentos:</label>
+                          <select id="selMsgMaxRetries" class="form-control settings-policy-input">
+                            <option value="1">1 reintento adicional (Conservador)</option>
+                            <option value="2" selected>2 reintentos adicionales (Recomendado)</option>
+                            <option value="3">3 reintentos adicionales (Persistente)</option>
+                          </select>
+                          <label for="numMsgAckTimeout" class="ms-3">Timeout base de ACK (segundos):</label>
+                          <input type="number" id="numMsgAckTimeout" min="15" max="120" value="30" class="form-control settings-policy-input" style="max-width: 90px;" />
+                          <button type="button" class="btn btn-primary btn-sm ms-auto" id="btnSaveMessagingConfig">Guardar Política</button>
+                        </div>
+                        <div class="form-text text-muted mt-2">
+                          <small><i class="bi bi-shield-check me-1"></i> Caducidad por obsolescencia de 15 minutos tras reinicio del servicio para prevenir inundaciones de mensajes viejos. Congelación automática de timers durante saturación de canal o caídas serie.</small>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
               </div>
             </div>
 

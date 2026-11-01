@@ -24,13 +24,13 @@ from pathlib import Path
 from typing import Any
 
 _SCHEMA_VERSION = 3
-_DOCUMENT_NAMES = frozenset({"nodes", "channels", "services", "airtime", "repeater_cooldowns", "traceroutes"})
+_DOCUMENT_NAMES = frozenset({"nodes", "channels", "services", "airtime", "repeater_cooldowns", "traceroutes", "messaging_config"})
 _MESSAGE_FIELDS = frozenset({
     "sender", "sender_name", "text", "is_outgoing", "channel_idx", "dm_target",
     "dm_target_name", "timestamp", "metrics", "quote", "location", "txt_type",
     "status", "delivered", "expected_ack", "trip_time_ms", "is_direct",
 })
-_STATUSES = frozenset({"received", "queued", "sent", "failed", "delivered"})
+_STATUSES = frozenset({"received", "queued", "sent", "retrying", "failed", "delivered", "cancelled"})
 _SECRET_FIELDS = frozenset({
     "psk", "password", "passwd", "admin_password", "guest_password", "new_password",
     "current_password", "api_key", "token", "secret", "secrets", "channel_secret",
@@ -159,6 +159,12 @@ class StationDatabase:
                 connection.execute("""CREATE TABLE IF NOT EXISTS pending_acks (
                     ack_code TEXT PRIMARY KEY, req_id TEXT NOT NULL, target TEXT NOT NULL,
                     timestamp REAL NOT NULL)""")
+                connection.execute("""CREATE TABLE IF NOT EXISTS pending_retries (
+                    msg_id TEXT PRIMARY KEY, target TEXT NOT NULL, text TEXT NOT NULL,
+                    channel_idx INTEGER NOT NULL DEFAULT 0, attempt_count INTEGER NOT NULL DEFAULT 0,
+                    max_attempts INTEGER NOT NULL DEFAULT 2, next_attempt_epoch REAL NOT NULL,
+                    created_epoch REAL NOT NULL, status TEXT NOT NULL DEFAULT 'retrying')""")
+                connection.execute("CREATE INDEX IF NOT EXISTS pending_retries_next ON pending_retries(next_attempt_epoch)")
                 connection.execute("""CREATE TABLE IF NOT EXISTS sensor_subscriptions (
                     public_key TEXT PRIMARY KEY,
                     push_tag TEXT NOT NULL UNIQUE,
@@ -387,6 +393,9 @@ class StationDatabase:
             raise ValueError("Invalid delivery trip time")
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if status in ("delivered", "failed", "cancelled"):
+                if identifier:
+                    connection.execute("DELETE FROM pending_retries WHERE msg_id=?", (identifier,))
             if status == "delivered":
                 # An explicitly correlated ID must never acknowledge another colliding code.
                 keys = [f"id:{identifier}"] if identifier else ([f"ack:{code}"] if code else [])
@@ -501,6 +510,94 @@ class StationDatabase:
                 self._write_message(connection, record)
             connection.execute("DELETE FROM pending_acks WHERE ack_code=?", (code,))
             return {"req_id": row["req_id"], "target": row["target"], "timestamp": row["timestamp"]}
+
+
+
+    def save_pending_retry(
+        self,
+        msg_id: str,
+        target: str,
+        text: str,
+        channel_idx: int,
+        attempt_count: int,
+        max_attempts: int,
+        next_attempt_epoch: float,
+        created_epoch: float,
+        status: str = "retrying",
+    ) -> None:
+        """Registra o actualiza un reintento pendiente en la base de datos."""
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                """INSERT INTO pending_retries(msg_id, target, text, channel_idx, attempt_count, max_attempts, next_attempt_epoch, created_epoch, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(msg_id) DO UPDATE SET
+                       attempt_count=excluded.attempt_count,
+                       max_attempts=excluded.max_attempts,
+                       next_attempt_epoch=excluded.next_attempt_epoch,
+                       status=excluded.status""",
+                (
+                    str(msg_id),
+                    str(target),
+                    str(text),
+                    int(channel_idx),
+                    int(attempt_count),
+                    int(max_attempts),
+                    float(next_attempt_epoch),
+                    float(created_epoch),
+                    str(status),
+                ),
+            )
+
+    def get_due_retries(self, now_epoch: float, limit: int = 10) -> list[dict[str, Any]]:
+        """Recupera los reintentos cuyo momento de disparo es menor o igual a now_epoch."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                """SELECT * FROM pending_retries
+                   WHERE next_attempt_epoch <= ? AND status = 'retrying'
+                   ORDER BY next_attempt_epoch ASC LIMIT ?""",
+                (float(now_epoch), int(limit)),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_all_pending_retries(self) -> list[dict[str, Any]]:
+        """Recupera todos los reintentos pendientes en la base de datos."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM pending_retries ORDER BY next_attempt_epoch ASC"
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def remove_pending_retry(self, msg_id: str) -> bool:
+        """Elimina un reintento pendiente de la base de datos."""
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            cursor = connection.execute("DELETE FROM pending_retries WHERE msg_id = ?", (str(msg_id),))
+            return cursor.rowcount > 0
+
+    def prune_stale_retries(self, max_age_s: float = 900.0) -> list[str]:
+        """Expira los reintentos con una antigüedad mayor a max_age_s segundos (default 15 min)."""
+        now = time.time()
+        cutoff = now - max_age_s
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            stale_rows = connection.execute(
+                "SELECT msg_id FROM pending_retries WHERE created_epoch < ?", (cutoff,)
+            ).fetchall()
+            expired_ids = [str(r["msg_id"]) for r in stale_rows]
+            if expired_ids:
+                connection.execute("DELETE FROM pending_retries WHERE created_epoch < ?", (cutoff,))
+                for mid in expired_ids:
+                    row = connection.execute("SELECT * FROM messages WHERE msg_id = ?", (mid,)).fetchone()
+                    if row is not None:
+                        record = json.loads(row["payload"])
+                        if not record.get("delivered") and record.get("status") != "delivered":
+                            record["status"] = "failed"
+                            connection.execute(
+                                "UPDATE messages SET status='failed', payload=? WHERE msg_id=?",
+                                (_json(record), mid),
+                            )
+            return expired_ids
 
     def history(self, feed_key: str | None = None, limit: int = 100, before: int | None = None) -> dict[str, Any]:
         if feed_key is not None and (not isinstance(feed_key, str) or

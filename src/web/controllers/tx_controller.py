@@ -85,3 +85,67 @@ class TxController(BaseController):
             "data": msgs,
             "count": len(msgs),
         }
+
+    async def resend_message(self, msg_id: str) -> tuple[int, dict[str, Any]]:
+        """Reenvía manualmente un mensaje saliente a través del planificador de reintentos."""
+        if not msg_id:
+            return problem_details(400, "Bad Request", "msg_id no especificado", "missing_msg_id")
+
+        retry_sched = getattr(self.ctx.bridge, "retry_scheduler", None)
+        if not retry_sched:
+            return problem_details(503, "Service Unavailable", "Planificador de reintentos no disponible", "scheduler_unavailable")
+
+        ok, reason, tx_res = await retry_sched.resend_message(msg_id)
+        if not ok:
+            return problem_details(400, "Bad Request", reason, "resend_failed")
+
+        return 200, {
+            "status": "ok",
+            "message_id": msg_id,
+            "message": reason,
+            "data": tx_res,
+        }
+
+    async def cancel_message_retry(self, msg_id: str) -> tuple[int, dict[str, Any]]:
+        """Cancela cualquier reintento automático programado para un mensaje."""
+        if not msg_id:
+            return problem_details(400, "Bad Request", "msg_id no especificado", "missing_msg_id")
+
+        retry_sched = getattr(self.ctx.bridge, "retry_scheduler", None)
+        if not retry_sched:
+            return problem_details(503, "Service Unavailable", "Planificador de reintentos no disponible", "scheduler_unavailable")
+
+        removed = retry_sched.cancel_retry(msg_id)
+        return 200, {
+            "status": "ok",
+            "message_id": msg_id,
+            "cancelled": removed,
+            "state": "cancelled",
+        }
+
+    async def get_messaging_config(self) -> tuple[int, dict[str, Any]]:
+        """Consulta la configuración activa de reintentos y mensajería."""
+        retry_sched = getattr(self.ctx.bridge, "retry_scheduler", None)
+        if not retry_sched:
+            return problem_details(503, "Service Unavailable", "Planificador de reintentos no disponible", "scheduler_unavailable")
+
+        return 200, {
+            "status": "ok",
+            "config": retry_sched.get_config(),
+        }
+
+    async def update_messaging_config(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Actualiza y persiste la configuración activa de reintentos y mensajería."""
+        retry_sched = getattr(self.ctx.bridge, "retry_scheduler", None)
+        if not retry_sched:
+            return problem_details(503, "Service Unavailable", "Planificador de reintentos no disponible", "scheduler_unavailable")
+
+        updated = retry_sched.update_config(
+            auto_retry_enabled=req_body.get("auto_retry_enabled"),
+            max_retries=req_body.get("max_retries"),
+            ack_timeout_s=req_body.get("ack_timeout_s"),
+        )
+        return 200, {
+            "status": "ok",
+            "config": updated,
+        }

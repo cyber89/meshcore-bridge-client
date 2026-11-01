@@ -53,6 +53,7 @@ from src.capabilities import CapabilityRegistry, StableMqttPort
 from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.core.ack_tracker import AckTracker
 from src.core.companion_proxy import CompanionProxy
+from src.core.message_retry_scheduler import MessageRetryScheduler
 from src.core.tx_coordinator import TxCoordinator
 from src.deduplicator import PacketDeduplicator
 from src.diagnostics import DiagnosticManager, SystemLogHandler, setup_file_logging
@@ -250,6 +251,14 @@ class MeshCoreBridge:
             on_metrics_tx=_inc_tx_metrics,
         )
 
+        self.retry_scheduler = MessageRetryScheduler(
+            database_provider=lambda: getattr(self, "database", None),
+            tx_coordinator_provider=lambda: getattr(self, "_tx_coordinator", None),
+            is_cutoff_active_fn=lambda: getattr(getattr(self, "rate_limiter", None), "is_airtime_cutoff_active", lambda: False)(),
+            is_serial_connected_fn=lambda: getattr(getattr(self, "serial_adapter", None), "is_connected", False),
+            broadcast_ws_fn=lambda data: self.web_server.broadcast(data) if getattr(self, "web_server", None) else None,
+        )
+
         self._tx_coordinator = TxCoordinator(
             node_registry_provider=lambda: getattr(self, "node_registry", None),
             serial_adapter_provider=lambda: getattr(self, "serial_adapter", None),
@@ -266,6 +275,7 @@ class MeshCoreBridge:
             broadcast_system_log_fn=self._broadcast_system_log,
             tx_metrics_lock=self._tx_metrics_lock,
             on_tx_increment=_inc_tx_metrics,
+            retry_scheduler_provider=lambda: getattr(self, "retry_scheduler", None),
         )
 
         self._started = False
@@ -654,6 +664,7 @@ class MeshCoreBridge:
                 broadcast_system_log_fn=getattr(instance, "_broadcast_system_log", lambda p: None),
                 tx_metrics_lock=getattr(instance, "_tx_metrics_lock", asyncio.Lock()),
                 on_tx_increment=_inc_tx,
+                retry_scheduler_provider=lambda: getattr(instance, "retry_scheduler", None),
             )
 
             try:
@@ -1504,6 +1515,9 @@ class MeshCoreBridge:
 
         self.rate_limiter.start()
 
+        if hasattr(self, "retry_scheduler") and self.retry_scheduler:
+            await self.retry_scheduler.start()
+
         if hasattr(self, "services_manager"):
             await self.services_manager.start(loop=loop)
 
@@ -1714,6 +1728,10 @@ class MeshCoreBridge:
                 stop_tcp = tcp_srv.stop()
 
         for subsystem_name, coro in [
+            (
+                "retry_scheduler",
+                self.retry_scheduler.stop() if getattr(self, "retry_scheduler", None) else None,
+            ),
             (
                 "services_manager",
                 self.services_manager.stop() if getattr(self, "services_manager", None) else None,

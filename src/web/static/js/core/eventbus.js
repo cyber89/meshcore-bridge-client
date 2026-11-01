@@ -94,4 +94,5 @@ export const EVENTS = Object.freeze({
   CHANNELS_UPDATED: "meshcore:channels_updated",
   CONTACTS_UPDATED: "meshcore:contacts_updated",
   CONFIG_UPDATED: "meshcore:config_updated",
+  MESSAGE_STATUS: "meshcore:message_status",
 });
