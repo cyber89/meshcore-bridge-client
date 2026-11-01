@@ -68,6 +68,8 @@ ROUTE_ALIASES: dict[str, str] = {
     "/api/node/flood_scope": "/api/config/flood_scope",
     "/api/node/config/radio": "/api/config/radio",
     "/api/node/config/identity": "/api/config/identity",
+    "/api/radio_presets": "/api/radio/presets",
+    "/api/config/radio/presets": "/api/radio/presets",
     "/api/config/advert": "/api/node/advert",
     "/api/config/reboot": "/api/node/reboot",
     "/api/node/sync-clock": "/api/config/sync-clock",
@@ -783,6 +785,11 @@ class WebAPIRouter:
                 return await self.config_ctrl.get_flood_scope()
             if method == "POST":
                 return await self.config_ctrl.set_flood_scope(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path == "/api/radio/presets":
+            if method == "GET":
+                return await self.config_ctrl.get_radio_presets()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         if clean_path == "/api/config/radio":

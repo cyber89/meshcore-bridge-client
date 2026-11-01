@@ -7625,3 +7625,34 @@ details.settings-disclosure > .disclosure-content {
 .room-bulletin-card:last-child {
   border-bottom: none !important;
 }
+/* Onboarding Guide */
+.onboarding-slide {
+  display: none;
+}
+.onboarding-slide.active {
+  display: block;
+}
+.onboarding-step-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 1.5rem;
+}
+.onboarding-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bs-border-color, #495057);
+  transition: all 0.2s ease;
+}
+.onboarding-step-dot.active {
+  width: 24px;
+  border-radius: 5px;
+  background: var(--bs-primary, #0d6efd);
+}
+.onboarding-hero-icon {
+  font-size: 2.5rem;
+  color: var(--bs-primary, #0d6efd);
+  margin-bottom: 1rem;
+}
+

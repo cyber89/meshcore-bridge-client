@@ -486,3 +486,8 @@ class ConfigController(BaseController):
         self.ctx.log_system_event("INFO", f"Flood Scope actualizado a '{scope or 'Global'}'", source="admin")
         return 200, {"status": "ok", "data": res}
 
+    async def get_radio_presets(self) -> tuple[int, dict[str, Any]]:
+        """Obtiene los presets de radio canonicos sugeridos para MeshCore."""
+        from src.radio_presets import OFFICIAL_RADIO_PRESETS
+        return 200, {"status": "ok", "presets": OFFICIAL_RADIO_PRESETS, "data": OFFICIAL_RADIO_PRESETS}
+

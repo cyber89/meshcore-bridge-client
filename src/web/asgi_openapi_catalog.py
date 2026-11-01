@@ -718,6 +718,16 @@ OBSERVED_OPERATIONS: dict[tuple[str, str], ObservedOperation] = {
         'serial',
         True,
     ),
+    ('GET', '/api/radio/presets'): ObservedOperation(
+        (),
+        (200,),
+        'router_merged',
+        'ninguna',
+        '200 OK presets,data iguales;lista oficial',
+        ('src/web/api_router.py:_dispatch_config', 'src/web/controllers/config_controller.py:get_radio_presets'),
+        'none',
+        False,
+    ),
     ('GET', '/api/config/flood_scope'): ObservedOperation(
         (),
         (200,),

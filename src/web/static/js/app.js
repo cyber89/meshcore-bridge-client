@@ -11,7 +11,7 @@ import { escapeHtml, buildMeshCoreContactUri, getAuthHeaders, readLocalPreferenc
 import { store } from "./core/store.js";
 import { apiClient } from "./core/api_client.js";
 import { BrowserAuthentication } from "./core/auth.js";
-import { applyThemePreference, readThemePreference, applyDensityPreference } from "./core/theme.js";
+import { applyThemePreference, readThemePreference, applyDensityPreference, setupAutoThemeListener } from "./core/theme.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -123,6 +123,7 @@ class MeshCoreApp {
     this.analyticsModule.init();
 
     // Cargar estado inicial desacoplado (canales y configuración)
+    this._initOnboardingGuide();
     this.fetchInitialStationState();
 
     // Exponer instancia global y helpers de diálogos del sistema
@@ -141,6 +142,69 @@ class MeshCoreApp {
     });
   }
 
+
+  _initOnboardingGuide() {
+    const modal = document.getElementById("onboardingGuideModal");
+    const openBtn = document.getElementById("btnOpenOnboardingGuide");
+    const closeBtn = document.getElementById("btnCloseOnboardingModal");
+    const prevBtn = document.getElementById("btnOnboardingPrev");
+    const nextBtn = document.getElementById("btnOnboardingNext");
+    const finishBtn = document.getElementById("btnOnboardingFinish");
+    if (!modal) return;
+
+    let currentSlide = 0;
+    const totalSlides = 5;
+
+    const updateSlideView = () => {
+      const slides = modal.querySelectorAll(".onboarding-slide");
+      const dots = modal.querySelectorAll(".onboarding-step-dot");
+      slides.forEach((s, idx) => s.classList.toggle("active", idx === currentSlide));
+      dots.forEach((d, idx) => d.classList.toggle("active", idx === currentSlide));
+      if (prevBtn) prevBtn.disabled = currentSlide === 0;
+      if (nextBtn) nextBtn.classList.toggle("d-none", currentSlide === totalSlides - 1);
+      if (finishBtn) finishBtn.classList.toggle("d-none", currentSlide !== totalSlides - 1);
+    };
+
+    const openModal = () => {
+      currentSlide = 0;
+      updateSlideView();
+      modal.classList.remove("hidden");
+      modal.classList.add("show");
+      modal.style.display = "block";
+    };
+
+    const closeModal = () => {
+      modal.classList.remove("show");
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+    };
+
+    if (openBtn) openBtn.addEventListener("click", openModal);
+    if (closeBtn) closeBtn.addEventListener("click", closeModal);
+    if (prevBtn) {
+      prevBtn.addEventListener("click", () => {
+        if (currentSlide > 0) {
+          currentSlide--;
+          updateSlideView();
+        }
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", () => {
+        if (currentSlide < totalSlides - 1) {
+          currentSlide++;
+          updateSlideView();
+        }
+      });
+    }
+    if (finishBtn) {
+      finishBtn.addEventListener("click", () => {
+        try { localStorage.setItem("meshcore_onboarding_completed", "true"); } catch (_) {}
+        closeModal();
+        this.showToast?.("¡Guía completada! Puedes reabrirla cuando desees desde la barra superior.", "success");
+      });
+    }
+  }
   _bindElements() {
     this.dom = {
       themeToggleBtn: document.getElementById("themeToggleBtn"),
@@ -174,12 +238,17 @@ class MeshCoreApp {
     const savedTheme = readThemePreference();
     this._applyTheme(savedTheme);
 
+    setupAutoThemeListener((effective) => {
+      this._updateThemeIcon(readThemePreference());
+      window.dispatchEvent(new CustomEvent("meshcore:theme-changed", { detail: { theme: effective } }));
+    });
+
     applyDensityPreference("compact", false);
 
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener("click", () => {
-        const isDark = document.body.classList.contains("dark-theme") || document.documentElement.getAttribute("data-bs-theme") === "dark";
-        const next = isDark ? "light" : "dark";
+        const currentPref = readThemePreference();
+        const next = currentPref === "dark" ? "light" : (currentPref === "light" ? "auto" : "dark");
         this._applyTheme(next);
       });
     }
@@ -204,10 +273,20 @@ class MeshCoreApp {
 
   _updateThemeIcon(theme) {
     if (!this.dom.themeToggleBtn) return;
-    const isDark = theme === "dark";
-    const iconClass = isDark ? "bi-sun" : "bi-moon";
+    const pref = theme || readThemePreference();
+    let iconClass = "bi-moon";
+    let label = "";
+    if (pref === "dark") {
+      iconClass = "bi-sun";
+      label = I18n.t ? I18n.t("app.dark_theme_title") : "Tema Oscuro";
+    } else if (pref === "light") {
+      iconClass = "bi-circle-half";
+      label = I18n.t ? I18n.t("app.light_theme_title") : "Tema Claro";
+    } else {
+      iconClass = "bi-laptop";
+      label = I18n.t ? I18n.t("app.auto_theme_title", "Tema Automático") : "Tema Automático";
+    }
     this.dom.themeToggleBtn.innerHTML = `<i class="bi ${iconClass}" aria-hidden="true"></i>`;
-    const label = I18n.t(isDark ? 'app.dark_theme_title' : 'app.light_theme_title');
     this.dom.themeToggleBtn.title = label;
     this.dom.themeToggleBtn.setAttribute("aria-label", label);
   }

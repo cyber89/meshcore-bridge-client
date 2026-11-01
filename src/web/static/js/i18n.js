@@ -1641,6 +1641,7 @@
       'app.radio_offline':          'Radio: Desconectada',
       'app.dark_theme_title':       'Cambiar a tema claro',
       'app.light_theme_title':      'Cambiar a tema oscuro',
+      'app.auto_theme_title':       'Cambiar a tema automático (sistema)',
 
       // Time & Presence
       'time.online_local':          'En línea (Local)',
@@ -3390,6 +3391,7 @@
       'app.radio_offline':          'Radio: Disconnected',
       'app.dark_theme_title':       'Switch to light theme',
       'app.light_theme_title':      'Switch to dark theme',
+      'app.auto_theme_title':       'Switch to system theme (auto)',
 
       // Time & Presence
       'time.online_local':          'Online (Local)',

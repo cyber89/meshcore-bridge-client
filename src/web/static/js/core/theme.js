@@ -1,29 +1,59 @@
 /** Shared visual preference; applying it never starts station modules or requests. */
+
+let _themeMediaQuery = null;
+
 export function readThemePreference() {
   try {
     const saved = localStorage.getItem("meshcore_theme");
-    if (saved === "light" || saved === "dark") return saved;
+    if (saved === "light" || saved === "dark" || saved === "auto") return saved;
   } catch (_) { /* Retain the preference in the DOM when storage is unavailable. */ }
   if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-    return "light";
+    return "auto";
   }
   return document.documentElement.getAttribute("data-bs-theme") === "light" ? "light" : "dark";
 }
 
+export function resolveEffectiveTheme(pref) {
+  if (pref === "light" || pref === "dark") return pref;
+  if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    return "dark";
+  }
+  if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+    return "light";
+  }
+  return "dark";
+}
+
 export function applyThemePreference(theme, persist = true) {
-  const selected = theme === "light" ? "light" : "dark";
-  const isDark = selected === "dark";
+  const pref = (theme === "light" || theme === "dark" || theme === "auto") ? theme : "auto";
+  const effective = resolveEffectiveTheme(pref);
+  const isDark = effective === "dark";
   const stylesheet = document.getElementById("themeStylesheet");
   const href = isDark ? "/css/bootstrap-slate.min.css" : "/css/bootstrap-zephyr.local.min.css";
   if (stylesheet && !stylesheet.getAttribute("href")?.endsWith(href)) stylesheet.setAttribute("href", href);
   document.body.classList.remove("dark-theme", "light-theme");
-  document.body.classList.add(`${selected}-theme`);
-  document.documentElement.setAttribute("data-bs-theme", selected);
+  document.body.classList.add(`${effective}-theme`);
+  document.documentElement.setAttribute("data-bs-theme", effective);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#101b2e" : "#eef3f9");
   if (persist) {
-    try { localStorage.setItem("meshcore_theme", selected); }
+    try { localStorage.setItem("meshcore_theme", pref); }
     catch (_) { /* The visual preference still applies when storage is unavailable. */ }
   }
+}
+
+export function setupAutoThemeListener(callback = null) {
+  if (typeof window === "undefined" || !window.matchMedia) return;
+  if (_themeMediaQuery) return;
+  _themeMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  _themeMediaQuery.addEventListener("change", (e) => {
+    const pref = readThemePreference();
+    if (pref === "auto") {
+      applyThemePreference("auto", false);
+      if (typeof callback === "function") {
+        callback(e.matches ? "dark" : "light");
+      }
+    }
+  });
 }
 
 export function readDensityPreference() {

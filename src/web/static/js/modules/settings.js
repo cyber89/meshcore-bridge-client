@@ -790,6 +790,7 @@ export class SettingsModule {
         }
         if (target === "local-radio") {
           this.fetchCustomVars();
+          this.fetchRadioPresets();
         }
         if (target === "local-security") {
           this.fetchFloodScope();
@@ -801,6 +802,54 @@ export class SettingsModule {
         }
       },
     });
+
+    const presetSelect = document.getElementById("localRadioPreset");
+    if (presetSelect) {
+      presetSelect.addEventListener("change", (e) => {
+        const selectedId = e.target.value;
+        if (!selectedId || !Array.isArray(this.radioPresets)) return;
+        const preset = this.radioPresets.find((p) => p.id === selectedId);
+        if (!preset) return;
+        const freqInput = document.getElementById("localFreq");
+        const sfSelect = document.getElementById("localSf");
+        const bwSelect = document.getElementById("localBw");
+        const crSelect = document.getElementById("localCr");
+        const pathHashSelect = document.getElementById("localPathHashMode");
+        if (freqInput && preset.frequency) {
+          freqInput.value = preset.frequency;
+          this.dirtyFields.add("localFreq");
+          this._fieldEditVersions.set("localFreq", (this._fieldEditVersions.get("localFreq") || 0) + 1);
+          const sumFreq = document.getElementById("localSummaryFreq");
+          if (sumFreq) sumFreq.textContent = `${preset.frequency} MHz`;
+        }
+        if (sfSelect && preset.spreading_factor) {
+          sfSelect.value = String(preset.spreading_factor);
+          this.dirtyFields.add("localSf");
+          this._fieldEditVersions.set("localSf", (this._fieldEditVersions.get("localSf") || 0) + 1);
+        }
+        if (bwSelect && preset.bandwidth) {
+          bwSelect.value = String(preset.bandwidth);
+          this.dirtyFields.add("localBw");
+          this._fieldEditVersions.set("localBw", (this._fieldEditVersions.get("localBw") || 0) + 1);
+        }
+        if (crSelect && preset.coding_rate) {
+          const crStr = String(preset.coding_rate).includes("/") ? String(preset.coding_rate) : (preset.coding_rate === 5 ? "4/5" : (preset.coding_rate === 6 ? "4/6" : (preset.coding_rate === 7 ? "4/7" : (preset.coding_rate === 8 ? "4/8" : String(preset.coding_rate)))));
+          crSelect.value = crStr;
+          this.dirtyFields.add("localCr");
+          this._fieldEditVersions.set("localCr", (this._fieldEditVersions.get("localCr") || 0) + 1);
+        }
+        if (pathHashSelect && preset.path_hash_mode != null) {
+          pathHashSelect.value = String(preset.path_hash_mode);
+          this.dirtyFields.add("localPathHashMode");
+          this._fieldEditVersions.set("localPathHashMode", (this._fieldEditVersions.get("localPathHashMode") || 0) + 1);
+        }
+        const sumModem = document.getElementById("localSummaryModem");
+        if (sumModem && sfSelect && bwSelect) {
+          sumModem.textContent = `SF${sfSelect.value} / BW${bwSelect.value}`;
+        }
+        this._notify(`Preset '${preset.title}' aplicado`, "info");
+      });
+    }
 
     const regionSelect = document.getElementById("localRegion");
     const freqInput = document.getElementById("localFreq");
@@ -2786,6 +2835,37 @@ export class SettingsModule {
     } catch (err) {
       this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
     }
+  }
+
+  async fetchRadioPresets() {
+    if (this._radioPresetsLoaded) return;
+    try {
+      const res = await fetch("/api/radio/presets", {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "ok") {
+        this.radioPresets = data.presets || data.data || [];
+        this._radioPresetsLoaded = true;
+        this.renderRadioPresets();
+      }
+    } catch (e) {
+      console.warn("Error consultando radio presets:", e);
+    }
+  }
+
+  renderRadioPresets() {
+    const select = document.getElementById("localRadioPreset");
+    if (!select || !Array.isArray(this.radioPresets)) return;
+    const current = select.value;
+    select.innerHTML = '<option value="">-- Seleccionar Preset de Radio (Opcional) --</option>';
+    this.radioPresets.forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = `${p.title} (${p.description || p.frequency + " MHz"})`;
+      select.appendChild(opt);
+    });
+    if (current) select.value = current;
   }
 
   async fetchFloodScope() {

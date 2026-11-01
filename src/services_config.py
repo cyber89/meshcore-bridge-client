@@ -11,6 +11,7 @@ import copy
 import json
 import logging
 import os
+import re
 import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -379,6 +380,15 @@ def _validate_service_fields(data: dict[str, Any], section_type: type[Any]) -> N
     for name, allowed in choices.items():
         if name in data and data[name] not in allowed:
             raise ValueError(f"Invalid services configuration {name}")
+    for topic_field in ("topic_prefix", "custom_topic_rx", "custom_topic_tx"):
+        if topic_field in data:
+            val = data[topic_field]
+            if isinstance(val, str) and any(ch in val for ch in "+#"):
+                raise ValueError(f"MQTT topic field '{topic_field}' cannot contain wildcards ('+' or '#')")
+    if "region_iata" in data:
+        val = data["region_iata"]
+        if isinstance(val, str) and val and not re.match(r"^[A-Za-z0-9_-]{1,16}$", val):
+            raise ValueError("Invalid region_iata format")
 
 
 def validate_services_config(cfg: ServicesConfig) -> None:

@@ -124,6 +124,10 @@
           <i class="bi bi-sun" aria-hidden="true"></i>
         </button>
 
+        <button id="btnOpenOnboardingGuide" type="button" class="btn btn-header-action btn-icon" title="Guía de Inicio Rápido" aria-label="Abrir guía de inicio rápido">
+          <i class="bi bi-question-circle" aria-hidden="true"></i>
+        </button>
+
         <button id="langToggleBtn" type="button" class="btn btn-header-action btn-lang-toggle" title="Switch to English" aria-label="Switch language" data-i18n-title="lang.title" data-i18n-aria-label="ui.static_008">
           <i class="bi bi-translate me-1" aria-hidden="true"></i><span class="lang-code-text d-none d-sm-inline">EN</span>
         </button>
@@ -1127,6 +1131,16 @@
                     <span data-i18n="settings.section_radio_rf">Capa Física LoRa &amp; Espectro RF</span>
                   </div>
                   <p class="field-hint span-full" data-i18n="settings.section_radio_rf_desc">Parámetros de modulación, frecuencia central, potencia de emisión y ancho de banda del canal de radio.</p>
+
+                  <div class="form-group span-full">
+                    <label for="localRadioPreset" class="d-flex align-items-center gap-1">
+                      <i class="bi bi-sliders text-accent-cyan" aria-hidden="true"></i>
+                      <span>Preset de Radio Sugerido (MeshCore Oficial):</span>
+                    </label>
+                    <select id="localRadioPreset" class="form-select form-select-sm">
+                      <option value="">-- Seleccionar Preset de Radio (Opcional) --</option>
+                    </select>
+                  </div>
 
                   <div class="form-group">
                     <label for="localFreq" data-i18n="ui.static_194">Frecuencia RF (MHz):</label>
@@ -2451,6 +2465,140 @@
         </div>
       </div>
     </div>
+    </div>
+
+    <!-- Modal: Guía de Inicio Rápido e Inducción / Onboarding Guide -->
+    <div id="onboardingGuideModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="onboardingModalTitle">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content modal-card bg-body-tertiary border-secondary shadow-lg">
+          <div class="modal-header system-dialog-header">
+            <div class="system-dialog-title-group">
+              <div class="system-dialog-icon-badge tone-primary">
+                <i class="bi bi-compass modal-title-icon" aria-hidden="true"></i>
+              </div>
+              <div>
+                <h3 id="onboardingModalTitle" class="m-0 fs-5">Guía de Inicio Rápido - MeshCore Bridge</h3>
+                <span class="text-body-secondary small">Descubre cómo operar y comunicar tu estación en la malla LoRa</span>
+              </div>
+            </div>
+            <button type="button" class="btn-close modal-close" id="btnCloseOnboardingModal" aria-label="Cerrar guía"></button>
+          </div>
+          <div class="modal-body p-4">
+            <!-- Step Indicators -->
+            <div class="onboarding-step-indicator mb-3" id="onboardingStepDots">
+              <span class="onboarding-step-dot active" data-step="0"></span>
+              <span class="onboarding-step-dot" data-step="1"></span>
+              <span class="onboarding-step-dot" data-step="2"></span>
+              <span class="onboarding-step-dot" data-step="3"></span>
+              <span class="onboarding-step-dot" data-step="4"></span>
+            </div>
+
+            <!-- Slide 0: Bienvenida y Estado del Transceptor -->
+            <div class="onboarding-slide active" data-slide="0">
+              <div class="text-center py-2">
+                <div class="onboarding-hero-icon"><i class="bi bi-broadcast"></i></div>
+                <h4 class="fw-bold">¡Bienvenido a MeshCore Bridge!</h4>
+                <p class="text-body-secondary col-lg-10 mx-auto">
+                  Esta estación actúa como puente permanente entre tu transceptor LoRa físico y tus clientes Web, MQTT, proxy TCP Companion y automatizaciones n8n.
+                </p>
+                <div class="alert alert-info text-start d-flex align-items-start gap-2 mx-auto col-lg-10 small">
+                  <i class="bi bi-info-circle-fill fs-5 mt-1"></i>
+                  <div>
+                    <strong>Estado del Enlace:</strong> Observa la barra superior para confirmar que el puerto serie y la radio física están en línea. El indicador verde mostrará el puerto (ej. <code>/dev/ttyACM0</code> o <code>COM3</code>).
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 1: Radio LoRa y Presets Regionales -->
+            <div class="onboarding-slide" data-slide="1">
+              <div class="text-center py-2">
+                <div class="onboarding-hero-icon text-info"><i class="bi bi-sliders"></i></div>
+                <h4 class="fw-bold">Configuración de Radio LoRa</h4>
+                <p class="text-body-secondary col-lg-10 mx-auto">
+                  Para enlazar con otros nodos en tu región, la frecuencia central (MHz), Spreading Factor (SF), Ancho de Banda (BW) y Coding Rate (CR) deben coincidir.
+                </p>
+                <div class="alert alert-secondary text-start mx-auto col-lg-10 small">
+                  <div class="fw-bold mb-1"><i class="bi bi-stars me-1 text-warning"></i>Presets Oficiales con 1 Clic:</div>
+                  En <strong>Ajustes &gt; Parámetros RF</strong>, puedes seleccionar presets canónicos como <em>USA/Canada Recommended (910.525 MHz / SF7 / BW62.5)</em> o <em>EU/UK Narrow (869.618 MHz / SF8 / BW62.5)</em> para autocompletar la modulación sin errores.
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 2: Canales y Mensajería -->
+            <div class="onboarding-slide" data-slide="2">
+              <div class="text-center py-2">
+                <div class="onboarding-hero-icon text-success"><i class="bi bi-chat-dots"></i></div>
+                <h4 class="fw-bold">Canales y Mensajes</h4>
+                <p class="text-body-secondary col-lg-10 mx-auto">
+                  El <strong>Canal 0 (Público)</strong> es abierto para descubrimiento comunitario en tu área. Puedes crear hasta 7 canales secundarios cifrados con clave compartida (PSK).
+                </p>
+                <div class="alert alert-success text-start mx-auto col-lg-10 small">
+                  <div class="fw-bold mb-1"><i class="bi bi-shield-lock me-1"></i>Herramientas Avanzadas de Chat:</div>
+                  Usa respuestas en hilo (Reply), menciones con <code>@</code>, silenciador por canal, búsqueda indexada de historial y exportación descargable de mensajes.
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 3: Nodos, Contactos y Salas BBS -->
+            <div class="onboarding-slide" data-slide="3">
+              <div class="text-center py-2">
+                <div class="onboarding-hero-icon text-primary"><i class="bi bi-diagram-3"></i></div>
+                <h4 class="fw-bold">Nodos, Contactos y Servidores ROOM</h4>
+                <p class="text-body-secondary col-lg-10 mx-auto">
+                  MeshCore Bridge clasifica rigurosamente los dispositivos de la red según el firmware oficial:
+                </p>
+                <div class="row g-2 col-lg-10 mx-auto text-start small">
+                  <div class="col-md-6">
+                    <div class="p-2 border rounded bg-body">
+                      <span class="badge bg-primary mb-1">CLIENT</span>
+                      <div>Dispositivos de usuario para mensajería directa (DM) y contacto personal.</div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="p-2 border rounded bg-body">
+                      <span class="badge bg-warning text-dark mb-1">REPEATER</span>
+                      <div>Infraestructura de malla: solo administración, traceroutes, pings y telemetría.</div>
+                    </div>
+                  </div>
+                  <div class="col-md-12">
+                    <div class="p-2 border rounded bg-body">
+                      <span class="badge bg-info mb-1">ROOM / BBS</span>
+                      <div>Servidores de boletines comunitarios: entra a la sala para consultar y publicar posts.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide 4: Airtime Responsable y Resiliencia -->
+            <div class="onboarding-slide" data-slide="4">
+              <div class="text-center py-2">
+                <div class="onboarding-hero-icon text-warning"><i class="bi bi-activity"></i></div>
+                <h4 class="fw-bold">Cuidado del Espectro LoRa y Airtime</h4>
+                <p class="text-body-secondary col-lg-10 mx-auto">
+                  LoRa es un medio compartido de bajo ancho de banda. Cada transmisión ocupa el canal durante cientos de milisegundos.
+                </p>
+                <div class="alert alert-warning text-start mx-auto col-lg-10 small">
+                  <div class="fw-bold mb-1"><i class="bi bi-clock-history me-1"></i>Reglas de Convivencia en Malla:</div>
+                  <ul class="mb-0 ps-3">
+                    <li>La estación aplica rate-limiting y seguimiento de Duty Cycle para proteger el espectro.</li>
+                    <li>Prefiere la telemetría pasiva sobre pings y traceroutes frecuentes.</li>
+                    <li>Evita inundaciones innecesarias de anuncios (flood adverts).</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer d-flex justify-content-between p-3">
+            <button type="button" class="btn btn-outline-secondary" id="btnOnboardingPrev" disabled><i class="bi bi-chevron-left me-1"></i>Anterior</button>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-primary" id="btnOnboardingNext">Siguiente <i class="bi bi-chevron-right ms-1"></i></button>
+              <button type="button" class="btn btn-success d-none" id="btnOnboardingFinish"><i class="bi bi-check2-circle me-1"></i>¡Comenzar!</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Modal: Centro de Sala Comunitaria / BBS Room Server -->
