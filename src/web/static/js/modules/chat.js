@@ -243,6 +243,13 @@ export class ChatModule {
       chatChannelsBackdrop: document.getElementById("chatChannelsBackdrop"),
       globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       chkChatSoundAlerts: document.getElementById("chkChatSoundAlerts"),
+      btnExportChat: document.getElementById("btnExportChat"),
+      btnChatMute: document.getElementById("btnChatMute"),
+      chatMuteIcon: document.getElementById("chatMuteIcon"),
+      chatQuotePreview: document.getElementById("chatQuotePreview"),
+      chatQuoteText: document.getElementById("chatQuoteText"),
+      btnCancelQuote: document.getElementById("btnCancelQuote"),
+      chatMentionDropdown: document.getElementById("chatMentionDropdown"),
 
       // Selector de emojis y adjuntos
       btnEmojiPicker: document.getElementById("btnEmojiPicker"),
@@ -357,6 +364,10 @@ export class ChatModule {
         await this.sendMessage();
       });
     }
+    this.dom.btnExportChat?.addEventListener("click", () => this.exportCurrentChat());
+    this.dom.btnChatMute?.addEventListener("click", () => this.toggleCurrentChatMute());
+    this.dom.btnCancelQuote?.addEventListener("click", () => this.clearReplyTarget());
+    this._bindMentionAutocomplete();
 
     if (this.dom.btnCloseChat) {
       this.dom.btnCloseChat.addEventListener("click", () => {
@@ -1514,7 +1525,7 @@ export class ChatModule {
     this._visibleFeedKey = null;
     if (this.dom.dmListUi) this.dom.dmListUi.textContent = "";
     if (this.dom.dmCountBadge) this.dom.dmCountBadge.textContent = "0";
-    this._updateGlobalUnreadBadge();
+    this._updateFeedUnreadBadges();
     if (this.dom.chatMessageFeed) {
       this.dom.chatMessageFeed.textContent = "";
       this.dom.chatMessageFeed.classList.remove("is-empty-conversation");
@@ -1541,7 +1552,7 @@ export class ChatModule {
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
     if (this.unreadCounts instanceof Map && this.unreadCounts.has(feedKey)) {
       this.unreadCounts.delete(feedKey);
-      this._updateGlobalUnreadBadge();
+      this._updateFeedUnreadBadges();
     }
     const feedGeneration = this._feedGenerations.get(feedKey) || 0;
     const authGeneration = this.ctx.storage?.authGeneration;
@@ -1913,21 +1924,82 @@ export class ChatModule {
       }
     }
 
-    // 4. Construcción de la burbuja WhatsApp
-    const showSender = !msg.is_outgoing && !this.activeDmTarget;
-    row.innerHTML = `
-      <div class="msg-bubble message-bubble">
-        ${showSender ? `<span class="msg-sender">${escapeHtml(sender)}</span>` : ""}
-        ${cleanDisplayText ? `<div class="msg-text">${escapeHtml(cleanDisplayText)}</div>` : ""}
-        ${richCardHtml}
-        ${locationCardHtml}
-        <div class="msg-footer">
-          <time class="msg-time"${timeAttributes}>${escapeHtml(timeStr)}</time>
-          ${ackHtml}
+    // 4. Construcción de la burbuja WhatsApp con soporte de citas, menciones y bloqueo
+    const blockedSenders = this.getBlockedSenders();
+    const senderKey = (msg.sender || "").toLowerCase().trim();
+    const isBlocked = !msg.is_outgoing && senderKey && blockedSenders.includes(senderKey);
+
+    let quoteBannerHtml = "";
+    let bodyText = cleanDisplayText;
+    const quoteMatch = cleanDisplayText.match(/^>\s*\[([^\]]+)\]:\s*([^\n]+)\n\n?([\s\S]*)$/);
+    if (quoteMatch) {
+      const quoteAuthor = quoteMatch[1];
+      const quoteSnippet = quoteMatch[2];
+      bodyText = quoteMatch[3];
+      quoteBannerHtml = `
+        <div class="chat-quote-bubble">
+          <span class="quote-author">${escapeHtml(quoteAuthor)}</span>
+          <span class="quote-snippet">${escapeHtml(quoteSnippet)}</span>
         </div>
-        ${actionButtonsHtml}
-      </div>
+      `;
+    }
+
+    const localName = (this.localNodeName || this.ctx.localConfig?.name || "").trim();
+    const formattedText = escapeHtml(bodyText).replace(/@([a-zA-Z0-9_\-\.]{2,32})/g, (match, p1) => {
+      const isMe = localName && p1.toLowerCase() === localName.toLowerCase();
+      return `<span class="chat-mention ${isMe ? 'mention-self' : ''}">@${p1}</span>`;
+    });
+
+    const replyButtonHtml = `
+      <button type="button" class="btn-reply-msg" title="Responder a este mensaje" aria-label="Responder">
+        <i class="bi bi-reply" aria-hidden="true"></i>
+      </button>
     `;
+
+    const showSender = !msg.is_outgoing && !this.activeDmTarget;
+    if (isBlocked) {
+      row.innerHTML = `
+        <div class="msg-bubble message-bubble message-blocked">
+          <div class="blocked-message-notice d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-slash-circle me-1"></i> Remitente bloqueado</span>
+            <button type="button" class="btn btn-link btn-sm btn-reveal-msg p-0 text-decoration-none">Mostrar</button>
+          </div>
+          <div class="blocked-content hidden">
+            ${showSender ? `<span class="msg-sender">${escapeHtml(sender)}</span>` : ""}
+            ${quoteBannerHtml}
+            ${bodyText ? `<div class="msg-text">${formattedText}</div>` : ""}
+            <div class="msg-footer">
+              <time class="msg-time"${timeAttributes}>${escapeHtml(timeStr)}</time>
+              ${replyButtonHtml}
+            </div>
+          </div>
+        </div>
+      `;
+      row.querySelector(".btn-reveal-msg")?.addEventListener("click", (e) => {
+        row.querySelector(".blocked-content")?.classList.toggle("hidden");
+        e.target.textContent = row.querySelector(".blocked-content")?.classList.contains("hidden") ? "Mostrar" : "Ocultar";
+      });
+    } else {
+      row.innerHTML = `
+        <div class="msg-bubble message-bubble">
+          ${showSender ? `<span class="msg-sender">${escapeHtml(sender)}</span>` : ""}
+          ${quoteBannerHtml}
+          ${bodyText ? `<div class="msg-text">${formattedText}</div>` : ""}
+          ${richCardHtml}
+          ${locationCardHtml}
+          <div class="msg-footer">
+            <time class="msg-time"${timeAttributes}>${escapeHtml(timeStr)}</time>
+            ${replyButtonHtml}
+            ${ackHtml}
+          </div>
+          ${actionButtonsHtml}
+        </div>
+      `;
+    }
+
+    row.querySelector(".btn-reply-msg")?.addEventListener("click", () => {
+      this.setReplyTarget(msg.id || msg.msg_id, sender, bodyText);
+    });
 
     // 5. Cableado de interactividad en tarjetas
     if (parsedUri?.type === "contact") {
@@ -2005,8 +2077,12 @@ export class ChatModule {
 
   async sendMessage() {
     if (this._sending) return;
-    const rawInput = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
+    let rawInput = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
     if (!rawInput) return;
+    if (this._replyingTo && this._replyingTo.snippet) {
+      rawInput = `> [${this._replyingTo.sender}]: ${this._replyingTo.snippet}\n\n${rawInput}`;
+      this.clearReplyTarget();
+    }
     // A conversation change must not redirect the remaining fragments.
     const destination = Object.freeze({
       canonicalTarget: this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null,
@@ -2340,12 +2416,12 @@ export class ChatModule {
       if (!isChatActive && !outgoing) {
         if (!(this.unreadCounts instanceof Map)) this.unreadCounts = new Map();
         this.unreadCounts.set(feedKey, (this.unreadCounts.get(feedKey) || 0) + 1);
-        this._updateGlobalUnreadBadge();
+        this._updateFeedUnreadBadges();
       }
     } else if (!outgoing) {
       if (!(this.unreadCounts instanceof Map)) this.unreadCounts = new Map();
       this.unreadCounts.set(feedKey, (this.unreadCounts.get(feedKey) || 0) + 1);
-      this._updateGlobalUnreadBadge();
+      this._updateFeedUnreadBadges();
     }
 
     if (!outgoing && this.chatSoundEnabled) {
@@ -2407,8 +2483,17 @@ export class ChatModule {
     }
   }
 
-  playNotificationChime() {
+  playNotificationChime(messageText = "", feedKey = null) {
     if (!this.chatSoundEnabled) return;
+    const effFeed = feedKey || (this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`);
+    const muteSetting = localStorage.getItem(`meshcore_mute_${effFeed}`) || "all";
+    if (muteSetting === "none") return;
+    if (muteSetting === "mentions") {
+      const localName = this.localNodeName || this.ctx.localConfig?.name || "";
+      if (!localName || !messageText.toLowerCase().includes(`@${localName.toLowerCase()}`)) {
+        return;
+      }
+    }
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
@@ -2698,6 +2783,228 @@ export class ChatModule {
         this.ctx.showToast("El mensaje encontrado pertenece a un bloque anterior del historial", "info");
       }
     }
+  }
+
+
+
+  setReplyTarget(msgId, sender, text) {
+    const cleanSnippet = (text || "").replace(/\s+/g, " ").trim().slice(0, 75);
+    this._replyingTo = { msgId, sender: sender || "Contacto", snippet: cleanSnippet };
+    if (this.dom.chatQuoteText) {
+      this.dom.chatQuoteText.textContent = `${this._replyingTo.sender}: "${cleanSnippet}"`;
+    }
+    if (this.dom.chatQuotePreview) {
+      this.dom.chatQuotePreview.classList.remove("hidden");
+    }
+    this.dom.chatInputText?.focus();
+  }
+
+  clearReplyTarget() {
+    this._replyingTo = null;
+    if (this.dom.chatQuotePreview) {
+      this.dom.chatQuotePreview.classList.add("hidden");
+    }
+    if (this.dom.chatQuoteText) {
+      this.dom.chatQuoteText.textContent = "";
+    }
+  }
+
+  _bindMentionAutocomplete() {
+    const input = this.dom.chatInputText;
+    const dropdown = this.dom.chatMentionDropdown;
+    if (!input || !dropdown) return;
+
+    input.addEventListener("input", () => {
+      const val = input.value;
+      const cursorPos = input.selectionStart || 0;
+      const textBeforeCursor = val.slice(0, cursorPos);
+      const match = textBeforeCursor.match(/@([a-zA-Z0-9_\-\.]*)$/);
+      if (!match) {
+        dropdown.classList.add("hidden");
+        dropdown.innerHTML = "";
+        return;
+      }
+      const query = match[1].toLowerCase();
+      const candidates = [];
+      if (this.ctx.knownNodes) {
+        for (const node of this.ctx.knownNodes.values()) {
+          const name = node.alias || node.name;
+          if (name && (!query || name.toLowerCase().includes(query))) {
+            candidates.push({ name, pk: node.public_key });
+            if (candidates.length >= 8) break;
+          }
+        }
+      }
+      if (candidates.length === 0) {
+        dropdown.classList.add("hidden");
+        dropdown.innerHTML = "";
+        return;
+      }
+      dropdown.innerHTML = "";
+      candidates.forEach((cand, idx) => {
+        const item = document.createElement("div");
+        item.className = `mention-item ${idx === 0 ? "active" : ""}`;
+        item.setAttribute("role", "option");
+        item.innerHTML = `<i class="bi bi-person me-1"></i><strong>@${escapeHtml(cand.name)}</strong>`;
+        item.addEventListener("click", () => {
+          const before = textBeforeCursor.slice(0, textBeforeCursor.lastIndexOf("@"));
+          const after = val.slice(cursorPos);
+          input.value = `${before}@${cand.name} ${after}`;
+          dropdown.classList.add("hidden");
+          dropdown.innerHTML = "";
+          input.focus();
+        });
+        dropdown.appendChild(item);
+      });
+      dropdown.classList.remove("hidden");
+    });
+
+    input.addEventListener("keydown", (e) => {
+      if (dropdown.classList.contains("hidden")) return;
+      const active = dropdown.querySelector(".mention-item.active");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = active?.nextElementSibling || dropdown.firstElementChild;
+        if (next) {
+          active?.classList.remove("active");
+          next.classList.add("active");
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = active?.previousElementSibling || dropdown.lastElementChild;
+        if (prev) {
+          active?.classList.remove("active");
+          prev.classList.add("active");
+        }
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        if (active) {
+          e.preventDefault();
+          active.click();
+        }
+      } else if (e.key === "Escape") {
+        dropdown.classList.add("hidden");
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.add("hidden");
+      }
+    });
+  }
+
+  getBlockedSenders() {
+    try {
+      const raw = localStorage.getItem("meshcore_blocked_senders");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  toggleBlockSender(pubkey) {
+    if (!pubkey) return;
+    const cleanPk = pubkey.toLowerCase().trim();
+    const blocked = this.getBlockedSenders();
+    const idx = blocked.indexOf(cleanPk);
+    if (idx >= 0) {
+      blocked.splice(idx, 1);
+      if (this.ctx.showToast) this.ctx.showToast(`Contacto ${cleanPk.slice(0, 8)} desbloqueado`, "info");
+    } else {
+      blocked.push(cleanPk);
+      if (this.ctx.showToast) this.ctx.showToast(`Contacto ${cleanPk.slice(0, 8)} bloqueado localmente`, "warning");
+    }
+    localStorage.setItem("meshcore_blocked_senders", JSON.stringify(blocked));
+    this.renderCurrentConversation();
+  }
+
+  getCurrentMuteSetting() {
+    const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    return localStorage.getItem(`meshcore_mute_${feedKey}`) || "all";
+  }
+
+  toggleCurrentChatMute() {
+    const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    const current = this.getCurrentMuteSetting();
+    const cycle = { all: "mentions", mentions: "none", none: "all" };
+    const next = cycle[current] || "all";
+    localStorage.setItem(`meshcore_mute_${feedKey}`, next);
+    this._updateMuteButtonUi();
+    const labels = {
+      all: "Notificaciones activas para todos los mensajes",
+      mentions: "Notificaciones solo para menciones (@tu_nombre)",
+      none: "Notificaciones silenciadas",
+    };
+    if (this.ctx.showToast) this.ctx.showToast(labels[next], "info");
+  }
+
+  _updateMuteButtonUi() {
+    const mute = this.getCurrentMuteSetting();
+    const btn = this.dom.btnChatMute;
+    const icon = this.dom.chatMuteIcon;
+    if (!btn || !icon) return;
+    if (mute === "none") {
+      icon.className = "bi bi-bell-slash text-danger";
+      btn.title = "Silenciado (sin sonido)";
+    } else if (mute === "mentions") {
+      icon.className = "bi bi-bell-fill text-warning";
+      btn.title = "Solo menciones";
+    } else {
+      icon.className = "bi bi-bell";
+      btn.title = "Todas las notificaciones activas";
+    }
+  }
+
+  async exportCurrentChat(format = "json") {
+    const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    try {
+      if (this.ctx.showToast) this.ctx.showToast("Exportando historial...", "info");
+      const res = await fetch(`/api/messages/export?feed_key=${feedKey}&format=${format}`, {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status !== "ok") {
+        throw new Error(data.detail || data.message || "Error al exportar");
+      }
+      const filename = `meshcore_chat_${feedKey}_${Date.now()}.${format}`;
+      let blob;
+      if (format === "csv") {
+        blob = new Blob([data.data?.content || ""], { type: "text/csv;charset=utf-8" });
+      } else {
+        blob = new Blob([JSON.stringify(data.data?.messages || [], null, 2)], { type: "application/json" });
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (this.ctx.showToast) this.ctx.showToast(`Historial exportado: ${filename}`, "success");
+    } catch (err) {
+      if (this.ctx.showToast) this.ctx.showToast(`Error al exportar chat: ${err.message}`, "error");
+    }
+  }
+
+  _updateFeedUnreadBadges() {
+    this._updateFeedUnreadBadges();
+    document.querySelectorAll(".channel-item").forEach((item) => {
+      const feedKey = item.dataset.pubkey ? `dm_${item.dataset.pubkey}` : `ch_${item.dataset.channelIdx}`;
+      let badge = item.querySelector(".feed-unread-badge");
+      const count = (this.unreadCounts instanceof Map) ? (this.unreadCounts.get(feedKey) || 0) : 0;
+      if (count > 0) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "feed-unread-badge badge bg-danger";
+          item.querySelector(".channel-select")?.appendChild(badge);
+        }
+        badge.textContent = String(count);
+        badge.classList.remove("hidden");
+      } else if (badge) {
+        badge.remove();
+      }
+    });
   }
 
 }

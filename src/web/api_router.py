@@ -395,7 +395,7 @@ class WebAPIRouter:
                 pass
 
         try:
-            if clean_path in ("/api/messages/history", "/api/messages/conversations", "/api/messages/import", "/api/messages/search"):
+            if clean_path in ("/api/messages/history", "/api/messages/conversations", "/api/messages/import", "/api/messages/search", "/api/messages/export", "/api/messages/retention"):
                 return await self.history_ctrl.handle(method, clean_path, req_body)
             if clean_path in (
                 "/api/status",
@@ -413,6 +413,7 @@ class WebAPIRouter:
                     "/api/nodes", "/api/lqi",
                     "/api/analytics", "/api/analytics/reset",
                     "/api/rf/heatmap", "/api/airtime/stats", "/api/rf/noise",
+                    "/api/node/reset_path", "/api/nodes/reset_path",
                 )
                 or clean_path.startswith("/api/analytics/")
             ):
@@ -424,7 +425,7 @@ class WebAPIRouter:
             if clean_path == "/api/channels" or clean_path.startswith("/api/channels/"):
                 return await self._dispatch_channels(method, clean_path, req_body)
 
-            if clean_path in ("/api/tx", "/api/messages/recent", "/api/config/messaging") or clean_path.startswith("/api/messages/"): 
+            if clean_path in ("/api/tx", "/api/messages/recent", "/api/config/messaging") or clean_path.startswith("/api/messages/"):
                 return await self._dispatch_tx(method, clean_path, req_body)
 
             if (
@@ -577,6 +578,11 @@ class WebAPIRouter:
         if clean_path == "/api/lqi":
             if method == "GET":
                 return await self.nodes_ctrl.get_lqi()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/node/reset_path", "/api/nodes/reset_path"):
+            if method == "POST":
+                return await self.nodes_ctrl.reset_path(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         if clean_path == "/api/analytics/reset":

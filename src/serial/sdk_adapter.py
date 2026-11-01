@@ -2474,6 +2474,33 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         return imported_contacts
 
+
+    async def reset_path(self, contact_key: str) -> Any:
+        """Reinicia la ruta descubierta hacia un contacto en la radio oficial."""
+        if not self.is_connected or not self.mc:
+            return None
+        target_key = contact_key
+        try:
+            target = self._resolve_target(contact_key)
+            if isinstance(target, dict) and "public_key" in target:
+                target_key = str(target["public_key"])
+            elif hasattr(target, "public_key"):
+                target_key = str(target.public_key)
+            elif isinstance(target, str):
+                target_key = target
+        except Exception as ex_res:
+            logging.debug(f"Target resolution for reset_path fallback to input: {ex_res}")
+
+        if not isinstance(target_key, str) or not re.fullmatch(r"[a-fA-F0-9]{16,64}", target_key):
+            return None
+
+        try:
+            async with asyncio.timeout(10.0):
+                return await self.run_sdk_command("reset_path", target_key)
+        except Exception as e:
+            logging.warning(f"Error reiniciando ruta de contacto en radio: {e}")
+            return None
+
     async def share_contact(self, contact_key: str) -> Any:
 
         if not self.is_connected or not self.mc:

@@ -322,6 +322,39 @@ class MessageService:
             self.database.search_messages, query, feed_key, limit, before_seq
         )
 
+
+    async def export_messages(
+        self,
+        feed_key: str | None = None,
+        limit: int = 5000,
+        format_type: str = "json",
+    ) -> dict[str, Any]:
+        """Exporta mensajes en formato JSON o CSV."""
+        if self.database is None:
+            raise RuntimeError("Station database is unavailable")
+        raw = await asyncio.to_thread(self.database.export_messages, feed_key, limit)
+        clean_format = format_type.strip().lower()
+        if clean_format == "csv":
+            import csv
+            import io
+            output = io.StringIO()
+            writer = csv.DictWriter(
+                output,
+                fieldnames=["seq", "msg_id", "feed_key", "timestamp", "direction", "status", "sender", "sender_name", "text"],
+            )
+            writer.writeheader()
+            for r in raw:
+                writer.writerow(r)
+            return {"format": "csv", "content": output.getvalue(), "count": len(raw)}
+        return {"format": "json", "messages": raw, "count": len(raw)}
+
+    async def prune_retention(self, max_days: int) -> dict[str, Any]:
+        """Ejecuta purga de mensajes según días de retención."""
+        if self.database is None:
+            raise RuntimeError("Station database is unavailable")
+        deleted = await asyncio.to_thread(self.database.prune_messages_by_retention, max_days)
+        return {"deleted_count": deleted, "max_days": max_days}
+
     async def get_history(
         self,
         feed_key: str | None = None,

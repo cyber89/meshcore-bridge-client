@@ -785,7 +785,12 @@ export class NodesModule {
               <i class="bi bi-slash-circle button-icon" aria-hidden="true"></i><span>${escapeHtml(I18n.t('nodes.sensor_unsubscribe_btn'))}</span>
             </button>
           ` : ""}
-          ${!isLocal && !isRepeater && !isSensor ? `
+          ${!isLocal && isRoom ? `
+            <button type="button" class="btn btn-primary btn-sm btn-card-action btn-open-room" title="Entrar a Sala Comunitaria">
+              <i class="bi bi-door-open button-icon" aria-hidden="true"></i><span>Entrar a Sala</span>
+            </button>
+          ` : ""}
+          ${!isLocal && !isRepeater && !isSensor && !isRoom ? `
             <button type="button" class="btn btn-primary btn-sm btn-card-action btn-dm-node" title="${I18n.t('nodes.title_dm')}">
               <i class="bi bi-chat-dots button-icon" aria-hidden="true"></i><span>${I18n.t('nodes.chat_btn')} DM</span>
             </button>
@@ -807,6 +812,11 @@ export class NodesModule {
           ` : ""}
           </div>
           <div class="directory-card-tools">
+            ${!isLocal ? `
+              <button type="button" class="btn btn-outline-warning btn-sm btn-card-icon btn-reset-path" title="Reiniciar ruta a este nodo (Reset Path)" aria-label="Reiniciar ruta">
+                <i class="bi bi-arrow-repeat button-icon" aria-hidden="true"></i>
+              </button>
+            ` : ""}
             <button type="button" class="btn btn-outline-secondary btn-sm btn-card-icon btn-node-qr" title="${I18n.t('nodes.title_qr')}" aria-label="${escapeHtml(`${I18n.t('nodes.title_qr')}: ${cleanName}`)}">
               <i class="bi bi-qr-code button-icon" aria-hidden="true"></i>
             </button>
@@ -827,9 +837,19 @@ export class NodesModule {
           this.manageSensorSubscription(node.public_key, cleanName, "unsubscribe_sensor", e.currentTarget);
         });
       }
-      if (!isLocal && !isRepeater && !isSensor) {
+      if (!isLocal && isRoom) {
+        card.querySelector(".btn-open-room")?.addEventListener("click", () => {
+          this.openRoomServerModal(node.public_key, cleanName);
+        });
+      }
+      if (!isLocal && !isRepeater && !isSensor && !isRoom) {
         card.querySelector(".btn-dm-node")?.addEventListener("click", () => {
           if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
+        });
+      }
+      if (!isLocal) {
+        card.querySelector(".btn-reset-path")?.addEventListener("click", async () => {
+          await this.confirmAndResetPath(node.public_key, cleanName);
         });
       }
       if (isLocal) {
@@ -1656,4 +1676,162 @@ export class NodesModule {
       this._sortDebounceTimer = null;
     }
   }
+
+
+  async openRoomServerModal(pubkey, cleanName) {
+    const modal = document.getElementById("roomServerModal");
+    if (!modal) return;
+    this._activeRoomPubkey = pubkey;
+    const nameEl = document.getElementById("roomModalNodeName");
+    const pkEl = document.getElementById("roomModalNodePkDisplay");
+    const sigEl = document.getElementById("roomModalSignalInfo");
+    if (nameEl) nameEl.textContent = cleanName || pubkey.slice(0, 8);
+    if (pkEl) pkEl.textContent = pubkey;
+
+    const node = this.knownNodes.get(pubkey.toLowerCase());
+    if (sigEl && node) {
+      const rssi = node.last_rssi ?? node.rssi;
+      const snr = node.last_snr ?? node.snr;
+      sigEl.textContent = (rssi != null && snr != null) ? `RSSI: ${rssi} dBm | SNR: ${snr} dB` : "Enlace activo";
+    }
+
+    const btnClose = document.getElementById("btnCloseRoomServerModal");
+    if (btnClose) btnClose.onclick = () => this.closeRoomServerModal();
+
+    const btnRefresh = document.getElementById("btnRefreshRoomPosts");
+    if (btnRefresh) btnRefresh.onclick = () => this.fetchRoomBulletins(pubkey);
+
+    const btnSubmit = document.getElementById("btnSubmitRoomPost");
+    const postInput = document.getElementById("roomPostInput");
+    const charCounter = document.getElementById("roomCharCounter");
+    if (postInput && charCounter) {
+      postInput.oninput = () => {
+        const len = new TextEncoder().encode(postInput.value).length;
+        charCounter.textContent = `${len} / 151 B`;
+        charCounter.classList.toggle("text-danger", len > 151);
+      };
+    }
+    if (btnSubmit) {
+      btnSubmit.onclick = async () => {
+        const text = postInput?.value.trim();
+        if (!text) return;
+        await this.publishRoomPost(pubkey, text);
+      };
+    }
+
+    await this.fetchRoomBulletins(pubkey);
+    modal.classList.remove("hidden");
+    modal.classList.add("show");
+  }
+
+  closeRoomServerModal() {
+    const modal = document.getElementById("roomServerModal");
+    if (modal) {
+      modal.classList.remove("show");
+      modal.classList.add("hidden");
+    }
+    this._activeRoomPubkey = null;
+  }
+
+  async fetchRoomBulletins(pubkey) {
+    const listEl = document.getElementById("roomBulletinsList");
+    const countBadge = document.getElementById("roomPostCountBadge");
+    if (!listEl) return;
+    try {
+      const res = await fetch(`/api/messages/history?feed_key=room_${pubkey}&limit=50`, {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      const data = await res.json().catch(() => ({}));
+      const msgs = (res.ok && data.status === "ok" && Array.isArray(data.data?.messages)) ? data.data.messages : [];
+      if (msgs.length > 0) {
+        listEl.innerHTML = "";
+        if (countBadge) countBadge.textContent = `${msgs.length} boletines`;
+        for (const m of msgs) {
+          const card = document.createElement("div");
+          card.className = "room-bulletin-card border-bottom py-2";
+          const senderName = m.sender_name || (m.sender ? m.sender.slice(0, 8) : "Anónimo");
+          const time = new Date(m.timestamp).toLocaleTimeString();
+          card.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="fw-bold small text-primary"><i class="bi bi-person me-1"></i>${escapeHtml(senderName)}</span>
+              <span class="small text-body-secondary font-mono">${escapeHtml(time)}</span>
+            </div>
+            <div class="small text-body">${escapeHtml(m.text)}</div>
+          `;
+          listEl.appendChild(card);
+        }
+      } else {
+        if (countBadge) countBadge.textContent = "0 boletines";
+        listEl.innerHTML = `<p class="text-center text-body-secondary small my-3" id="roomEmptyNotice">No hay boletines disponibles en esta sala. Usa el compositor inferior para publicar.</p>`;
+      }
+    } catch (e) {
+      console.warn("Error cargando boletines de sala:", e);
+    }
+  }
+
+  async publishRoomPost(pubkey, text) {
+    const postInput = document.getElementById("roomPostInput");
+    const noticeEl = document.getElementById("roomCooldownNotice");
+    const btnSubmit = document.getElementById("btnSubmitRoomPost");
+    const pwdInput = document.getElementById("roomPasswordInput");
+    const pwd = pwdInput ? pwdInput.value : "";
+    try {
+      if (btnSubmit) btnSubmit.disabled = true;
+      if (noticeEl) noticeEl.textContent = "Transmitiendo publicación a la sala...";
+      const res = await fetch("/api/tx", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: pubkey,
+          text: text,
+          password: pwd || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.status === "ok") {
+        if (postInput) postInput.value = "";
+        const charCounter = document.getElementById("roomCharCounter");
+        if (charCounter) charCounter.textContent = "0 / 151 B";
+        if (this.ctx.showToast) this.ctx.showToast("Boletín transmitido a la sala exitosamente", "success");
+        if (noticeEl) noticeEl.textContent = "Boletín enviado";
+        setTimeout(() => { if (noticeEl) noticeEl.textContent = ""; }, 4000);
+        setTimeout(() => this.fetchRoomBulletins(pubkey), 2000);
+      } else {
+        throw new Error(data.detail || data.message || "Fallo al enviar a la sala");
+      }
+    } catch (err) {
+      if (this.ctx.showToast) this.ctx.showToast(`Error: ${err.message}`, "error");
+      if (noticeEl) noticeEl.textContent = `Error: ${err.message}`;
+    } finally {
+      if (btnSubmit) btnSubmit.disabled = false;
+    }
+  }
+
+  async confirmAndResetPath(pubkey, cleanName) {
+    const confirmFn = this.ctx.showConfirm || window.showConfirm;
+    const ok = confirmFn
+      ? await confirmFn(`¿Deseas reiniciar la ruta hacia ${cleanName || pubkey.slice(0, 8)}?\nEsta acción envía un paquete flood de descubrimiento a la red LoRa.`, {
+          title: "Reiniciar Ruta LoRa",
+          isDanger: false,
+          confirmText: "Reiniciar Ruta",
+        })
+      : window.confirm(`¿Deseas reiniciar la ruta hacia ${cleanName || pubkey.slice(0, 8)}?`);
+    if (!ok) return;
+    try {
+      const res = await fetch("/api/node/reset_path", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ public_key: pubkey }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.status === "ok") {
+        if (this.ctx.showToast) this.ctx.showToast(`Ruta hacia ${cleanName || pubkey.slice(0, 8)} reiniciada`, "success");
+      } else {
+        throw new Error(data.detail || data.message || "Error al reiniciar ruta");
+      }
+    } catch (e) {
+      if (this.ctx.showToast) this.ctx.showToast(`Error: ${e.message}`, "error");
+    }
+  }
+
 }

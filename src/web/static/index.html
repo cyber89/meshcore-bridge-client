@@ -231,6 +231,8 @@
                 </div>
                 <div class="chat-header-actions">
                   <button type="button" class="btn btn-secondary btn-sm" id="btnToggleChatSearch" title="Buscar en historial (FTS5)" aria-label="Buscar en historial"><i class="bi bi-search" aria-hidden="true"></i> <span class="d-none d-sm-inline">Buscar</span></button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnExportChat" title="Exportar historial de chat" aria-label="Exportar chat"><i class="bi bi-download" aria-hidden="true"></i> <span class="d-none d-sm-inline">Exportar</span></button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnChatMute" title="Notificaciones de este chat" aria-label="Notificaciones de chat"><i class="bi bi-bell" id="chatMuteIcon" aria-hidden="true"></i></button>
                   <button type="button" class="btn btn-secondary btn-sm hidden" id="btnCloseChat" title="Cerrar chat activo" aria-label="Cerrar chat" data-i18n-title="ui.static_027" data-i18n-aria-label="chat.close_chat" data-i18n="modal.close"><i class="bi bi-x-lg" aria-hidden="true"></i> Cerrar</button>
                   <button type="button" class="btn btn-secondary btn-sm" id="clearChatBtn" title="Limpiar la caché local de esta conversación; el historial del servidor se conserva" aria-label="Limpiar la caché local de esta conversación; el historial del servidor se conserva" data-i18n-title="chat.clear_cache_title" data-i18n-aria-label="chat.clear_cache_title" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
                 </div>
@@ -293,6 +295,18 @@
                   </div>
                   <div class="emoji-picker-grid" id="emojiPickerGrid" role="group" aria-label="Emoticones disponibles" data-i18n-aria-label="chat.emoji_available"></div>
                 </div>
+
+                <!-- Banner de Respuesta / Cita (Reply) -->
+                <div id="chatQuotePreview" class="chat-quote-preview hidden">
+                  <div class="quote-preview-body">
+                    <i class="bi bi-reply-fill quote-icon" aria-hidden="true"></i>
+                    <span id="chatQuoteText" class="quote-preview-text"></span>
+                  </div>
+                  <button type="button" id="btnCancelQuote" class="btn-cancel-quote" title="Cancelar respuesta" aria-label="Cancelar respuesta"><i class="bi bi-x" aria-hidden="true"></i></button>
+                </div>
+
+                <!-- Dropdown de Autocompletado de Menciones @ -->
+                <div id="chatMentionDropdown" class="chat-mention-dropdown hidden" role="listbox" aria-label="Sugerencias de menciones"></div>
 
                 <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes" data-i18n-aria-label="ui.static_035">
                   <button type="button" class="btn-icon btn-chat-tool" id="btnEmojiPicker" aria-controls="emojiPickerPopover" aria-expanded="false" title="Insertar emoticones" aria-label="Insertar emoticones" data-i18n-title="ui.static_036" data-i18n-aria-label="ui.static_036"><i class="bi bi-emoji-smile" aria-hidden="true"></i></button>
@@ -2437,6 +2451,70 @@
         </div>
       </div>
     </div>
+    </div>
+
+    <!-- Modal: Centro de Sala Comunitaria / BBS Room Server -->
+    <div id="roomServerModal" class="modal fade modal-overlay hidden" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="roomServerTitle">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content modal-card room-server-modal-card bg-body-tertiary border-secondary">
+          <div class="modal-header system-dialog-header">
+            <div class="system-dialog-title-group">
+              <div class="system-dialog-icon-badge tone-primary">
+                <i class="bi bi-door-open modal-title-icon" aria-hidden="true"></i>
+              </div>
+              <div class="header-node-info">
+                <h3 id="roomServerTitle">Sala Comunitaria: <span id="roomModalNodeName">BBS</span></h3>
+                <div class="header-node-badges">
+                  <span class="modal-pubkey-badge font-mono" id="roomModalNodePkDisplay">--</span>
+                  <span class="badge bg-info-subtle text-info border border-info" id="roomModalRoleBadge">ROOM / BBS</span>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn-close modal-close" id="btnCloseRoomServerModal" aria-label="Cerrar modal"></button>
+          </div>
+          <div class="modal-body p-3">
+            <!-- Room Status & Session -->
+            <div class="card mb-3 bg-body border-secondary">
+              <div class="card-body p-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-success" id="roomSessionBadge"><i class="bi bi-person-check me-1"></i>Modo Invitado</span>
+                  <span class="text-body-secondary small" id="roomModalSignalInfo">--</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <input type="password" id="roomPasswordInput" class="form-control form-control-sm" placeholder="PIN / Contraseña (opcional)" style="max-width: 180px;" autocomplete="off" />
+                  <button type="button" id="btnRefreshRoomPosts" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-clockwise me-1"></i>Refrescar</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bulletins Feed -->
+            <div class="room-bulletins-container mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0 text-uppercase fw-bold text-body-secondary small"><i class="bi bi-newspaper me-1"></i>Boletines y Mensajes de la Sala</h6>
+                <span class="badge bg-secondary" id="roomPostCountBadge">0 boletines</span>
+              </div>
+              <div id="roomBulletinsList" class="room-bulletins-list border rounded p-2 bg-body" style="max-height: 280px; overflow-y: auto;">
+                <p class="text-center text-body-secondary small my-3" id="roomEmptyNotice">No hay boletines disponibles en esta sala. Usa el compositor inferior para publicar.</p>
+              </div>
+            </div>
+
+            <!-- New Bulletin Composer -->
+            <div class="card bg-body border-secondary">
+              <div class="card-header bg-transparent py-2 border-secondary d-flex justify-content-between align-items-center">
+                <span class="small fw-bold"><i class="bi bi-pencil-square me-1"></i>Publicar Boletín / Tema</span>
+                <span class="small text-body-secondary font-mono" id="roomCharCounter">0 / 151 B</span>
+              </div>
+              <div class="card-body p-2">
+                <textarea id="roomPostInput" class="form-control form-control-sm" rows="3" maxlength="151" placeholder="Escribe un boletín para publicar en la sala comunitaria..." style="resize: vertical;"></textarea>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <span class="small text-warning" id="roomCooldownNotice"></span>
+                  <button type="button" id="btnSubmitRoomPost" class="btn btn-primary btn-sm"><i class="bi bi-send me-1"></i>Publicar en Sala</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Modal: Centro de Control y Administración de Repetidor Remoto -->

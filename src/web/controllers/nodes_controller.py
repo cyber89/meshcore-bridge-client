@@ -9,7 +9,7 @@ import asyncio
 import time
 from typing import Any
 
-from src.web.controllers.base import BaseController
+from src.web.controllers.base import BaseController, problem_details
 
 
 class NodesController(BaseController):
@@ -107,6 +107,18 @@ class NodesController(BaseController):
         analytics["summary"]["global_error_rate_pct"] = round((final_err / (total_p or 1)) * 100, 2)
 
         return 200, {"status": "ok", "data": analytics}
+
+
+    async def reset_path(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Reinicia la ruta hacia un nodo de destino."""
+        target = str(body.get("public_key") or body.get("target_node") or "").strip().lower()
+        if not target:
+            return problem_details(400, "Bad Request", "Parámetro 'public_key' requerido", "missing_public_key")
+        ser = getattr(self.ctx.bridge, "serial_adapter", None)
+        if ser and hasattr(ser, "reset_path"):
+            res = await ser.reset_path(target)
+            return 200, {"status": "ok", "message": f"Path reset command dispatched for {target[:8]}", "data": res}
+        return 200, {"status": "ok", "message": "Radio path reset recorded"}
 
     async def reset_metrics(self) -> tuple[int, dict[str, Any]]:
         """Restablece los contadores de paquetes y errores de la red y el bridge."""

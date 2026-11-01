@@ -281,7 +281,7 @@ class StationDatabase:
             raise ValueError("Message channel must be a nonnegative integer")
         if not feed_key:
             feed_key = f"dm_{dm_target if outgoing else sender}" if direct else f"ch_{channel}"
-        if not isinstance(feed_key, str) or not re.fullmatch(r"(?:ch_[0-9]+|dm_[0-9a-f]{8,64})", feed_key):
+        if not isinstance(feed_key, str) or not re.fullmatch(r"(?:ch_[0-9]+|dm_[0-9a-f]{8,64}|room_[0-9a-f]{8,64})", feed_key):
             raise ValueError("Invalid conversation key")
         status = str(data.get("status") or ("sent" if outgoing else "received"))
         if status not in _STATUSES:
@@ -639,6 +639,52 @@ class StationDatabase:
                     FROM messages
                 """)
 
+
+    def prune_messages_by_retention(self, max_days: int) -> int:
+        """Prune messages older than max_days. Returns the count of deleted rows."""
+        if max_days < 1:
+            raise ValueError("Retention days must be at least 1")
+        cutoff_dt = datetime.now(UTC) - timedelta(days=max_days)
+        cutoff_iso = _timestamp(cutoff_dt)
+        with self._connection(write=True) as conn:
+            cursor = conn.execute("DELETE FROM messages WHERE timestamp < ?", (cutoff_iso,))
+            deleted = cursor.rowcount if cursor.rowcount >= 0 else 0
+            conn.execute("DELETE FROM messages_fts WHERE rowid NOT IN (SELECT seq FROM messages)")
+            return int(deleted)
+
+    def export_messages(self, feed_key: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
+        """Export stored messages for a conversation feed or all feeds."""
+        with self._connection(write=False) as conn:
+            if feed_key:
+                cursor = conn.execute(
+                    "SELECT seq, msg_id, feed_key, timestamp, direction, status, expected_ack, payload FROM messages WHERE feed_key = ? ORDER BY seq ASC LIMIT ?",
+                    (feed_key, limit),
+                )
+            else:
+                cursor = conn.execute(
+                    "SELECT seq, msg_id, feed_key, timestamp, direction, status, expected_ack, payload FROM messages ORDER BY seq ASC LIMIT ?",
+                    (limit,),
+                )
+            results = []
+            for row in cursor.fetchall():
+                payload_dict = {}
+                try:
+                    payload_dict = json.loads(row["payload"])
+                except Exception:
+                    pass
+                results.append({
+                    "seq": row["seq"],
+                    "msg_id": row["msg_id"],
+                    "feed_key": row["feed_key"],
+                    "timestamp": row["timestamp"],
+                    "direction": row["direction"],
+                    "status": row["status"],
+                    "sender": payload_dict.get("sender", ""),
+                    "sender_name": payload_dict.get("sender_name", ""),
+                    "text": payload_dict.get("text", ""),
+                })
+            return results
+
     def search_messages(
         self,
         query: str,
@@ -695,7 +741,7 @@ class StationDatabase:
 
     def history(self, feed_key: str | None = None, limit: int = 100, before: int | None = None) -> dict[str, Any]:
         if feed_key is not None and (not isinstance(feed_key, str) or
-                                    not re.fullmatch(r"(?:ch_[0-9]+|dm_[0-9a-f]{8,64})", feed_key)):
+                                    not re.fullmatch(r"(?:ch_[0-9]+|dm_[0-9a-f]{8,64}|room_[0-9a-f]{8,64})", feed_key)):
             raise ValueError("Invalid conversation key")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000:
             raise ValueError("History limit must be between 1 and 1000")

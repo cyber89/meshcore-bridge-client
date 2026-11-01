@@ -251,12 +251,17 @@ class MeshCoreBridge:
             on_metrics_tx=_inc_tx_metrics,
         )
 
+        def _broadcast_retry_ws(data: dict[str, Any]) -> None:
+            srv = getattr(self, "web_server", None)
+            if srv is not None and hasattr(srv, "broadcast_event"):
+                self._schedule_background(lambda: srv.broadcast_event(data))
+
         self.retry_scheduler = MessageRetryScheduler(
             database_provider=lambda: getattr(self, "database", None),
             tx_coordinator_provider=lambda: getattr(self, "_tx_coordinator", None),
             is_cutoff_active_fn=lambda: getattr(getattr(self, "rate_limiter", None), "is_airtime_cutoff_active", lambda: False)(),
             is_serial_connected_fn=lambda: getattr(getattr(self, "serial_adapter", None), "is_connected", False),
-            broadcast_ws_fn=lambda data: self.web_server.broadcast(data) if getattr(self, "web_server", None) else None,
+            broadcast_ws_fn=_broadcast_retry_ws,
         )
 
         self._tx_coordinator = TxCoordinator(

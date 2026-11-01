@@ -51,6 +51,16 @@ class HistoryController(BaseController):
                 if feed is not None and not isinstance(feed, str):
                     raise ValueError("Invalid feed key")
                 data = await service.search_messages(q, feed_key=feed, limit=limit, before_seq=before)
+            elif method == "GET" and path == "/api/messages/export":
+                feed = body.get("feed_key")
+                if feed is not None and not isinstance(feed, str):
+                    raise ValueError("Invalid feed key")
+                limit = self._integer(body.get("limit", 5000), 1, 10000)
+                fmt = str(body.get("format", "json")).strip().lower()
+                data = await service.export_messages(feed_key=feed, limit=limit, format_type=fmt)
+            elif method == "POST" and path == "/api/messages/retention":
+                max_days = self._integer(body.get("max_days", 30), 1, 3650)
+                data = await service.prune_retention(max_days=max_days)
             elif method == "POST" and path == "/api/messages/import":
                 messages = body.get("messages")
                 if not isinstance(messages, list) or not 1 <= len(messages) <= 200 or any(not isinstance(item, dict) for item in messages):
