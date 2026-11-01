@@ -599,6 +599,100 @@ class StationDatabase:
                             )
             return expired_ids
 
+
+    def _ensure_fts_synced(self, connection: sqlite3.Connection) -> None:
+        """Verifica que la tabla virtual FTS5 y sus disparadores estén activos e indexados."""
+        connection.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                msg_id UNINDEXED,
+                feed_key UNINDEXED,
+                text,
+                sender_name,
+                tokenize='unicode61 remove_diacritics 2'
+            )
+        """)
+        connection.execute("""
+            CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+                INSERT INTO messages_fts(rowid, msg_id, feed_key, text, sender_name)
+                VALUES (new.seq, new.msg_id, new.feed_key, json_extract(new.payload, '$.text'), json_extract(new.payload, '$.sender_name'));
+            END
+        """)
+        connection.execute("""
+            CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+                DELETE FROM messages_fts WHERE rowid = old.seq;
+            END
+        """)
+        connection.execute("""
+            CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
+                DELETE FROM messages_fts WHERE rowid = old.seq;
+                INSERT INTO messages_fts(rowid, msg_id, feed_key, text, sender_name)
+                VALUES (new.seq, new.msg_id, new.feed_key, json_extract(new.payload, '$.text'), json_extract(new.payload, '$.sender_name'));
+            END
+        """)
+        count_fts = connection.execute("SELECT count(*) FROM messages_fts").fetchone()[0]
+        if count_fts == 0:
+            count_msgs = connection.execute("SELECT count(*) FROM messages").fetchone()[0]
+            if count_msgs > 0:
+                connection.execute("""
+                    INSERT INTO messages_fts(rowid, msg_id, feed_key, text, sender_name)
+                    SELECT seq, msg_id, feed_key, json_extract(payload, '$.text'), json_extract(payload, '$.sender_name')
+                    FROM messages
+                """)
+
+    def search_messages(
+        self,
+        query: str,
+        feed_key: str | None = None,
+        limit: int = 50,
+        before_seq: int | None = None,
+    ) -> dict[str, Any]:
+        """Búsqueda全文 (FTS5) en el historial de mensajes por texto o remitente."""
+        clean_q = re.sub(r'[^\w\s]', ' ', query, flags=re.UNICODE).strip()
+        if not clean_q:
+            return {"results": [], "count": 0, "has_more": False}
+
+        tokens = clean_q.split()
+        match_query = " ".join(f'"{token}"*' for token in tokens)
+
+        limit_val = max(1, min(100, int(limit)))
+        with self._connection() as connection:
+            self._ensure_fts_synced(connection)
+
+            sql = """
+                SELECT m.*, snippet(messages_fts, -1, '<mark>', '</mark>', '...', 15) as snippet
+                FROM messages_fts f
+                JOIN messages m ON f.rowid = m.seq
+                WHERE messages_fts MATCH ?
+            """
+            params: list[Any] = [match_query]
+            if feed_key:
+                sql += " AND m.feed_key = ?"
+                params.append(feed_key)
+            if before_seq:
+                sql += " AND m.seq < ?"
+                params.append(int(before_seq))
+
+            sql += " ORDER BY m.seq DESC LIMIT ?"
+            params.append(limit_val + 1)
+
+            rows = connection.execute(sql, tuple(params)).fetchall()
+            has_more = len(rows) > limit_val
+            rows = rows[:limit_val]
+
+            results = []
+            for row in rows:
+                msg = self._result(connection, row)
+                msg["snippet"] = row["snippet"]
+                results.append(msg)
+
+            return {
+                "results": results,
+                "count": len(results),
+                "has_more": has_more,
+                "next_before": rows[-1]["seq"] if has_more else None,
+                "station_id": self._station_id(connection),
+            }
+
     def history(self, feed_key: str | None = None, limit: int = 100, before: int | None = None) -> dict[str, Any]:
         if feed_key is not None and (not isinstance(feed_key, str) or
                                     not re.fullmatch(r"(?:ch_[0-9]+|dm_[0-9a-f]{8,64})", feed_key)):

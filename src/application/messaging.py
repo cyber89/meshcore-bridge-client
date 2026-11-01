@@ -308,6 +308,20 @@ class MessageService:
             request_id=req_id,
         )
 
+    async def search_messages(
+        self,
+        query: str,
+        feed_key: str | None = None,
+        limit: int = 50,
+        before_seq: int | None = None,
+    ) -> dict[str, Any]:
+        """Busca mensajes mediante FTS5 en la base de datos de la estación."""
+        if self.database is None:
+            raise RuntimeError("Station database is unavailable")
+        return await asyncio.to_thread(
+            self.database.search_messages, query, feed_key, limit, before_seq
+        )
+
     async def get_history(
         self,
         feed_key: str | None = None,

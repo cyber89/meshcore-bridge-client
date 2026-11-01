@@ -336,6 +336,18 @@ export class ChatModule {
           this._charCounterAirtimeTimer = null;
           this.updateCharCounterAirtime();
         }, 120);
+
+        // Guardado de borrador persistente con debounce (P0-2)
+        if (this._draftSaveTimer) clearTimeout(this._draftSaveTimer);
+        this._draftSaveTimer = setTimeout(() => {
+          const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+          const val = this.dom.chatInputText?.value || "";
+          if (val.trim()) {
+            try { localStorage.setItem(`meshcore_draft_${feedKey}`, val); } catch (_) {}
+          } else {
+            try { localStorage.removeItem(`meshcore_draft_${feedKey}`); } catch (_) {}
+          }
+        }, 300);
       });
     }
 
@@ -359,6 +371,53 @@ export class ChatModule {
     }
 
     // Delegación de eventos para acciones de reintentos y cancelación en mensajes
+    
+    // Búsqueda en historial de chat (P0-1)
+    const btnToggleSearch = document.getElementById("btnToggleChatSearch");
+    const searchContainer = document.getElementById("chatSearchContainer");
+    const searchInput = document.getElementById("chatSearchInput");
+    const btnCloseSearch = document.getElementById("btnCloseChatSearch");
+    const searchResults = document.getElementById("chatSearchResults");
+
+    if (btnToggleSearch && searchContainer) {
+      btnToggleSearch.addEventListener("click", () => {
+        searchContainer.classList.toggle("hidden");
+        if (!searchContainer.classList.contains("hidden") && searchInput) {
+          searchInput.focus();
+        }
+      });
+    }
+
+    if (btnCloseSearch && searchContainer) {
+      btnCloseSearch.addEventListener("click", () => {
+        searchContainer.classList.add("hidden");
+        if (searchResults) searchResults.classList.add("hidden");
+      });
+    }
+
+    if (searchInput && searchResults) {
+      this._searchDebounceTimer = null;
+      searchInput.addEventListener("input", () => {
+        if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
+        const query = searchInput.value.trim();
+        if (query.length < 2) {
+          searchResults.classList.add("hidden");
+          searchResults.innerHTML = "";
+          return;
+        }
+        this._searchDebounceTimer = setTimeout(async () => {
+          await this.executeHistorySearch(query, searchResults);
+        }, 250);
+      });
+
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          searchContainer?.classList.add("hidden");
+          searchResults.classList.add("hidden");
+        }
+      });
+    }
+
     this.dom.chatMessageFeed?.addEventListener("click", async (e) => {
       const retryBtn = e.target.closest(".btn-msg-retry");
       if (retryBtn) {
@@ -1636,6 +1695,15 @@ export class ChatModule {
     feed.replaceChildren(frag);
     this._visibleFeedKey = feedKey;
     feed.scrollTop = followTail ? feed.scrollHeight : oldTop;
+
+    // Restaurar borrador persistente para la conversación activa (P0-2)
+    try {
+      const savedDraft = localStorage.getItem(`meshcore_draft_${feedKey}`) || "";
+      if (this.dom.chatInputText) {
+        this.dom.chatInputText.value = savedDraft;
+        this.updateCharCounterFast();
+      }
+    } catch (_) {}
   }
 
   createMessageBubble(msg) {
@@ -1950,6 +2018,10 @@ export class ChatModule {
     try {
       if (this.dom.chatInputText) this.dom.chatInputText.value = "";
       this.updateCharCounter();
+      try {
+        const activeFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+        localStorage.removeItem(`meshcore_draft_${activeFeed}`);
+      } catch (_) {}
       const maxBytes = this.getMaxTextBytes();
       const chunks = splitUtf8Message(rawInput, maxBytes);
       for (let i = 0; i < chunks.length; i++) {
@@ -2559,6 +2631,72 @@ export class ChatModule {
     } catch (err) {
       console.warn("Error cancelando reintento:", err);
       this.ctx.showToast?.(`Fallo al cancelar: ${err.message}`, "error");
+    }
+  }
+
+
+
+  async executeHistorySearch(query, resultsContainer) {
+    if (!resultsContainer) return;
+    try {
+      const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+      const url = `/api/messages/search?q=${encodeURIComponent(query)}&feed_key=${encodeURIComponent(feedKey)}&limit=30`;
+      const res = await fetch(url, {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== "ok") {
+        resultsContainer.innerHTML = '<div class="chat-search-empty p-2 text-muted">Error en la búsqueda</div>';
+        resultsContainer.classList.remove("hidden");
+        return;
+      }
+      const results = data.data?.results || [];
+      if (results.length === 0) {
+        resultsContainer.innerHTML = `<div class="chat-search-empty p-2 text-muted">No se encontraron mensajes para "${escapeHtml(query)}"</div>`;
+        resultsContainer.classList.remove("hidden");
+        return;
+      }
+
+      resultsContainer.innerHTML = "";
+      for (const item of results) {
+        const itemEl = document.createElement("div");
+        itemEl.className = "chat-search-item";
+        itemEl.setAttribute("tabindex", "0");
+        const dateStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "";
+        itemEl.innerHTML = `
+          <div class="chat-search-item-header">
+            <span class="chat-search-item-sender">${escapeHtml(item.sender_name || item.sender || "Anónimo")}</span>
+            <span>${escapeHtml(dateStr)}</span>
+          </div>
+          <div class="chat-search-item-snippet">${item.snippet || escapeHtml(item.text || "")}</div>
+        `;
+        itemEl.addEventListener("click", () => {
+          this.jumpToMessageInFeed(item.msg_id || item.id);
+        });
+        resultsContainer.appendChild(itemEl);
+      }
+      resultsContainer.classList.remove("hidden");
+    } catch (err) {
+      console.warn("Error ejecutando búsqueda FTS5:", err);
+      resultsContainer.innerHTML = '<div class="chat-search-empty p-2 text-muted">Fallo en la consulta</div>';
+      resultsContainer.classList.remove("hidden");
+    }
+  }
+
+  jumpToMessageInFeed(msgId) {
+    if (!msgId) return;
+    const feed = this.dom.chatMessageFeed;
+    if (!feed) return;
+    const row = feed.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+    if (row) {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.classList.remove("highlight-pulse");
+      void row.offsetWidth;
+      row.classList.add("highlight-pulse");
+    } else {
+      if (this.ctx.showToast) {
+        this.ctx.showToast("El mensaje encontrado pertenece a un bloque anterior del historial", "info");
+      }
     }
   }
 

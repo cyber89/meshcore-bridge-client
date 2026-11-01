@@ -395,7 +395,7 @@ class WebAPIRouter:
                 pass
 
         try:
-            if clean_path in ("/api/messages/history", "/api/messages/conversations", "/api/messages/import"):
+            if clean_path in ("/api/messages/history", "/api/messages/conversations", "/api/messages/import", "/api/messages/search"):
                 return await self.history_ctrl.handle(method, clean_path, req_body)
             if clean_path in (
                 "/api/status",

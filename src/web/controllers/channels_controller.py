@@ -194,10 +194,13 @@ class ChannelsController(BaseController):
             )
         secret = derive_channel_secret(name, raw_psk).hex()
 
+        scope = str(ch.get("region_scope") or ch.get("scope") or "").strip()
         encoded_name = urllib.parse.quote(name)
         canonical_uri = f"meshcore://channel/add?name={encoded_name}&secret={secret}"
         if idx > 0:
             canonical_uri += f"&index={idx}"
+        if scope:
+            canonical_uri += f"&scope={urllib.parse.quote(scope)}"
 
         channel_data = {
             "type": "channel",
@@ -207,6 +210,8 @@ class ChannelsController(BaseController):
             "is_encrypted": bool(raw_psk or name.startswith("#")),
             "is_public": (idx == 0),
         }
+        if scope:
+            channel_data["region_scope"] = scope
 
         return 200, {
             "status": "ok",
@@ -276,7 +281,11 @@ class ChannelsController(BaseController):
         failure = await self.serial_mutation("set_channel", idx, name, psk)
         if failure:
             return failure
-        self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
+        scope = str(req_body.get("region_scope") or req_body.get("scope") or "").strip()
+        channel_entry = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
+        if scope:
+            channel_entry["region_scope"] = scope
+        self.channels[idx] = channel_entry
         self._deleted_channels.discard(idx)
         self._dirty = True
         await self._save_channels_async()

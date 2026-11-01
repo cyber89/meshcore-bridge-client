@@ -41,6 +41,16 @@ class HistoryController(BaseController):
                 data = await service.get_history(feed, limit, before)
             elif method == "GET" and path == "/api/messages/conversations":
                 data = await service.get_conversations()
+            elif method == "GET" and path == "/api/messages/search":
+                q = str(body.get("q", "")).strip()
+                if not q:
+                    return problem_details(400, "Bad Request", "Parámetro 'q' requerido", "missing_query")
+                limit = self._integer(body.get("limit", 50), 1, 100)
+                before = self._integer(body["before"], 1, None) if "before" in body else None
+                feed = body.get("feed_key")
+                if feed is not None and not isinstance(feed, str):
+                    raise ValueError("Invalid feed key")
+                data = await service.search_messages(q, feed_key=feed, limit=limit, before_seq=before)
             elif method == "POST" and path == "/api/messages/import":
                 messages = body.get("messages")
                 if not isinstance(messages, list) or not 1 <= len(messages) <= 200 or any(not isinstance(item, dict) for item in messages):

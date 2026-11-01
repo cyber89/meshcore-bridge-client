@@ -230,9 +230,20 @@
                   </div>
                 </div>
                 <div class="chat-header-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btnToggleChatSearch" title="Buscar en historial (FTS5)" aria-label="Buscar en historial"><i class="bi bi-search" aria-hidden="true"></i> <span class="d-none d-sm-inline">Buscar</span></button>
                   <button type="button" class="btn btn-secondary btn-sm hidden" id="btnCloseChat" title="Cerrar chat activo" aria-label="Cerrar chat" data-i18n-title="ui.static_027" data-i18n-aria-label="chat.close_chat" data-i18n="modal.close"><i class="bi bi-x-lg" aria-hidden="true"></i> Cerrar</button>
                   <button type="button" class="btn btn-secondary btn-sm" id="clearChatBtn" title="Limpiar la caché local de esta conversación; el historial del servidor se conserva" aria-label="Limpiar la caché local de esta conversación; el historial del servidor se conserva" data-i18n-title="chat.clear_cache_title" data-i18n-aria-label="chat.clear_cache_title" data-i18n="chat.clear"><i class="bi bi-trash" aria-hidden="true"></i> Limpiar</button>
                 </div>
+              </div>
+
+              <!-- Panel de Búsqueda FTS5 de Mensajes (P0) -->
+              <div id="chatSearchContainer" class="chat-search-panel hidden" role="search" aria-label="Búsqueda de mensajes">
+                <div class="chat-search-input-wrap">
+                  <i class="bi bi-search search-icon" aria-hidden="true"></i>
+                  <input type="search" id="chatSearchInput" class="form-control form-control-sm" placeholder="Buscar mensajes en historial..." aria-label="Buscar mensajes" autocomplete="off" />
+                  <button type="button" id="btnCloseChatSearch" class="btn-close-search" title="Cerrar búsqueda" aria-label="Cerrar"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                </div>
+                <div id="chatSearchResults" class="chat-search-results hidden" role="region" aria-label="Resultados de búsqueda"></div>
               </div>
 
               <!-- Feed de Mensajes Limpio -->
