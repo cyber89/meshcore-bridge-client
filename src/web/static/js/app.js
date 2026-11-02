@@ -951,21 +951,81 @@ class MeshCoreApp {
     };
 
     if (window.bootstrap?.Toast) {
+      // Defensive prototype patch to guard against any asynchronous/orphaned timer callbacks
+      const proto = window.bootstrap.Toast.prototype;
+      if (proto && !proto._safePatched) {
+        const origIsShown = proto.isShown;
+        proto.isShown = function() {
+          if (!this || !this._element) return false;
+          return origIsShown ? origIsShown.call(this) : this._element.classList.contains("show");
+        };
+        const origHide = proto.hide;
+        proto.hide = function() {
+          if (!this || !this._element) return;
+          return origHide ? origHide.call(this) : undefined;
+        };
+        proto._safePatched = true;
+      }
+
       const bsToast = bootstrap.Toast.getOrCreateInstance(toast, {
         delay: durationMs > 0 ? durationMs : 4000,
-        autohide: durationMs > 0,
+        autohide: false, // Managed deterministically below to prevent timer race conditions
       });
-      // Bootstrap accepts hide() again during its fade, queuing callbacks that
-      // would access a disposed instance after the first hidden event.
+
       let hiding = false;
+      let dismissTimer = null;
+
+      const performHide = () => {
+        if (dismissTimer !== null) {
+          clearTimeout(dismissTimer);
+          dismissTimer = null;
+        }
+        if (hiding) return;
+        hiding = true;
+        try {
+          if (toast.isConnected && bsToast && bsToast._element) {
+            bsToast.hide();
+          } else {
+            toast.remove();
+          }
+        } catch {
+          toast.remove();
+        }
+      };
+
+      if (durationMs > 0) {
+        dismissTimer = setTimeout(performHide, durationMs);
+      }
+
       toast.addEventListener("hide.bs.toast", (event) => {
+        if (dismissTimer !== null) {
+          clearTimeout(dismissTimer);
+          dismissTimer = null;
+        }
         if (hiding) event.preventDefault();
         else hiding = true;
       });
+
       toast.addEventListener("hidden.bs.toast", () => {
-        bsToast.dispose();
+        if (dismissTimer !== null) {
+          clearTimeout(dismissTimer);
+          dismissTimer = null;
+        }
+        try {
+          bsToast.dispose();
+        } catch {
+          // Ignore disposal errors if already torn down
+        }
         toast.remove();
       }, { once: true });
+
+      const closeBtn = toast.querySelector(".toast-close");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          performHide();
+        }, { once: true });
+      }
+
       toast.addEventListener("shown.bs.toast", revealToast, { once: true });
       bsToast.show();
     } else {

@@ -1701,6 +1701,15 @@ export class NodesModule {
     const btnRefresh = document.getElementById("btnRefreshRoomPosts");
     if (btnRefresh) btnRefresh.onclick = () => this.fetchRoomBulletins(pubkey);
 
+    const roomAuthForm = document.getElementById("roomAuthForm");
+    if (roomAuthForm) {
+      roomAuthForm.onsubmit = (e) => {
+        e.preventDefault();
+        this.fetchRoomBulletins(pubkey);
+        return false;
+      };
+    }
+
     const btnSubmit = document.getElementById("btnSubmitRoomPost");
     const postInput = document.getElementById("roomPostInput");
     const charCounter = document.getElementById("roomCharCounter");
