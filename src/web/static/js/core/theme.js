@@ -7,8 +7,12 @@ export function readThemePreference() {
     const saved = localStorage.getItem("meshcore_theme");
     if (saved === "light" || saved === "dark" || saved === "auto") return saved;
   } catch (_) { /* Retain the preference in the DOM when storage is unavailable. */ }
+  if (typeof document !== "undefined" && document.documentElement?.dataset?.themePreference) {
+    const domPref = document.documentElement.dataset.themePreference;
+    if (domPref === "light" || domPref === "dark" || domPref === "auto") return domPref;
+  }
   if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
-    return "auto";
+    return "light";
   }
   return document.documentElement.getAttribute("data-bs-theme") === "light" ? "light" : "dark";
 }
@@ -25,7 +29,7 @@ export function resolveEffectiveTheme(pref) {
 }
 
 export function applyThemePreference(theme, persist = true) {
-  const pref = (theme === "light" || theme === "dark" || theme === "auto") ? theme : "auto";
+  const pref = (theme === "light" || theme === "dark" || theme === "auto") ? theme : "dark";
   const effective = resolveEffectiveTheme(pref);
   const isDark = effective === "dark";
   const stylesheet = document.getElementById("themeStylesheet");
@@ -34,6 +38,7 @@ export function applyThemePreference(theme, persist = true) {
   document.body.classList.remove("dark-theme", "light-theme");
   document.body.classList.add(`${effective}-theme`);
   document.documentElement.setAttribute("data-bs-theme", effective);
+  document.documentElement.dataset.themePreference = pref;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#101b2e" : "#eef3f9");
   if (persist) {
     try { localStorage.setItem("meshcore_theme", pref); }

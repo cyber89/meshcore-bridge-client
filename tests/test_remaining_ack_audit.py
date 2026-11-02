@@ -81,7 +81,7 @@ async def test_tracking_capacity_is_visible_without_claiming_send_failure():
         "status": "sent", "expected_ack": "1234abcd"}))
     instance.publish_mqtt_safe = MagicMock()
     instance._record_tx_packet = MagicMock()
-    result = await instance._execute_tx({"to": "broadcast", "text": "test", "request_id": "new"})
+    result = await instance._execute_tx({"to": "cd" * 32, "text": "test", "request_id": "new"})
     assert result["status"] == "sent"
     assert result["delivery_tracking"] == "capacity_exceeded"
     published = json.loads(instance.publish_mqtt_safe.call_args.args[1])

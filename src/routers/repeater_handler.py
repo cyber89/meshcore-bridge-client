@@ -19,7 +19,8 @@ from src.shared_utils import clean_numeric_value
 class RepeaterAdminHandler(BaseRxHandler):
     """Manejador especializado para respuestas administrativas de repetidores y traceroutes."""
 
-    def can_handle(self, meta: RxMeta, payload: dict[str, Any]) -> bool:
+    @staticmethod
+    def _classify_event(meta: RxMeta, payload: dict[str, Any]) -> tuple[bool, bool]:
         p_type_upper = str(payload.get("type", "")).upper()
         clean_ev = meta.ev_upper.replace("EVENTTYPE.", "").strip()
         clean_p_type = p_type_upper.replace("EVENTTYPE.", "").strip()
@@ -37,6 +38,10 @@ class RepeaterAdminHandler(BaseRxHandler):
             or "TRACE" in clean_p_type
             or payload.get("event_type") == "trace"
         )
+        return is_ack, is_trace
+
+    def can_handle(self, meta: RxMeta, payload: dict[str, Any]) -> bool:
+        is_ack, is_trace = self._classify_event(meta, payload)
         return is_ack or is_trace
 
     async def handle(
@@ -47,18 +52,7 @@ class RepeaterAdminHandler(BaseRxHandler):
         raw_event: Any,
     ) -> bool:
         router_ctx = getattr(ctx, "_ctx", ctx)
-        p_type_upper = str(payload.get("type", "")).upper()
-        clean_ev = meta.ev_upper.replace("EVENTTYPE.", "").strip()
-        clean_p_type = p_type_upper.replace("EVENTTYPE.", "").strip()
-        is_ack = (
-            clean_ev == "ACK"
-            or clean_ev.startswith("ACK_")
-            or clean_ev.endswith("_ACK")
-            or clean_p_type == "ACK"
-            or clean_p_type.startswith("ACK_")
-            or clean_p_type.endswith("_ACK")
-            or payload.get("event_type") in ("ack", "delivered", "message_delivered")
-        )
+        is_ack, is_trace = self._classify_event(meta, payload)
 
         # Caso ACK / Entrega Confirmada
         if is_ack:
@@ -168,11 +162,7 @@ class RepeaterAdminHandler(BaseRxHandler):
             return True
 
         # Caso Trace Path / Traceroute
-        if (
-            "TRACE" in meta.ev_upper
-            or "TRACE" in p_type_upper
-            or payload.get("event_type") == "trace"
-        ):
+        if is_trace:
             path_nodes = payload.get("path", [])
             snr_there = path_nodes[0].get("snr") if path_nodes and isinstance(path_nodes[0], dict) else None
             snr_back = path_nodes[-1].get("snr") if path_nodes and isinstance(path_nodes[-1], dict) else None

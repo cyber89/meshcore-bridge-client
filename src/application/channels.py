@@ -17,7 +17,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from src.shared_utils import derive_channel_secret
 from src.storage_validation import validate_channels_document
 
 
@@ -177,23 +176,6 @@ class ChannelService:
         if ch is None:
             return None
         return self.mask_channel(ch) if masked else dict(ch)
-
-    def get_channel_secret_for_export(self, index: int) -> tuple[str, str]:
-        """
-        Devuelve (nombre, secret_hex) para exportación oficial URI de MeshCore.
-        Lanza ValueError si el canal no existe, es el 0, o tiene clave inválida.
-        """
-        if index == 0:
-            raise ValueError("El canal público 0 no requiere exportación")
-        if index not in self._channels:
-            raise KeyError(f"Canal {index} no encontrado")
-        ch = self._channels[index]
-        name = str(ch.get("name") or f"Canal {index}").strip()
-        raw_psk = str(ch.get("psk") or "").strip()
-        if not re.fullmatch(r"[a-fA-F0-9]{0,64}", raw_psk):
-            raise ValueError("The stored channel key is unavailable or invalid")
-        secret = derive_channel_secret(name, raw_psk).hex()
-        return name, secret
 
     def max_channels(self) -> int:
         """Capacidad máxima anunciada por el transceptor serial o fallback clásico (8)."""

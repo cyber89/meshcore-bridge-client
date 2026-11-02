@@ -67,7 +67,7 @@ def test_core_readiness_tracks_connected_radio_and_shutdown() -> None:
 
 def test_capability_operations_are_discoverable_with_auth_in_openapi() -> None:
     schema = build_openapi_schema()
-    for path in ("/api/capabilities", "/api/services/capabilities"):
+    for path in ("/api/capabilities", "/api/services/capabilities", "/api/radio/presets"):
         operation = schema["paths"][path]["get"]
         assert operation["security"]
         assert "200" in operation["responses"]

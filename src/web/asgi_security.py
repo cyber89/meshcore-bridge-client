@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, cast
@@ -28,6 +29,7 @@ from src.web.access_policy import (
     response_headers,
     safe_log_path,
 )
+from src.web.auth_store import LoginLimited
 from src.web.authentication import PUBLIC_AUTH_PATHS
 from src.web.security_inspector import (
     HttpAccessEvent,
@@ -94,6 +96,13 @@ def _peer_ip(scope: Scope) -> str:
     return "unknown"
 
 
+def _is_trusted_proxy(peer: str) -> bool:
+    raw = os.getenv("BRIDGE_TRUSTED_PROXY_IPS", "")
+    if not raw:
+        return False
+    return peer in {addr.strip() for addr in raw.split(",") if addr.strip()}
+
+
 def _parse_json_object(raw: bytes) -> dict[str, Any]:
     parsed: Any = json.loads(raw.decode("utf-8"))
     if not isinstance(parsed, dict):
@@ -127,10 +136,6 @@ class BridgeSecurityMiddleware:
                     self.auth_service = curr.service
                     break
                 curr = getattr(curr, "app", None)
-
-    @property
-    def active_websocket_reservations(self) -> int:
-        return self._reserved_websockets
 
     @staticmethod
     def _log_rejection(
@@ -355,7 +360,7 @@ class BridgeSecurityMiddleware:
         headers = headers_to_legacy_dict(scope.get("headers", ()))
         started_at = time.perf_counter()
         req_scheme = str(scope.get("scheme", "http"))
-        if headers.get("x-forwarded-proto") == "https":
+        if headers.get("x-forwarded-proto") == "https" and _is_trusted_proxy(_peer_ip(scope)):
             req_scheme = "https"
         cors_origin = calculate_cors_origin(headers, scheme=req_scheme)
         if not self._inspect(scope, target, headers):
@@ -382,7 +387,7 @@ class BridgeSecurityMiddleware:
             target,
             headers,
             auth_managed=self.auth_managed,
-            scheme=str(scope.get("scheme", "http")),
+            scheme=req_scheme,
         )
         if decision.route_kind == "preflight":
             await self._reply_http(
@@ -462,6 +467,24 @@ class BridgeSecurityMiddleware:
                 if clean_path.startswith("/api/") and clean_path not in PUBLIC_AUTH_PATHS:
                     try:
                         session, valid = await self.auth_service.authenticate(scope)
+                    except LoginLimited:
+                        prob_429 = {
+                            "type": "urn:meshcore:error:login-rate-limited",
+                            "title": "Too Many Requests",
+                            "status": 429,
+                            "detail": "Too many failed authentication attempts",
+                            "error": "login_rate_limited",
+                        }
+                        await self._reply_http(
+                            scope,
+                            send,
+                            429,
+                            json.dumps(prob_429).encode("utf-8"),
+                            content_type="application/problem+json",
+                            cors_origin=decision.cors_origin,
+                            scheme=req_scheme,
+                        )
+                        return
                     except Exception:
                         self._log_rejection(peer=_peer_ip(scope), path=target, source="API-AUTH",
                                             anomaly="AUTH_SERVICE_UNAVAILABLE",

@@ -970,11 +970,6 @@ class MeshCoreBridge:
 
         return await proxy.handle_tcp_companion_command(payload, client_writer, timeout)
 
-    @staticmethod
-    def _companion_rf_destination(payload: bytes) -> tuple[str | None, int]:
-
-        return CompanionProxy.companion_rf_destination(payload)
-
     def _init_metrics_and_tasks(self) -> None:
         """Inicializa contadores y conjuntos de tareas en background."""
 
@@ -1936,11 +1931,6 @@ class MeshCoreBridge:
                 logging.warning(
                     "Intento de reconexión serial no completado. El Watchdog continuará intentando en background."
                 )
-
-    @staticmethod
-    def _parse_tx_input(item: Any) -> tuple[Any, str, int, str]:
-
-        return TxCoordinator.parse_tx_input(item)
 
     def _validate_tx_target(self, target_str: str, text: str, is_broadcast: bool) -> str | None:
 

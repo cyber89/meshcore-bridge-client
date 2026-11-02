@@ -496,3 +496,66 @@ async def test_authentication_storage_failure_returns_guarded_503(
         assert response.json()["error"] == "authentication_unavailable"
         assert response.headers["x-content-type-options"] == "nosniff"
         assert "private database diagnostic" not in response.text
+
+
+async def test_x_forwarded_proto_requires_trusted_proxy_ip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = AuthStore(tmp_path / "station.sqlite3")
+    app, _ = _application(store)
+    monkeypatch.setenv("BRIDGE_TRUSTED_PROXY_IPS", "")
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=("192.0.2.50", 12345)),
+        base_url="http://localhost",
+    ) as client:
+        untrusted = await client.get(
+            "/api/auth/session", headers={"X-Forwarded-Proto": "https"}
+        )
+        assert "strict-transport-security" not in untrusted.headers
+
+    monkeypatch.setenv("BRIDGE_TRUSTED_PROXY_IPS", "192.0.2.50")
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=("192.0.2.50", 12345)),
+        base_url="http://localhost",
+    ) as client:
+        trusted = await client.get(
+            "/api/auth/session", headers={"X-Forwarded-Proto": "https"}
+        )
+        assert "strict-transport-security" in trusted.headers
+
+
+async def test_failed_api_key_attempts_are_rate_limited_without_throttling_valid_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BRIDGE_API_KEY", "valid-secret-api-key")
+    store = AuthStore(tmp_path / "station.sqlite3")
+    store.initialize()
+    store.bootstrap("owner", "correct horse battery staple")
+    app, _ = _application(store)
+
+    # Valid API key requests are never throttled even past 10 requests
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=("198.51.100.10", 12345)),
+        base_url="http://localhost",
+    ) as valid_client:
+        for _ in range(15):
+            ok_res = await valid_client.get(
+                "/api/private", headers={"X-Api-Key": "valid-secret-api-key"}
+            )
+            assert ok_res.status_code == 200
+
+    # Brute-force invalid API key guesses from a peer hit 429 after 10 failures
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=("198.51.100.99", 12345)),
+        base_url="http://localhost",
+    ) as attacker_client:
+        for _ in range(10):
+            bad_res = await attacker_client.get(
+                "/api/private", headers={"X-Api-Key": "wrong-key"}
+            )
+            assert bad_res.status_code == 401
+        limited_res = await attacker_client.get(
+            "/api/private", headers={"X-Api-Key": "wrong-key"}
+        )
+        assert limited_res.status_code == 429
+        assert limited_res.json()["error"] == "login_rate_limited"

@@ -439,10 +439,6 @@ class StableMqttPort:
         return self.topics.admin_status
 
     @property
-    def topic_admin_status(self) -> str:
-        return self.topics.admin_status
-
-    @property
     def topic_health(self) -> str:
         return self.topics.health
 

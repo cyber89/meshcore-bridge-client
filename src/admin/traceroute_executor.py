@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import random
+import secrets
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -93,7 +93,7 @@ class TracerouteExecutor:
 
         trace_path_arg, trace_flags = self._format_trace_hops(path_list)
 
-        tag = random.randint(1, 0xFFFFFFFF)
+        tag = secrets.randbelow(0xFFFFFFFF) + 1
         trace_data_payload: dict[str, Any] | None = None
         trace_waiter: asyncio.Task[Any] | None = None
         try:

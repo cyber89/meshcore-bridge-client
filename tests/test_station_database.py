@@ -79,3 +79,26 @@ def test_backup_contains_consistent_documents_and_station_identity(tmp_path: Pat
     copied.initialize()
     assert copied.read_document("airtime") == {"last": 123}
     assert copied.history()["station_id"] == database.history()["station_id"]
+
+
+def test_search_messages_escapes_html_in_snippets_while_preserving_highlight(tmp_path: Path) -> None:
+    database = StationDatabase(tmp_path / "station.sqlite3")
+    database.initialize()
+    database.import_messages([
+        {
+            "id": "msg-xss-1",
+            "feed_key": "ch_0",
+            "sender": "node_a",
+            "sender_name": "Alice",
+            "text": "alertpayload <img src=x onerror=alert(1)> and literal <mark>spoof</mark>",
+            "timestamp": "2026-11-01T12:00:00Z",
+            "status": "received",
+        }
+    ])
+    res = database.search_messages("alertpayload")
+    assert res["count"] == 1
+    snippet = res["results"][0]["snippet"]
+    assert "<mark>alertpayload</mark>" in snippet
+    assert "<img" not in snippet
+    assert "&lt;img src=x onerror=alert(1)&gt;" in snippet
+    assert "&lt;mark&gt;spoof&lt;/mark&gt;" in snippet

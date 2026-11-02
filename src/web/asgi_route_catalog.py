@@ -155,6 +155,7 @@ ROUTE_CONTRACTS: tuple[RouteContract, ...] = (
     RouteContract("POST", "/api/config/path_hash_mode", PathHashBodyDTO, "radio_admin"),
     RouteContract("GET", "/api/config/autoadd", ConfigBodyDTO, "radio_admin"),
     RouteContract("POST", "/api/config/autoadd", AutoAddBodyDTO, "radio_admin"),
+    RouteContract("GET", "/api/radio/presets", ConfigBodyDTO, "radio_admin"),
     RouteContract("GET", "/api/config/flood_scope", ConfigBodyDTO, "radio_admin"),
     RouteContract("POST", "/api/config/flood_scope", FloodScopeBodyDTO, "radio_admin"),
     RouteContract("POST", "/api/node/advert", ConfigBodyDTO, "radio_admin"),

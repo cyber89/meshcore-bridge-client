@@ -2751,12 +2751,20 @@ export class ChatModule {
         itemEl.className = "chat-search-item";
         itemEl.setAttribute("tabindex", "0");
         const dateStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "";
+        const rawSnippet = item.snippet ? String(item.snippet) : escapeHtml(item.text || "");
+        const safeSnippet = rawSnippet
+          .replace(/<mark>/g, "\u0001")
+          .replace(/<\/mark>/g, "\u0002")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\u0001/g, "<mark>")
+          .replace(/\u0002/g, "</mark>");
         itemEl.innerHTML = `
           <div class="chat-search-item-header">
             <span class="chat-search-item-sender">${escapeHtml(item.sender_name || item.sender || "Anónimo")}</span>
             <span>${escapeHtml(dateStr)}</span>
           </div>
-          <div class="chat-search-item-snippet">${item.snippet || escapeHtml(item.text || "")}</div>
+          <div class="chat-search-item-snippet">${safeSnippet}</div>
         `;
         itemEl.addEventListener("click", () => {
           this.jumpToMessageInFeed(item.msg_id || item.id);

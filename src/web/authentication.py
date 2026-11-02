@@ -195,6 +195,9 @@ class AuthenticationService:
         session: AuthSession | None = None
         valid = False
         if authorization or api_key:
+            peer_client = scope.get("client")
+            peer_ip = str(peer_client[0]) if isinstance(peer_client, (tuple, list)) and peer_client else "unknown"
+            await asyncio.to_thread(self.store.check_api_rate_limit, peer_ip)
             if await asyncio.to_thread(self.store.account_ready):
                 expected = os.getenv("BRIDGE_API_KEY", "")
                 valid = bool(
@@ -204,6 +207,8 @@ class AuthenticationService:
                 )
                 if not valid:
                     valid = await asyncio.to_thread(self.store.valid_api_token, supplied)
+            if not valid:
+                await asyncio.to_thread(self.store.record_api_auth_failure, peer_ip)
         else:
             token = _cookie_token(headers)
             session = await asyncio.to_thread(self.store.session, token)
@@ -398,6 +403,14 @@ class BridgeAuthenticationMiddleware:
             return
         try:
             session, valid = await self.service.authenticate(scope)
+        except LoginLimited:
+            if scope["type"] == "websocket":
+                await deny_websocket(scope, send, 429, "login_rate_limited")
+            else:
+                response = _error(429, "login_rate_limited")
+                response.headers["Retry-After"] = "900"
+                await response(scope, receive, send)
+            return
         except Exception as exception:
             logger.error("Authentication unavailable (%s)", type(exception).__name__)
             if scope["type"] == "websocket":

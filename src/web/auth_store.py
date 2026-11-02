@@ -273,6 +273,40 @@ class AuthStore:
                 JOIN auth_owner o ON o.id=t.id WHERE o.must_change=0""").fetchone()
         return row is not None and hmac.compare_digest(_digest(token), str(row["digest"]))
 
+    def check_api_rate_limit(self, peer: str) -> None:
+        now = time.time()
+        peer_key = "api:" + _digest(peer)
+        with self._connection(write=False) as connection:
+            row = connection.execute(
+                "SELECT attempts FROM auth_login_attempts WHERE peer=? AND started>=?",
+                (peer_key, now - LOGIN_WINDOW_SECONDS),
+            ).fetchone()
+        if row is not None and int(row[0]) >= LOGIN_PEER_ATTEMPTS:
+            raise LoginLimited("login_rate_limited")
+
+    def record_api_auth_failure(self, peer: str) -> None:
+        now = time.time()
+        peer_key = "api:" + _digest(peer)
+        with self._connection() as connection:
+            connection.execute(
+                "DELETE FROM auth_login_attempts WHERE started < ?", (now - LOGIN_WINDOW_SECONDS,)
+            )
+            count = int(
+                connection.execute("SELECT count(*) FROM auth_login_attempts").fetchone()[0]
+            )
+            row = connection.execute(
+                "SELECT attempts FROM auth_login_attempts WHERE peer=?", (peer_key,)
+            ).fetchone()
+            if (row is not None and int(row[0]) >= LOGIN_PEER_ATTEMPTS) or (
+                row is None and count >= MAX_LOGIN_PEERS
+            ):
+                raise LoginLimited("login_rate_limited")
+            connection.execute(
+                """INSERT INTO auth_login_attempts VALUES(?,?,1)
+                ON CONFLICT(peer) DO UPDATE SET attempts=attempts+1""",
+                (peer_key, now),
+            )
+
     def api_token_configured(self) -> bool:
         with self._connection(write=False) as connection:
             return connection.execute("SELECT 1 FROM auth_api_tokens").fetchone() is not None

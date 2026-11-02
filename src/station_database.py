@@ -8,6 +8,7 @@ SQLite additionally arbitrates independent readers and processes.
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import math
 import os
@@ -705,7 +706,7 @@ class StationDatabase:
             self._ensure_fts_synced(connection)
 
             sql = """
-                SELECT m.*, snippet(messages_fts, -1, '<mark>', '</mark>', '...', 15) as snippet
+                SELECT m.*, snippet(messages_fts, -1, char(1), char(2), '...', 15) as snippet
                 FROM messages_fts f
                 JOIN messages m ON f.rowid = m.seq
                 WHERE messages_fts MATCH ?
@@ -728,7 +729,12 @@ class StationDatabase:
             results = []
             for row in rows:
                 msg = self._result(connection, row)
-                msg["snippet"] = row["snippet"]
+                raw_snippet = str(row["snippet"] or "")
+                msg["snippet"] = (
+                    html.escape(raw_snippet, quote=True)
+                    .replace("\x01", "<mark>")
+                    .replace("\x02", "</mark>")
+                )
                 results.append(msg)
 
             return {
@@ -1154,7 +1160,3 @@ class StationDatabase:
                 "WHERE station_id = ? AND integration_scope = ? AND command_id = ?",
                 (st, payload_str, now, sid, scope, cid),
             )
-
-    def backup_database(self, backup_path: str | Path) -> None:
-        """Create a consistent online backup delegating to verified backup() implementation."""
-        self.backup(backup_path)

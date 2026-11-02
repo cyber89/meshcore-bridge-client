@@ -21,7 +21,6 @@ from typing import Any, Protocol
 import config
 from src.contact_manager import (
     NodeContactUpdate,
-    NodeDiscoveryEvent,
     NodeRegistry,
     PacketRecord,
     is_valid_node_key,
@@ -43,12 +42,6 @@ from src.repeater_manager import RepeaterManager
 from src.routers.base import BaseRxHandler, MeshMessageEvent, RxMeta
 from src.routers.telemetry_processor import (
     TelemetryProcessor,
-)
-from src.routers.telemetry_processor import (
-    location_pair as _location_pair,
-)
-from src.sensor_decoder import (
-    extract_telemetry_fields,
 )
 from src.shared_utils import (
     classify_device_role,
@@ -695,77 +688,6 @@ class RxEventRouter:
             return "CLIENT"
         return "CLIENT"
 
-    def _update_node_registry_presence(
-        self,
-        meta: RxMeta,
-        payload_dict: dict[str, Any],
-    ) -> None:
-        telem_fields = extract_telemetry_fields(payload_dict)
-        bat_pct = telem_fields.get("battery_pct")
-        volt_val = telem_fields.get("voltage_v")
-        solar_val = telem_fields.get("solar_v")
-        existing = self._ctx.node_registry.get_contact(meta.sender)
-        is_known_rep = bool(existing and existing.role in ("REPEATER", "ROUTER"))
-        has_role = any(key in payload_dict for key in ("role", "adv_type")) or isinstance(payload_dict.get("type"), int)
-        if is_known_rep:
-            effective_role = "REPEATER"
-        elif existing and not has_role and not meta.is_local_sender:
-            effective_role = existing.role
-        else:
-            effective_role = self._resolve_effective_role(payload_dict, meta.sender_name, meta.is_local_sender)
-
-        lat_val, lon_val = _location_pair(payload_dict)
-
-        is_new, contact_info = self._ctx.node_registry.discover_node(
-            NodeDiscoveryEvent(
-                public_key=meta.sender,
-                name=meta.sender_name if meta.sender_name and meta.sender_name != meta.sender else None,
-                role=effective_role,
-                rssi=meta.effective_rssi,
-                snr=meta.effective_snr,
-                hops=meta.effective_hops,
-            )
-        )
-
-        if is_valid_node_key(contact_info.public_key):
-            pos_valid = bool(lat_val is not None and lon_val is not None and (lat_val != 0 or lon_val != 0))
-            if lat_val is not None or lon_val is not None or bat_pct is not None or volt_val is not None:
-                self._ctx.node_registry.add_or_update(
-                    meta.sender,
-                    NodeContactUpdate(
-                        last_seen=time.time() if not meta.is_local_sender else None,
-                        battery_pct=bat_pct,
-                        voltage_v=volt_val,
-                        solar_v=solar_val,
-                        latitude=lat_val,
-                        longitude=lon_val,
-                        adv_lat=lat_val,
-                        adv_lon=lon_val,
-                        position_valid=pos_valid,
-                        position_source="TELEMETRY_LPP" if pos_valid else None,
-                        position_updated_at=time.time() if pos_valid else None,
-                        is_local=meta.is_local_sender,
-                    ),
-                )
-
-            if not meta.is_local_sender:
-                self._ctx.node_registry.record_packet(
-                    PacketRecord(
-                        public_key=meta.sender,
-                        is_rx=True,
-                        rssi=meta.effective_rssi,
-                        snr=meta.effective_snr,
-                        hop_count=meta.effective_hops,
-                    )
-                )
-                final_contact = self._ctx.node_registry.get_contact(meta.sender) or contact_info
-                self._spawn_broadcast_task({
-                    "type": "contact_discovered" if is_new else "contact_updated",
-                    "event_type": "contact_discovered" if is_new else "contact_updated",
-                    "is_new": is_new,
-                    "contact": final_contact.to_dict(),
-                })
-
     def _handle_rf_log_observation(self, payload_dict: dict[str, Any], meta: RxMeta) -> None:
         """Procesa una observación de log RF (push 0x88) correlacionando la ruta sin flood MQTT."""
         adv_key = str(payload_dict.get("adv_key") or "").strip().lower()
@@ -1158,15 +1080,6 @@ class RxEventRouter:
                 resolve_sender_name_fn=self._resolve_sender_name,
             )
         return self._telemetry_proc
-
-    def _handle_local_station_telemetry(
-        self,
-        ev_name: str,
-        payload_dict: dict[str, Any],
-        sender: str | None,
-    ) -> bool:
-        """Procesa y registra configuración y telemetría de la estación base local."""
-        return self.telemetry_processor.handle_local_station_telemetry(ev_name, payload_dict, sender)
 
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
         """Procesa, normaliza, enriquece con LQI y publica eventos de telemetría de la malla."""

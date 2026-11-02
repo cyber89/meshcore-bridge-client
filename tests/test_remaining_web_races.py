@@ -291,7 +291,9 @@ async def test_storage_rejection_never_changes_transmission_outcome_or_blocks_re
       chat.dom.chatInputText.value='persist failure message';
       const originalFetch=window.fetch;let requests=0,escaped=null;
       try {
-        window.fetch=async()=>{requests++;return scenario==='rejected_and_failed_status'
+        window.fetch=async(url,options)=>{
+          if(new URL(String(url),location.href).pathname!=='/api/tx')return originalFetch(url,options);
+          requests++;return scenario==='rejected_and_failed_status'
           ?new Response(JSON.stringify({detail:'Radio disconnected'}),{status:503})
           :new Response(JSON.stringify({status:'ok',data:{expected_ack:'abc123'}}));};
         try{await chat.sendMessage();}catch(error){escaped=error.message;}

@@ -60,27 +60,6 @@ class FirmwareCliHandler:
             self.is_uncertain = False
             self.firmware_identity = None
 
-    def update_device_info(self, ver: Any, model: Any, protocol: Any) -> None:
-        """Registra la información de versión y modelo observada."""
-        current_mc = self.mc_provider()
-        if self.firmware_mc is not current_mc:
-            self.reset_firmware_observations(new_session=True)
-        self.device_info = {
-            "ver": ver,
-            "model": model,
-        }
-        if protocol is not None:
-            self.device_info["fw ver"] = protocol
-
-    def update_identity(self, identity: str) -> None:
-        """Actualiza la identidad observada; si cambia en la misma conexión, rota generación."""
-        current_mc = self.mc_provider()
-        if self.firmware_mc is not current_mc:
-            self.reset_firmware_observations(new_session=True)
-        if self.firmware_identity is not None and self.firmware_identity != identity:
-            self.reset_firmware_observations()
-        self.firmware_identity = identity
-
     @property
     def firmware_capabilities(self) -> dict[str, Any]:
         """Retorna las capacidades de firmware observadas en la sesión actual."""

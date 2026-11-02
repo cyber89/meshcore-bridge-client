@@ -227,29 +227,3 @@ class ContactsController(BaseController):
             self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
 
         return res.http_code, {}
-
-    # Compatibilidad estática hacia métodos auxiliares
-    @staticmethod
-    def _parse_contacts_from_tags(raw_payload: str) -> list[dict[str, Any]]:
-        return ContactService.parse_contacts_from_tags(raw_payload)
-
-    @staticmethod
-    def _parse_contacts_from_uri(raw_payload: str) -> tuple[list[dict[str, Any]], tuple[int, dict[str, Any]] | None]:
-        contacts, err = ContactService.parse_contacts_from_uri(raw_payload)
-        if err:
-            return [], problem_details(err.http_code, "Bad Request", err.error or "Error", err.error_code or "error")
-        return contacts, None
-
-    @staticmethod
-    def _parse_contacts_from_json(raw_payload: str) -> tuple[list[dict[str, Any]], tuple[int, dict[str, Any]] | None]:
-        contacts, err = ContactService.parse_contacts_from_json(raw_payload)
-        if err:
-            return [], problem_details(err.http_code, "Bad Request", err.error or "Error", err.error_code or "error")
-        return contacts, None
-
-    @classmethod
-    def _parse_contacts_from_hex(cls, raw_payload: str) -> tuple[list[dict[str, Any]], bytes | None, tuple[int, dict[str, Any]] | None]:
-        contacts, bin_data, err = ContactService.parse_contacts_from_hex(raw_payload)
-        if err:
-            return [], None, problem_details(err.http_code, "Bad Request", err.error or "Error", err.error_code or "error")
-        return contacts, bin_data, None

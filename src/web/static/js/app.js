@@ -247,8 +247,8 @@ class MeshCoreApp {
 
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener("click", () => {
-        const currentPref = readThemePreference();
-        const next = currentPref === "dark" ? "light" : (currentPref === "light" ? "auto" : "dark");
+        const isDark = document.body.classList.contains("dark-theme") || document.documentElement.getAttribute("data-bs-theme") === "dark";
+        const next = isDark ? "light" : "dark";
         this._applyTheme(next);
       });
     }
@@ -969,6 +969,24 @@ class MeshCoreApp {
 
       let hiding = false;
       let dismissTimer = null;
+      let fallbackRemoveTimer = null;
+
+      const cleanupToast = () => {
+        if (dismissTimer !== null) {
+          clearTimeout(dismissTimer);
+          dismissTimer = null;
+        }
+        if (fallbackRemoveTimer !== null) {
+          clearTimeout(fallbackRemoveTimer);
+          fallbackRemoveTimer = null;
+        }
+        try {
+          bsToast.dispose();
+        } catch {
+          // Ignore disposal errors if already torn down
+        }
+        toast.remove();
+      };
 
       const performHide = () => {
         if (dismissTimer !== null) {
@@ -976,15 +994,18 @@ class MeshCoreApp {
           dismissTimer = null;
         }
         if (hiding) return;
-        hiding = true;
         try {
-          if (toast.isConnected && bsToast && bsToast._element) {
+          if (toast.isConnected && bsToast && bsToast._element && bsToast.isShown()) {
+            fallbackRemoveTimer = setTimeout(cleanupToast, 400);
             bsToast.hide();
+            hiding = true;
           } else {
-            toast.remove();
+            hiding = true;
+            cleanupToast();
           }
         } catch {
-          toast.remove();
+          hiding = true;
+          cleanupToast();
         }
       };
 
@@ -1002,16 +1023,7 @@ class MeshCoreApp {
       });
 
       toast.addEventListener("hidden.bs.toast", () => {
-        if (dismissTimer !== null) {
-          clearTimeout(dismissTimer);
-          dismissTimer = null;
-        }
-        try {
-          bsToast.dispose();
-        } catch {
-          // Ignore disposal errors if already torn down
-        }
-        toast.remove();
+        cleanupToast();
       }, { once: true });
 
       const closeBtn = toast.querySelector(".toast-close");

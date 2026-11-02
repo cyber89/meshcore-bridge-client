@@ -99,8 +99,9 @@ export class ApiClient {
   }
 
   async deleteChannel(index) {
-    return this.request(`/api/channels/${index}`, {
+    return this.request("/api/channels", {
       method: "DELETE",
+      body: { index },
     });
   }
 
@@ -149,9 +150,8 @@ export class ApiClient {
   }
 
   async exportContact(pubkey) {
-    return this.request("/api/contacts/export", {
-      method: "POST",
-      body: { public_key: pubkey },
+    return this.request(`/api/contacts/export?public_key=${encodeURIComponent(pubkey)}`, {
+      method: "GET",
     });
   }
 
@@ -179,14 +179,14 @@ export class ApiClient {
     if (limit) params.set("limit", String(limit));
     if (before) params.set("before", String(before));
     const qs = params.toString();
-    return this.request(`/api/history${qs ? `?${qs}` : ""}`, {
+    return this.request(`/api/messages/history${qs ? `?${qs}` : ""}`, {
       method: "GET",
       signal,
     });
   }
 
   async getConversations(signal = null) {
-    return this.request("/api/history/conversations", {
+    return this.request("/api/messages/conversations", {
       method: "GET",
       signal,
     });
@@ -210,7 +210,7 @@ export class ApiClient {
   }
 
   async executeAdminCommand(commandData) {
-    return this.request("/api/admin/command", {
+    return this.request("/api/admin", {
       method: "POST",
       body: commandData,
     });
@@ -219,11 +219,11 @@ export class ApiClient {
   // --- Servicios Integrados ---
 
   async getServicesStatus() {
-    return this.request("/api/services", { method: "GET" });
+    return this.request("/api/services/config", { method: "GET" });
   }
 
   async saveServicesConfig(patch) {
-    return this.request("/api/services", {
+    return this.request("/api/services/config", {
       method: "POST",
       body: patch,
     });

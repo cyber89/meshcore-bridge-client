@@ -90,15 +90,3 @@ class MqttTopics:
     def rx_direct_topic(self, sender: str) -> str:
         """Derive direct message topic for a specific sender."""
         return f"{self.rx_direct}/{sender}"
-
-    def repeater_cmd_topic(self, target: str) -> str:
-        """Derive administrative command topic for a specific repeater node."""
-        return f"{self.admin_repeater}/{target}/cmd"
-
-    def repeater_status_topic(self, target: str) -> str:
-        """Derive administrative status topic for a specific repeater node."""
-        return f"{self.admin_repeater}/{target}/status"
-
-    def repeater_sub_topic(self, target: str, subpath: str) -> str:
-        """Derive specific sub-topic for a repeater node (e.g. neighbours, acl, ping_zero)."""
-        return f"{self.admin_repeater}/{target}/{subpath}"

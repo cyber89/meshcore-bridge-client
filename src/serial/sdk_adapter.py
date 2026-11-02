@@ -10,11 +10,9 @@ import asyncio
 import hashlib
 import logging
 import re
-import threading
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
-from contextvars import ContextVar
 from typing import Any
 
 from src.protocol_types import MeshCoreSDKProtocol
@@ -259,16 +257,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self._firmware_cli_handler.is_uncertain = val
 
     @property
-    def _firmware_cli_lease(self) -> ContextVar[int | None]:
-
-        return self._firmware_cli_handler.lease
-
-    @property
-    def _sdk_version(self) -> str | None:
-
-        return self._firmware_cli_handler.sdk_version
-
-    @property
     def _pending_sdk_events(self) -> deque[tuple[Any, Any, Any, str | None]]:
 
         return self._sdk_event_dispatcher.pending_events
@@ -282,11 +270,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     def _sdk_event_worker(self, val: asyncio.Task[None] | None) -> None:
 
         self._sdk_event_dispatcher.worker = val
-
-    @property
-    def _sdk_schedule_lock(self) -> threading.Lock:
-
-        return self._sdk_event_dispatcher.schedule_lock
 
     @property
     def _sdk_scheduled_callbacks(self) -> int:
@@ -318,10 +301,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         return self._firmware_cli_handler.firmware_capabilities
 
-    def _require_firmware_cli(self, generation: int) -> None:
-
-        self._firmware_cli_handler.require_firmware_cli(generation)
-
     async def _call_with_firmware_lease(self, call: Callable[[], Awaitable[Any]]) -> Any:
 
         return await self._firmware_cli_handler.call_with_firmware_lease(call)
@@ -352,10 +331,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             enabled=enabled,
             clear=clear,
         )
-
-    async def _run_firmware_cli_command(self, command: str) -> dict[str, str]:
-
-        return await self._firmware_cli_handler.run_firmware_cli_command(command)
 
     def _observe_companion_frame(self, data: bytes) -> None:
         """Route pushes and the current raw transaction, never internal SDK replies.
@@ -958,14 +933,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     def _enqueue_sdk_event(self, owning_mc: Any, event_type: Any, event: Any) -> None:
 
         self._sdk_event_dispatcher.enqueue_sdk_event(owning_mc, event_type, event)
-
-    def _ensure_sdk_event_worker(self) -> None:
-
-        self._sdk_event_dispatcher.ensure_worker()
-
-    async def _drain_sdk_events(self) -> None:
-
-        await self._sdk_event_dispatcher.drain_events()
 
     def _get_sdk_dispatch_map(self) -> dict[Any, Callable[[Any], Any]]:
         """Construye o retorna la tabla de despacho determinista para eventos del SDK."""
