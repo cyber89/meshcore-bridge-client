@@ -864,13 +864,13 @@ class MeshCoreApp {
     el.classList.toggle("radio-status--connected", connected);
     el.classList.toggle("radio-status--disconnected", !connected);
 
-    if (connected) {
-      el.classList.remove("bg-danger-subtle", "text-danger-emphasis", "border-danger-subtle");
-      el.classList.add("bg-success-subtle", "text-success-emphasis", "border-success-subtle");
-    } else {
-      el.classList.remove("bg-success-subtle", "text-success-emphasis", "border-success-subtle");
-      el.classList.add("bg-danger-subtle", "text-danger-emphasis", "border-danger-subtle");
-    }
+    el.classList.toggle("bg-success-subtle", connected);
+    el.classList.toggle("text-success-emphasis", connected);
+    el.classList.toggle("border-success-subtle", connected);
+
+    el.classList.toggle("bg-danger-subtle", !connected);
+    el.classList.toggle("text-danger-emphasis", !connected);
+    el.classList.toggle("border-danger-subtle", !connected);
 
     const dot = el.querySelector(".status-indicator-dot");
     if (dot) {
@@ -880,14 +880,9 @@ class MeshCoreApp {
 
     const txtEl = el.querySelector(".status-text");
 
-    let label = "";
-    if (connected) {
-      label = portClean
-        ? I18n.t('app.radio_online').replace('{port}', portClean)
-        : I18n.t('app.radio_online_fallback');
-    } else {
-      label = I18n.t('app.radio_offline');
-    }
+    const label = connected
+      ? (I18n.t("app.radio_online_fallback") || I18n.t("app.radio_online"))
+      : I18n.t("app.radio_offline");
 
     if (txtEl) {
       txtEl.textContent = label;

@@ -841,7 +841,32 @@ body {
 }
 
 .app-header > .container-fluid {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: nowrap !important;
   gap: var(--space-md);
+  min-width: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.header-left .logo-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.header-left .connection-status {
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .header-left,
@@ -858,11 +883,16 @@ body {
 }
 
 .header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
   flex-shrink: 0;
 }
 
 .header-center {
+  flex: 0 1 320px;
   max-width: 320px;
+  min-width: 0;
 }
 
 .cmd-palette-trigger {
@@ -915,39 +945,39 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* Radio Conectada (Enlace Activo) */
+/* Radio Conectada (Enlace Activo) - Integración Nativa con el Tema */
 .radio-status-pill.radio-status--connected {
-  background-color: rgba(16, 185, 129, 0.12) !important;
-  color: #10b981 !important;
-  border-color: rgba(16, 185, 129, 0.35) !important;
+  background-color: var(--bs-success-bg-subtle, rgba(16, 185, 129, 0.12)) !important;
+  color: var(--bs-success-text-emphasis, var(--accent-success, #10b981)) !important;
+  border-color: var(--bs-success-border-subtle, rgba(16, 185, 129, 0.35)) !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .radio-status-pill.radio-status--connected .status-indicator-dot {
-  background-color: #10b981 !important;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.75);
+  background-color: var(--bs-success, #10b981) !important;
+  box-shadow: 0 0 6px var(--bs-success, rgba(16, 185, 129, 0.75));
   animation: radioLedPulse 2.4s ease-in-out infinite;
 }
 
 .radio-status-pill.radio-status--connected .status-icon {
-  color: #10b981 !important;
+  color: var(--bs-success-text-emphasis, var(--accent-success, #10b981)) !important;
 }
 
-/* Radio Desconectada (Enlace Inactivo / Sin Conexión USB) */
+/* Radio Desconectada (Enlace Inactivo / Sin Conexión USB) - Integración Nativa con el Tema */
 .radio-status-pill.radio-status--disconnected {
-  background-color: rgba(239, 68, 68, 0.12) !important;
-  color: #f87171 !important;
-  border-color: rgba(239, 68, 68, 0.35) !important;
+  background-color: var(--bs-danger-bg-subtle, rgba(239, 68, 68, 0.12)) !important;
+  color: var(--bs-danger-text-emphasis, var(--accent-danger, #f87171)) !important;
+  border-color: var(--bs-danger-border-subtle, rgba(239, 68, 68, 0.35)) !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .radio-status-pill.radio-status--disconnected .status-indicator-dot {
-  background-color: #ef4444 !important;
-  box-shadow: 0 0 5px rgba(239, 68, 68, 0.65);
+  background-color: var(--bs-danger, #ef4444) !important;
+  box-shadow: 0 0 5px var(--bs-danger, rgba(239, 68, 68, 0.65));
 }
 
 .radio-status-pill.radio-status--disconnected .status-icon {
-  color: #f87171 !important;
+  color: var(--bs-danger-text-emphasis, var(--accent-danger, #f87171)) !important;
 }
 
 /* Pulso LED para estado activo */
@@ -965,38 +995,38 @@ body {
 /* Modo Claro (Zephyr): Ajustes de contraste para cumplir WCAG AA/AAA */
 [data-bs-theme="light"] .radio-status-pill.radio-status--connected,
 body.light-theme .radio-status-pill.radio-status--connected {
-  background-color: rgba(16, 185, 129, 0.14) !important;
-  color: var(--accent-success) !important;
-  border-color: rgba(16, 185, 129, 0.45) !important;
+  background-color: var(--bs-success-bg-subtle, rgba(16, 185, 129, 0.14)) !important;
+  color: var(--bs-success-text-emphasis, #065f46) !important;
+  border-color: var(--bs-success-border-subtle, rgba(16, 185, 129, 0.45)) !important;
 }
 
 [data-bs-theme="light"] .radio-status-pill.radio-status--connected .status-indicator-dot,
 body.light-theme .radio-status-pill.radio-status--connected .status-indicator-dot {
-  background-color: #059669 !important;
-  box-shadow: 0 0 4px rgba(5, 150, 105, 0.5);
+  background-color: var(--bs-success, #059669) !important;
+  box-shadow: 0 0 4px var(--bs-success, rgba(5, 150, 105, 0.5));
 }
 
 [data-bs-theme="light"] .radio-status-pill.radio-status--connected .status-icon,
 body.light-theme .radio-status-pill.radio-status--connected .status-icon {
-  color: var(--accent-success) !important;
+  color: var(--bs-success-text-emphasis, #065f46) !important;
 }
 
 [data-bs-theme="light"] .radio-status-pill.radio-status--disconnected,
 body.light-theme .radio-status-pill.radio-status--disconnected {
-  background-color: rgba(220, 38, 38, 0.12) !important;
-  color: #b91c1c !important;
-  border-color: rgba(220, 38, 38, 0.4) !important;
+  background-color: var(--bs-danger-bg-subtle, rgba(220, 38, 38, 0.12)) !important;
+  color: var(--bs-danger-text-emphasis, #991b1b) !important;
+  border-color: var(--bs-danger-border-subtle, rgba(220, 38, 38, 0.4)) !important;
 }
 
 [data-bs-theme="light"] .radio-status-pill.radio-status--disconnected .status-indicator-dot,
 body.light-theme .radio-status-pill.radio-status--disconnected .status-indicator-dot {
-  background-color: #dc2626 !important;
-  box-shadow: 0 0 4px rgba(220, 38, 38, 0.5);
+  background-color: var(--bs-danger, #dc2626) !important;
+  box-shadow: 0 0 4px var(--bs-danger, rgba(220, 38, 38, 0.5));
 }
 
 [data-bs-theme="light"] .radio-status-pill.radio-status--disconnected .status-icon,
 body.light-theme .radio-status-pill.radio-status--disconnected .status-icon {
-  color: #b91c1c !important;
+  color: var(--bs-danger-text-emphasis, #991b1b) !important;
 }
 
 /* Barra Lateral de Navegación y Botones de Pestaña */
@@ -6103,12 +6133,12 @@ details.settings-disclosure > .disclosure-content {
   .radio-status-pill {
     padding: 2px 6px !important;
     font-size: var(--font-meta) !important;
-    flex-shrink: 1;
+    flex-shrink: 0 !important;
     min-width: 0;
+    white-space: nowrap;
   }
 
   .radio-status-pill .status-text {
-    max-width: 90px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
