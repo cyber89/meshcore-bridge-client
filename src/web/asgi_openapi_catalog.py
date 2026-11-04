@@ -42,6 +42,12 @@ OBSERVED_OPERATIONS: dict[tuple[str, str], ObservedOperation] = {
         'status ok; data messages in chronological order, station_id, next_before, has_more.',
         ('src/web/controllers/history_controller.py:handle',), 'Passive SQLite read; no RF.', False,
     ),
+    ('DELETE', '/api/messages/history'): ObservedOperation(
+        ('feed_key',), (200, 422, 503, 500), 'router_merged',
+        'Required feed_key ch_N/dm_hex; purges stored messages for the conversation.',
+        'status ok; data deleted_count and feed_key.',
+        ('src/web/controllers/history_controller.py:handle',), 'Passive SQLite delete; no RF.', False,
+    ),
     ('GET', '/api/messages/conversations'): ObservedOperation(
         (), (200, 503, 500), 'router_merged', 'No inputs.',
         'status ok; data conversations and station_id.',

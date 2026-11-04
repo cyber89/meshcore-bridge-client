@@ -650,7 +650,25 @@ class StationDatabase:
         with self._connection(write=True) as conn:
             cursor = conn.execute("DELETE FROM messages WHERE timestamp < ?", (cutoff_iso,))
             deleted = cursor.rowcount if cursor.rowcount >= 0 else 0
-            conn.execute("DELETE FROM messages_fts WHERE rowid NOT IN (SELECT seq FROM messages)")
+            has_fts = conn.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='messages_fts'"
+            ).fetchone()[0] > 0
+            if has_fts:
+                conn.execute("DELETE FROM messages_fts WHERE rowid NOT IN (SELECT seq FROM messages)")
+            return int(deleted)
+
+    def clear_feed_messages(self, feed_key: str) -> int:
+        """Elimina todos los mensajes de una conversación específica. Retorna la cantidad eliminada."""
+        if not feed_key or not isinstance(feed_key, str):
+            raise ValueError("feed_key requerido")
+        with self._connection(write=True) as conn:
+            cursor = conn.execute("DELETE FROM messages WHERE feed_key = ?", (feed_key,))
+            deleted = cursor.rowcount if cursor.rowcount >= 0 else 0
+            has_fts = conn.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='messages_fts'"
+            ).fetchone()[0] > 0
+            if has_fts:
+                conn.execute("DELETE FROM messages_fts WHERE rowid NOT IN (SELECT seq FROM messages)")
             return int(deleted)
 
     def export_messages(self, feed_key: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:

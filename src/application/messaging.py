@@ -366,6 +366,13 @@ class MessageService:
         deleted = await asyncio.to_thread(self.database.prune_messages_by_retention, max_days)
         return {"deleted_count": deleted, "max_days": max_days}
 
+    async def clear_feed_messages(self, feed_key: str) -> dict[str, Any]:
+        """Elimina todos los mensajes de una conversación de la base de datos."""
+        if self.database is None:
+            raise RuntimeError("Station database is unavailable")
+        deleted = await asyncio.to_thread(self.database.clear_feed_messages, feed_key)
+        return {"deleted_count": deleted, "feed_key": feed_key}
+
     async def get_history(
         self,
         feed_key: str | None = None,

@@ -86,6 +86,7 @@ export const EVENTS = Object.freeze({
   SETTINGS_SAVED: "meshcore:settings_saved",
   SYSTEM_LOG_RECV: "meshcore:system_log_recv",
   SYSTEM_LOG: "meshcore:system_log",
+  LOGS_CLEARED: "meshcore:logs_cleared",
   METRICS_UPDATE: "meshcore:metrics_update",
   RF_PACKET: "meshcore:rf_packet",
   DUTY_CYCLE_ALERT: "meshcore:duty_cycle_alert",

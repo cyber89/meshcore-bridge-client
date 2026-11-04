@@ -112,12 +112,23 @@ export class BrowserAuthentication {
       if (csrf) headers.set("X-CSRF-Token", csrf);
       const response = await this.nativeFetch(input, { ...init, headers, credentials: "same-origin" });
       if (!url.pathname.startsWith("/api/auth/")) {
-        let credentialsRequired = false;
-        if (response.status === 403) {
+        let sessionExpired = false;
+        if (response.status === 401) {
+          const isRemoteNodeOp = url.pathname.startsWith("/api/repeater/") || url.pathname.startsWith("/api/node/");
+          if (!isRemoteNodeOp) {
+            sessionExpired = true;
+          } else {
+            const data = await response.clone().json().catch(() => null);
+            const err = data?.error || data?.code;
+            if (["auth_required", "browser_session_required", "session_revoked"].includes(err)) {
+              sessionExpired = true;
+            }
+          }
+        } else if (response.status === 403) {
           const data = await response.clone().json().catch(() => null);
-          credentialsRequired = ["credentials_change_required", "csrf_failed"].includes(data?.error || data?.code);
+          sessionExpired = ["credentials_change_required", "csrf_failed"].includes(data?.error || data?.code);
         }
-        if (response.status === 401 || credentialsRequired) this._expire();
+        if (sessionExpired) this._expire();
       }
       return response;
     };

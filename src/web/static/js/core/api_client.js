@@ -192,6 +192,13 @@ export class ApiClient {
     });
   }
 
+  async clearHistory(feedKey) {
+    return this.request(`/api/messages/history?feed_key=${encodeURIComponent(feedKey)}`, {
+      method: "DELETE",
+      body: { feed_key: feedKey },
+    });
+  }
+
   // --- Configuración y Estado de Estación ---
 
   async getConfig() {

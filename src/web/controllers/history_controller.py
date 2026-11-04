@@ -69,6 +69,18 @@ class HistoryController(BaseController):
                 if station_id is not None and not isinstance(station_id, str):
                     raise ValueError("Invalid station identity")
                 data = await service.import_messages(messages, station_id=station_id)
+            elif method == "DELETE" and path == "/api/messages/history":
+                feed = body.get("feed_key")
+                if not feed or not isinstance(feed, str):
+                    raise ValueError("Se requiere 'feed_key'")
+                data = await service.clear_feed_messages(feed)
+                if hasattr(self.ctx, "recent_messages") and self.ctx.recent_messages:
+                    kept = [
+                        m for m in self.ctx.recent_messages
+                        if m.get("feed_key") != feed
+                    ]
+                    self.ctx.recent_messages.clear()
+                    self.ctx.recent_messages.extend(kept)
             else:
                 return problem_details(405, "Method Not Allowed", "Unsupported history operation", "method_not_allowed")
         except StationIdentityMismatch:

@@ -1328,6 +1328,14 @@ export class ChatModule {
       } catch (_) {}
     }
 
+    try {
+      await fetch(`/api/messages/history?feed_key=${encodeURIComponent(feedKey)}`, {
+        method: "DELETE",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ feed_key: feedKey }),
+      });
+    } catch (_) {}
+
     const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
     if (renderGeneration === this._renderGeneration && feedKey === currentFeed && this.dom.chatMessageFeed) {
       this._paintConversation(feedKey);

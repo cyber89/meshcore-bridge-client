@@ -1052,7 +1052,7 @@ export class RepeaterModule {
         this.refreshRepeaterFullTelemetry(canonicalPk, password);
         return true;
       } else {
-        const errorDetail = data.message || data.data?.message || I18n.t("repeater.bad_password");
+        const errorDetail = data.detail || data.message || data.data?.message || I18n.t("repeater.bad_password");
         this.handleRepeaterAuthError(canonicalPk, errorDetail);
         return false;
       }

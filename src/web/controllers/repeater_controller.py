@@ -70,17 +70,33 @@ class RepeaterController(BaseController):
 
         cmd = {"action": "login", "target_node": target, "password": pwd}
         res = await self.ctx.bridge.handle_admin(cmd, manual=True)
-        if isinstance(res, dict) and res.get("authenticated") is False:
-            return problem_details(401, "Unauthorized", "Autenticación no confirmada por el repetidor", "auth_failed", {"data": res})
+
+        if isinstance(res, dict):
+            msg = str(res.get("message") or "")
+            msg_lower = msg.lower()
+            is_unreachable = (
+                bool(res.get("timeout"))
+                or "no se pudo" in msg_lower
+                or "timeout" in msg_lower
+                or "tiempo de espera" in msg_lower
+                or "inalcanzable" in msg_lower
+            )
+            if is_unreachable:
+                self.ctx.log_system_event("WARN", f"Repetidor {target} inalcanzable: {msg}", source="repeater_admin")
+                return problem_details(504, "Gateway Timeout", msg or "No se pudo contactar al repetidor remoto", "node_unreachable", {"data": res})
+
+            if res.get("authenticated") is False or not res.get("authenticated", False):
+                self.ctx.log_system_event("WARN", f"Fallo de autenticación con repetidor {target}: {msg}", source="repeater_admin")
+                return problem_details(401, "Unauthorized", msg or "Autenticación no confirmada por el repetidor", "auth_failed", {"data": res})
+
         failure = self.command_failure(res)
         if failure:
             return failure
-        if res.get("status") == "error" or not res.get("authenticated", False):
-            msg = "Autenticación no confirmada por el repetidor"
-            self.ctx.log_system_event("WARN", "Fallo de autenticación con repetidor", source="repeater_admin")
-            return problem_details(401, "Unauthorized", msg, "auth_failed", {"data": res})
 
-        self.ctx.log_system_event("INFO", "Autenticación exitosa con repetidor", source="repeater_admin")
+        if not isinstance(res, dict) or not res.get("authenticated", False):
+            return problem_details(503, "Service Unavailable", "Respuesta administrativa no confirmada", "command_unconfirmed")
+
+        self.ctx.log_system_event("INFO", f"Autenticación exitosa con repetidor {target}", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
     async def logout(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

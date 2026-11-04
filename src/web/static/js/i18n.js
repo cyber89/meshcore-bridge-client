@@ -1563,6 +1563,7 @@
       'toast.ping_sending':        '🎯 Enviando ping directo a {name}...',
       'toast.ping_ok':             '🎯 Pong recibido de {name}: {rtt}{snr}{rssi}',
       'toast.ping_err':            '⚠️ Sin respuesta de ping de {name}',
+      'toast.logs_cleared':         '🗑️ Búfer de logs del sistema limpiado',
 
       // Common
       'common.you':                'Tú',
@@ -3313,6 +3314,7 @@
       'toast.ping_sending':        '🎯 Sending direct ping to {name}...',
       'toast.ping_ok':             '🎯 Pong received from {name}: {rtt}{snr}{rssi}',
       'toast.ping_err':            '⚠️ No ping response from {name}',
+      'toast.logs_cleared':         '🗑️ System log buffer cleared',
 
       // Common
       'common.you':                'You',

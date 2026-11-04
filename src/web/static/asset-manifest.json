@@ -85,21 +85,21 @@
     },
     "js/core/api_client.js": {
       "file": "js/core/api_client.min.js",
-      "source_sha256": "b0b747df9652ecfae61266de42666209f9368c8511a32cc5e7d1439badaf6e92",
-      "sha256": "7458959450aeb409abc7367282a15ac3f66a6223c9b6f9cb336d3bca0c89bf7a",
-      "gzip_sha256": "70480ade5ef9540f645431eb81b4d268baf08c64bc291ea1e9fb35ce0d6d41c0",
-      "source_bytes": 6152,
-      "bytes": 3340,
-      "gzip_bytes": 1176
+      "source_sha256": "fbc6cc23ef99353904fd6d4ba62bd79bf1a3cf404bd148b9f37bc0568580e66a",
+      "sha256": "77c872818c6c0b9e99b1e33a8d3a5d768edbcb97909db223170822bd20a4bdbf",
+      "gzip_sha256": "4a4e4a44361acfc602ed7c1db7f2c55d7663aa52c0e7c0407ada26ed2bec03f5",
+      "source_bytes": 6347,
+      "bytes": 3477,
+      "gzip_bytes": 1202
     },
     "js/core/auth.js": {
       "file": "js/core/auth.min.js",
-      "source_sha256": "8a1bdb012ca8ade48a03e9bbb573785db5b799c876b9a814aa27c7a6143cdc39",
-      "sha256": "2872ce7b115dd1936d0081955b5453b0ab5a598abb4da893436c5122cb539fdb",
-      "gzip_sha256": "f5959e32c8171f9cabdf13e9f9a88b017f3d14056815ab009fca815af6747ca5",
-      "source_bytes": 14407,
-      "bytes": 10075,
-      "gzip_bytes": 2899
+      "source_sha256": "f5908ee8bae0c5a2e73f697c9bcf7e40fab6898e1006936b6f45f6732d5f5695",
+      "sha256": "4b86ed52710615699bac49e95009c900dd6bb301ad67b37b536df5ce6762acf6",
+      "gzip_sha256": "db5d0b89adae54308a515951cfdea95e021d78c8d9a41b684799b9bd4488410f",
+      "source_bytes": 14901,
+      "bytes": 10323,
+      "gzip_bytes": 2969
     },
     "js/core/chart_engine.js": {
       "file": "js/core/chart_engine.min.js",
@@ -121,12 +121,12 @@
     },
     "js/core/eventbus.js": {
       "file": "js/core/eventbus.min.js",
-      "source_sha256": "c5ec0e25ab29b8898257e1d3a9151a21d6791c75b571b2f1f1abc4c7162c9154",
-      "sha256": "bb1c38f97f10be4b254a73d42d1b9c6379128ee5fdc250a706e8b4e23cc9ded7",
-      "gzip_sha256": "b4f1ef31f5e015b7f257768a91268cc5452200fa204a5f7d4a8e7e6c6968cfe3",
-      "source_bytes": 3414,
-      "bytes": 1626,
-      "gzip_bytes": 702
+      "source_sha256": "98e8c5527e7968eed6e3dd84b62134f26c5617658640056e6560b2df60091c6e",
+      "sha256": "9d663e670f77141ba5c89f196c76aee5431a3e24f5b4d6fe15abd80d46404cae",
+      "gzip_sha256": "e17969e4791423f9ac8bc43e3cf4620fca525f1fd9ba96eefffc2dc91b74c436",
+      "source_bytes": 3455,
+      "bytes": 1663,
+      "gzip_bytes": 722
     },
     "js/core/form_feedback.js": {
       "file": "js/core/form_feedback.min.js",
@@ -184,21 +184,21 @@
     },
     "js/core/websocket.js": {
       "file": "js/core/websocket.min.js",
-      "source_sha256": "25dfce0c5742195d426cb065a1da1e59ca03f003d5fc1b4974635b3b556035c8",
-      "sha256": "4c61467cb4c76883516d132c35e21afe26472e6b012d8716dba845a13b9931b1",
-      "gzip_sha256": "6a774404467abcb8e2fb5d0d60b649b48362b50b4ebab39f0887c060e6b2f724",
-      "source_bytes": 7160,
-      "bytes": 4241,
-      "gzip_bytes": 1438
+      "source_sha256": "5f9271dad9bc48f9662b9b5f018453a14fcfb49c7cb6a6a613042d76c44e1d07",
+      "sha256": "4c486edd4abd0cf8a2777178f0f3262452ebef61a344d28b42836f1cea6c67e2",
+      "gzip_sha256": "46f48a0cc6418f9d75aca4222eff2e5d221ceff8653e5393626c91ed4ab47108",
+      "source_bytes": 7289,
+      "bytes": 4308,
+      "gzip_bytes": 1461
     },
     "js/i18n.js": {
       "file": "js/i18n.min.js",
-      "source_sha256": "1a0d797f8e24bc2d440b11a56156e182a385e0293a22e0732b2851b6300f98c8",
-      "sha256": "d753a73a735846f02962824384a68d9c071966a5f3b9e77fc461114846f79858",
-      "gzip_sha256": "a68f11c41dd781842d3b1094e9fd31debffc311f34bc7b6bdbb0f2cc39a3e7a3",
-      "source_bytes": 236314,
-      "bytes": 194710,
-      "gzip_bytes": 58536
+      "source_sha256": "f71b6cdb69fb7d6b926734e83c20f2b5ea27b5a2d65f394aade433a1a27f6b09",
+      "sha256": "f3b2513218c69af5e4fb8809f4a88e72087478b7319b715162056d909d0e293f",
+      "gzip_sha256": "9b0f0e2f51fed168950d888f00008ec7329aec48996516d7c762e9886c634ff3",
+      "source_bytes": 236470,
+      "bytes": 194834,
+      "gzip_bytes": 58566
     },
     "js/leaflet.js": {
       "file": "js/leaflet.min.js",
@@ -220,12 +220,12 @@
     },
     "js/modules/chat.js": {
       "file": "js/modules/chat.min.js",
-      "source_sha256": "1f8029ea5520cd559c4d9599c8a228cad7c6a903a914e32d7391d6ff009ac2a5",
-      "sha256": "cda6b7ef96b962e37229ea1830f68d125211de72dba6fa78bea4c31e224a2526",
-      "gzip_sha256": "120a03cf57a754b8d229eba4f25d2d3f2da08ab4eb8e3384f1c3f92d2b88dbde",
-      "source_bytes": 128834,
-      "bytes": 84475,
-      "gzip_bytes": 21270
+      "source_sha256": "2b298aec079bc076679b004a4db4fe34ba52295c4db70a1064e01f229a1daf13",
+      "sha256": "64b00bd97cd6572cd28bf217c92bb22fef0584f1054fec797717fc6eb2f9b2ed",
+      "gzip_sha256": "76b27cf0db6665b93672e752c9503decb61fc436bf5d5887b685fb6775117f98",
+      "source_bytes": 129187,
+      "bytes": 84738,
+      "gzip_bytes": 21313
     },
     "js/modules/map.js": {
       "file": "js/modules/map.min.js",
@@ -247,12 +247,12 @@
     },
     "js/modules/repeater.js": {
       "file": "js/modules/repeater.min.js",
-      "source_sha256": "87d758278112b381c071bc327254c8af96100c78e533a409e850244bdbd54974",
-      "sha256": "f2222ea042a5d1cd9dc2a605496c8a9dd2a77611bc6a6e14497e013f66be206b",
-      "gzip_sha256": "56565a6a5ccb318be38aa842c383d88b43a077155b8302cfd58c5b7a9613e3b6",
-      "source_bytes": 102184,
-      "bytes": 66070,
-      "gzip_bytes": 15333
+      "source_sha256": "1e444fde41b8421962f22bb9c4abfae345b620f99e51738c22679f53902aca70",
+      "sha256": "8d1cdd796e5c5011f505527fb507b01c1fd6c15eedfb4d3e8e74666a4e866cdc",
+      "gzip_sha256": "ba2c6394ef3fa1f0788664e23df2d5d18fa73b96b372ee83eab982a06cbb023b",
+      "source_bytes": 102199,
+      "bytes": 66080,
+      "gzip_bytes": 15335
     },
     "js/modules/settings.js": {
       "file": "js/modules/settings.min.js",
@@ -265,12 +265,12 @@
     },
     "js/modules/sniffer.js": {
       "file": "js/modules/sniffer.min.js",
-      "source_sha256": "f1ae8920ba1b6e0320a74a4cc84aa36d7e436ae7371618024dfb8267c524bcf8",
-      "sha256": "3826a8356db663469163b42732d7084190d1339937daa1a49ebc2e94e0b37fcb",
-      "gzip_sha256": "88e2769d7365e8b99d1f7faaf776bb50a48d52a1d0bf9db48e0e42771cfda249",
-      "source_bytes": 41448,
-      "bytes": 28207,
-      "gzip_bytes": 7508
+      "source_sha256": "cee6b4b4e3beba00588e2ef4cd3d645651189afaba04d02b8bd20acfe73b8141",
+      "sha256": "016989196bead1bf36450aec2a830d1b1d699d12e18a54c234a7262136f58573",
+      "gzip_sha256": "5033bdde243b70f825a77adb41d3df4a33bca2ee7f29e5726ab4cc9164d8cfd5",
+      "source_bytes": 41635,
+      "bytes": 28351,
+      "gzip_bytes": 7558
     },
     "js/qrcode.js": {
       "file": "js/qrcode.min.js",

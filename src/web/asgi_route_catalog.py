@@ -105,6 +105,7 @@ ROUTE_CONTRACTS: tuple[RouteContract, ...] = (
     # Existing buffers, raw-query diagnostics and map metadata: 10 operations.
     RouteContract("GET", "/api/messages/recent", TxBodyDTO, "history_maps"),
     RouteContract("GET", "/api/messages/history", ChatHistoryBodyDTO, "history_maps"),
+    RouteContract("DELETE", "/api/messages/history", ChatHistoryBodyDTO, "history_maps"),
     RouteContract("GET", "/api/messages/conversations", ChatHistoryBodyDTO, "history_maps"),
     RouteContract("POST", "/api/messages/import", ChatHistoryBodyDTO, "history_maps"),
     RouteContract("GET", "/api/packets", PacketsBodyDTO, "history_maps"),

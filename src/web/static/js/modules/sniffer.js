@@ -290,6 +290,12 @@ export class SnifferModule {
       this.appendLogEntryToDom(logData);
     });
 
+    this.ctx.eventBus.on(EVENTS.LOGS_CLEARED, () => {
+      ++this._logGeneration;
+      this.systemLogs = [];
+      this.renderFilteredLogs();
+    });
+
     this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, (payload) => {
       if (payload && payload.radio_connected != null && this.dom.chipSerialHealth) {
         const isSerOk = Boolean(payload.radio_connected);
@@ -942,7 +948,6 @@ export class SnifferModule {
   async clearSystemLogs() {
     if (this.dom.btnClearLogs?.disabled) return;
     ++this._logGeneration;
-    const existingLogs = new Set(this.systemLogs);
     if (this.dom.btnClearLogs) this.dom.btnClearLogs.disabled = true;
     try {
       const res = await fetch("/api/system/logs", {
@@ -955,8 +960,11 @@ export class SnifferModule {
         throw new Error(detail);
       }
       ++this._logGeneration;
-      this.systemLogs = this.systemLogs.filter(log => !existingLogs.has(log));
+      this.systemLogs = [];
       this.renderFilteredLogs();
+      if (this.ctx.showToast) {
+        this.ctx.showToast(I18n.t('toast.logs_cleared', 'Búfer de logs limpiado'), "success");
+      }
     } catch (e) {
       console.warn("Error limpiando logs:", e);
       this.ctx.showToast?.(I18n.t('sniffer.logs_clear_error', { error: e.message }), "error");

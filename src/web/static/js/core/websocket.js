@@ -111,6 +111,11 @@ export class MeshCoreWebSocketClient {
           return;
         }
 
+        if (pType === "logs_cleared") {
+          this.eventBus.emit(EVENTS.LOGS_CLEARED, payload);
+          return;
+        }
+
         if (pType === "metrics_update") {
           this.eventBus.emit(EVENTS.METRICS_UPDATE, payload);
           return;

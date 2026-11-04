@@ -73,16 +73,17 @@ class LogsController(BaseController):
 
         diag = getattr(self.ctx.bridge, "diagnostics", None)
         records: list[dict[str, Any]] = []
-        if isinstance(diag, DiagnosticManager) and diag.log_handler is not None:
-            total_logs = len(diag.log_handler.buffer)
-            records = diag.log_handler.get_logs(level=level, search=search, limit=limit)
+        log_handler = getattr(diag, "log_handler", None) or getattr(self.ctx.bridge, "log_handler", None)
+        if log_handler is not None and hasattr(log_handler, "buffer") and hasattr(log_handler, "get_logs"):
+            total_logs = len(log_handler.buffer)
+            records = log_handler.get_logs(level=level, search=search, limit=limit)
             counters = {
-                "errors": diag.log_handler.error_count,
-                "warnings": diag.log_handler.warn_count,
-                "info": diag.log_handler.info_count,
-                "debug": diag.log_handler.debug_count,
+                "errors": getattr(log_handler, "error_count", 0),
+                "warnings": getattr(log_handler, "warn_count", 0),
+                "info": getattr(log_handler, "info_count", 0),
+                "debug": getattr(log_handler, "debug_count", 0),
             }
-            curr_lvl = diag.get_current_log_level()
+            curr_lvl = diag.get_current_log_level() if diag is not None and hasattr(diag, "get_current_log_level") else "INFO"
         else:
             total_logs = len(self.ctx.system_logs)
             records = list(self.ctx.system_logs)

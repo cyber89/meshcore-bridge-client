@@ -93,10 +93,20 @@ class SystemController(BaseController):
 
     async def clear_logs(self) -> tuple[int, dict[str, Any]]:
         """Limpia el buffer de registros del sistema tanto en API como en el handler de diagnóstico."""
+        import logging
+
         self.ctx.system_logs.clear()
         diag = getattr(self.ctx.bridge, "diagnostics", None)
         if diag and hasattr(diag, "log_handler") and diag.log_handler:
             diag.log_handler.clear()
+        handler = getattr(self.ctx.bridge, "log_handler", None)
+        if handler and hasattr(handler, "clear") and callable(handler.clear):
+            handler.clear()
+        for h in logging.getLogger().handlers:
+            if hasattr(h, "clear") and hasattr(h, "buffer") and callable(h.clear):
+                h.clear()
+        if self.ctx.broadcast_ws:
+            self.ctx.broadcast_ws({"type": "logs_cleared", "event_type": "logs_cleared"})
         # The HTTP response confirms the clear; recording that confirmation in
         # the canonical handler would immediately repopulate the cleared buffer.
         return 204, {}
